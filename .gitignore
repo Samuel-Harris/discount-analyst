@@ -1,0 +1,6 @@
+# ruff
+.ruff_cache/
+
+
+# IDEA
+.idea
