@@ -155,3 +155,20 @@ def test_calculate_cost_of_equity(test_case: TestCase):
 
     # Then
     assert actual_cost_of_equity == pytest.approx(test_case.expected_cost_of_equity)  # type: ignore
+
+
+# TODO: test calculate_cost_of_debt
+
+# TODO: test calculate_discount_rate
+
+# TODO: test project_revenue_growth
+
+# TODO: test forecast_free_cash_flows
+
+# TODO: test calculate_terminal_value
+
+# TODO: test calculate_present_values_of_forecasted_free_cash_flows
+
+# TODO: test calculate_enterprise_value
+
+# TODO: test dcf_analysis
