@@ -1,6 +1,11 @@
 # ruff
 .ruff_cache/
 
-
 # IDEA
 .idea
+
+# pytest
+.pytest_cache/
+
+# Python
+__pycache__/

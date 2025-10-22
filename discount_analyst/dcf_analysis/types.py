@@ -6,7 +6,7 @@ class DCFAnalysisParameters(BaseModel):
     initial_ebit: float
     initial_revenue: float
     initial_capital_expenditure: float
-    n_shares_outstanding: int
+    n_shares_outstanding: float
     equity_value: float
     gross_debt: float
     gross_debt_last_year: float
