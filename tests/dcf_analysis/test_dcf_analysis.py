@@ -9,6 +9,7 @@ class TestCase(BaseModel):
 
     expected_cost_of_equity: float
     expected_cost_of_debt: float
+    expected_discount_rate: float
 
 
 TEST_CASES: list[TestCase] = [
@@ -38,6 +39,7 @@ TEST_CASES: list[TestCase] = [
         ),
         expected_cost_of_equity=0.1234,
         expected_cost_of_debt=0.15428571428571428,
+        expected_discount_rate=0.12324584527220632,
     ),
     TestCase(
         id="Alphabet Inc.",
@@ -65,6 +67,7 @@ TEST_CASES: list[TestCase] = [
         ),
         expected_cost_of_equity=0.08,
         expected_cost_of_debt=0.01902395740905057,
+        expected_discount_rate=0.07971631776015863,
     ),
     TestCase(
         id="HSBC Holdings plc.",
@@ -92,6 +95,7 @@ TEST_CASES: list[TestCase] = [
         ),
         expected_cost_of_equity=0.06575,
         expected_cost_of_debt=0.61715149225538345,
+        expected_discount_rate=0.261911619243625,
     ),
     TestCase(
         id="Grainger plc",
@@ -119,6 +123,7 @@ TEST_CASES: list[TestCase] = [
         ),
         expected_cost_of_equity=0.09738,
         expected_cost_of_debt=0.02595317725752508,
+        expected_discount_rate=0.06029392210943648,
     ),
     TestCase(
         id="Tesco plc",
@@ -146,6 +151,7 @@ TEST_CASES: list[TestCase] = [
         ),
         expected_cost_of_equity=0.07372,
         expected_cost_of_debt=0.03811733510109380,
+        expected_discount_rate=0.058494582377839666,
     ),
 ]
 
@@ -178,7 +184,19 @@ def test_calculate_cost_of_deb(test_case: TestCase):
     assert actual_cost_of_debt == pytest.approx(test_case.expected_cost_of_debt)  # type: ignore
 
 
-# TODO: test calculate_discount_rate
+@pytest.mark.parametrize(
+    "test_case", [pytest.param(test_case, id=test_case.id) for test_case in TEST_CASES]
+)
+def test_calculate_discount_rate(test_case: TestCase):
+    # Given
+    dcf_analysis = DCFAnalysis(test_case.dcf_analysis_params)
+
+    # When
+    actual_discount_rate = dcf_analysis.calculate_discount_rate()
+
+    # Then
+    assert actual_discount_rate == pytest.approx(test_case.expected_discount_rate)  # type: ignore
+
 
 # TODO: test project_revenue_growth
 
