@@ -6,7 +6,9 @@ import pytest
 class TestCase(BaseModel):
     id: str
     dcf_analysis_params: DCFAnalysisParameters
+
     expected_cost_of_equity: float
+    expected_cost_of_debt: float
 
 
 TEST_CASES: list[TestCase] = [
@@ -35,6 +37,7 @@ TEST_CASES: list[TestCase] = [
             forecast_period_years=7,
         ),
         expected_cost_of_equity=0.1234,
+        expected_cost_of_debt=0.15428571428571428,
     ),
     TestCase(
         id="Alphabet Inc.",
@@ -61,6 +64,7 @@ TEST_CASES: list[TestCase] = [
             forecast_period_years=10,
         ),
         expected_cost_of_equity=0.08,
+        expected_cost_of_debt=0.01902395740905057,
     ),
     TestCase(
         id="HSBC Holdings plc.",
@@ -87,6 +91,7 @@ TEST_CASES: list[TestCase] = [
             forecast_period_years=5,
         ),
         expected_cost_of_equity=0.06575,
+        expected_cost_of_debt=0.61715149225538345,
     ),
     TestCase(
         id="Grainger plc",
@@ -113,6 +118,7 @@ TEST_CASES: list[TestCase] = [
             forecast_period_years=5,
         ),
         expected_cost_of_equity=0.09738,
+        expected_cost_of_debt=0.02595317725752508,
     ),
     TestCase(
         id="Tesco plc",
@@ -139,6 +145,7 @@ TEST_CASES: list[TestCase] = [
             forecast_period_years=6,
         ),
         expected_cost_of_equity=0.07372,
+        expected_cost_of_debt=0.03811733510109380,
     ),
 ]
 
@@ -157,7 +164,19 @@ def test_calculate_cost_of_equity(test_case: TestCase):
     assert actual_cost_of_equity == pytest.approx(test_case.expected_cost_of_equity)  # type: ignore
 
 
-# TODO: test calculate_cost_of_debt
+@pytest.mark.parametrize(
+    "test_case", [pytest.param(test_case, id=test_case.id) for test_case in TEST_CASES]
+)
+def test_calculate_cost_of_deb(test_case: TestCase):
+    # Given
+    dcf_analysis = DCFAnalysis(test_case.dcf_analysis_params)
+
+    # When
+    actual_cost_of_debt = dcf_analysis.calculate_cost_of_debt()
+
+    # Then
+    assert actual_cost_of_debt == pytest.approx(test_case.expected_cost_of_debt)  # type: ignore
+
 
 # TODO: test calculate_discount_rate
 
