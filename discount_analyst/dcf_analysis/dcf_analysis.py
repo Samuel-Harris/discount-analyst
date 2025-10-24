@@ -42,29 +42,29 @@ class DCFAnalysis:
         # Input parameters
         self.forecast_period_years = dcf_analysis_params.forecast_period_years
 
-    def calculate_cost_of_equity(self) -> float:
+    def _calculate_cost_of_equity(self) -> float:
         """Capital Asset Pricing Model (CAPM) approach"""
 
         equity_risk = self.expected_market_return - self.risk_free_rate
 
         return self.risk_free_rate + self.beta * equity_risk
 
-    def calculate_cost_of_debt(self) -> float:
+    def _calculate_cost_of_debt(self) -> float:
         """Direct calculation from financial statement"""
 
         average_gross_debt = (self.gross_debt + self.gross_debt_last_year) / 2
 
         return self.total_interest_expense / average_gross_debt
 
-    def calculate_discount_rate(self) -> float:
+    def _calculate_discount_rate(self) -> float:
         """Weighted Average Cost of Capital (WACC)"""
 
         total_value = self.equity_value + self.gross_debt
         weight_of_equity = self.equity_value / total_value
         weight_of_debt = self.gross_debt / total_value
 
-        cost_of_equity = self.calculate_cost_of_equity()
-        cost_of_debt = self.calculate_cost_of_debt()
+        cost_of_equity = self._calculate_cost_of_equity()
+        cost_of_debt = self._calculate_cost_of_debt()
         after_tax_cost_of_debt = cost_of_debt * (1 - self.assumed_tax_rate)
 
         wacc = (
@@ -73,7 +73,7 @@ class DCFAnalysis:
 
         return wacc
 
-    def project_revenue_growth(self) -> list[float]:
+    def _project_revenue_growth(self) -> list[float]:
         """Assuming a constant cumulative revenue growth rate"""
 
         projected_revenues = [
@@ -84,10 +84,10 @@ class DCFAnalysis:
 
         return projected_revenues
 
-    def forecast_free_cash_flows(self) -> list[float]:
+    def _forecast_free_cash_flows(self) -> list[float]:
         """Bottom-Up/Line-Item approach for FCF projection"""
 
-        projected_revenues = self.project_revenue_growth()
+        projected_revenues = self._project_revenue_growth()
 
         forecasted_free_cash_flows: list[float] = []
         previous_revenue = self.initial_revenue
@@ -118,7 +118,7 @@ class DCFAnalysis:
 
         return forecasted_free_cash_flows
 
-    def calculate_terminal_value(
+    def _calculate_terminal_value(
         self,
         final_free_cash_flow: float,
         discount_rate: float,
@@ -129,7 +129,7 @@ class DCFAnalysis:
             / (discount_rate - self.assumed_perpetuity_cash_flow_growth_rate)
         )
 
-    def calculate_present_values_of_forecasted_free_cash_flows(
+    def _calculate_present_values_of_forecasted_free_cash_flows(
         self,
         forecasted_free_cash_flows: list[float],
         discount_rate: float,
@@ -141,13 +141,13 @@ class DCFAnalysis:
             )
         ]
 
-    def calculate_enterprise_value(self) -> float:
-        discount_rate = self.calculate_discount_rate()
+    def _calculate_enterprise_value(self) -> float:
+        discount_rate = self._calculate_discount_rate()
 
-        forecasted_free_cash_flows = self.forecast_free_cash_flows()
+        forecasted_free_cash_flows = self._forecast_free_cash_flows()
 
         present_value_of_forecasted_free_cash_flows = (
-            self.calculate_present_values_of_forecasted_free_cash_flows(
+            self._calculate_present_values_of_forecasted_free_cash_flows(
                 forecasted_free_cash_flows=forecasted_free_cash_flows,
                 discount_rate=discount_rate,
             )
@@ -161,7 +161,7 @@ class DCFAnalysis:
                 f"Expected to generate the present values for the next {self.forecast_period_years} years. Only generated {len(present_value_of_forecasted_free_cash_flows)} present values."
             )
 
-        terminal_value = self.calculate_terminal_value(
+        terminal_value = self._calculate_terminal_value(
             final_free_cash_flow=forecasted_free_cash_flows[-1],
             discount_rate=discount_rate,
         )
@@ -174,7 +174,7 @@ class DCFAnalysis:
         )
 
     def dcf_analysis(self) -> DCFAnalysisResult:
-        enterprise_value = self.calculate_enterprise_value()
+        enterprise_value = self._calculate_enterprise_value()
 
         equity_value = enterprise_value - self.net_debt
         intrinsic_share_price = equity_value / self.n_shares_outstanding

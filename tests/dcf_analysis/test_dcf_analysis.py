@@ -208,7 +208,7 @@ def test_calculate_cost_of_equity(test_case: TestCase):
     dcf_analysis = DCFAnalysis(test_case.dcf_analysis_params)
 
     # When
-    actual_cost_of_equity = dcf_analysis.calculate_cost_of_equity()
+    actual_cost_of_equity = dcf_analysis._calculate_cost_of_equity()
 
     # Then
     assert actual_cost_of_equity == pytest.approx(test_case.expected_cost_of_equity)  # type: ignore
@@ -222,7 +222,7 @@ def test_calculate_cost_of_deb(test_case: TestCase):
     dcf_analysis = DCFAnalysis(test_case.dcf_analysis_params)
 
     # When
-    actual_cost_of_debt = dcf_analysis.calculate_cost_of_debt()
+    actual_cost_of_debt = dcf_analysis._calculate_cost_of_debt()
 
     # Then
     assert actual_cost_of_debt == pytest.approx(test_case.expected_cost_of_debt)  # type: ignore
@@ -236,7 +236,7 @@ def test_calculate_discount_rate(test_case: TestCase):
     dcf_analysis = DCFAnalysis(test_case.dcf_analysis_params)
 
     # When
-    actual_discount_rate = dcf_analysis.calculate_discount_rate()
+    actual_discount_rate = dcf_analysis._calculate_discount_rate()
 
     # Then
     assert actual_discount_rate == pytest.approx(test_case.expected_discount_rate)  # type: ignore
@@ -250,15 +250,13 @@ def test_project_revenue_growth(test_case: TestCase):
     dcf_analysis = DCFAnalysis(test_case.dcf_analysis_params)
 
     # When
-    actual_projected_revenues = dcf_analysis.project_revenue_growth()
+    actual_projected_revenues = dcf_analysis._project_revenue_growth()
 
     # Then
     assert actual_projected_revenues == pytest.approx(  # type: ignore
         test_case.expected_projected_revenues
     )
 
-
-# TODO: test project_revenue_growth
 
 # TODO: test forecast_free_cash_flows
 
@@ -268,4 +266,18 @@ def test_project_revenue_growth(test_case: TestCase):
 
 # TODO: test calculate_enterprise_value
 
-# TODO: test dcf_analysis
+
+# @pytest.mark.parametrize(
+#     "test_case", [pytest.param(test_case, id=test_case.id) for test_case in TEST_CASES]
+# )
+# def test_forecast_free_cash_flows(test_case: TestCase):
+#     # Given
+#     dcf_analysis = DCFAnalysis(test_case.dcf_analysis_params)
+
+#     # When
+#     actual_intrinsic_share_price = dcf_analysis.dcf_analysis()
+
+#     # Then
+#     assert actual_intrinsic_share_price == pytest.approx(  # type: ignore
+#         test_case.expected_projected_revenues
+#     )
