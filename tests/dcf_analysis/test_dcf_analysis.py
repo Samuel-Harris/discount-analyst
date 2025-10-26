@@ -2,6 +2,8 @@ from pydantic import BaseModel
 from discount_analyst.dcf_analysis import DCFAnalysis, DCFAnalysisParameters
 import pytest
 
+from discount_analyst.dcf_analysis.types import DCFAnalysisResult
+
 
 class TestCase(BaseModel):
     id: str
@@ -15,6 +17,7 @@ class TestCase(BaseModel):
     expected_terminal_value: float
     expected_present_values_of_forecasted_free_cash_flows: list[float]
     expected_enterprise_value: float
+    expected_dcf_analysis_result: DCFAnalysisResult
 
 
 TEST_CASES: list[TestCase] = [
@@ -74,6 +77,9 @@ TEST_CASES: list[TestCase] = [
             71940203.66267426,
         ],
         expected_enterprise_value=1318831076.6952868,
+        expected_dcf_analysis_result=DCFAnalysisResult(
+            intrinsic_share_price=12.933682545607047
+        ),
     ),
     TestCase(
         id="Alphabet Inc.",
@@ -140,6 +146,9 @@ TEST_CASES: list[TestCase] = [
             64696193063.8673,
         ],
         expected_enterprise_value=1936180550778.234,
+        expected_dcf_analysis_result=DCFAnalysisResult(
+            intrinsic_share_price=166.89590990721538
+        ),
     ),
     TestCase(
         id="HSBC Holdings plc.",
@@ -191,6 +200,9 @@ TEST_CASES: list[TestCase] = [
             9795168704.602097,
         ],
         expected_enterprise_value=117901858023.97293,
+        expected_dcf_analysis_result=DCFAnalysisResult(
+            intrinsic_share_price=13.229659223010318
+        ),
     ),
     TestCase(
         id="Grainger plc",
@@ -242,6 +254,9 @@ TEST_CASES: list[TestCase] = [
             131604213.87222065,
         ],
         expected_enterprise_value=5116011241.15857,
+        expected_dcf_analysis_result=DCFAnalysisResult(
+            intrinsic_share_price=4.985518496606527
+        ),
     ),
     TestCase(
         id="Tesco plc",
@@ -296,6 +311,9 @@ TEST_CASES: list[TestCase] = [
             1664775877.9543834,
         ],
         expected_enterprise_value=54953064067.7842,
+        expected_dcf_analysis_result=DCFAnalysisResult(
+            intrinsic_share_price=6.9310284055222535
+        ),
     ),
 ]
 
@@ -430,17 +448,17 @@ def test_calculate_enterprise_value(test_case: TestCase):
     )
 
 
-# @pytest.mark.parametrize(
-#     "test_case", [pytest.param(test_case, id=test_case.id) for test_case in TEST_CASES]
-# )
-# def test_forecast_free_cash_flows(test_case: TestCase):
-#     # Given
-#     dcf_analysis = DCFAnalysis(test_case.dcf_analysis_params)
+@pytest.mark.parametrize(
+    "test_case", [pytest.param(test_case, id=test_case.id) for test_case in TEST_CASES]
+)
+def test_dcf_analysis(test_case: TestCase):
+    # Given
+    dcf_analysis = DCFAnalysis(test_case.dcf_analysis_params)
 
-#     # When
-#     actual_intrinsic_share_price = dcf_analysis.dcf_analysis()
+    # When
+    actual_dcf_analysis_result = dcf_analysis.dcf_analysis()
 
-#     # Then
-#     assert actual_intrinsic_share_price == pytest.approx(  # type: ignore
-#         test_case.expected_projected_revenues
-#     )
+    # Then
+    assert actual_dcf_analysis_result.intrinsic_share_price == pytest.approx(  # type: ignore
+        test_case.expected_dcf_analysis_result.intrinsic_share_price
+    )
