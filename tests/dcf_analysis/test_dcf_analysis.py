@@ -167,6 +167,6 @@ def test_dcf_analysis(test_case: TestCase):
     actual_dcf_analysis_result = dcf_analysis.dcf_analysis()
 
     # Then
-    assert actual_dcf_analysis_result.intrinsic_share_price == pytest.approx(  # type: ignore
-        test_case.expected_dcf_analysis_result.intrinsic_share_price
+    assert actual_dcf_analysis_result.model_dump() == pytest.approx(  # type: ignore
+        test_case.expected_dcf_analysis_result.model_dump()
     )
