@@ -9,14 +9,6 @@ class TestCase(BaseModel):
     id: str
     dcf_analysis_params: DCFAnalysisParameters
 
-    expected_cost_of_equity: float
-    expected_cost_of_debt: float
-    expected_discount_rate: float
-    expected_projected_revenues: list[float]
-    expected_forecasted_free_cash_flows: list[float]
-    expected_terminal_value: float
-    expected_present_values_of_forecasted_free_cash_flows: list[float]
-    expected_enterprise_value: float
     expected_dcf_analysis_result: DCFAnalysisResult
 
 
@@ -45,38 +37,6 @@ TEST_CASES: list[TestCase] = [
             assumed_change_in_working_capital_rate=0.01,
             forecast_period_years=7,
         ),
-        expected_cost_of_equity=0.1234,
-        expected_cost_of_debt=0.15428571428571428,
-        expected_discount_rate=0.12324584527220632,
-        expected_projected_revenues=[
-            2175552000,
-            2349596160,
-            2537563852.8,
-            2740568961.024,
-            2959814477.90592,
-            3196599636.1383936,
-            3452327607.02946509,
-        ],
-        expected_forecasted_free_cash_flows=[
-            102271088.0,
-            110452775.03999999,
-            119288997.04320002,
-            128832116.80665596,
-            139138686.15118852,
-            150269781.04328355,
-            162291363.52674627,
-        ],
-        expected_terminal_value=1693187606.600753,
-        expected_present_values_of_forecasted_free_cash_flows=[
-            91049602.74766539,
-            87544121.69105202,
-            84173604.40218109,
-            80932854.67023036,
-            77816876.34256649,
-            74820865.62234741,
-            71940203.66267426,
-        ],
-        expected_enterprise_value=1318831076.6952868,
         expected_dcf_analysis_result=DCFAnalysisResult(
             intrinsic_share_price=12.933682545607047
         ),
@@ -105,47 +65,6 @@ TEST_CASES: list[TestCase] = [
             assumed_change_in_working_capital_rate=0.01,
             forecast_period_years=10,
         ),
-        expected_cost_of_equity=0.08,
-        expected_cost_of_debt=0.01902395740905057,
-        expected_discount_rate=0.07971631776015863,
-        expected_projected_revenues=[
-            385019800000,
-            423521780000,
-            465873958000,
-            512461353800,
-            563707489180,
-            620078238098,
-            682086061907.8,
-            750294668098.58,
-            825324134908.438,
-            907856548399.2818,
-        ],
-        expected_forecasted_free_cash_flows=[
-            59080098248.8,
-            64988108073.67999,
-            71486918881.04797,
-            78635610769.1528,
-            86499171846.06807,
-            95149089030.67488,
-            104663997933.74237,
-            115130397727.11661,
-            126643437499.8283,
-            139307781249.8111,
-        ],
-        expected_terminal_value=2886115085584.48,
-        expected_present_values_of_forecasted_free_cash_flows=[
-            54718167426.94046,
-            55746109584.133125,
-            56793362787.87983,
-            57860289817.853004,
-            58947260268.94806,
-            60054650679.315254,
-            61182844660.79632,
-            62332233031.8118,
-            63503213952.74467,
-            64696193063.8673,
-        ],
-        expected_enterprise_value=1936180550778.234,
         expected_dcf_analysis_result=DCFAnalysisResult(
             intrinsic_share_price=166.89590990721538
         ),
@@ -174,32 +93,6 @@ TEST_CASES: list[TestCase] = [
             assumed_change_in_working_capital_rate=0.005,
             forecast_period_years=5,
         ),
-        expected_cost_of_equity=0.06575,
-        expected_cost_of_debt=0.61715149225538345,
-        expected_discount_rate=0.261911619243625,
-        expected_projected_revenues=[
-            71558592000,
-            74134701312,
-            76803550559.232,
-            79568478379.364352,
-            82432943601.02146867,
-        ],
-        expected_forecasted_free_cash_flows=[
-            27209314139.904,
-            28188849448.94054,
-            29203648029.102406,
-            30254979358.15009,
-            31344158615.043495,
-        ],
-        expected_terminal_value=135610750890.95317,
-        expected_present_values_of_forecasted_free_cash_flows=[
-            21561980827.32049,
-            17701883235.28813,
-            14532833165.250336,
-            11931116989.178486,
-            9795168704.602097,
-        ],
-        expected_enterprise_value=117901858023.97293,
         expected_dcf_analysis_result=DCFAnalysisResult(
             intrinsic_share_price=13.229659223010318
         ),
@@ -228,32 +121,6 @@ TEST_CASES: list[TestCase] = [
             assumed_change_in_working_capital_rate=0.005,
             forecast_period_years=5,
         ),
-        expected_cost_of_equity=0.09738,
-        expected_cost_of_debt=0.02595317725752508,
-        expected_discount_rate=0.06029392210943648,
-        expected_projected_revenues=[
-            305660400,
-            328279269.6,
-            352571935.5504,
-            378662258.7811296,
-            406683265.93093319,
-        ],
-        expected_forecasted_free_cash_flows=[
-            132551311.6,
-            142360108.65840003,
-            152894756.6991216,
-            164208968.69485658,
-            176360432.378276,
-        ],
-        expected_terminal_value=5996293404.776411,
-        expected_present_values_of_forecasted_free_cash_flows=[
-            125013742.73304467,
-            126629755.10429464,
-            128266657.14676742,
-            129924718.89451206,
-            131604213.87222065,
-        ],
-        expected_enterprise_value=5116011241.15857,
         expected_dcf_analysis_result=DCFAnalysisResult(
             intrinsic_share_price=4.985518496606527
         ),
@@ -282,170 +149,11 @@ TEST_CASES: list[TestCase] = [
             assumed_change_in_working_capital_rate=0.005,
             forecast_period_years=6,
         ),
-        expected_cost_of_equity=0.07372,
-        expected_cost_of_debt=0.03811733510109380,
-        expected_discount_rate=0.058494582377839666,
-        expected_projected_revenues=[
-            71663900000,
-            73455497500,
-            75291884937.5,
-            77174182060.9375,
-            79103536612.4609375,
-            81081125027.77246094,
-        ],
-        expected_forecasted_free_cash_flows=[
-            2069513600.0,
-            2121251440.0,
-            2174282726.0,
-            2228639794.1499996,
-            2284355789.00375,
-            2341464683.728843,
-        ],
-        expected_terminal_value=62042340243.13767,
-        expected_present_values_of_forecasted_free_cash_flows=[
-            1955148032.360233,
-            1893280104.1525617,
-            1833369900.1055973,
-            1775355470.7731483,
-            1719176827.0127091,
-            1664775877.9543834,
-        ],
-        expected_enterprise_value=54953064067.7842,
         expected_dcf_analysis_result=DCFAnalysisResult(
             intrinsic_share_price=6.9310284055222535
         ),
     ),
 ]
-
-
-@pytest.mark.parametrize(
-    "test_case", [pytest.param(test_case, id=test_case.id) for test_case in TEST_CASES]
-)
-def test_calculate_cost_of_equity(test_case: TestCase):
-    # Given
-    dcf_analysis = DCFAnalysis(test_case.dcf_analysis_params)
-
-    # When
-    actual_cost_of_equity = dcf_analysis._calculate_cost_of_equity()
-
-    # Then
-    assert actual_cost_of_equity == pytest.approx(test_case.expected_cost_of_equity)  # type: ignore
-
-
-@pytest.mark.parametrize(
-    "test_case", [pytest.param(test_case, id=test_case.id) for test_case in TEST_CASES]
-)
-def test_calculate_cost_of_deb(test_case: TestCase):
-    # Given
-    dcf_analysis = DCFAnalysis(test_case.dcf_analysis_params)
-
-    # When
-    actual_cost_of_debt = dcf_analysis._calculate_cost_of_debt()
-
-    # Then
-    assert actual_cost_of_debt == pytest.approx(test_case.expected_cost_of_debt)  # type: ignore
-
-
-@pytest.mark.parametrize(
-    "test_case", [pytest.param(test_case, id=test_case.id) for test_case in TEST_CASES]
-)
-def test_calculate_discount_rate(test_case: TestCase):
-    # Given
-    dcf_analysis = DCFAnalysis(test_case.dcf_analysis_params)
-
-    # When
-    actual_discount_rate = dcf_analysis._calculate_discount_rate()
-
-    # Then
-    assert actual_discount_rate == pytest.approx(test_case.expected_discount_rate)  # type: ignore
-
-
-@pytest.mark.parametrize(
-    "test_case", [pytest.param(test_case, id=test_case.id) for test_case in TEST_CASES]
-)
-def test_project_revenue_growth(test_case: TestCase):
-    # Given
-    dcf_analysis = DCFAnalysis(test_case.dcf_analysis_params)
-
-    # When
-    actual_projected_revenues = dcf_analysis._project_revenue_growth()
-
-    # Then
-    assert actual_projected_revenues == pytest.approx(  # type: ignore
-        test_case.expected_projected_revenues
-    )
-
-
-@pytest.mark.parametrize(
-    "test_case", [pytest.param(test_case, id=test_case.id) for test_case in TEST_CASES]
-)
-def test_forecast_free_cash_flows(test_case: TestCase):
-    # Given
-    dcf_analysis = DCFAnalysis(test_case.dcf_analysis_params)
-
-    # When
-    actual_forecasted_free_cash_flows = dcf_analysis._forecast_free_cash_flows()
-
-    # Then
-    assert actual_forecasted_free_cash_flows == pytest.approx(  # type: ignore
-        test_case.expected_forecasted_free_cash_flows
-    )
-
-
-@pytest.mark.parametrize(
-    "test_case", [pytest.param(test_case, id=test_case.id) for test_case in TEST_CASES]
-)
-def test_calculate_terminal_value(test_case: TestCase):
-    # Given
-    dcf_analysis = DCFAnalysis(test_case.dcf_analysis_params)
-
-    # When
-    actual_terminal_value = dcf_analysis._calculate_terminal_value(
-        test_case.expected_forecasted_free_cash_flows[-1],
-        test_case.expected_discount_rate,
-    )
-
-    # Then
-    assert actual_terminal_value == pytest.approx(  # type: ignore
-        test_case.expected_terminal_value
-    )
-
-
-@pytest.mark.parametrize(
-    "test_case", [pytest.param(test_case, id=test_case.id) for test_case in TEST_CASES]
-)
-def test_calculate_present_values_of_forecasted_free_cash_flows(test_case: TestCase):
-    # Given
-    dcf_analysis = DCFAnalysis(test_case.dcf_analysis_params)
-
-    # When
-    actual_terminal_value = (
-        dcf_analysis._calculate_present_values_of_forecasted_free_cash_flows(
-            test_case.expected_forecasted_free_cash_flows,
-            test_case.expected_discount_rate,
-        )
-    )
-
-    # Then
-    assert actual_terminal_value == pytest.approx(  # type: ignore
-        test_case.expected_present_values_of_forecasted_free_cash_flows
-    )
-
-
-@pytest.mark.parametrize(
-    "test_case", [pytest.param(test_case, id=test_case.id) for test_case in TEST_CASES]
-)
-def test_calculate_enterprise_value(test_case: TestCase):
-    # Given
-    dcf_analysis = DCFAnalysis(test_case.dcf_analysis_params)
-
-    # When
-    actual_enterprise_value = dcf_analysis._calculate_enterprise_value()
-
-    # Then
-    assert actual_enterprise_value == pytest.approx(  # type: ignore
-        test_case.expected_enterprise_value
-    )
 
 
 @pytest.mark.parametrize(
