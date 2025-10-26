@@ -13,6 +13,7 @@ class TestCase(BaseModel):
     expected_projected_revenues: list[float]
     expected_forecasted_free_cash_flows: list[float]
     expected_terminal_value: float
+    expected_present_values_of_forecasted_free_cash_flows: list[float]
 
 
 TEST_CASES: list[TestCase] = [
@@ -62,6 +63,15 @@ TEST_CASES: list[TestCase] = [
             162291363.52674627,
         ],
         expected_terminal_value=1693187606.600753,
+        expected_present_values_of_forecasted_free_cash_flows=[
+            91049602.74766539,
+            87544121.69105202,
+            84173604.40218109,
+            80932854.67023036,
+            77816876.34256649,
+            74820865.62234741,
+            71940203.66267426,
+        ],
     ),
     TestCase(
         id="Alphabet Inc.",
@@ -115,6 +125,18 @@ TEST_CASES: list[TestCase] = [
             139307781249.8111,
         ],
         expected_terminal_value=2886115085584.48,
+        expected_present_values_of_forecasted_free_cash_flows=[
+            54718167426.94046,
+            55746109584.133125,
+            56793362787.87983,
+            57860289817.853004,
+            58947260268.94806,
+            60054650679.315254,
+            61182844660.79632,
+            62332233031.8118,
+            63503213952.74467,
+            64696193063.8673,
+        ],
     ),
     TestCase(
         id="HSBC Holdings plc.",
@@ -158,6 +180,13 @@ TEST_CASES: list[TestCase] = [
             31344158615.043495,
         ],
         expected_terminal_value=135610750890.95317,
+        expected_present_values_of_forecasted_free_cash_flows=[
+            21561980827.32049,
+            17701883235.28813,
+            14532833165.250336,
+            11931116989.178486,
+            9795168704.602097,
+        ],
     ),
     TestCase(
         id="Grainger plc",
@@ -201,6 +230,13 @@ TEST_CASES: list[TestCase] = [
             176360432.378276,
         ],
         expected_terminal_value=5996293404.776411,
+        expected_present_values_of_forecasted_free_cash_flows=[
+            125013742.73304467,
+            126629755.10429464,
+            128266657.14676742,
+            129924718.89451206,
+            131604213.87222065,
+        ],
     ),
     TestCase(
         id="Tesco plc",
@@ -246,6 +282,14 @@ TEST_CASES: list[TestCase] = [
             2341464683.728843,
         ],
         expected_terminal_value=62042340243.13767,
+        expected_present_values_of_forecasted_free_cash_flows=[
+            1955148032.360233,
+            1893280104.1525617,
+            1833369900.1055973,
+            1775355470.7731483,
+            1719176827.0127091,
+            1664775877.9543834,
+        ],
     ),
 ]
 
@@ -343,7 +387,26 @@ def test_calculate_terminal_value(test_case: TestCase):
     )
 
 
-# TODO: test calculate_present_values_of_forecasted_free_cash_flows
+@pytest.mark.parametrize(
+    "test_case", [pytest.param(test_case, id=test_case.id) for test_case in TEST_CASES]
+)
+def test_calculate_present_values_of_forecasted_free_cash_flows(test_case: TestCase):
+    # Given
+    dcf_analysis = DCFAnalysis(test_case.dcf_analysis_params)
+
+    # When
+    actual_terminal_value = (
+        dcf_analysis._calculate_present_values_of_forecasted_free_cash_flows(
+            test_case.expected_forecasted_free_cash_flows,
+            test_case.expected_discount_rate,
+        )
+    )
+
+    # Then
+    assert actual_terminal_value == pytest.approx(  # type: ignore
+        test_case.expected_present_values_of_forecasted_free_cash_flows
+    )
+
 
 # TODO: test calculate_enterprise_value
 
