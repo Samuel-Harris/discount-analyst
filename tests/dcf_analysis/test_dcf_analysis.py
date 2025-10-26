@@ -12,6 +12,7 @@ class TestCase(BaseModel):
     expected_discount_rate: float
     expected_projected_revenues: list[float]
     expected_forecasted_free_cash_flows: list[float]
+    expected_terminal_value: float
 
 
 TEST_CASES: list[TestCase] = [
@@ -60,6 +61,7 @@ TEST_CASES: list[TestCase] = [
             150269781.04328355,
             162291363.52674627,
         ],
+        expected_terminal_value=1693187606.600753,
     ),
     TestCase(
         id="Alphabet Inc.",
@@ -112,6 +114,7 @@ TEST_CASES: list[TestCase] = [
             126643437499.8283,
             139307781249.8111,
         ],
+        expected_terminal_value=2886115085584.48,
     ),
     TestCase(
         id="HSBC Holdings plc.",
@@ -154,6 +157,7 @@ TEST_CASES: list[TestCase] = [
             30254979358.15009,
             31344158615.043495,
         ],
+        expected_terminal_value=135610750890.95317,
     ),
     TestCase(
         id="Grainger plc",
@@ -196,6 +200,7 @@ TEST_CASES: list[TestCase] = [
             164208968.69485658,
             176360432.378276,
         ],
+        expected_terminal_value=5996293404.776411,
     ),
     TestCase(
         id="Tesco plc",
@@ -240,6 +245,7 @@ TEST_CASES: list[TestCase] = [
             2284355789.00375,
             2341464683.728843,
         ],
+        expected_terminal_value=62042340243.13767,
     ),
 ]
 
@@ -318,7 +324,24 @@ def test_forecast_free_cash_flows(test_case: TestCase):
     )
 
 
-# TODO: test calculate_terminal_value
+@pytest.mark.parametrize(
+    "test_case", [pytest.param(test_case, id=test_case.id) for test_case in TEST_CASES]
+)
+def test_calculate_terminal_value(test_case: TestCase):
+    # Given
+    dcf_analysis = DCFAnalysis(test_case.dcf_analysis_params)
+
+    # When
+    actual_terminal_value = dcf_analysis._calculate_terminal_value(
+        test_case.expected_forecasted_free_cash_flows[-1],
+        test_case.expected_discount_rate,
+    )
+
+    # Then
+    assert actual_terminal_value == pytest.approx(  # type: ignore
+        test_case.expected_terminal_value
+    )
+
 
 # TODO: test calculate_present_values_of_forecasted_free_cash_flows
 
