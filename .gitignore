@@ -1,6 +1,15 @@
 # ruff
 .ruff_cache/
 
-
 # IDEA
-.idea
+.idea/
+
+# VS code
+.vscode/
+
+# pytest
+.pytest_cache/
+.coverage
+
+# Python
+__pycache__/

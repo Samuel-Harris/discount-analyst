@@ -6,7 +6,7 @@ class DCFAnalysisParameters(BaseModel):
     initial_ebit: float
     initial_revenue: float
     initial_capital_expenditure: float
-    n_shares_outstanding: int
+    n_shares_outstanding: float
     equity_value: float
     gross_debt: float
     gross_debt_last_year: float
@@ -20,7 +20,7 @@ class DCFAnalysisParameters(BaseModel):
     assumed_perpetuity_cash_flow_growth_rate: float
     assumed_ebit_margin: float
     assumed_tax_rate: float
-    assumed_depreciation_rate: float  # As a percentage of revenue
+    assumed_depreciation_and_amortization_rate: float  # As a percentage of revenue
     assumed_capex_rate: float  # As a percentage of revenue
     assumed_change_in_working_capital_rate: float  # As a percentage of revenue
     expected_market_return: float

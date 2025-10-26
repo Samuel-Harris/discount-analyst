@@ -9,7 +9,6 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "pydantic (>=2.12.3,<3.0.0)",
-    "ruff (>=0.14.1,<0.15.0)",
     "pre-commit (>=4.3.0,<5.0.0)"
 ]
 
@@ -17,3 +16,10 @@ dependencies = [
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "pytest (>=8.4.2,<9.0.0)",
+    "pytest-cov (>=7.0.0,<8.0.0)",
+    "ruff (>=0.14.2,<0.15.0)",
+]
