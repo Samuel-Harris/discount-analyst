@@ -11,6 +11,7 @@ class TestCase(BaseModel):
     expected_cost_of_debt: float
     expected_discount_rate: float
     expected_projected_revenues: list[float]
+    expected_forecasted_free_cash_flows: list[float]
 
 
 TEST_CASES: list[TestCase] = [
@@ -33,7 +34,7 @@ TEST_CASES: list[TestCase] = [
             assumed_perpetuity_cash_flow_growth_rate=0.025,
             assumed_ebit_margin=0.097,
             assumed_tax_rate=0.25,
-            assumed_depreciation_rate=0.05,
+            assumed_depreciation_and_amortization_rate=0.05,
             assumed_capex_rate=0.075,
             assumed_change_in_working_capital_rate=0.01,
             forecast_period_years=7,
@@ -49,6 +50,15 @@ TEST_CASES: list[TestCase] = [
             2959814477.90592,
             3196599636.1383936,
             3452327607.02946509,
+        ],
+        expected_forecasted_free_cash_flows=[
+            102271088.0,
+            110452775.03999999,
+            119288997.04320002,
+            128832116.80665596,
+            139138686.15118852,
+            150269781.04328355,
+            162291363.52674627,
         ],
     ),
     TestCase(
@@ -70,7 +80,7 @@ TEST_CASES: list[TestCase] = [
             assumed_perpetuity_cash_flow_growth_rate=0.03,
             assumed_ebit_margin=0.321,
             assumed_tax_rate=0.164,
-            assumed_depreciation_rate=0.036,
+            assumed_depreciation_and_amortization_rate=0.036,
             assumed_capex_rate=0.15,
             assumed_change_in_working_capital_rate=0.01,
             forecast_period_years=10,
@@ -89,6 +99,18 @@ TEST_CASES: list[TestCase] = [
             750294668098.58,
             825324134908.438,
             907856548399.2818,
+        ],
+        expected_forecasted_free_cash_flows=[
+            59080098248.8,
+            64988108073.67999,
+            71486918881.04797,
+            78635610769.1528,
+            86499171846.06807,
+            95149089030.67488,
+            104663997933.74237,
+            115130397727.11661,
+            126643437499.8283,
+            139307781249.8111,
         ],
     ),
     TestCase(
@@ -110,7 +132,7 @@ TEST_CASES: list[TestCase] = [
             assumed_perpetuity_cash_flow_growth_rate=0.025,
             assumed_ebit_margin=0.467,
             assumed_tax_rate=0.164,
-            assumed_depreciation_rate=0.01,
+            assumed_depreciation_and_amortization_rate=0.01,
             assumed_capex_rate=0.02,
             assumed_change_in_working_capital_rate=0.005,
             forecast_period_years=5,
@@ -124,6 +146,13 @@ TEST_CASES: list[TestCase] = [
             76803550559.232,
             79568478379.364352,
             82432943601.02146867,
+        ],
+        expected_forecasted_free_cash_flows=[
+            27209314139.904,
+            28188849448.94054,
+            29203648029.102406,
+            30254979358.15009,
+            31344158615.043495,
         ],
     ),
     TestCase(
@@ -145,7 +174,7 @@ TEST_CASES: list[TestCase] = [
             assumed_perpetuity_cash_flow_growth_rate=0.03,
             assumed_ebit_margin=0.444,
             assumed_tax_rate=0.00,
-            assumed_depreciation_rate=0.01,
+            assumed_depreciation_and_amortization_rate=0.01,
             assumed_capex_rate=0.02,
             assumed_change_in_working_capital_rate=0.005,
             forecast_period_years=5,
@@ -159,6 +188,13 @@ TEST_CASES: list[TestCase] = [
             352571935.5504,
             378662258.7811296,
             406683265.93093319,
+        ],
+        expected_forecasted_free_cash_flows=[
+            132551311.6,
+            142360108.65840003,
+            152894756.6991216,
+            164208968.69485658,
+            176360432.378276,
         ],
     ),
     TestCase(
@@ -180,7 +216,7 @@ TEST_CASES: list[TestCase] = [
             assumed_perpetuity_cash_flow_growth_rate=0.02,
             assumed_ebit_margin=0.040,
             assumed_tax_rate=0.25,
-            assumed_depreciation_rate=0.019,
+            assumed_depreciation_and_amortization_rate=0.019,
             assumed_capex_rate=0.020,
             assumed_change_in_working_capital_rate=0.005,
             forecast_period_years=6,
@@ -195,6 +231,14 @@ TEST_CASES: list[TestCase] = [
             77174182060.9375,
             79103536612.4609375,
             81081125027.77246094,
+        ],
+        expected_forecasted_free_cash_flows=[
+            2069513600.0,
+            2121251440.0,
+            2174282726.0,
+            2228639794.1499996,
+            2284355789.00375,
+            2341464683.728843,
         ],
     ),
 ]
@@ -258,7 +302,21 @@ def test_project_revenue_growth(test_case: TestCase):
     )
 
 
-# TODO: test forecast_free_cash_flows
+@pytest.mark.parametrize(
+    "test_case", [pytest.param(test_case, id=test_case.id) for test_case in TEST_CASES]
+)
+def test_forecast_free_cash_flows(test_case: TestCase):
+    # Given
+    dcf_analysis = DCFAnalysis(test_case.dcf_analysis_params)
+
+    # When
+    actual_forecasted_free_cash_flows = dcf_analysis._forecast_free_cash_flows()
+
+    # Then
+    assert actual_forecasted_free_cash_flows == pytest.approx(  # type: ignore
+        test_case.expected_forecasted_free_cash_flows
+    )
+
 
 # TODO: test calculate_terminal_value
 
