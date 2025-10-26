@@ -14,6 +14,7 @@ class TestCase(BaseModel):
     expected_forecasted_free_cash_flows: list[float]
     expected_terminal_value: float
     expected_present_values_of_forecasted_free_cash_flows: list[float]
+    expected_enterprise_value: float
 
 
 TEST_CASES: list[TestCase] = [
@@ -72,6 +73,7 @@ TEST_CASES: list[TestCase] = [
             74820865.62234741,
             71940203.66267426,
         ],
+        expected_enterprise_value=1318831076.6952868,
     ),
     TestCase(
         id="Alphabet Inc.",
@@ -137,6 +139,7 @@ TEST_CASES: list[TestCase] = [
             63503213952.74467,
             64696193063.8673,
         ],
+        expected_enterprise_value=1936180550778.234,
     ),
     TestCase(
         id="HSBC Holdings plc.",
@@ -187,6 +190,7 @@ TEST_CASES: list[TestCase] = [
             11931116989.178486,
             9795168704.602097,
         ],
+        expected_enterprise_value=117901858023.97293,
     ),
     TestCase(
         id="Grainger plc",
@@ -237,6 +241,7 @@ TEST_CASES: list[TestCase] = [
             129924718.89451206,
             131604213.87222065,
         ],
+        expected_enterprise_value=5116011241.15857,
     ),
     TestCase(
         id="Tesco plc",
@@ -290,6 +295,7 @@ TEST_CASES: list[TestCase] = [
             1719176827.0127091,
             1664775877.9543834,
         ],
+        expected_enterprise_value=54953064067.7842,
     ),
 ]
 
@@ -408,7 +414,20 @@ def test_calculate_present_values_of_forecasted_free_cash_flows(test_case: TestC
     )
 
 
-# TODO: test calculate_enterprise_value
+@pytest.mark.parametrize(
+    "test_case", [pytest.param(test_case, id=test_case.id) for test_case in TEST_CASES]
+)
+def test_calculate_enterprise_value(test_case: TestCase):
+    # Given
+    dcf_analysis = DCFAnalysis(test_case.dcf_analysis_params)
+
+    # When
+    actual_enterprise_value = dcf_analysis._calculate_enterprise_value()
+
+    # Then
+    assert actual_enterprise_value == pytest.approx(  # type: ignore
+        test_case.expected_enterprise_value
+    )
 
 
 # @pytest.mark.parametrize(
