@@ -31,7 +31,7 @@ class DCFAnalysis:
         self.assumed_ebit_margin = dcf_analysis_params.assumed_ebit_margin
         self.assumed_tax_rate = dcf_analysis_params.assumed_tax_rate
         self.assumed_depreciation_and_amortization_rate = (
-            dcf_analysis_params.assumed_depreciation_rate
+            dcf_analysis_params.assumed_depreciation_and_amortization_rate
         )
         self.assumed_capex_rate = dcf_analysis_params.assumed_capex_rate
         self.assumed_change_in_working_capital_rate = (
