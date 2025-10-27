@@ -1,4 +1,7 @@
-from discount_analyst.dcf_analysis.types import DCFAnalysisParameters, DCFAnalysisResult
+from discount_analyst.dcf_analysis.data_types import (
+    DCFAnalysisParameters,
+    DCFAnalysisResult,
+)
 
 
 class DCFAnalysis:
