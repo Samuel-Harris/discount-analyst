@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from discount_analyst.dcf_analysis import DCFAnalysis, DCFAnalysisParameters
 import pytest
 
-from discount_analyst.dcf_analysis.types import DCFAnalysisResult
+from discount_analyst.dcf_analysis.data_types import DCFAnalysisResult
 
 
 class TestCase(BaseModel):
