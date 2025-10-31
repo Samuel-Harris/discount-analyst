@@ -8,7 +8,7 @@ from discount_analyst.data_fetcher.data_types import Statement, StockData
 
 
 class DataFetcher:
-    def _get_ordered_statement_from_df(
+    def _get_ordered_statements_from_df(
         self, statements: pd.DataFrame
     ) -> list[Statement] | None:
         """Get statements in ascending order of date"""
@@ -47,10 +47,10 @@ class DataFetcher:
         quarterly_statements: pd.DataFrame,
         statement_name: str,
     ) -> pd.Series:
-        ordered_annual_statements = self._get_ordered_statement_from_df(
+        ordered_annual_statements = self._get_ordered_statements_from_df(
             annual_statements
         )
-        ordered_quarterly_statements = self._get_ordered_statement_from_df(
+        ordered_quarterly_statements = self._get_ordered_statements_from_df(
             quarterly_statements
         )
 
