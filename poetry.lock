@@ -437,6 +437,65 @@ files = [
 windows-terminal = ["colorama (>=0.4.6)"]
 
 [[package]]
+name = "pymdown-extensions"
+version = "10.17.1"
+description = "Extension pack for Python Markdown."
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "pymdown_extensions-10.17.1-py3-none-any.whl", hash = "sha256:1f160209c82eecbb5d8a0d8f89a4d9bd6bdcbde9a8537761844cfc57ad5cd8a6"},
+    {file = "pymdown_extensions-10.17.1.tar.gz", hash = "sha256:60d05fe55e7fb5a1e4740fc575facad20dc6ee3a748e8d3d36ba44142e75ce03"},
+]
+
+[package.dependencies]
+markdown = ">=3.6"
+pyyaml = "*"
+
+[package.extras]
+extra = ["pygments (>=2.19.1)"]
+
+[[package]]
+name = "pyrefly"
+version = "0.42.2"
+description = "A fast type checker and language server for Python with powerful IDE features"
+optional = false
+python-versions = ">=3.8"
+groups = ["dev"]
+files = [
+    {file = "pyrefly-0.42.2-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:b034719c829174db2e009cee7eb459d26f4f4399d12efb4df3dd8e4ca4bf4111"},
+    {file = "pyrefly-0.42.2-py3-none-macosx_11_0_arm64.whl", hash = "sha256:0c6eeed7e2f845319f07f34f551f4c137b5e705043df1960f7f9aa1ee783c4b1"},
+    {file = "pyrefly-0.42.2-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:f73a4140f2f31a0bd566b5852dabc73c7b70d43a7952c5071a1351be664eb51d"},
+    {file = "pyrefly-0.42.2-py3-none-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:4a1317a2242388aaa4eb0fd17c8d843ea8ac017a4fe1779de2f16ab0c045ac34"},
+    {file = "pyrefly-0.42.2-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:9d9b80d2f8390dab32d7f979635f0f72e76b8a65666b86c14c1eff6538fcf109"},
+    {file = "pyrefly-0.42.2-py3-none-win32.whl", hash = "sha256:293324c3039172610a67b255ff348daca1870b9c205ec2459efaaa60eeac31e5"},
+    {file = "pyrefly-0.42.2-py3-none-win_amd64.whl", hash = "sha256:6371260d417a5b288313a949db409dff3d0e766698d2938e511369ad26d3b04b"},
+    {file = "pyrefly-0.42.2-py3-none-win_arm64.whl", hash = "sha256:2603f9df326381f4206a77244b3709336fd77d42a5adaa64a5c602776cd334f3"},
+    {file = "pyrefly-0.42.2.tar.gz", hash = "sha256:8d4738617b8c28311b15a45bd5114022efeb6bab7a9b957cb783589da3f14b17"},
+]
+
+[[package]]
+name = "pyright"
+version = "1.1.407"
+description = "Command line wrapper for pyright"
+optional = false
+python-versions = ">=3.7"
+groups = ["dev"]
+files = [
+    {file = "pyright-1.1.407-py3-none-any.whl", hash = "sha256:6dd419f54fcc13f03b52285796d65e639786373f433e243f8b94cf93a7444d21"},
+    {file = "pyright-1.1.407.tar.gz", hash = "sha256:099674dba5c10489832d4a4b2d302636152a9a42d317986c38474c76fe562262"},
+]
+
+[package.dependencies]
+nodeenv = ">=1.6.0"
+typing-extensions = ">=4.1"
+
+[package.extras]
+all = ["nodejs-wheel-binaries", "twine (>=3.4.1)"]
+dev = ["twine (>=3.4.1)"]
+nodejs = ["nodejs-wheel-binaries"]
+
+[[package]]
 name = "pytest"
 version = "8.4.2"
 description = "pytest: simple powerful testing with Python"
