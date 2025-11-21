@@ -1,0 +1,19 @@
+name: PR checklist
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  comment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post Comment
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          COMMENT=${{ readfile('.github/resources/pull_request_template.md') }}
+          GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+          COMMENT_URL="https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments"
+
+          curl -s -H "Authorization: token $GITHUB_TOKEN" -X POST $COMMENT_URL -d "{\"body\":\"$COMMENT\"}"

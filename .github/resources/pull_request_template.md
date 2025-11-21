@@ -1,3 +1,3 @@
 # Pull Request Checklist
 
-- [ ] AI review passed.
+- [ ] AI review passed
