@@ -465,6 +465,9 @@ class DataFetcher:
 
         stock_data_info = cast(dict[str, Any] | None, stock_data.info)  # pyright: ignore[reportUnknownMemberType]
 
+        if not stock_data_info:
+            raise ValueError("Could not get stock info")
+
         return StockData(
             ebit=self._get_ebit(income_statement),
             revenue=income_statement["Total Revenue"],
