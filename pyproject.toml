@@ -23,11 +23,15 @@ dev = [
     "pytest-cov (>=7.0.0,<8.0.0)",
     "ruff (>=0.14.2,<0.15.0)",
     "pre-commit (>=4.3.0,<5.0.0)",
-    "pandas-stubs (>=2.3.2.250926,<3.0.0.0)",
     "pyrefly (>=0.42.2,<0.43.0)",
+    "pandas-stubs (>=2.3.2.250926,<3.0.0.0)",
 ]
 
 [tool.pyrefly]
-project-includes = ["discount_analyst"]
 python-version = "3.14.0"
+project-includes = [
+    "discount_analyst/data_fetcher",
+    "discount_analyst/dcf_analysis"
+]
 infer-with-first-use = false
+untyped-def-behavior = "check-and-infer-return-type"
