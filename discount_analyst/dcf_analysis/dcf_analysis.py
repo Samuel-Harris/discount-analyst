@@ -1,4 +1,7 @@
-from discount_analyst.dcf_analysis.types import DCFAnalysisParameters, DCFAnalysisResult
+from discount_analyst.dcf_analysis.data_types import (
+    DCFAnalysisParameters,
+    DCFAnalysisResult,
+)
 
 
 class DCFAnalysis:
@@ -13,7 +16,7 @@ class DCFAnalysis:
             dcf_analysis_params.initial_capital_expenditure
         )
         self.n_shares_outstanding = dcf_analysis_params.n_shares_outstanding
-        self.equity_value = dcf_analysis_params.equity_value
+        self.market_cap = dcf_analysis_params.market_cap
         self.gross_debt = dcf_analysis_params.gross_debt
         self.gross_debt_last_year = dcf_analysis_params.gross_debt_last_year
         self.net_debt = dcf_analysis_params.net_debt
@@ -59,8 +62,8 @@ class DCFAnalysis:
     def _calculate_discount_rate(self) -> float:
         """Weighted Average Cost of Capital (WACC)"""
 
-        total_value = self.equity_value + self.gross_debt
-        weight_of_equity = self.equity_value / total_value
+        total_value = self.market_cap + self.gross_debt
+        weight_of_equity = self.market_cap / total_value
         weight_of_debt = self.gross_debt / total_value
 
         cost_of_equity = self._calculate_cost_of_equity()
