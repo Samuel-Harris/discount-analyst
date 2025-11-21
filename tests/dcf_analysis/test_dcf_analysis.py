@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from discount_analyst.dcf_analysis import DCFAnalysis, DCFAnalysisParameters
 import pytest
 
-from discount_analyst.dcf_analysis.types import DCFAnalysisResult
+from discount_analyst.dcf_analysis.data_types import DCFAnalysisResult
 
 
 class TestCase(BaseModel):
@@ -24,7 +24,7 @@ TEST_CASES: list[TestCase] = [
             net_debt=2_500_000,
             initial_capital_expenditure=150_000_000,
             n_shares_outstanding=101_775_428,
-            equity_value=1_710_000_000,
+            market_cap=1_710_000_000,
             beta=1.39,
             risk_free_rate=0.04,
             expected_market_return=0.10,
@@ -52,7 +52,7 @@ TEST_CASES: list[TestCase] = [
             net_debt=-81_591_000_000,
             initial_capital_expenditure=52_535_000_000,
             n_shares_outstanding=12_090_000_000,
-            equity_value=3_050_000_000_000,
+            market_cap=3_050_000_000_000,
             beta=1.0,
             risk_free_rate=0.0396,
             expected_market_return=0.08,
@@ -80,7 +80,7 @@ TEST_CASES: list[TestCase] = [
             net_debt=-116_660_000_000,
             initial_capital_expenditure=1_344_000_000,
             n_shares_outstanding=17_730_000_000,
-            equity_value=167_960_000_000,
+            market_cap=167_960_000_000,
             beta=0.50,
             risk_free_rate=0.0415,
             expected_market_return=0.09,
@@ -108,7 +108,7 @@ TEST_CASES: list[TestCase] = [
             net_debt=1_419_000_000,
             initial_capital_expenditure=6_100_000,
             n_shares_outstanding=741_550_000,
-            equity_value=1_426_000_000,
+            market_cap=1_426_000_000,
             beta=0.71,
             risk_free_rate=0.042,
             expected_market_return=0.12,
@@ -136,7 +136,7 @@ TEST_CASES: list[TestCase] = [
             net_debt=10_040_000_000,
             initial_capital_expenditure=1_392_000_000,
             n_shares_outstanding=6_480_000_000,
-            equity_value=28_815_600_000,
+            market_cap=28_815_600_000,
             beta=0.62,
             risk_free_rate=0.039,
             expected_market_return=0.095,
