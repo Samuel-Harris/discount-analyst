@@ -5,19 +5,12 @@ on:
     branches:
       - main
 
-permissions:
-  pull-requests: write
-
 jobs:
   comment:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Post Comment
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          gh pr comment "$PR_NUMBER" --body-file .github/resources/pull_request_template.md
+      - name: Update comment
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body-path: .github/resources/pull_request_template.md
