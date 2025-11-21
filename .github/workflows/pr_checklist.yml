@@ -5,15 +5,19 @@ on:
     branches:
       - main
 
+permissions:
+  pull-requests: write
+
 jobs:
   comment:
     runs-on: ubuntu-latest
     steps:
-      - name: Post Comment
-        run: |
-          PR_NUMBER=${{ github.event.pull_request.number }}
-          COMMENT=${{ readfile('.github/resources/pull_request_template.md') }}
-          GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
-          COMMENT_URL="https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments"
+      - name: Checkout
+        uses: actions/checkout@v4
 
-          curl -s -H "Authorization: token $GITHUB_TOKEN" -X POST $COMMENT_URL -d "{\"body\":\"$COMMENT\"}"
+      - name: Post Comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr comment "$PR_NUMBER" --body-file .github/resources/pull_request_template.md
