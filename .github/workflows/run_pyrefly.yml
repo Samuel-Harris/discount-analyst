@@ -1,4 +1,4 @@
-name: Pyright
+name: Pyrefly
 
 on:
   push:
@@ -26,6 +26,6 @@ jobs:
           python -m pip install poetry
           poetry install
 
-      - name: Run pyright
+      - name: Run pyrefly
         run: |
-          poetry run pyright
+          poetry run pyrefly check --summarize-errors

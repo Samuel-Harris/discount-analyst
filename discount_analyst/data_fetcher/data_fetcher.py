@@ -463,7 +463,7 @@ class DataFetcher:
             statement_name="balance sheet",
         )
 
-        stock_data_info = cast(dict[str, Any] | None, stock_data.info)  # pyright: ignore[reportUnknownMemberType]
+        stock_data_info = stock_data.info
 
         if not stock_data_info:
             raise ValueError("Could not get stock info")
