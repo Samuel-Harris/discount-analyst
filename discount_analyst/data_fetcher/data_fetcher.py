@@ -8,6 +8,9 @@ from discount_analyst.data_fetcher.constants import (
     STATEMENT_DATE_WINDOW_DAYS,
 )
 from discount_analyst.data_fetcher.data_types import Statement, StockData
+from logging import getLogger
+
+logger = getLogger(__name__)
 
 
 class DataFetcher:
@@ -125,11 +128,15 @@ class DataFetcher:
 
         # Strategy 2: Try "Operating Income" as alternative
         if "Operating Income" in income_statement.index:
+            logger.warning("Using fallback strategy for EBIT: Operating Income")
             return float(income_statement["Operating Income"])
 
         # Strategy 3: Calculate from Net Income + Interest Expense + Tax Provision
         required_fields = ["Net Income", "Interest Expense", "Tax Provision"]
         if all(field in income_statement.index for field in required_fields):
+            logger.warning(
+                "Using fallback strategy for EBIT: Calculated from Net Income + Interest + Tax"
+            )
             net_income = income_statement["Net Income"]
             interest_expense = income_statement["Interest Expense"]
             tax_provision = income_statement["Tax Provision"]
@@ -170,6 +177,9 @@ class DataFetcher:
         ]
         for alternative in alternatives:
             if alternative in cash_flow.index:
+                logger.warning(
+                    f"Using fallback strategy for Capital Expenditure: {alternative}"
+                )
                 value = float(cash_flow[alternative])
                 # Capex is typically negative in cash flow, ensure it's negative
                 return value if value < 0 else -abs(value)
@@ -204,6 +214,9 @@ class DataFetcher:
             "Interest And Debt Expense",
         ]:
             if alternative in income_statement.index:
+                logger.warning(
+                    f"Using fallback strategy for Interest Expense: {alternative}"
+                )
                 return float(income_statement[alternative])
 
         # If all strategies fail, raise an error
@@ -235,16 +248,23 @@ class DataFetcher:
             "Long Term Debt" in balance_sheet.index
             and "Current Debt" in balance_sheet.index
         ):
+            logger.warning(
+                "Using fallback strategy for Total Debt: Long Term Debt + Current Debt"
+            )
             long_term_debt = balance_sheet["Long Term Debt"]
             current_debt = balance_sheet["Current Debt"]
             return float(long_term_debt + current_debt)
 
         # Strategy 3: Try just Long Term Debt if available
         if "Long Term Debt" in balance_sheet.index:
+            logger.warning(
+                "Using fallback strategy for Total Debt: Long Term Debt only"
+            )
             return float(balance_sheet["Long Term Debt"])
 
         # Strategy 4: Try Current Debt alone
         if "Current Debt" in balance_sheet.index:
+            logger.warning("Using fallback strategy for Total Debt: Current Debt only")
             return float(balance_sheet["Current Debt"])
 
         # If all strategies fail, raise an error
@@ -312,6 +332,9 @@ class DataFetcher:
         if len(statement_date_set) > 0:
             latest_statement_date = max(statement_date_set)
         else:
+            logger.warning(
+                f"No strict alignment found for {ticker}. Using 90-day window strategy."
+            )
             # If no exact match, find statements within a reasonable window (90 days)
             # Use the most recent income statement date as the reference
             all_dates_combined = set(
@@ -394,6 +417,9 @@ class DataFetcher:
                 matching_balance_dates,
                 key=lambda d: abs((d - latest_statement_date).days),
             )
+            logger.warning(
+                f"Using closest balance sheet date {closest_balance_date} for {latest_statement_date}"
+            )
             if closest_balance_date in stock_data.balance_sheet.columns:
                 balance_sheet = stock_data.balance_sheet[closest_balance_date]
             else:
@@ -422,6 +448,9 @@ class DataFetcher:
                 matching_cashflow_dates,
                 key=lambda d: abs((d - latest_statement_date).days),
             )
+            logger.warning(
+                f"Using closest cash flow date {closest_cashflow_date} for {latest_statement_date}"
+            )
             if closest_cashflow_date in stock_data.cash_flow.columns:
                 cash_flow = stock_data.cash_flow[closest_cashflow_date]
             else:
@@ -434,7 +463,7 @@ class DataFetcher:
             statement_name="balance sheet",
         )
 
-        stock_data_info = cast(dict[str, Any], stock_data.info)  # pyright: ignore[reportUnknownMemberType]
+        stock_data_info = cast(dict[str, Any] | None, stock_data.info)  # pyright: ignore[reportUnknownMemberType]
 
         return StockData(
             ebit=self._get_ebit(income_statement),
