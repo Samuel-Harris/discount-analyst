@@ -9,6 +9,8 @@ jobs:
   comment:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - name: Update comment
         uses: peter-evans/create-or-update-comment@v5
         with:
