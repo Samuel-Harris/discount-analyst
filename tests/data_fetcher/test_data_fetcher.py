@@ -92,7 +92,7 @@ def test_fetch_stock_data(test_case: TestCase):
     assert actual_stock_data.revenue != 0
     assert actual_stock_data.capital_expenditure != 0
     assert actual_stock_data.n_shares_outstanding != 0
-    assert actual_stock_data.equity_value != 0
+    assert actual_stock_data.market_cap != 0
     assert actual_stock_data.gross_debt != 0
     assert actual_stock_data.gross_debt_last_year != 0
     assert actual_stock_data.net_debt != 0

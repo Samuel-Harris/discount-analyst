@@ -8,7 +8,7 @@ class StockData(BaseModel):
     revenue: float
     capital_expenditure: float
     n_shares_outstanding: float
-    equity_value: float
+    market_cap: float
     gross_debt: float
     gross_debt_last_year: float
     net_debt: float

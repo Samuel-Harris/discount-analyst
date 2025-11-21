@@ -254,7 +254,7 @@ class DataFetcher:
             f"Available fields: {available_fields}"
         )
 
-    def _get_beta(self, stock_info: dict) -> float:
+    def _get_beta(self, stock_info: dict[str, Any]) -> float:
         """
         Get beta from stock info.
 
@@ -434,14 +434,14 @@ class DataFetcher:
             statement_name="balance sheet",
         )
 
-        stock_data_info = stock_data.info  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        stock_data_info = cast(dict[str, Any], stock_data.info)
 
         return StockData(
             ebit=self._get_ebit(income_statement),
             revenue=income_statement["Total Revenue"],
             capital_expenditure=self._get_capital_expenditure(cash_flow),
             n_shares_outstanding=balance_sheet["Share Issued"],
-            equity_value=cast(float, stock_data_info["marketCap"]),
+            market_cap=cast(float, stock_data_info["marketCap"]),
             gross_debt=self._get_total_debt(balance_sheet),
             gross_debt_last_year=self._get_total_debt(last_years_balance_sheet),
             net_debt=self._get_total_debt(balance_sheet)
