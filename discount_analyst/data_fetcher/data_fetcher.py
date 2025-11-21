@@ -434,7 +434,7 @@ class DataFetcher:
             statement_name="balance sheet",
         )
 
-        stock_data_info = cast(dict[str, Any], stock_data.info)
+        stock_data_info = cast(dict[str, Any], stock_data.info)  # pyright: ignore[reportUnknownMemberType]
 
         return StockData(
             ebit=self._get_ebit(income_statement),
