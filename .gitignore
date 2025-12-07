@@ -16,3 +16,6 @@ __pycache__/
 
 # notebooks
 discount_analyst/notebooks/
+
+# env
+.env

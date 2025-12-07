@@ -469,6 +469,8 @@ class DataFetcher:
             raise ValueError("Could not get stock info")
 
         return StockData(
+            ticker=stock_data.ticker,
+            name=cast(str, stock_data_info["shortName"]),
             ebit=self._get_ebit(income_statement),
             revenue=income_statement["Total Revenue"],
             capital_expenditure=self._get_capital_expenditure(cash_flow),

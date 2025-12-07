@@ -4,6 +4,9 @@ import pandas as pd
 
 
 class StockData(BaseModel):
+    ticker: str
+    name: str
+
     ebit: float
     revenue: float
     capital_expenditure: float
