@@ -1,6 +1,7 @@
 from aiolimiter import AsyncLimiter
 from perplexity import Perplexity
 from pydantic_ai import Agent, RunContext
+import logfire
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.providers.gateway import gateway_provider
 
@@ -8,12 +9,15 @@ from discount_analyst.assumption_maker.data_types import StockAssumptions
 from discount_analyst.data_fetcher.data_types import StockData
 from discount_analyst.shared import ai_models_config, settings
 
+logfire.configure(token=settings.pydantic.logfire_api_key)
+logfire.instrument_pydantic_ai()
+
 assumption_maker = Agent(
     AnthropicModel(
         ai_models_config.assumption_maker_model,
         provider=gateway_provider(
             ai_models_config.assumption_maker_provider,
-            api_key=settings.pydantic_ai_gateway.api_key,
+            api_key=settings.pydantic.ai_gateway_api_key,
         ),
     ),
     deps_type=StockData,

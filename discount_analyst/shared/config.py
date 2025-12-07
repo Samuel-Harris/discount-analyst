@@ -4,8 +4,9 @@ from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class PydanticAiGateway(BaseModel):
-    api_key: str
+class Pydantic(BaseModel):
+    ai_gateway_api_key: str
+    logfire_api_key: str
 
 
 class Perplexity(BaseModel):
@@ -26,7 +27,7 @@ class Settings(BaseSettings):
         env_nested_delimiter="__",
     )
 
-    pydantic_ai_gateway: PydanticAiGateway
+    pydantic: Pydantic
     perplexity: Perplexity
     data_fetcher: DataFetcher
 
