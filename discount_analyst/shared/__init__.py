@@ -1,5 +1,4 @@
-from .ai_models_config import ai_models_config
+from .ai_models_config import AIModelsConfig
 from .config import settings
-from .either import Either
 
-__all__ = ["ai_models_config", "settings", "Either"]
+__all__ = ["AIModelsConfig", "settings"]

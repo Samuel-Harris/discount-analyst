@@ -14,6 +14,10 @@ class Perplexity(BaseModel):
     rate_limit_per_minute: int
 
 
+class Anthropic(BaseModel):
+    api_key: str
+
+
 class DataFetcher(BaseModel):
     search_tool_call_limit: int
 
@@ -29,6 +33,7 @@ class Settings(BaseSettings):
 
     pydantic: Pydantic
     perplexity: Perplexity
+    anthropic: Anthropic
     data_fetcher: DataFetcher
 
 

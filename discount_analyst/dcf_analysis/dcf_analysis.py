@@ -7,43 +7,47 @@ from discount_analyst.dcf_analysis.data_types import (
 class DCFAnalysis:
     def __init__(
         self,
+        *,
         dcf_analysis_params: DCFAnalysisParameters,
     ) -> None:
-        # Initial financial state
-        self.initial_ebit = dcf_analysis_params.initial_ebit
-        self.initial_revenue = dcf_analysis_params.initial_revenue
-        self.initial_capital_expenditure = (
-            dcf_analysis_params.initial_capital_expenditure
-        )
-        self.n_shares_outstanding = dcf_analysis_params.n_shares_outstanding
-        self.market_cap = dcf_analysis_params.market_cap
-        self.gross_debt = dcf_analysis_params.gross_debt
-        self.gross_debt_last_year = dcf_analysis_params.gross_debt_last_year
-        self.net_debt = dcf_analysis_params.net_debt
-        self.total_interest_expense = dcf_analysis_params.total_interest_expense
-        self.risk_free_rate = dcf_analysis_params.risk_free_rate
-        self.beta = dcf_analysis_params.beta
+        stock_data = dcf_analysis_params.stock_data
+        stock_assumptions = dcf_analysis_params.stock_assumptions
 
-        # Assumptions
-        self.assumed_forecast_period_annual_revenue_growth_rate = (
-            dcf_analysis_params.assumed_forecast_period_annual_revenue_growth_rate
-        )
-        self.assumed_perpetuity_cash_flow_growth_rate = (
-            dcf_analysis_params.assumed_perpetuity_cash_flow_growth_rate
-        )
-        self.assumed_ebit_margin = dcf_analysis_params.assumed_ebit_margin
-        self.assumed_tax_rate = dcf_analysis_params.assumed_tax_rate
-        self.assumed_depreciation_and_amortization_rate = (
-            dcf_analysis_params.assumed_depreciation_and_amortization_rate
-        )
-        self.assumed_capex_rate = dcf_analysis_params.assumed_capex_rate
-        self.assumed_change_in_working_capital_rate = (
-            dcf_analysis_params.assumed_change_in_working_capital_rate
-        )
+        # Initial financial state (from stock_data)
+        self.initial_ebit = stock_data.ebit
+        self.initial_revenue = stock_data.revenue
+        self.initial_capital_expenditure = stock_data.capital_expenditure
+        self.n_shares_outstanding = stock_data.n_shares_outstanding
+        self.market_cap = stock_data.market_cap
+        self.gross_debt = stock_data.gross_debt
+        self.gross_debt_last_year = stock_data.gross_debt_last_year
+        self.net_debt = stock_data.net_debt
+        self.total_interest_expense = stock_data.total_interest_expense
+        self.beta = stock_data.beta
+
+        # Market parameters (from dcf_analysis_params directly)
+        self.risk_free_rate = dcf_analysis_params.risk_free_rate
         self.expected_market_return = dcf_analysis_params.expected_market_return
 
-        # Input parameters
-        self.forecast_period_years = dcf_analysis_params.forecast_period_years
+        # Assumptions (from stock_assumptions)
+        self.assumed_forecast_period_annual_revenue_growth_rate = (
+            stock_assumptions.assumed_forecast_period_annual_revenue_growth_rate
+        )
+        self.assumed_perpetuity_cash_flow_growth_rate = (
+            stock_assumptions.assumed_perpetuity_cash_flow_growth_rate
+        )
+        self.assumed_ebit_margin = stock_assumptions.assumed_ebit_margin
+        self.assumed_tax_rate = stock_assumptions.assumed_tax_rate
+        self.assumed_depreciation_and_amortization_rate = (
+            stock_assumptions.assumed_depreciation_and_amortization_rate
+        )
+        self.assumed_capex_rate = stock_assumptions.assumed_capex_rate
+        self.assumed_change_in_working_capital_rate = (
+            stock_assumptions.assumed_change_in_working_capital_rate
+        )
+
+        # Input parameters (from stock_assumptions)
+        self.forecast_period_years = stock_assumptions.forecast_period_years
 
     def _calculate_cost_of_equity(self) -> float:
         """Capital Asset Pricing Model (CAPM) approach"""
