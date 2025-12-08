@@ -18,10 +18,6 @@ class Anthropic(BaseModel):
     api_key: str
 
 
-class DataFetcher(BaseModel):
-    search_tool_call_limit: int
-
-
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
@@ -34,7 +30,6 @@ class Settings(BaseSettings):
     pydantic: Pydantic
     perplexity: Perplexity
     anthropic: Anthropic
-    data_fetcher: DataFetcher
 
 
 settings = Settings()
