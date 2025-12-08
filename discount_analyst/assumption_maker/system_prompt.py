@@ -449,12 +449,12 @@ forecast_period | forecast_growth | perpetuity_growth | capex vs d&a | Interpret
 **Margin consistency examples:**
 ```
 current_margin | terminal_margin | forecast_period | Annual improvement | Assessment
----------------|-----------------|-----------------|-------------------|------------
-0.10           | 0.15           | 5               | 1.0%             | ✅ Reasonable
-0.10           | 0.25           | 5               | 3.0%             | ⚠️ Aggressive
-0.10           | 0.25           | 10              | 1.5%             | ✅ Reasonable
-0.25           | 0.15           | 5               | -2.0%            | ⚠️ Why declining?
-0.25           | 0.30           | 5               | 1.0%             | ✅ If peer best-in-class
+---------------|-----------------|-----------------|-------------------|---------------
+0.10           | 0.15            | 5               | 1.0%              | ✅ Reasonable
+0.10           | 0.25            | 5               | 3.0%              | ⚠️ Aggressive
+0.10           | 0.25            | 10              | 1.5%              | ✅ Reasonable
+0.25           | 0.15            | 5               | -2.0%             | ⚠️ Why declining?
+0.25           | 0.30            | 5               | 1.0%              | ✅ If peer best-in-class
 ```
 
 ### Step 4: Output Format

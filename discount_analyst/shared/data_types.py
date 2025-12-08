@@ -135,6 +135,10 @@ class StockData(BaseModel):
 
 
 class StockAssumptions(BaseModel):
+    reasoning: str = Field(
+        description="The reasoning behind the assumptions made. This should explain the logic for the chosen values, citing any relevant data points or trends observed in the company's financials or industry."
+    )
+
     forecast_period_years: int = Field(
         description="The number of years for the explicit forecast period before terminal value calculation. Typically 5 years for mature companies, 7-8 years for growing/transitioning companies, and 10 years for high-growth companies far from steady state."
     )
