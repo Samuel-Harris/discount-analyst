@@ -2162,6 +2162,22 @@ rtd = ["ipykernel", "jupyter_sphinx", "mdit-py-plugins (>=0.5.0)", "myst-parser"
 testing = ["coverage", "pytest", "pytest-cov", "pytest-regressions", "requests"]
 
 [[package]]
+name = "markdownify"
+version = "1.2.2"
+description = "Convert HTML to markdown."
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "markdownify-1.2.2-py3-none-any.whl", hash = "sha256:3f02d3cc52714084d6e589f70397b6fc9f2f3a8531481bf35e8cc39f975e186a"},
+    {file = "markdownify-1.2.2.tar.gz", hash = "sha256:b274f1b5943180b031b699b199cbaeb1e2ac938b75851849a31fd0c3d6603d09"},
+]
+
+[package.dependencies]
+beautifulsoup4 = ">=4.9,<5"
+six = ">=1.15,<2"
+
+[[package]]
 name = "mcp"
 version = "1.22.0"
 description = "Model Context Protocol SDK"
@@ -4935,4 +4951,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.14,<4.0"
-content-hash = "7ca7b61bf5042dad81996e1d88c1e6728a2d5886aacbc7138326d14b6cabc5bb"
+content-hash = "7e509b692965f2c5a5c0219a6f7896150e39a5f83cdd1e1cdcf1b7c3411835f9"

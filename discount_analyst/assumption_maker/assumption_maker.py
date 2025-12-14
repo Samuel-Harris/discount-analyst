@@ -1,8 +1,11 @@
+import httpx
 from aiolimiter import AsyncLimiter
+from markdownify import markdownify as md
 from perplexity import AsyncPerplexity
 from pydantic_ai import Agent
 import logfire
 from discount_analyst.shared.data_types import AssumptionMakerOutput
+from discount_analyst.assumption_maker.data_types import SearchResult
 from discount_analyst.shared import AIModelsConfig, settings
 from discount_analyst.assumption_maker.system_prompt import SYSTEM_PROMPT
 
@@ -30,7 +33,7 @@ def create_assumption_maker_agent() -> Agent[AssumptionMakerOutput]:
     )
 
     @agent.tool_plain(docstring_format="google", require_parameter_descriptions=True)
-    async def web_search(question: str) -> str:
+    async def web_search(question: str) -> SearchResult:
         """Search the general web for market data, industry analysis, and external context.
 
         Use this tool to find:
@@ -60,12 +63,15 @@ def create_assumption_maker_agent() -> Agent[AssumptionMakerOutput]:
 
         async with perplexity_rate_limiter:
             client = AsyncPerplexity(api_key=settings.perplexity.api_key)
-            completion = await client.chat.completions.create(
+            response = await client.chat.completions.create(
                 messages=[{"role": "user", "content": question}],
                 model="sonar",
                 search_mode="web",
             )
-            return completion.choices[0].message.content
+            return SearchResult(
+                response=response.choices[0].message.content,
+                citations=response.citations,
+            )
 
     @agent.tool_plain(docstring_format="google", require_parameter_descriptions=True)
     async def sec_filings_search(question: str) -> str:
@@ -105,11 +111,32 @@ def create_assumption_maker_agent() -> Agent[AssumptionMakerOutput]:
 
         async with perplexity_rate_limiter:
             client = AsyncPerplexity(api_key=settings.perplexity.api_key)
-            completion = await client.chat.completions.create(
+            response = await client.chat.completions.create(
                 messages=[{"role": "user", "content": question}],
                 model="sonar",
                 search_mode="sec",
             )
-            return completion.choices[0].message.content
+            return SearchResult(
+                response=response.choices[0].message.content,
+                citations=response.citations,
+            )
+
+    @agent.tool_plain(docstring_format="google", require_parameter_descriptions=True)
+    async def fetch_web_page(url: str) -> str:
+        """Fetch the content of a specific web page.
+
+        Use this tool to get the full text content of a specific URL that you have found via web search
+        or other means. This is useful for detailed reading of articles, reports, or specific data pages.
+
+        Args:
+            url: The URL of the web page to fetch.
+
+        Returns:
+            The text content of the web page.
+        """
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, follow_redirects=True)
+            response.raise_for_status()
+            return md(response.text)
 
     return agent
