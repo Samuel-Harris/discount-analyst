@@ -16,7 +16,7 @@ def create_assumption_maker_agent() -> Agent[StockAssumptions]:
         A configured Agent instance for making stock assumptions.
     """
 
-    logfire.configure(token=settings.pydantic.logfire_api_key)
+    logfire.configure(token=settings.pydantic.logfire_api_key, scrubbing=False)
     logfire.instrument_pydantic_ai()
 
     ai_models_config = AIModelsConfig()

@@ -9,6 +9,7 @@ from discount_analyst.shared.config import settings
 
 class AIModelConfig(BaseModel):
     model_name: str
+    max_tokens: int | None = None
     thinking_budget_tokens: int | None = None
     usage_limits: UsageLimits | None = None
 
@@ -25,6 +26,7 @@ class AIModelConfig(BaseModel):
 
         return AnthropicModelSettings(
             temperature=1,
+            max_tokens=self.max_tokens,
             anthropic_thinking=anthropic_thinking,
             anthropic_cache_instructions="1h",
             anthropic_cache_tool_definitions="1h",
@@ -42,7 +44,8 @@ class AIModelsConfig(BaseModel):
     assumption_maker: AIModelConfig = Field(
         default_factory=lambda: AIModelConfig(
             model_name="claude-opus-4-5",
-            thinking_budget_tokens=10_000,
+            max_tokens=30_000,
+            thinking_budget_tokens=16_000,
             usage_limits=UsageLimits(tool_calls_limit=30),
         )
     )

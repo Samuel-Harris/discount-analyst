@@ -567,6 +567,7 @@ Do NOT include:
 ```json
 {
     StockAssumptions(
+        reasoning="10-year forecast selected due to high growth phase (30%+ historical CAGR) and margins (10%) significantly below peer median (22%). Assumed 22% avg revenue growth reflects deceleration from current levels. Terminal EBIT margin of 20% assumes gradual improvement toward peer levels. CapEx (6.5%) exceeds D&A (4.0%) to support continued growth. Perpetuity growth of 2.8% reflects positive SaaS industry outlook above GDP.",
         forecast_period_years=10,
         assumed_tax_rate=0.21,
         assumed_forecast_period_annual_revenue_growth_rate=0.22,

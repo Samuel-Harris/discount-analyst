@@ -121,14 +121,14 @@ class StockData(BaseModel):
     @property
     def company_scale(self) -> str:
         """
-        Calculated company scale based on revenue.
+        Calculated company scale based on market cap.
         Large cap (typically mature), Mid-large cap (growth or mature), Mid cap (often growth stage), Small cap (high growth potential), or Micro cap (very high growth potential).
         """
-        if self.revenue > 50_000_000_000:
+        if self.market_cap > 10_000_000_000:
             return "Large Cap"
-        elif self.revenue > 10_000_000_000:
+        elif self.market_cap > 2_000_000_000:
             return "Mid Cap"
-        elif self.revenue > 1_000_000_000:
+        elif self.market_cap > 300_000_000:
             return "Small Cap"
         else:
             return "Micro Cap"

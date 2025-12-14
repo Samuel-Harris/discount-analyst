@@ -48,6 +48,8 @@ class DCFAnalysis:
 
         # Input parameters (from stock_assumptions)
         self.forecast_period_years = stock_assumptions.forecast_period_years
+        if self.forecast_period_years <= 0:
+            raise ValueError("Forecast period years must be greater than 0.")
 
     def _calculate_cost_of_equity(self) -> float:
         """Capital Asset Pricing Model (CAPM) approach"""
@@ -60,6 +62,9 @@ class DCFAnalysis:
         """Direct calculation from financial statement"""
 
         average_gross_debt = (self.gross_debt + self.gross_debt_last_year) / 2
+
+        if average_gross_debt == 0:
+            return 0.0
 
         return self.total_interest_expense / average_gross_debt
 
@@ -130,6 +135,13 @@ class DCFAnalysis:
         final_free_cash_flow: float,
         discount_rate: float,
     ) -> float:
+        if discount_rate <= self.assumed_perpetuity_cash_flow_growth_rate:
+            raise ValueError(
+                f"Discount rate ({discount_rate:.4f}) must be strictly greater than "
+                f"perpetuity growth rate ({self.assumed_perpetuity_cash_flow_growth_rate:.4f}) "
+                "for terminal value calculation."
+            )
+
         return (
             final_free_cash_flow
             * (1 + self.assumed_perpetuity_cash_flow_growth_rate)
