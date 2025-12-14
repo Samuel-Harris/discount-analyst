@@ -30,6 +30,7 @@ class AIModelConfig(BaseModel):
             anthropic_thinking=anthropic_thinking,
             anthropic_cache_instructions="1h",
             anthropic_cache_tool_definitions="1h",
+            parallel_tool_calls=True,
         )
 
     @property
