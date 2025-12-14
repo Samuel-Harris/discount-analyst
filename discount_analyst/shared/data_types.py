@@ -163,3 +163,8 @@ class StockAssumptions(BaseModel):
     assumed_change_in_working_capital_rate: float = Field(
         description="The assumed change in working capital as a percentage of revenue change, expressed as a decimal (e.g., 0.02 for 2%). Represents cash consumed by working capital as the business grows. Can be negative for companies with negative working capital models."
     )
+
+
+class AssumptionMakerOutput(BaseModel):
+    stock_data: StockData
+    stock_assumptions: StockAssumptions

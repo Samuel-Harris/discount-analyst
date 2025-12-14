@@ -2,14 +2,15 @@ from aiolimiter import AsyncLimiter
 from perplexity import AsyncPerplexity
 from pydantic_ai import Agent
 import logfire
-from discount_analyst.shared.data_types import StockAssumptions
+from discount_analyst.shared.data_types import AssumptionMakerOutput
 from discount_analyst.shared import AIModelsConfig, settings
 from discount_analyst.assumption_maker.system_prompt import SYSTEM_PROMPT
+
 
 perplexity_rate_limiter = AsyncLimiter(settings.perplexity.rate_limit_per_minute, 60)
 
 
-def create_assumption_maker_agent() -> Agent[StockAssumptions]:
+def create_assumption_maker_agent() -> Agent[AssumptionMakerOutput]:
     """Create and configure the assumption maker agent.
 
     Returns:
@@ -23,7 +24,7 @@ def create_assumption_maker_agent() -> Agent[StockAssumptions]:
 
     agent = Agent(
         model=ai_models_config.assumption_maker.model,
-        output_type=StockAssumptions,
+        output_type=AssumptionMakerOutput,
         model_settings=ai_models_config.assumption_maker.model_settings,
         system_prompt=SYSTEM_PROMPT,
     )

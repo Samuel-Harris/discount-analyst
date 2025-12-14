@@ -1,13 +1,9 @@
-from discount_analyst.shared.data_types import StockData
-
-
-def create_user_prompt(*, stock_data: StockData, research_report: str) -> str:
+def create_user_prompt(*, ticker: str, research_report: str | None = None) -> str:
     return f"""
-Please analyze the following company and determine the DCF valuation assumptions.
+Please analyze **{ticker}** and determine the DCF valuation assumptions.
 
-<StockData>
-{stock_data.model_dump_json(indent=2)}
-</StockData>
+Step 1: Find the current financial data for {ticker} (StockData).
+Step 2: Determine appropriate future assumptions (StockAssumptions).
 
 <ResearchReport>
 {research_report}
