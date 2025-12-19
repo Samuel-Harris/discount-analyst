@@ -1,14 +1,11 @@
-import httpx
 from aiolimiter import AsyncLimiter
-from markdownify import markdownify as md
 from perplexity import AsyncPerplexity
 from pydantic_ai import Agent
 import logfire
 from discount_analyst.shared.data_types import AssumptionMakerOutput
-from discount_analyst.assumption_maker.data_types import SearchResult
 from discount_analyst.shared import AIModelsConfig, settings
 from discount_analyst.assumption_maker.system_prompt import SYSTEM_PROMPT
-
+from discount_analyst.shared.model import create_model_from_config
 
 perplexity_rate_limiter = AsyncLimiter(settings.perplexity.rate_limit_per_minute, 60)
 
@@ -26,14 +23,14 @@ def create_assumption_maker_agent() -> Agent[AssumptionMakerOutput]:
     ai_models_config = AIModelsConfig()
 
     agent = Agent(
-        model=ai_models_config.assumption_maker.model,
+        model=create_model_from_config(ai_models_config.assumption_maker),
         output_type=AssumptionMakerOutput,
         model_settings=ai_models_config.assumption_maker.model_settings,
         system_prompt=SYSTEM_PROMPT,
     )
 
     @agent.tool_plain(docstring_format="google", require_parameter_descriptions=True)
-    async def web_search(question: str) -> SearchResult:
+    async def web_search(question: str) -> str:
         """Search the general web for market data, industry analysis, and external context.
 
         Use this tool to find:
@@ -68,10 +65,7 @@ def create_assumption_maker_agent() -> Agent[AssumptionMakerOutput]:
                 model="sonar",
                 search_mode="web",
             )
-            return SearchResult(
-                response=response.choices[0].message.content,
-                citations=response.citations,
-            )
+            return response.choices[0].message.content
 
     @agent.tool_plain(docstring_format="google", require_parameter_descriptions=True)
     async def sec_filings_search(question: str) -> str:
@@ -116,27 +110,24 @@ def create_assumption_maker_agent() -> Agent[AssumptionMakerOutput]:
                 model="sonar",
                 search_mode="sec",
             )
-            return SearchResult(
-                response=response.choices[0].message.content,
-                citations=response.citations,
-            )
+            return response.choices[0].message.content
 
-    @agent.tool_plain(docstring_format="google", require_parameter_descriptions=True)
-    async def fetch_web_page(url: str) -> str:
-        """Fetch the content of a specific web page.
+    # @agent.tool_plain(docstring_format="google", require_parameter_descriptions=True)
+    # async def fetch_web_page(url: str) -> str:
+    #     """Fetch the content of a specific web page.
 
-        Use this tool to get the full text content of a specific URL that you have found via web search
-        or other means. This is useful for detailed reading of articles, reports, or specific data pages.
+    #     Use this tool to get the full text content of a specific URL that you have found via web search
+    #     or other means. This is useful for detailed reading of articles, reports, or specific data pages.
 
-        Args:
-            url: The URL of the web page to fetch.
+    #     Args:
+    #         url: The URL of the web page to fetch.
 
-        Returns:
-            The text content of the web page.
-        """
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, follow_redirects=True)
-            response.raise_for_status()
-            return md(response.text)
+    #     Returns:
+    #         The text content of the web page.
+    #     """
+    #     async with httpx.AsyncClient() as client:
+    #         response = await client.get(url, follow_redirects=True)
+    #         response.raise_for_status()
+    #         return md(response.text)
 
     return agent

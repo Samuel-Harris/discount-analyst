@@ -1,10 +1,7 @@
 from pydantic import BaseModel, Field
-from pydantic_ai.models.anthropic import AnthropicModelSettings, AnthropicModel
-from pydantic_ai.providers.anthropic import AnthropicProvider
-from pydantic_ai.models import ModelSettings, Model
+from pydantic_ai.models.anthropic import AnthropicModelSettings
+from pydantic_ai.models import ModelSettings
 from pydantic_ai import UsageLimits
-
-from discount_analyst.shared.config import settings
 
 
 class AIModelConfig(BaseModel):
@@ -31,13 +28,6 @@ class AIModelConfig(BaseModel):
             anthropic_cache_instructions="1h",
             anthropic_cache_tool_definitions="1h",
             parallel_tool_calls=True,
-        )
-
-    @property
-    def model(self) -> Model:
-        return AnthropicModel(
-            self.model_name,
-            provider=AnthropicProvider(api_key=settings.anthropic.api_key),
         )
 
 
