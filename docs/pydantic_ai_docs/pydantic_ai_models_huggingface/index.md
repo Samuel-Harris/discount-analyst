@@ -1,0 +1,3 @@
+- [Setup](setup.md)
+- [HuggingFaceModelSettings](huggingfacemodelsettings.md)
+- [HuggingFaceModel](huggingfacemodel.md)

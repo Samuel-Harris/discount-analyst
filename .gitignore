@@ -19,3 +19,6 @@ discount_analyst/notebooks/
 
 # env
 .env
+
+# Documentation
+docs/raw_original_docs/

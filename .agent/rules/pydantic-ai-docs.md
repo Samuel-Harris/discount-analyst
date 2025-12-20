@@ -5,4 +5,16 @@ description: Whenever using Pydantic AI.
 
 # Pydantic AI documentation
 
-Whenever using Pydantic AI, make sure to search the Pydantic AI documentation in llm_docs/pydantic_ai_docs_2025_12_07.md to find the most relevant documentation. This is a very large file, so never read the entire file.
+The Pydantic AI documentation is available in a structured format at `docs/pydantic_ai_docs`.
+
+**Structure:**
+
+- **Roots**: `docs/pydantic_ai_docs/index.md` lists the main topics (directories).
+- **Topic Indexes**: Inside each topic directory (e.g., `pydantic_ai_agent/`), the `index.md` serves as a Table of Contents, linking to all sub-topics.
+- **Content**: Detailed documentation is in individual markdown files (e.g., `agent.md`). Introductory text is found in `introduction.md` files.
+
+**How to use:**
+
+1. **Explore**: Read `docs/pydantic_ai_docs/index.md` to find the relevant high-level topic.
+2. **Drill Down**: Read the `index.md` of the topic directory (e.g., `docs/pydantic_ai_docs/<topic>/index.md`) to find specific pages.
+3. **Read**: Read the specific `.md` file for the information you need.

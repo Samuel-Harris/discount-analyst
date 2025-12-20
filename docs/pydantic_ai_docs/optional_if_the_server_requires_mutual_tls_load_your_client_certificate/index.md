@@ -1,0 +1,5 @@
+- [Introduction](introduction.md)
+- [MCP Sampling](mcp_sampling.md)
+- [Elicitation](elicitation.md)
+- [How Elicitation works](how_elicitation_works.md)
+- [Setting up Elicitation](setting_up_elicitation.md)
