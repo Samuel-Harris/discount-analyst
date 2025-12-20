@@ -49,7 +49,22 @@ class DCFAnalysis:
         # Input parameters (from stock_assumptions)
         self.forecast_period_years = stock_assumptions.forecast_period_years
         if self.forecast_period_years <= 0:
-            raise ValueError("Forecast period years must be greater than 0.")
+            raise ValueError(
+                f"Forecast period years must be greater than 0. "
+                f"Provided value: {self.forecast_period_years}. "
+                f"Expected: positive integer (e.g., 5, 7, 10)."
+            )
+
+        if (
+            self.assumed_forecast_period_annual_revenue_growth_rate
+            <= self.assumed_perpetuity_cash_flow_growth_rate
+        ):
+            raise ValueError(
+                f"Forecast period revenue growth rate ({self.assumed_forecast_period_annual_revenue_growth_rate:.4f}) "
+                f"must be greater than perpetuity cash flow growth rate ({self.assumed_perpetuity_cash_flow_growth_rate:.4f}). "
+                f"This ensures the company transitions from high-growth to stable growth. "
+                f"Expected: forecast rate > perpetuity rate (e.g., 0.08 > 0.025)."
+            )
 
     def _calculate_cost_of_equity(self) -> float:
         """Capital Asset Pricing Model (CAPM) approach"""
@@ -139,7 +154,8 @@ class DCFAnalysis:
             raise ValueError(
                 f"Discount rate ({discount_rate:.4f}) must be strictly greater than "
                 f"perpetuity growth rate ({self.assumed_perpetuity_cash_flow_growth_rate:.4f}) "
-                "for terminal value calculation."
+                f"for terminal value calculation. Provided discount rate: {discount_rate:.4f}. "
+                f"Expected: discount rate > perpetuity rate (e.g., 0.08 > 0.025) to ensure convergence."
             )
 
         return (
@@ -177,7 +193,9 @@ class DCFAnalysis:
             != self.forecast_period_years
         ):
             raise ValueError(
-                f"Expected to generate the present values for the next {self.forecast_period_years} years. Only generated {len(present_value_of_forecasted_free_cash_flows)} present values."
+                f"Present value calculation mismatch. Expected {self.forecast_period_years} values "
+                f"(one for each forecast year), but received {len(present_value_of_forecasted_free_cash_flows)} values. "
+                f"This indicates an internal calculation error in the DCF model."
             )
 
         terminal_value = self._calculate_terminal_value(

@@ -68,7 +68,9 @@ def create_market_analyst_agent(
                 return response_content
             else:
                 raise ValueError(
-                    f"Response content is not a string. Response content received: {response_content}."
+                    f"Perplexity API returned unexpected response type from web_search. "
+                    f"Expected: string content. Received: {type(response_content).__name__} "
+                    f"with value: {response_content}. This indicates an API response format change."
                 )
 
     @agent.tool_plain(docstring_format="google", require_parameter_descriptions=True)
@@ -120,25 +122,9 @@ def create_market_analyst_agent(
                 return response_content
             else:
                 raise ValueError(
-                    f"Response content is not a string. Response content received: {response_content}."
+                    f"Perplexity API returned unexpected response type from sec_filings_search. "
+                    f"Expected: string content. Received: {type(response_content).__name__} "
+                    f"with value: {response_content}. This indicates an API response format change."
                 )
-
-    # @agent.tool_plain(docstring_format="google", require_parameter_descriptions=True)
-    # async def fetch_web_page(url: str) -> str:
-    #     """Fetch the content of a specific web page.
-
-    #     Use this tool to get the full text content of a specific URL that you have found via web search
-    #     or other means. This is useful for detailed reading of articles, reports, or specific data pages.
-
-    #     Args:
-    #         url: The URL of the web page to fetch.
-
-    #     Returns:
-    #         The text content of the web page.
-    #     """
-    #     async with httpx.AsyncClient() as client:
-    #         response = await client.get(url, follow_redirects=True)
-    #         response.raise_for_status()
-    #         return md(response.text)
 
     return agent

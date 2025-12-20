@@ -56,4 +56,8 @@ class AIModelsConfig(BaseModel):
                     usage_limits=UsageLimits(tool_calls_limit=30),
                 )
             case _:
-                raise ValueError(f"Unsupported mode: {self.model_name}")
+                raise ValueError(
+                    f"Unsupported AI model: '{self.model_name}'. "
+                    f"Supported models: {[e.value for e in ModelName]}. "
+                    f"Please update the model_name to one of the supported options."
+                )
