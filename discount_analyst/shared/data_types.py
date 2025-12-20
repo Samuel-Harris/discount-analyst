@@ -165,6 +165,6 @@ class StockAssumptions(BaseModel):
     )
 
 
-class AssumptionMakerOutput(BaseModel):
+class MarketAnalystOutput(BaseModel):
     stock_data: StockData
     stock_assumptions: StockAssumptions

@@ -32,4 +32,4 @@ class Settings(BaseSettings):
     anthropic: Anthropic
 
 
-settings = Settings()
+settings = Settings()  # type: ignore[missing-argument]

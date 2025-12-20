@@ -1,31 +1,28 @@
 from aiolimiter import AsyncLimiter
 from perplexity import AsyncPerplexity
 from pydantic_ai import Agent
-import logfire
-from discount_analyst.shared.data_types import AssumptionMakerOutput
-from discount_analyst.shared import AIModelsConfig, settings
-from discount_analyst.assumption_maker.system_prompt import SYSTEM_PROMPT
+from discount_analyst.shared.data_types import MarketAnalystOutput
+from discount_analyst.shared.ai_models_config import AIModelsConfig
+from discount_analyst.shared.settings import settings
+from discount_analyst.market_analyst.system_prompt import SYSTEM_PROMPT
 from discount_analyst.shared.model import create_model_from_config
 
 perplexity_rate_limiter = AsyncLimiter(settings.perplexity.rate_limit_per_minute, 60)
 
 
-def create_assumption_maker_agent() -> Agent[AssumptionMakerOutput]:
-    """Create and configure the assumption maker agent.
+def create_market_analyst_agent(
+    ai_models_config: AIModelsConfig, /
+) -> Agent[None, MarketAnalystOutput]:
+    """Create and configure the market analyst agent.
 
     Returns:
         A configured Agent instance for making stock assumptions.
     """
 
-    logfire.configure(token=settings.pydantic.logfire_api_key, scrubbing=False)
-    logfire.instrument_pydantic_ai()
-
-    ai_models_config = AIModelsConfig()
-
     agent = Agent(
-        model=create_model_from_config(ai_models_config.assumption_maker),
-        output_type=AssumptionMakerOutput,
-        model_settings=ai_models_config.assumption_maker.model_settings,
+        model=create_model_from_config(ai_models_config.market_analyst),
+        output_type=MarketAnalystOutput,
+        model_settings=ai_models_config.market_analyst.model_settings,
         system_prompt=SYSTEM_PROMPT,
     )
 
@@ -65,7 +62,14 @@ def create_assumption_maker_agent() -> Agent[AssumptionMakerOutput]:
                 model="sonar",
                 search_mode="web",
             )
-            return response.choices[0].message.content
+            response_content = response.choices[0].message.content
+
+            if isinstance(response_content, str):
+                return response_content
+            else:
+                raise ValueError(
+                    f"Response content is not a string. Response content received: {response_content}."
+                )
 
     @agent.tool_plain(docstring_format="google", require_parameter_descriptions=True)
     async def sec_filings_search(question: str) -> str:
@@ -110,7 +114,14 @@ def create_assumption_maker_agent() -> Agent[AssumptionMakerOutput]:
                 model="sonar",
                 search_mode="sec",
             )
-            return response.choices[0].message.content
+            response_content = response.choices[0].message.content
+
+            if isinstance(response_content, str):
+                return response_content
+            else:
+                raise ValueError(
+                    f"Response content is not a string. Response content received: {response_content}."
+                )
 
     # @agent.tool_plain(docstring_format="google", require_parameter_descriptions=True)
     # async def fetch_web_page(url: str) -> str:

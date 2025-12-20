@@ -2,7 +2,7 @@ from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.models import Model
 
-from discount_analyst.shared.config import settings
+from discount_analyst.shared.settings import settings
 from discount_analyst.shared.rate_limit_client import create_rate_limit_client
 from discount_analyst.shared.ai_models_config import AIModelConfig
 

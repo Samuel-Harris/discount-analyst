@@ -13,3 +13,5 @@ class DCFAnalysisParameters(BaseModel):
 
 class DCFAnalysisResult(BaseModel):
     intrinsic_share_price: float
+    enterprise_value: float
+    equity_value: float

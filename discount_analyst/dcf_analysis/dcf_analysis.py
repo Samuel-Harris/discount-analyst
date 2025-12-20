@@ -7,8 +7,8 @@ from discount_analyst.dcf_analysis.data_types import (
 class DCFAnalysis:
     def __init__(
         self,
-        *,
         dcf_analysis_params: DCFAnalysisParameters,
+        /,
     ) -> None:
         stock_data = dcf_analysis_params.stock_data
         stock_assumptions = dcf_analysis_params.stock_assumptions
@@ -200,4 +200,6 @@ class DCFAnalysis:
 
         return DCFAnalysisResult(
             intrinsic_share_price=intrinsic_share_price,
+            enterprise_value=enterprise_value,
+            equity_value=equity_value,
         )
