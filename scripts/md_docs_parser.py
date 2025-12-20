@@ -29,13 +29,6 @@ def write_index(directory: Path, title: str, children: List[Tuple[str, str]]) ->
     index_path = directory / "index.md"
     print(f"Generating Index: {index_path}")
     with open(index_path, "w", encoding="utf-8") as f:
-        # We can add a header if we want, but usually the directory name
-        # or the context implies it. Let's just list the contents.
-        # Maybe add the H1 title as a header?
-        # The user just asked for the directory structure.
-        # But if we have a title (from H1), we could use it.
-        pass  # Let's stick to just the list for now as per "contain the entire directory structure"
-
         for name, link_title in children:
             f.write(f"- [{link_title}]({name})\n")
 
@@ -115,14 +108,6 @@ def parse_markdown(*, input_file: str, output_dir: str) -> None:
                     root_children.append((f"{dirname}/index.md", title))
 
                     close_current_file()
-
-                    # We anticipate intro text, so we prepare to write to introduction.md
-                    # But we only create it if we actually get text.
-                    # We mark it as the "active" file concept, but don't open it yet.
-                    # Actually, logic below handles "if not current_file: open...".
-                    # We just need to know what file to open.
-                    # Let's use a flag or just handle it in the "else" block.
-                    pass
 
                 # Check for H2 or H3
                 elif line.startswith("## ") or line.startswith("### "):
