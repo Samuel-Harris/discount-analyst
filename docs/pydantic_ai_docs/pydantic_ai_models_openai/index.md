@@ -1,0 +1,8 @@
+- [Setup](setup.md)
+- [OpenAIModelName](openaimodelname.md)
+- [OpenAIChatModelSettings](openaichatmodelsettings.md)
+- [OpenAIModelSettings](openaimodelsettings.md)
+- [OpenAIResponsesModelSettings](openairesponsesmodelsettings.md)
+- [OpenAIChatModel](openaichatmodel.md)
+- [OpenAIModel](openaimodel.md)
+- [OpenAIResponsesModel](openairesponsesmodel.md)

@@ -1,0 +1,5 @@
+- [Setup](setup.md)
+- [LatestCohereModelNames](latestcoheremodelnames.md)
+- [CohereModelName](coheremodelname.md)
+- [CohereModelSettings](coheremodelsettings.md)
+- [CohereModel](coheremodel.md)

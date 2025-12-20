@@ -1,6 +1,9 @@
 # ruff
 .ruff_cache/
 
+# Cursor
+.cursorignore
+
 # IDEA
 .idea/
 
@@ -16,3 +19,12 @@ __pycache__/
 
 # notebooks
 discount_analyst/notebooks/
+
+# env
+.env
+
+# Documentation
+docs/raw_original_docs/
+
+# data
+research_reports/

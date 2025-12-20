@@ -8,42 +8,63 @@ class DCFAnalysis:
     def __init__(
         self,
         dcf_analysis_params: DCFAnalysisParameters,
+        /,
     ) -> None:
-        # Initial financial state
-        self.initial_ebit = dcf_analysis_params.initial_ebit
-        self.initial_revenue = dcf_analysis_params.initial_revenue
-        self.initial_capital_expenditure = (
-            dcf_analysis_params.initial_capital_expenditure
-        )
-        self.n_shares_outstanding = dcf_analysis_params.n_shares_outstanding
-        self.market_cap = dcf_analysis_params.market_cap
-        self.gross_debt = dcf_analysis_params.gross_debt
-        self.gross_debt_last_year = dcf_analysis_params.gross_debt_last_year
-        self.net_debt = dcf_analysis_params.net_debt
-        self.total_interest_expense = dcf_analysis_params.total_interest_expense
-        self.risk_free_rate = dcf_analysis_params.risk_free_rate
-        self.beta = dcf_analysis_params.beta
+        stock_data = dcf_analysis_params.stock_data
+        stock_assumptions = dcf_analysis_params.stock_assumptions
 
-        # Assumptions
-        self.assumed_forecast_period_annual_revenue_growth_rate = (
-            dcf_analysis_params.assumed_forecast_period_annual_revenue_growth_rate
-        )
-        self.assumed_perpetuity_cash_flow_growth_rate = (
-            dcf_analysis_params.assumed_perpetuity_cash_flow_growth_rate
-        )
-        self.assumed_ebit_margin = dcf_analysis_params.assumed_ebit_margin
-        self.assumed_tax_rate = dcf_analysis_params.assumed_tax_rate
-        self.assumed_depreciation_and_amortization_rate = (
-            dcf_analysis_params.assumed_depreciation_and_amortization_rate
-        )
-        self.assumed_capex_rate = dcf_analysis_params.assumed_capex_rate
-        self.assumed_change_in_working_capital_rate = (
-            dcf_analysis_params.assumed_change_in_working_capital_rate
-        )
+        # Initial financial state (from stock_data)
+        self.initial_ebit = stock_data.ebit
+        self.initial_revenue = stock_data.revenue
+        self.initial_capital_expenditure = stock_data.capital_expenditure
+        self.n_shares_outstanding = stock_data.n_shares_outstanding
+        self.market_cap = stock_data.market_cap
+        self.gross_debt = stock_data.gross_debt
+        self.gross_debt_last_year = stock_data.gross_debt_last_year
+        self.net_debt = stock_data.net_debt
+        self.total_interest_expense = stock_data.total_interest_expense
+        self.beta = stock_data.beta
+
+        # Market parameters (from dcf_analysis_params directly)
+        self.risk_free_rate = dcf_analysis_params.risk_free_rate
         self.expected_market_return = dcf_analysis_params.expected_market_return
 
-        # Input parameters
-        self.forecast_period_years = dcf_analysis_params.forecast_period_years
+        # Assumptions (from stock_assumptions)
+        self.assumed_forecast_period_annual_revenue_growth_rate = (
+            stock_assumptions.assumed_forecast_period_annual_revenue_growth_rate
+        )
+        self.assumed_perpetuity_cash_flow_growth_rate = (
+            stock_assumptions.assumed_perpetuity_cash_flow_growth_rate
+        )
+        self.assumed_ebit_margin = stock_assumptions.assumed_ebit_margin
+        self.assumed_tax_rate = stock_assumptions.assumed_tax_rate
+        self.assumed_depreciation_and_amortization_rate = (
+            stock_assumptions.assumed_depreciation_and_amortization_rate
+        )
+        self.assumed_capex_rate = stock_assumptions.assumed_capex_rate
+        self.assumed_change_in_working_capital_rate = (
+            stock_assumptions.assumed_change_in_working_capital_rate
+        )
+
+        # Input parameters (from stock_assumptions)
+        self.forecast_period_years = stock_assumptions.forecast_period_years
+        if self.forecast_period_years <= 0:
+            raise ValueError(
+                f"Forecast period years must be greater than 0. "
+                f"Provided value: {self.forecast_period_years}. "
+                f"Expected: positive integer (e.g., 5, 7, 10)."
+            )
+
+        if (
+            self.assumed_forecast_period_annual_revenue_growth_rate
+            <= self.assumed_perpetuity_cash_flow_growth_rate
+        ):
+            raise ValueError(
+                f"Forecast period revenue growth rate ({self.assumed_forecast_period_annual_revenue_growth_rate:.4f}) "
+                f"must be greater than perpetuity cash flow growth rate ({self.assumed_perpetuity_cash_flow_growth_rate:.4f}). "
+                f"This ensures the company transitions from high-growth to stable growth. "
+                f"Expected: forecast rate > perpetuity rate (e.g., 0.08 > 0.025)."
+            )
 
     def _calculate_cost_of_equity(self) -> float:
         """Capital Asset Pricing Model (CAPM) approach"""
@@ -56,6 +77,9 @@ class DCFAnalysis:
         """Direct calculation from financial statement"""
 
         average_gross_debt = (self.gross_debt + self.gross_debt_last_year) / 2
+
+        if average_gross_debt == 0:
+            return 0.0
 
         return self.total_interest_expense / average_gross_debt
 
@@ -126,6 +150,14 @@ class DCFAnalysis:
         final_free_cash_flow: float,
         discount_rate: float,
     ) -> float:
+        if discount_rate <= self.assumed_perpetuity_cash_flow_growth_rate:
+            raise ValueError(
+                f"Discount rate ({discount_rate:.4f}) must be strictly greater than "
+                f"perpetuity growth rate ({self.assumed_perpetuity_cash_flow_growth_rate:.4f}) "
+                f"for terminal value calculation. Provided discount rate: {discount_rate:.4f}. "
+                f"Expected: discount rate > perpetuity rate (e.g., 0.08 > 0.025) to ensure convergence."
+            )
+
         return (
             final_free_cash_flow
             * (1 + self.assumed_perpetuity_cash_flow_growth_rate)
@@ -161,7 +193,9 @@ class DCFAnalysis:
             != self.forecast_period_years
         ):
             raise ValueError(
-                f"Expected to generate the present values for the next {self.forecast_period_years} years. Only generated {len(present_value_of_forecasted_free_cash_flows)} present values."
+                f"Present value calculation mismatch. Expected {self.forecast_period_years} values "
+                f"(one for each forecast year), but received {len(present_value_of_forecasted_free_cash_flows)} values. "
+                f"This indicates an internal calculation error in the DCF model."
             )
 
         terminal_value = self._calculate_terminal_value(
@@ -184,4 +218,6 @@ class DCFAnalysis:
 
         return DCFAnalysisResult(
             intrinsic_share_price=intrinsic_share_price,
+            enterprise_value=enterprise_value,
+            equity_value=equity_value,
         )

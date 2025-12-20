@@ -1,0 +1,6 @@
+- [Setup](setup.md)
+- [LatestMistralModelNames](latestmistralmodelnames.md)
+- [MistralModelName](mistralmodelname.md)
+- [MistralModelSettings](mistralmodelsettings.md)
+- [MistralModel](mistralmodel.md)
+- [MistralStreamedResponse](mistralstreamedresponse.md)

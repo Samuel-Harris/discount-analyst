@@ -1,0 +1,7 @@
+- [OutputDataT](outputdatat.md)
+- [ToolOutput](tooloutput.md)
+- [NativeOutput](nativeoutput.md)
+- [PromptedOutput](promptedoutput.md)
+- [TextOutput](textoutput.md)
+- [StructuredDict](structureddict.md)
+- [DeferredToolRequests](deferredtoolrequests.md)

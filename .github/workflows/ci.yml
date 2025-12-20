@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python and Dependencies
+        uses: ./.github/actions/setup-python
+
+      - name: Run pre-commit
+        run: |
+          python -m pip install pre-commit
+          pre-commit run --all-files
+
+  pytest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python and Dependencies
+        uses: ./.github/actions/setup-python
+
+      - name: Run tests with pytest
+        run: |
+          poetry run pytest
+
+  pyrefly:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python and Dependencies
+        uses: ./.github/actions/setup-python
+
+      - name: Run pyrefly
+        run: |
+          poetry run pyrefly check --summarize-errors
