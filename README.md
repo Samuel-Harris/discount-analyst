@@ -1,7 +1,6 @@
 # Discount Analyst
 
-[![Pytest](https://github.com/Samuel-Harris/discount-analyst/actions/workflows/run_pytest.yml/badge.svg)](https://github.com/Samuel-Harris/discount-analyst/actions/workflows/run_pytest.yml)
-[![Pyrefly](https://github.com/Samuel-Harris/discount-analyst/actions/workflows/run_pyrefly.yml/badge.svg)](https://github.com/Samuel-Harris/discount-analyst/actions/workflows/run_pyrefly.yml)
+[![CI](https://github.com/Samuel-Harris/discount-analyst/actions/workflows/ci.yml/badge.svg)](https://github.com/Samuel-Harris/discount-analyst/actions/workflows/ci.yml)
 
 An AI-powered stock analysis tool. It was named 'Discount Analyst' because it is intended to be a cheap stock analysis tool.
 
