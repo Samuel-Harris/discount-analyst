@@ -1,0 +1,6 @@
+{
+  "include": ["discount_analyst/**/*.py", "scripts/**/*.py", "tests/**/*.py"],
+  "exclude": ["**/__pycache__/**", "**/.venv/**", "**/venv/**"],
+  "typeCheckingMode": "basic",
+  "pythonVersion": "3.14"
+}

@@ -23,7 +23,7 @@ None.
 
 - **YAML Validation**: Always ensure correct indentation and valid YAML syntax when modifying workflow files.
 - **Action Selection**: Use stable versions of actions (e.g., `actions/checkout@v4`).
-- **Environment Setup**: Use the project's internal composite action `./.github/actions/setup-python` to ensure consistent Python and Poetry environments across all jobs.
+- **Environment Setup**: Use the project's internal composite action `./.github/actions/setup-python` to ensure consistent Python and uv environments across all jobs.
 
 ### Testing Requirements
 
@@ -33,14 +33,14 @@ None.
 ### Common Patterns
 
 - **Multi-Job Workflows**: Workflows are divided into logical jobs (e.g., `pre-commit`, `pytest`, `pyrefly`) to provide clear feedback on specific failures.
-- **Poetry Execution**: Use `poetry run` for all command executions to ensure the correct virtual environment is used.
+- **uv Execution**: Use `uv run` for all command executions to ensure the correct virtual environment is used.
 
 ## Dependencies
 
 ### Internal
 
-- **.github/actions/setup-python/**: A local composite action used to standardize the setup of Python, Poetry, and dependencies.
-- **pyproject.toml / poetry.lock**: Define the environment and dependencies used during CI runs.
+- **.github/actions/setup-python/**: A local composite action used to standardize the setup of Python, uv, and dependencies.
+- **pyproject.toml / uv.lock**: Define the environment and dependencies used during CI runs.
 
 ### External
 

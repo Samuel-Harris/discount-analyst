@@ -35,7 +35,7 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 
 ### Testing Requirements
 
-- Run the full test suite with `poetry run pytest`.
+- Run the full test suite with `uv run pytest`.
 - Add unit tests for any new financial calculation logic in `tests/dcf_analysis/`.
 - Ensure agent tool changes are verified with integration tests (mocking external API calls).
 

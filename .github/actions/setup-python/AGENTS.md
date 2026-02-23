@@ -5,7 +5,7 @@
 
 ## Purpose
 
-The `setup-python` directory contains a reusable GitHub composite action designed to standardize the environment setup for the Discount Analyst project. It ensures that the correct version of Python is installed and that all project dependencies are consistently managed via Poetry.
+The `setup-python` directory contains a reusable GitHub composite action designed to standardize the environment setup for the Discount Analyst project. It ensures that the correct version of Python is installed and that all project dependencies are consistently managed via uv.
 
 ## Key Files
 
@@ -24,7 +24,7 @@ The `setup-python` directory contains a reusable GitHub composite action designe
 ### Working In This Directory
 
 - **Python Version**: This action specifically targets Python 3.14. Any changes to the project's Python version requirements should be reflected here.
-- **Dependency Management**: It uses `poetry` for dependency installation. Ensure `poetry install` remains the standard for setting up the development environment.
+- **Dependency Management**: It uses `uv` for dependency installation. Ensure `uv sync` remains the standard for setting up the development environment.
 - **Composite Action**: Modifications should adhere to the GitHub Actions `composite` run type syntax.
 
 ### Testing Requirements
@@ -45,6 +45,6 @@ The `setup-python` directory contains a reusable GitHub composite action designe
 ### External
 
 - **actions/setup-python@v5**: Used to install the Python runtime.
-- **Poetry**: Used for installing project dependencies.
+- **uv**: Used for installing project dependencies.
 
 <!-- MANUAL: Any manually added notes below this line are preserved on regeneration -->

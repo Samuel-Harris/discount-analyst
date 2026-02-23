@@ -6,5 +6,5 @@ if [ -z "$FILE" ] || [ ! -f "$FILE" ]; then
   exit 0
 fi
 
-poetry run ruff check --fix --quiet "$FILE" 2>/dev/null || true
-poetry run ruff format --quiet "$FILE" 2>/dev/null || true
+uv run ruff check --fix --quiet "$FILE" 2>/dev/null || true
+uv run ruff format --quiet "$FILE" 2>/dev/null || true
