@@ -1,4 +1,4 @@
-<!-- Generated: 2026-02-23 | Updated: 2026-02-23 -->
+<!-- Generated: 2026-02-23 | Updated: 2026-02-23 (hooks added) -->
 
 # Discount Analyst
 
@@ -15,6 +15,7 @@ An AI-powered stock analysis tool ("Discount Analyst") designed for automated, l
 | `README.md` | Overview, quick start instructions, and high-level documentation. |
 | `LICENSE` | MIT License terms for the repository. |
 | `pytest.ini` | Configuration for the `pytest` test suite, including coverage settings. |
+| `.cursor/hooks.json` | Cursor hooks: `sessionStart` (injects branch + Poetry env context) and `afterFileEdit` (auto-runs `ruff` on Python files). |
 
 ## Subdirectories
 
