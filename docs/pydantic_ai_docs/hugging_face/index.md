@@ -1,6 +1,0 @@
-- [Introduction](introduction.md)
-- [Install](install.md)
-- [Configuration](configuration.md)
-- [Usage](usage.md)
-- [Configure the provider](configure_the_provider.md)
-- [Custom Hugging Face client](custom_hugging_face_client.md)

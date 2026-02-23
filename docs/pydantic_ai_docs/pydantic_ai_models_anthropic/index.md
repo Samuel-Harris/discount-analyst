@@ -1,6 +1,0 @@
-- [Setup](setup.md)
-- [LatestAnthropicModelNames](latestanthropicmodelnames.md)
-- [AnthropicModelName](anthropicmodelname.md)
-- [AnthropicModelSettings](anthropicmodelsettings.md)
-- [AnthropicModel](anthropicmodel.md)
-- [AnthropicStreamedResponse](anthropicstreamedresponse.md)

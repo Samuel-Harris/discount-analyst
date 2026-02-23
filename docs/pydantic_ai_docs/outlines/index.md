@@ -1,5 +1,0 @@
-- [Install](install.md)
-- [Model Initialization](model_initialization.md)
-- [Model Loading Methods](model_loading_methods.md)
-- [Running the model](running_the_model.md)
-- [Multimodal models](multimodal_models.md)

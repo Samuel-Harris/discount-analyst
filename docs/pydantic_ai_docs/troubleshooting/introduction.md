@@ -1,1 +1,0 @@
-Below are suggestions on how to fix some common errors you might encounter while using Pydantic AI. If the issue you're experiencing is not listed below or addressed in the documentation, please feel free to ask in the [Pydantic Slack](../help/) or create an issue on [GitHub](https://github.com/pydantic/pydantic-ai/issues).

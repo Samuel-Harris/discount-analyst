@@ -1,3 +1,0 @@
-client = Client(transport=transport)
-
-```

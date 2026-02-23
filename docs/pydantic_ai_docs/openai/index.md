@@ -1,7 +1,0 @@
-- [Install](install.md)
-- [Configuration](configuration.md)
-- [Environment variable](environment_variable.md)
-- [Configure the provider](configure_the_provider.md)
-- [Custom OpenAI Client](custom_openai_client.md)
-- [OpenAI Responses API](openai_responses_api.md)
-- [Built-in tools](built-in_tools.md)

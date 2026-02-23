@@ -1,3 +1,0 @@
-- [instrument_model](instrument_model.md)
-- [InstrumentationSettings](instrumentationsettings.md)
-- [InstrumentedModel](instrumentedmodel.md)

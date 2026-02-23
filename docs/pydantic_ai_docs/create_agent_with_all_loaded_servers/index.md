@@ -1,3 +1,0 @@
-- [Introduction](introduction.md)
-- [Tool call customization](tool_call_customization.md)
-- [Using Tool Prefixes to Avoid Naming Conflicts](using_tool_prefixes_to_avoid_naming_conflicts.md)

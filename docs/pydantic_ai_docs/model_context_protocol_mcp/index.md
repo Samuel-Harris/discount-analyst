@@ -1,2 +1,0 @@
-- [Introduction](introduction.md)
-- [What is MCP?](what_is_mcp.md)

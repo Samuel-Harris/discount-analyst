@@ -1,7 +1,0 @@
-- [Introduction](introduction.md)
-- [DuckDuckGo Search Tool](duckduckgo_search_tool.md)
-- [Installation](installation.md)
-- [Usage](usage.md)
-- [Tavily Search Tool](tavily_search_tool.md)
-- [Installation](installation.md)
-- [Usage](usage.md)

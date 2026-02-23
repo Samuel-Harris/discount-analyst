@@ -1,3 +1,0 @@
-- [Install](install.md)
-- [Configuration](configuration.md)
-- [Environment variables](environment_variables.md)

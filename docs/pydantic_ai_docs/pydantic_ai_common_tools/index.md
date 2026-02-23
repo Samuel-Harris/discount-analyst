@@ -1,2 +1,0 @@
-- [duckduckgo_search_tool](duckduckgo_search_tool.md)
-- [tavily_search_tool](tavily_search_tool.md)
