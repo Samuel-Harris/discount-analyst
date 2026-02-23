@@ -1,3 +1,0 @@
-- [Introduction](introduction.md)
-- [set_eval_attribute](set_eval_attribute.md)
-- [increment_eval_metric](increment_eval_metric.md)

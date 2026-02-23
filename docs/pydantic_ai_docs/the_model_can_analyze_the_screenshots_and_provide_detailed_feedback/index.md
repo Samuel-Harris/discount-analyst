@@ -1,4 +1,0 @@
-- [Introduction](introduction.md)
-- [Custom Tool Schema](custom_tool_schema.md)
-- [Dynamic Tools](dynamic_tools.md)
-- [Agent-wide Dynamic Tools](agent-wide_dynamic_tools.md)

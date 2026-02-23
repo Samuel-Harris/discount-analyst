@@ -1,3 +1,0 @@
-- [Introduction](introduction.md)
-- [Accessing Cache Usage Statistics](accessing_cache_usage_statistics.md)
-- [Cache Point Limits](cache_point_limits.md)

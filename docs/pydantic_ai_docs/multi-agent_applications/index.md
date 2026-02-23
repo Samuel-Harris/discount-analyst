@@ -1,4 +1,0 @@
-- [Introduction](introduction.md)
-- [Agent delegation](agent_delegation.md)
-- [Agent delegation and dependencies](agent_delegation_and_dependencies.md)
-- [Programmatic agent hand-off](programmatic_agent_hand-off.md)

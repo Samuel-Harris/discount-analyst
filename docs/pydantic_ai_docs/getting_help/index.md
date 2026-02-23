@@ -1,3 +1,0 @@
-- [Introduction](introduction.md)
-- [Slack](slack.md)
-- [GitHub Issues](github_issues.md)

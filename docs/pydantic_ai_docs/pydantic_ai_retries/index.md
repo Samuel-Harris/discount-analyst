@@ -1,5 +1,0 @@
-- [Introduction](introduction.md)
-- [RetryConfig](retryconfig.md)
-- [TenacityTransport](tenacitytransport.md)
-- [AsyncTenacityTransport](asynctenacitytransport.md)
-- [wait_retry_after](wait_retry_after.md)

@@ -1,1 +1,0 @@
-Built-in tools are native tools provided by LLM providers that can be used to enhance your agent's capabilities. Unlike [common tools](../common-tools/), which are custom implementations that Pydantic AI executes, built-in tools are executed directly by the model provider.

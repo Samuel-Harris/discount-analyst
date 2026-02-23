@@ -1,4 +1,0 @@
-- [Introduction](introduction.md)
-- [Use with Pydantic Logfire](use_with_pydantic_logfire.md)
-- [Running Examples](running_examples.md)
-- [Slim Install](slim_install.md)
