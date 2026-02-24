@@ -1,7 +1,0 @@
-Model,Input (per 1M tokens),Prompt write (per 1M tokens),Prompt cache read (per 1M tokens),Output (per 1M tokens)
-gpt-5.2,0.875,0,0.0875,7.00
-gpt-5.1,0.625,0,0.0625,5.00
-Claude Opus 4.6 (thinking),2.50,3.125 (5 minutes)/5 (1 hour),0.50,12.50
-Claude Opus 4.5 (thinking),2.50,3.125 (5 minutes)/5 (1 hour),0.50,12.50
-Claude Sonnet 4.6,1.50,1.875 (5 minutes)/3 (1 hour),0.30,7.50
-Gemini 3 pro-preview,1.00,prompts <= 200k tokens,2.00,prompts > 200k tokens,0.20,prompts <= 200k tokens,0.40,prompts > 200k,4.50 / 1,000,000 tokens per hour (storage price),0.05,prompts <= 200k tokens,0.10,prompts > 200k,6.00,prompts <= 200k tokens,9.00,prompts > 200k

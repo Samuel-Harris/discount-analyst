@@ -16,7 +16,9 @@ The `scripts/` directory contains utility and entry-point scripts for the Discou
 
 ## Subdirectories
 
-None.
+| Directory | Purpose |
+| --------- | ----------------------------------------- |
+| `cost_comparison/` | Model cost/speed comparison script (see `cost_comparison/AGENTS.md`). |
 
 ## For AI Agents
 

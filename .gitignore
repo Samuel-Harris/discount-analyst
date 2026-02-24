@@ -29,3 +29,6 @@ docs/raw_original_docs/
 # data
 research_reports/
 experiment_data/
+
+# Handoffs
+.cursor/handoffs/

@@ -47,6 +47,6 @@ None.
 - **GitHub Actions**: The underlying automation platform.
 - **pre-commit**: Used for automated linting and formatting checks.
 - **pytest**: The primary testing framework.
-- **pyrefly**: Used for automated code analysis and review.
+- **pyright**: Used for automated code analysis and review.
 
 <!-- MANUAL: Any manually added notes below this line are preserved on regeneration -->

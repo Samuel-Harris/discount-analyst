@@ -1,0 +1,10 @@
+---
+globs: **.py
+alwaysApply: false
+---
+
+# Python guidelines
+
+When writing Python:
+
+- Prefer named attribute access (Pydantic models, dataclasses, NamedTuples) over plain tuples or dicts.

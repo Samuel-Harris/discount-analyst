@@ -486,9 +486,11 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiolimiter" },
+    { name = "google-genai" },
     { name = "httpx" },
     { name = "logfire" },
     { name = "markdownify" },
+    { name = "openai" },
     { name = "perplexityai" },
     { name = "pydantic" },
     { name = "pydantic-ai" },
@@ -511,9 +513,11 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiolimiter", specifier = ">=1.2.1,<2.0.0" },
+    { name = "google-genai", specifier = ">=1.53.0" },
     { name = "httpx", specifier = ">=0.28.1,<0.29.0" },
     { name = "logfire", specifier = ">=4.16.0,<5.0.0" },
     { name = "markdownify", specifier = ">=1.2.2,<2.0.0" },
+    { name = "openai", specifier = ">=2.9.0" },
     { name = "perplexityai", specifier = ">=0.22.0,<0.23.0" },
     { name = "pydantic", specifier = ">=2.12.3,<3.0.0" },
     { name = "pydantic-ai", specifier = ">=1.27.0,<2.0.0" },

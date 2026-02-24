@@ -13,8 +13,8 @@ Common data structures, configuration, and utility modules used across the `disc
 | --------- | ---------------------------- |
 | `data_types.py` | Central Pydantic models for `StockData`, `StockAssumptions`, and agent outputs. |
 | `ai_models_config.py` | Configuration for LLM models, including token budgets and thinking parameters. |
-| `settings.py` | Application configuration using `pydantic-settings` for API keys and environment variables. |
-| `model.py` | Factory for creating rate-limited AI models using Anthropic. |
+| `settings.py` | Application configuration using `pydantic-settings` for API keys and environment variables (e.g. `anthropic__api_key`, `openai__api_key`, `google__api_key`). |
+| `model.py` | Factory for creating rate-limited AI models from config (Anthropic, OpenAI, Google). |
 | `rate_limit_client.py` | Asynchronous HTTP client with exponential backoff and retry logic. |
 | `__init__.py` | Package initialization file. |
 
