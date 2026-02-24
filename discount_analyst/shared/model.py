@@ -31,7 +31,9 @@ def create_model_from_config(config: AIModelConfig, /) -> Model:
                 config.model_name,
                 provider=OpenAIProvider(
                     api_key=settings.openai.api_key,
-                    http_client=create_rate_limit_client(),
+                    http_client=create_rate_limit_client(
+                        timeout=1200
+                    ),  # 20 min for long runs
                 ),
             )
         case GoogleAIModelConfig():

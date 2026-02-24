@@ -221,6 +221,15 @@ def calc_actual_cost(r: RunResult) -> FormattedCostResult | None:
     )
 
 
+def calc_raw_cost(r: RunResult) -> float | None:
+    """Return raw USD total cost, or None if no usage or pricing unavailable."""
+    formatted = calc_actual_cost(r)
+    if formatted is None:
+        return None
+    return float(formatted.total_cost.replace("$", ""))
+    # Note: FormattedCostResult.total_cost is always "$X.XXXX" when not None
+
+
 _SCRIPT_DIR = Path(__file__).resolve().parent
 
 

@@ -91,7 +91,6 @@ class OpenAIAIModelConfig(BaseAIModelConfig):
     @property
     def model_settings(self) -> OpenAIChatModelSettings:
         settings = OpenAIChatModelSettings(
-            temperature=1,
             max_tokens=self.max_tokens,
             openai_service_tier="flex",
             parallel_tool_calls=True,
