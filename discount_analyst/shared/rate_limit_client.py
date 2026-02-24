@@ -1,14 +1,28 @@
-from httpx import AsyncClient, HTTPStatusError, TimeoutException
-from openai import APITimeoutError, InternalServerError, RateLimitError
+from httpx import (
+    AsyncClient,
+    ConnectError,
+    HTTPStatusError,
+    ReadTimeout,
+    TimeoutException,
+)
+from openai import (
+    APIConnectionError,
+    APITimeoutError,
+    InternalServerError,
+    RateLimitError,
+)
 from tenacity import retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from pydantic_ai.retries import AsyncTenacityTransport, RetryConfig, wait_retry_after
 
-# Retry on rate limits (429), timeouts, and resource unavailable (503)
+# Retry on rate limits (429), timeouts (incl. ReadTimeout for long Gemini runs), connection failures, and resource unavailable (503)
 _RETRY_EXCEPTIONS = (
     HTTPStatusError,
     TimeoutException,
+    ReadTimeout,
+    ConnectError,
     APITimeoutError,
+    APIConnectionError,
     RateLimitError,
     InternalServerError,
 )

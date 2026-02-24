@@ -5,6 +5,7 @@ Usage:
     uv run python scripts/cost_comparison/view_ticker_results.py AMZN
     uv run python scripts/cost_comparison/view_ticker_results.py AAPL --detail
     uv run python scripts/cost_comparison/view_ticker_results.py AMZN --compare-cache
+    uv run python scripts/cost_comparison/view_ticker_results.py AMZN --compare-cost
 """
 
 from __future__ import annotations
@@ -114,6 +115,55 @@ def _run_to_result(run: ModelRunOutput, cache_mode: str) -> RunResult | None:
         error=None,
         output=None,
     )
+
+
+def _build_cost_speed_comparison_table(runs: list[LoadedRun]) -> Table | None:
+    """Build a single table comparing cost, speed, and token usage across all models."""
+    runs_with_usage = [x for x in runs if _run_has_usage(x.run)]
+    if not runs_with_usage:
+        return None
+
+    rows: list[tuple[str, ...]] = []
+    for loaded in sorted(
+        runs_with_usage, key=lambda x: (x.run.model_name, x.cache_mode)
+    ):
+        r = _run_to_result(loaded.run, loaded.cache_mode)
+        if r is None:
+            continue
+        cost = calc_actual_cost(r)
+        total_cost = cost.total_cost if cost else "N/A"
+        rows.append(
+            (
+                loaded.run.model_name,
+                loaded.cache_mode,
+                f"{r.elapsed_s:.2f}",
+                f"{r.input_tokens:,}",
+                f"{r.output_tokens:,}",
+                f"{r.cache_write_tokens:,}",
+                f"{r.cache_read_tokens:,}",
+                total_cost,
+            )
+        )
+
+    if not rows:
+        return None
+    table = Table(
+        title="Model cost & speed comparison",
+        show_header=True,
+        header_style="bold magenta",
+        show_lines=True,
+    )
+    table.add_column("Model", style="cyan", no_wrap=True)
+    table.add_column("Cache", justify="center")
+    table.add_column("Time (s)", justify="right")
+    table.add_column("Input Tok", justify="right")
+    table.add_column("Output Tok", justify="right")
+    table.add_column("Cache Write", justify="right")
+    table.add_column("Cache Read", justify="right")
+    table.add_column("Total Cost", justify="right")
+    for row in rows:
+        table.add_row(*row)
+    return table
 
 
 def _build_cache_comparison_tables(runs: list[LoadedRun]) -> list[Table]:
@@ -437,6 +487,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Compare cost and speed for cache vs no-cache runs per model (requires usage data in saved JSON).",
     )
+    parser.add_argument(
+        "--compare-cost",
+        action="store_true",
+        help="Compare model cost, speed, tokens (input/output/cache write/read) across all runs (requires usage data in saved JSON).",
+    )
     return parser.parse_args()
 
 
@@ -473,6 +528,20 @@ def main() -> None:
                 "[dim]No cache vs no-cache comparison available: either no model has "
                 "both runs, or saved files lack usage data. Re-run model_cost_comparison.py "
                 "to record cost/speed (new runs will include it).[/dim]"
+            )
+            console.print()
+
+    if args.compare_cost:
+        cost_table = _build_cost_speed_comparison_table(runs)
+        if cost_table:
+            console.print()
+            console.print(cost_table)
+            console.print()
+        else:
+            console.print()
+            console.print(
+                "[dim]No cost/speed comparison available: saved files lack usage data. "
+                "Re-run model_cost_comparison.py to record cost/speed (new runs will include it).[/dim]"
             )
             console.print()
 

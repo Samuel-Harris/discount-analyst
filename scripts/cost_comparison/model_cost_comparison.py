@@ -182,13 +182,15 @@ async def run_one_model(
         )
     except Exception as e:  # noqa: BLE001
         elapsed_s = time.perf_counter() - start
+        error_type = type(e).__name__
         error_msg = str(e)
+        error_display = f"{error_type}: {error_msg}" if error_msg else error_type
         logfire.error(
             "Model run failed",
             model=model_name.value,
             cache_enabled=cache_enabled,
             error=error_msg,
-            error_type=type(e).__name__,
+            error_type=error_type,
         )
         return RunResult(
             model_name=model_name,
@@ -199,7 +201,7 @@ async def run_one_model(
             cache_write_tokens=0,
             cache_read_tokens=0,
             tool_calls=0,
-            error=error_msg,
+            error=error_display,
             output=None,
         )
 
