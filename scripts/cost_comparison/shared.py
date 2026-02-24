@@ -122,10 +122,11 @@ MODEL_PRICING_FALLBACK: dict[ModelName, ModelPricing] = {
 
 @dataclass(frozen=True)
 class RunConfig:
-    """One (model, cache_enabled) combination to run."""
+    """One (model, cache_enabled, use_web_search) combination to run."""
 
     model_name: ModelName
     cache_enabled: bool
+    use_web_search: bool = False
 
 
 @dataclass
@@ -140,6 +141,7 @@ class RunResult:
     cache_write_tokens: int
     cache_read_tokens: int
     tool_calls: int
+    use_web_search: bool = False
     error: str | None = None
     output: MarketAnalystOutput | None = field(default=None, repr=False)
 
@@ -239,20 +241,29 @@ def outputs_dir() -> Path:
 
 
 def output_filename(
-    timestamp: str, model_name: str, ticker: str, cache_enabled: bool
+    timestamp: str,
+    model_name: str,
+    ticker: str,
+    cache_enabled: bool,
+    use_web_search: bool = False,
 ) -> str:
     """Return output filename for a run (same pattern as write_model_output)."""
     safe_model = model_name.replace(".", "-")
-    suffix = "cache" if cache_enabled else "no-cache"
-    return f"{timestamp}-{safe_model}-{suffix}-{ticker}.json"
+    cache_part = "cache" if cache_enabled else "no-cache"
+    search_part = "web-search" if use_web_search else "perplexity"
+    return f"{timestamp}-{safe_model}-{cache_part}-{search_part}-{ticker}.json"
 
 
 def write_model_output(
-    run_output: ModelRunOutput, timestamp: str, *, cache_suffix: str = "cache"
+    run_output: ModelRunOutput,
+    timestamp: str,
+    *,
+    cache_suffix: str = "cache",
+    search_suffix: str = "perplexity",
 ) -> Path:
     """Serialise the full run output (agent + DCF) to JSON and return the path written."""
     safe_model = run_output.model_name.replace(".", "-")
-    filename = f"{timestamp}-{safe_model}-{cache_suffix}-{run_output.ticker}.json"
+    filename = f"{timestamp}-{safe_model}-{cache_suffix}-{search_suffix}-{run_output.ticker}.json"
     path = outputs_dir() / filename
     path.write_text(run_output.model_dump_json(indent=2))
     return path

@@ -91,10 +91,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--caching",
         choices=("enabled", "disabled", "both"),
-        default="both",
+        default="enabled",
         help=(
-            "Prompt caching: enabled (all with cache), disabled (Anthropic no-cache only; "
-            "OpenAI/Gemini skipped), both (default: Anthropic cache+no-cache, others once with cache)."
+            "Prompt caching: enabled (default: all models with cache), "
+            "disabled (Anthropic no-cache only; OpenAI/Gemini skipped), "
+            "both (Anthropic cache+no-cache, others once with cache). "
+            "Use --no-cache-claude to add no-cache Claude variants on top of the default."
+        ),
+    )
+    parser.add_argument(
+        "--web-search",
+        action="store_true",
+        default=False,
+        help=(
+            "Add a web-search variant for every model: disables Perplexity and uses the "
+            "model's native built-in web search (pydantic-ai WebSearchTool) instead."
         ),
     )
     parser.add_argument(
@@ -124,26 +135,62 @@ def load_research_report(path: str) -> str:
     return p.read_text()
 
 
-def build_run_configs(caching: str, models_to_run: list[ModelName]) -> list[RunConfig]:
-    """Build list of (model, cache_enabled) configs from --caching and model list."""
-    configs: list[RunConfig] = []
+def build_run_configs(
+    caching: str,
+    models_to_run: list[ModelName],
+    *,
+    add_web_search: bool = False,
+) -> list[RunConfig]:
+    """Build the ordered list of RunConfigs from CLI flags and model list.
+
+    Base configs are determined by --caching. When add_web_search is True a
+    cached web-search variant is appended for every model (Perplexity disabled,
+    model-native WebSearchTool enabled).
+    """
+    base_configs: list[RunConfig] = []
     for model_name in models_to_run:
         is_auto_cache = model_name in AUTO_CACHE_MODELS
         if caching == "enabled":
-            configs.append(RunConfig(model_name=model_name, cache_enabled=True))
+            base_configs.append(RunConfig(model_name=model_name, cache_enabled=True))
         elif caching == "disabled":
             if is_auto_cache:
                 console.print(
                     f"  [yellow]Skipping {model_name.value} (auto-caches, no disable)[/yellow]"
                 )
             else:
-                configs.append(RunConfig(model_name=model_name, cache_enabled=False))
+                base_configs.append(
+                    RunConfig(model_name=model_name, cache_enabled=False)
+                )
         else:  # both
             if is_auto_cache:
-                configs.append(RunConfig(model_name=model_name, cache_enabled=True))
+                base_configs.append(
+                    RunConfig(model_name=model_name, cache_enabled=True)
+                )
             else:
-                configs.append(RunConfig(model_name=model_name, cache_enabled=True))
-                configs.append(RunConfig(model_name=model_name, cache_enabled=False))
+                base_configs.append(
+                    RunConfig(model_name=model_name, cache_enabled=True)
+                )
+                base_configs.append(
+                    RunConfig(model_name=model_name, cache_enabled=False)
+                )
+
+    configs: list[RunConfig] = list(base_configs)
+
+    # Web-search variants are always cached; use --caching both to also get
+    # no-cache runs for Anthropic models.
+    if add_web_search:
+        seen_web_search: set[ModelName] = set()
+        for cfg in base_configs:
+            if cfg.model_name not in seen_web_search:
+                configs.append(
+                    RunConfig(
+                        model_name=cfg.model_name,
+                        cache_enabled=True,
+                        use_web_search=True,
+                    )
+                )
+                seen_web_search.add(cfg.model_name)
+
     return configs
 
 
@@ -151,10 +198,12 @@ async def run_one_model(
     model_name: ModelName,
     user_prompt: str,
     cache_enabled: bool,
+    *,
+    use_web_search: bool = False,
 ) -> RunResult:
     """Run the Market Analyst agent for one model and return timing + usage."""
     config = AIModelsConfig(model_name=model_name, cache_messages=cache_enabled)
-    agent = create_market_analyst_agent(config)
+    agent = create_market_analyst_agent(config, use_perplexity=not use_web_search)
     usage_limits = config.market_analyst.usage_limits
 
     start = time.perf_counter()
@@ -170,6 +219,7 @@ async def run_one_model(
         return RunResult(
             model_name=model_name,
             cache_enabled=cache_enabled,
+            use_web_search=use_web_search,
             elapsed_s=elapsed_s,
             input_tokens=usage.input_tokens,
             output_tokens=usage.output_tokens,
@@ -194,6 +244,7 @@ async def run_one_model(
         return RunResult(
             model_name=model_name,
             cache_enabled=cache_enabled,
+            use_web_search=use_web_search,
             elapsed_s=elapsed_s,
             input_tokens=0,
             output_tokens=0,
@@ -217,7 +268,11 @@ async def main() -> None:
     else:
         models_to_run = all_models
 
-    run_configs = build_run_configs(args.caching, models_to_run)
+    run_configs = build_run_configs(
+        args.caching,
+        models_to_run,
+        add_web_search=args.web_search,
+    )
 
     if args.dry_run:
         timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
@@ -228,14 +283,20 @@ async def main() -> None:
         )
         table.add_column("Model", style="cyan", no_wrap=True)
         table.add_column("Cache", justify="center")
+        table.add_column("Web Search", justify="center")
         table.add_column("Output File", style="dim")
         for cfg in run_configs:
             fname = output_filename(
-                timestamp, cfg.model_name.value, args.ticker, cfg.cache_enabled
+                timestamp,
+                cfg.model_name.value,
+                args.ticker,
+                cfg.cache_enabled,
+                cfg.use_web_search,
             )
             table.add_row(
                 cfg.model_name.value,
                 "yes" if cfg.cache_enabled else "no",
+                "yes" if cfg.use_web_search else "no",
                 fname,
             )
         console.print(table)
@@ -259,10 +320,17 @@ async def main() -> None:
     results: list[RunResult] = []
     for cfg in run_configs:
         cache_label = "cache" if cfg.cache_enabled else "no-cache"
+        search_label = "web-search" if cfg.use_web_search else "perplexity"
         console.print(
-            f"  Running [cyan]{cfg.model_name.value}[/cyan] ([dim]{cache_label}[/dim])..."
+            f"  Running [cyan]{cfg.model_name.value}[/cyan] "
+            f"([dim]{cache_label}[/dim], [dim]{search_label}[/dim])..."
         )
-        result = await run_one_model(cfg.model_name, user_prompt, cfg.cache_enabled)
+        result = await run_one_model(
+            cfg.model_name,
+            user_prompt,
+            cfg.cache_enabled,
+            use_web_search=cfg.use_web_search,
+        )
         results.append(result)
         if result.error:
             console.print(f"    [red]Error: {result.error}[/red]")
@@ -315,8 +383,12 @@ async def main() -> None:
                     tool_calls=result.tool_calls,
                 )
                 cache_suffix = "cache" if result.cache_enabled else "no-cache"
+                search_suffix = "web-search" if cfg.use_web_search else "perplexity"
                 out_path = write_model_output(
-                    run_output, timestamp, cache_suffix=cache_suffix
+                    run_output,
+                    timestamp,
+                    cache_suffix=cache_suffix,
+                    search_suffix=search_suffix,
                 )
                 console.print(f"    Saved [dim]{out_path}[/dim]")
 
@@ -328,6 +400,7 @@ async def main() -> None:
     )
     table_tokens.add_column("Model", style="cyan", no_wrap=True)
     table_tokens.add_column("Cache", justify="center")
+    table_tokens.add_column("Search", justify="center")
     table_tokens.add_column("Time (s)", justify="right")
     table_tokens.add_column("Input Tok", justify="right")
     table_tokens.add_column("Output Tok", justify="right")
@@ -341,6 +414,7 @@ async def main() -> None:
         table_tokens.add_row(
             r.model_name.value,
             "yes" if r.cache_enabled else "no",
+            "web" if r.use_web_search else "perplexity",
             f"{r.elapsed_s:.2f}",
             f"{r.input_tokens:,}",
             f"{r.output_tokens:,}",
@@ -361,6 +435,7 @@ async def main() -> None:
     )
     table_cost.add_column("Model", style="cyan", no_wrap=True)
     table_cost.add_column("Cache", justify="center")
+    table_cost.add_column("Search", justify="center")
     table_cost.add_column("Input Cost", justify="right")
     table_cost.add_column("Output Cost", justify="right")
     table_cost.add_column("Cache Write", justify="right")
@@ -369,10 +444,12 @@ async def main() -> None:
     table_cost.add_column("Pricing", justify="center")
 
     for r in results:
+        search_col = "web" if r.use_web_search else "perplexity"
         if r.error:
             table_cost.add_row(
                 r.model_name.value,
                 "yes" if r.cache_enabled else "no",
+                search_col,
                 "-",
                 "-",
                 "-",
@@ -387,6 +464,7 @@ async def main() -> None:
                 table_cost.add_row(
                     r.model_name.value,
                     "yes" if r.cache_enabled else "no",
+                    search_col,
                     "-",
                     "-",
                     "-",
@@ -398,6 +476,7 @@ async def main() -> None:
                 table_cost.add_row(
                     r.model_name.value,
                     "yes" if r.cache_enabled else "no",
+                    search_col,
                     "?",
                     "?",
                     "?",
@@ -412,6 +491,7 @@ async def main() -> None:
         table_cost.add_row(
             r.model_name.value,
             "yes" if r.cache_enabled else "no",
+            search_col,
             cost_result.input_cost,
             cost_result.output_cost,
             cost_result.cache_write_cost,
