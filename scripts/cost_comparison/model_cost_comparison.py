@@ -4,7 +4,7 @@
 Usage:
     uv run python scripts/cost_comparison/model_cost_comparison.py
     uv run python scripts/cost_comparison/model_cost_comparison.py --model claude-sonnet-4-5
-    uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AAPL --research-report-path path/to/report.md
+    uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AAPL --risk-free-rate 0.045 --research-report-path path/to/report.md
 """
 
 from __future__ import annotations
@@ -12,15 +12,25 @@ from __future__ import annotations
 import argparse
 import asyncio
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 
+import logfire
+from pydantic import BaseModel
 from rich.console import Console
 from rich.table import Table
 
 from genai_prices import Usage, calc_price
 
 from discount_analyst.shared.ai_models_config import AIModelsConfig, ModelName
+from discount_analyst.shared.settings import settings
+from discount_analyst.shared.data_types import MarketAnalystOutput
+from discount_analyst.dcf_analysis.data_types import (
+    DCFAnalysisParameters,
+    DCFAnalysisResult,
+)
+from discount_analyst.dcf_analysis.dcf_analysis import DCFAnalysis
 from discount_analyst.market_analyst.market_analyst import create_market_analyst_agent
 from discount_analyst.market_analyst.user_prompt import create_user_prompt
 
@@ -59,6 +69,17 @@ class FormattedCostResult:
     cache_read_cost: str
     total_cost: str
     used_fallback: bool
+
+
+class ModelRunOutput(BaseModel):
+    """Complete serialisable record for one model run written to outputs/."""
+
+    ticker: str
+    model_name: str
+    risk_free_rate: float
+    market_analyst: MarketAnalystOutput
+    dcf_result: DCFAnalysisResult | None = None
+    dcf_error: str | None = None
 
 
 # Fallback pricing when genai_prices does not have the model (e.g. very new models).
@@ -119,6 +140,7 @@ class RunResult:
     cache_read_tokens: int
     tool_calls: int
     error: str | None = None
+    output: MarketAnalystOutput | None = field(default=None, repr=False)
 
     @property
     def total_tokens(self) -> int:
@@ -197,9 +219,26 @@ def _calc_actual_cost(r: RunResult) -> FormattedCostResult | None:
     )
 
 
+_SCRIPT_DIR = Path(__file__).resolve().parent
+
+
 def _default_research_report_path() -> str:
-    repo_root = Path(__file__).resolve().parent.parent.parent
-    return str(repo_root / "scripts" / "cost_comparison" / "amzn.md")
+    return str(_SCRIPT_DIR / "inputs" / "amzn.md")
+
+
+def _outputs_dir() -> Path:
+    d = _SCRIPT_DIR / "outputs"
+    d.mkdir(exist_ok=True)
+    return d
+
+
+def write_model_output(run_output: ModelRunOutput, timestamp: str) -> Path:
+    """Serialise the full run output (agent + DCF) to JSON and return the path written."""
+    safe_model = run_output.model_name.replace(".", "-")
+    filename = f"{timestamp}-{safe_model}-{run_output.ticker}.json"
+    path = _outputs_dir() / filename
+    path.write_text(run_output.model_dump_json(indent=2))
+    return path
 
 
 def parse_args() -> argparse.Namespace:
@@ -220,10 +259,16 @@ def parse_args() -> argparse.Namespace:
         help="Stock ticker for the run (default: AMZN).",
     )
     parser.add_argument(
+        "--risk-free-rate",
+        type=float,
+        default=0.045,
+        help="Risk-free rate for DCF WACC calculation, as a decimal (default: 0.045).",
+    )
+    parser.add_argument(
         "--research-report-path",
         type=str,
         default=None,
-        help="Path to research report markdown (default: scripts/cost_comparison/amzn.md).",
+        help="Path to research report markdown (default: scripts/cost_comparison/inputs/amzn.md).",
     )
     args = parser.parse_args()
     if args.research_report_path is None:
@@ -249,10 +294,13 @@ async def run_one_model(
 
     start = time.perf_counter()
     try:
-        async with agent.iter(user_prompt, usage_limits=usage_limits) as agent_run:
-            async for _ in agent_run:
-                pass
-        usage = agent_run.usage()
+        async with agent.run_stream(
+            user_prompt, usage_limits=usage_limits
+        ) as streamed_run:
+            async for _ in streamed_run.stream_output(debounce_by=None):
+                pass  # drain stream; Anthropic requires streaming for long requests
+        output = await streamed_run.get_output()
+        usage = streamed_run.usage()
         elapsed_s = time.perf_counter() - start
         return RunResult(
             model_name=model_name,
@@ -263,6 +311,7 @@ async def run_one_model(
             cache_read_tokens=usage.cache_read_tokens,
             tool_calls=usage.tool_calls,
             error=None,
+            output=output,
         )
     except Exception as e:  # noqa: BLE001
         elapsed_s = time.perf_counter() - start
@@ -275,10 +324,14 @@ async def run_one_model(
             cache_read_tokens=0,
             tool_calls=0,
             error=str(e),
+            output=None,
         )
 
 
 async def main() -> None:
+    logfire.configure(token=settings.pydantic.logfire_api_key, scrubbing=False)
+    logfire.instrument_pydantic_ai()
+
     args = parse_args()
     research_report = load_research_report(args.research_report_path)
     user_prompt = create_user_prompt(
@@ -294,6 +347,8 @@ async def main() -> None:
         f"across {len(models_to_run)} model(s) (report: {args.research_report_path})."
     )
 
+    timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+
     results: list[RunResult] = []
     for model_name in models_to_run:
         console.print(f"  Running [cyan]{model_name.value}[/cyan]...")
@@ -307,6 +362,44 @@ async def main() -> None:
                 f"in={result.input_tokens} out={result.output_tokens} "
                 f"| tools={result.tool_calls}"
             )
+            if result.output is not None:
+                dcf_result: DCFAnalysisResult | None = None
+                dcf_error: str | None = None
+                try:
+                    dcf_params = DCFAnalysisParameters(
+                        stock_data=result.output.stock_data,
+                        stock_assumptions=result.output.stock_assumptions,
+                        risk_free_rate=args.risk_free_rate,
+                    )
+                    dcf_result = DCFAnalysis(dcf_params).dcf_analysis()
+                    current_price = (
+                        result.output.stock_data.market_cap
+                        / result.output.stock_data.n_shares_outstanding
+                    )
+                    upside = (
+                        dcf_result.intrinsic_share_price - current_price
+                    ) / current_price
+                    sign = "+" if upside >= 0 else ""
+                    color = "green" if upside >= 0 else "red"
+                    console.print(
+                        f"    DCF: intrinsic [bold]{dcf_result.intrinsic_share_price:.2f}[/bold] "
+                        f"vs market [{color}]{current_price:.2f}[/{color}] "
+                        f"([{color}]{sign}{upside:.1%}[/{color}])"
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    dcf_error = str(exc)
+                    console.print(f"    [yellow]DCF error: {dcf_error}[/yellow]")
+
+                run_output = ModelRunOutput(
+                    ticker=args.ticker,
+                    model_name=model_name.value,
+                    risk_free_rate=args.risk_free_rate,
+                    market_analyst=result.output,
+                    dcf_result=dcf_result,
+                    dcf_error=dcf_error,
+                )
+                out_path = write_model_output(run_output, timestamp)
+                console.print(f"    Saved [dim]{out_path}[/dim]")
 
     # Table 1: Speed & Tokens
     table_tokens = Table(

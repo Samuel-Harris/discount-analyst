@@ -29,6 +29,7 @@ docs/raw_original_docs/
 # data
 research_reports/
 experiment_data/
+scripts/cost_comparison/outputs/
 
 # Handoffs
 .cursor/handoffs/
