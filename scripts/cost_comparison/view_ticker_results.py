@@ -378,6 +378,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Include the model's full reasoning text in detail panels (implies --detail).",
     )
+    parser.add_argument(
+        "--compare-cache",
+        action="store_true",
+        help="Compare cost and speed for cache vs no-cache runs per model (requires usage data in saved JSON).",
+    )
     return parser.parse_args()
 
 

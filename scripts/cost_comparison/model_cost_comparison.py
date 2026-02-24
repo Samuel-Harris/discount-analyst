@@ -82,8 +82,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--risk-free-rate",
         type=float,
-        default=0.045,
-        help="Risk-free rate for DCF WACC calculation, as a decimal (default: 0.045).",
+        default=0.037276,
+        help="Risk-free rate for DCF WACC calculation, as a decimal (default: 0.037276, the UK risk-free rate as of 2026-02-24).",
     )
     parser.add_argument(
         "--research-report-path",
@@ -110,6 +110,11 @@ def parse_args() -> argparse.Namespace:
         parser.error("--model and --continue-from are mutually exclusive.")
     if args.research_report_path is None:
         args.research_report_path = _default_research_report_path()
+    if not (0 < args.risk_free_rate <= 0.15):
+        parser.error(
+            f"--risk-free-rate must be a decimal between 0 and 0.15 (e.g. 0.045 for 4.5%). "
+            f"Got {args.risk_free_rate}. Did you pass a percentage? Use 0.0373 for 3.73%."
+        )
     return args
 
 
