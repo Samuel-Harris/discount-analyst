@@ -10,7 +10,7 @@ from pydantic_ai.models.google import GoogleModelSettings
 from pydantic_ai.models.openai import OpenAIChatModelSettings
 
 
-_MAX_TOOL_CALLS = 30
+_MAX_TOOL_CALLS = 60
 _MAX_TOKENS = 30_000
 _MAX_THINKING_BUDGET_TOKENS = 16_000
 
