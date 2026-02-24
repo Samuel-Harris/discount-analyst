@@ -141,6 +141,7 @@ def _build_cost_speed_comparison_table(runs: list[LoadedRun]) -> Table | None:
                 f"{r.output_tokens:,}",
                 f"{r.cache_write_tokens:,}",
                 f"{r.cache_read_tokens:,}",
+                str(r.tool_calls),
                 total_cost,
             )
         )
@@ -160,6 +161,7 @@ def _build_cost_speed_comparison_table(runs: list[LoadedRun]) -> Table | None:
     table.add_column("Output Tok", justify="right")
     table.add_column("Cache Write", justify="right")
     table.add_column("Cache Read", justify="right")
+    table.add_column("Tool Calls", justify="right")
     table.add_column("Total Cost", justify="right")
     for row in rows:
         table.add_row(*row)

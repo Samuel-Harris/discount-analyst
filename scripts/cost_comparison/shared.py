@@ -66,13 +66,12 @@ class ModelRunOutput(BaseModel):
     market_analyst: MarketAnalystOutput
     dcf_result: DCFAnalysisResult | None = None
     dcf_error: str | None = None
-    # Optional cost/speed data for cache vs no-cache comparison in view_ticker_results.
-    elapsed_s: float | None = None
-    input_tokens: int | None = None
-    output_tokens: int | None = None
-    cache_write_tokens: int | None = None
-    cache_read_tokens: int | None = None
-    tool_calls: int | None = None
+    elapsed_s: float
+    input_tokens: int
+    output_tokens: int
+    cache_write_tokens: int
+    cache_read_tokens: int
+    tool_calls: int
 
 
 # Fallback pricing when genai_prices does not have the model (e.g. very new models).

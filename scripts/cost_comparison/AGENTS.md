@@ -19,7 +19,7 @@ Scripts and assets for comparing cost and speed across AI models when running th
 
 | Directory  | Purpose                                                                                                                                               |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `inputs/`  | Input research reports (e.g. `amzn.md`). Default report resolved from here.                                                                           |
+| `inputs/`  | Input research reports (e.g. `amzn.md`). When `--ticker` is set, report path defaults to `inputs/{lowercase_ticker}.md`. |
 | `outputs/` | Per-model JSON output files written after each successful run (gitignored). Filenames: `{YYYYMMDDTHHMMSS}-{model}-{cache \| no-cache}-{ticker}.json`. |
 
 ## For AI Agents
@@ -28,7 +28,7 @@ Scripts and assets for comparing cost and speed across AI models when running th
 
 - **Pricing**: Cost is computed with **genai-prices** when the model is in its snapshot; otherwise the script uses the `MODEL_PRICING_FALLBACK` dict. Update `MODEL_PRICING_FALLBACK` only for models not yet in genai-prices.
 - **Rich**: Use the `rich` library for all terminal output (tables, console) per project rules.
-- **CLI**: Keep `argparse` for CLI; default ticker `AMZN`, default risk-free rate `0.045`, default report `scripts/cost_comparison/inputs/amzn.md` (resolved relative to the script file). `--caching` (`enabled` | `disabled` | `both`, default `both`) controls prompt caching: Anthropic's `anthropic_cache_messages` is toggled; OpenAI and Gemini auto-cache and are skipped when `disabled`. `--dry-run` prints a table of configs that would run (model, cache mode, output filename) and exits without making API calls.
+- **CLI**: Keep `argparse` for CLI; `--ticker` is required. `--research-report-path` is optional; when omitted, defaults to `inputs/{lowercase_ticker}.md` (relative to script). The research report file must exist. Default risk-free rate `0.037276`. `--caching` (`enabled` | `disabled` | `both`, default `both`) controls prompt caching: Anthropic's `anthropic_cache_messages` is toggled; OpenAI and Gemini auto-cache and are skipped when `disabled`. `--dry-run` prints a table of configs that would run (model, cache mode, output filename) and exits without making API calls.
 - **Outputs**: After each successful model run the script (1) runs `DCFAnalysis` on the agent output and (2) serialises a `ModelRunOutput` (ticker, model_name, risk_free_rate, market_analyst output, dcf_result, dcf_error) to `outputs/{timestamp}-{model}-{cache|no-cache}-{ticker}.json`. DCF errors are caught and stored in `dcf_error` without failing the whole run. A shared timestamp is generated once before the run loop so all files from one invocation share the same prefix.
 
 ### Testing Requirements

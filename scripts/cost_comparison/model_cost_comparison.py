@@ -2,10 +2,10 @@
 """Compare cost and speed across AI models by running the Market Analyst agent.
 
 Usage:
-    uv run python scripts/cost_comparison/model_cost_comparison.py
-    uv run python scripts/cost_comparison/model_cost_comparison.py --model claude-sonnet-4-5
-    uv run python scripts/cost_comparison/model_cost_comparison.py --continue-from claude-opus-4-6
-    uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AAPL --risk-free-rate 0.045 --research-report-path path/to/report.md
+    uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AMZN
+    uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AAPL --model claude-sonnet-4-5
+    uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AMZN --continue-from claude-opus-4-6
+    uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AAPL --research-report-path path/to/report.md
 """
 
 from __future__ import annotations
@@ -47,10 +47,6 @@ console = Console()
 _SCRIPT_DIR = Path(__file__).resolve().parent
 
 
-def _default_research_report_path() -> str:
-    return str(_SCRIPT_DIR / "inputs" / "amzn.md")
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run Market Analyst across one or more models and compare cost and speed."
@@ -76,8 +72,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--ticker",
         type=str,
-        default="AMZN",
-        help="Stock ticker for the run (default: AMZN).",
+        default=None,
+        required=True,
+        help="Stock ticker for the run.",
     )
     parser.add_argument(
         "--risk-free-rate",
@@ -89,7 +86,7 @@ def parse_args() -> argparse.Namespace:
         "--research-report-path",
         type=str,
         default=None,
-        help="Path to research report markdown (default: scripts/cost_comparison/inputs/amzn.md).",
+        help="Path to research report markdown (optional; defaults to inputs/{ticker}.md).",
     )
     parser.add_argument(
         "--caching",
@@ -109,7 +106,9 @@ def parse_args() -> argparse.Namespace:
     if args.model is not None and args.continue_from is not None:
         parser.error("--model and --continue-from are mutually exclusive.")
     if args.research_report_path is None:
-        args.research_report_path = _default_research_report_path()
+        args.research_report_path = str(
+            _SCRIPT_DIR / "inputs" / f"{args.ticker.lower()}.md"
+        )
     if not (0 < args.risk_free_rate <= 0.15):
         parser.error(
             f"--risk-free-rate must be a decimal between 0 and 0.15 (e.g. 0.045 for 4.5%). "
