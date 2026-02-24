@@ -4,6 +4,7 @@
 Usage:
     uv run python scripts/cost_comparison/model_cost_comparison.py
     uv run python scripts/cost_comparison/model_cost_comparison.py --model claude-sonnet-4-5
+    uv run python scripts/cost_comparison/model_cost_comparison.py --continue-from claude-opus-4-6
     uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AAPL --risk-free-rate 0.045 --research-report-path path/to/report.md
 """
 
@@ -33,6 +34,16 @@ from discount_analyst.dcf_analysis.data_types import (
 from discount_analyst.dcf_analysis.dcf_analysis import DCFAnalysis
 from discount_analyst.market_analyst.market_analyst import create_market_analyst_agent
 from discount_analyst.market_analyst.user_prompt import create_user_prompt
+
+# Models that auto-cache (OpenAI, Gemini); no way to disable — skip when --caching disabled.
+AUTO_CACHE_MODELS: frozenset[ModelName] = frozenset(
+    {
+        ModelName.GPT_5_1,
+        ModelName.GPT_5_2,
+        ModelName.GEMINI_3_PRO_PREVIEW,
+        ModelName.GEMINI_3_1_PRO_PREVIEW,
+    }
+)
 
 
 console = Console()
@@ -128,11 +139,20 @@ MODEL_PRICING_FALLBACK: dict[ModelName, ModelPricing] = {
 }
 
 
+@dataclass(frozen=True)
+class RunConfig:
+    """One (model, cache_enabled) combination to run."""
+
+    model_name: ModelName
+    cache_enabled: bool
+
+
 @dataclass
 class RunResult:
     """Result of a single model run (or error)."""
 
     model_name: ModelName
+    cache_enabled: bool
     elapsed_s: float
     input_tokens: int
     output_tokens: int
@@ -232,10 +252,12 @@ def _outputs_dir() -> Path:
     return d
 
 
-def write_model_output(run_output: ModelRunOutput, timestamp: str) -> Path:
+def write_model_output(
+    run_output: ModelRunOutput, timestamp: str, *, cache_suffix: str = "cache"
+) -> Path:
     """Serialise the full run output (agent + DCF) to JSON and return the path written."""
     safe_model = run_output.model_name.replace(".", "-")
-    filename = f"{timestamp}-{safe_model}-{run_output.ticker}.json"
+    filename = f"{timestamp}-{safe_model}-{cache_suffix}-{run_output.ticker}.json"
     path = _outputs_dir() / filename
     path.write_text(run_output.model_dump_json(indent=2))
     return path
@@ -251,6 +273,17 @@ def parse_args() -> argparse.Namespace:
         default=None,
         choices=[e.value for e in ModelName],
         help="Model to run (default: all models).",
+    )
+    parser.add_argument(
+        "--continue-from",
+        type=lambda s: ModelName(s),
+        default=None,
+        choices=[e.value for e in ModelName],
+        metavar="MODEL",
+        help=(
+            "Skip all models that appear before MODEL in the configured order and "
+            "run from MODEL onwards. Cannot be combined with --model."
+        ),
     )
     parser.add_argument(
         "--ticker",
@@ -270,7 +303,23 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Path to research report markdown (default: scripts/cost_comparison/inputs/amzn.md).",
     )
+    parser.add_argument(
+        "--caching",
+        choices=("enabled", "disabled", "both"),
+        default="both",
+        help=(
+            "Prompt caching: enabled (all with cache), disabled (Anthropic no-cache only; "
+            "OpenAI/Gemini skipped), both (default: Anthropic cache+no-cache, others once with cache)."
+        ),
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print which configs would run (model, cache mode, output file) and exit without running.",
+    )
     args = parser.parse_args()
+    if args.model is not None and args.continue_from is not None:
+        parser.error("--model and --continue-from are mutually exclusive.")
     if args.research_report_path is None:
         args.research_report_path = _default_research_report_path()
     return args
@@ -283,12 +332,45 @@ def load_research_report(path: str) -> str:
     return p.read_text()
 
 
+def build_run_configs(caching: str, models_to_run: list[ModelName]) -> list[RunConfig]:
+    """Build list of (model, cache_enabled) configs from --caching and model list."""
+    configs: list[RunConfig] = []
+    for model_name in models_to_run:
+        is_auto_cache = model_name in AUTO_CACHE_MODELS
+        if caching == "enabled":
+            configs.append(RunConfig(model_name=model_name, cache_enabled=True))
+        elif caching == "disabled":
+            if is_auto_cache:
+                console.print(
+                    f"  [yellow]Skipping {model_name.value} (auto-caches, no disable)[/yellow]"
+                )
+            else:
+                configs.append(RunConfig(model_name=model_name, cache_enabled=False))
+        else:  # both
+            if is_auto_cache:
+                configs.append(RunConfig(model_name=model_name, cache_enabled=True))
+            else:
+                configs.append(RunConfig(model_name=model_name, cache_enabled=True))
+                configs.append(RunConfig(model_name=model_name, cache_enabled=False))
+    return configs
+
+
+def _output_filename(
+    timestamp: str, model_name: str, ticker: str, cache_enabled: bool
+) -> str:
+    """Return output filename for a run (same pattern as write_model_output)."""
+    safe_model = model_name.replace(".", "-")
+    suffix = "cache" if cache_enabled else "no-cache"
+    return f"{timestamp}-{safe_model}-{suffix}-{ticker}.json"
+
+
 async def run_one_model(
     model_name: ModelName,
     user_prompt: str,
+    cache_enabled: bool,
 ) -> RunResult:
     """Run the Market Analyst agent for one model and return timing + usage."""
-    config = AIModelsConfig(model_name=model_name)
+    config = AIModelsConfig(model_name=model_name, cache_messages=cache_enabled)
     agent = create_market_analyst_agent(config)
     usage_limits = config.market_analyst.usage_limits
 
@@ -304,6 +386,7 @@ async def run_one_model(
         elapsed_s = time.perf_counter() - start
         return RunResult(
             model_name=model_name,
+            cache_enabled=cache_enabled,
             elapsed_s=elapsed_s,
             input_tokens=usage.input_tokens,
             output_tokens=usage.output_tokens,
@@ -317,6 +400,7 @@ async def run_one_model(
         elapsed_s = time.perf_counter() - start
         return RunResult(
             model_name=model_name,
+            cache_enabled=cache_enabled,
             elapsed_s=elapsed_s,
             input_tokens=0,
             output_tokens=0,
@@ -329,30 +413,63 @@ async def run_one_model(
 
 
 async def main() -> None:
+    args = parse_args()
+
+    all_models = list(ModelName)
+    if args.model is not None:
+        models_to_run: list[ModelName] = [args.model]
+    elif args.continue_from is not None:
+        start_idx = all_models.index(args.continue_from)
+        models_to_run = all_models[start_idx:]
+    else:
+        models_to_run = all_models
+
+    run_configs = build_run_configs(args.caching, models_to_run)
+
+    if args.dry_run:
+        timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+        table = Table(
+            title="Dry run: configs that would be executed",
+            show_header=True,
+            header_style="bold magenta",
+        )
+        table.add_column("Model", style="cyan", no_wrap=True)
+        table.add_column("Cache", justify="center")
+        table.add_column("Output File", style="dim")
+        for cfg in run_configs:
+            fname = _output_filename(
+                timestamp, cfg.model_name.value, args.ticker, cfg.cache_enabled
+            )
+            table.add_row(
+                cfg.model_name.value,
+                "yes" if cfg.cache_enabled else "no",
+                fname,
+            )
+        console.print(table)
+        return
+
     logfire.configure(token=settings.pydantic.logfire_api_key, scrubbing=False)
     logfire.instrument_pydantic_ai()
 
-    args = parse_args()
     research_report = load_research_report(args.research_report_path)
     user_prompt = create_user_prompt(
         ticker=args.ticker, research_report=research_report
     )
 
-    models_to_run: list[ModelName] = (
-        [args.model] if args.model is not None else list(ModelName)
-    )
-
     console.print(
         f"Running Market Analyst for [bold]{args.ticker}[/bold] "
-        f"across {len(models_to_run)} model(s) (report: {args.research_report_path})."
+        f"across {len(run_configs)} config(s) (report: {args.research_report_path})."
     )
 
     timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
 
     results: list[RunResult] = []
-    for model_name in models_to_run:
-        console.print(f"  Running [cyan]{model_name.value}[/cyan]...")
-        result = await run_one_model(model_name, user_prompt)
+    for cfg in run_configs:
+        cache_label = "cache" if cfg.cache_enabled else "no-cache"
+        console.print(
+            f"  Running [cyan]{cfg.model_name.value}[/cyan] ([dim]{cache_label}[/dim])..."
+        )
+        result = await run_one_model(cfg.model_name, user_prompt, cfg.cache_enabled)
         results.append(result)
         if result.error:
             console.print(f"    [red]Error: {result.error}[/red]")
@@ -392,13 +509,16 @@ async def main() -> None:
 
                 run_output = ModelRunOutput(
                     ticker=args.ticker,
-                    model_name=model_name.value,
+                    model_name=result.model_name.value,
                     risk_free_rate=args.risk_free_rate,
                     market_analyst=result.output,
                     dcf_result=dcf_result,
                     dcf_error=dcf_error,
                 )
-                out_path = write_model_output(run_output, timestamp)
+                cache_suffix = "cache" if result.cache_enabled else "no-cache"
+                out_path = write_model_output(
+                    run_output, timestamp, cache_suffix=cache_suffix
+                )
                 console.print(f"    Saved [dim]{out_path}[/dim]")
 
     # Table 1: Speed & Tokens
@@ -408,6 +528,7 @@ async def main() -> None:
         header_style="bold magenta",
     )
     table_tokens.add_column("Model", style="cyan", no_wrap=True)
+    table_tokens.add_column("Cache", justify="center")
     table_tokens.add_column("Time (s)", justify="right")
     table_tokens.add_column("Input Tok", justify="right")
     table_tokens.add_column("Output Tok", justify="right")
@@ -420,6 +541,7 @@ async def main() -> None:
         status = r.error or "OK"
         table_tokens.add_row(
             r.model_name.value,
+            "yes" if r.cache_enabled else "no",
             f"{r.elapsed_s:.2f}",
             f"{r.input_tokens:,}",
             f"{r.output_tokens:,}",
@@ -439,6 +561,7 @@ async def main() -> None:
         header_style="bold magenta",
     )
     table_cost.add_column("Model", style="cyan", no_wrap=True)
+    table_cost.add_column("Cache", justify="center")
     table_cost.add_column("Input Cost", justify="right")
     table_cost.add_column("Output Cost", justify="right")
     table_cost.add_column("Cache Write", justify="right")
@@ -450,6 +573,7 @@ async def main() -> None:
         if r.error:
             table_cost.add_row(
                 r.model_name.value,
+                "yes" if r.cache_enabled else "no",
                 "-",
                 "-",
                 "-",
@@ -463,6 +587,7 @@ async def main() -> None:
             if not r.has_usage():
                 table_cost.add_row(
                     r.model_name.value,
+                    "yes" if r.cache_enabled else "no",
                     "-",
                     "-",
                     "-",
@@ -473,6 +598,7 @@ async def main() -> None:
             else:
                 table_cost.add_row(
                     r.model_name.value,
+                    "yes" if r.cache_enabled else "no",
                     "?",
                     "?",
                     "?",
@@ -486,6 +612,7 @@ async def main() -> None:
         )
         table_cost.add_row(
             r.model_name.value,
+            "yes" if r.cache_enabled else "no",
             cost_result.input_cost,
             cost_result.output_cost,
             cost_result.cache_write_cost,
