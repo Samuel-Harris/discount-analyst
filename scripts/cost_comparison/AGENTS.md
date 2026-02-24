@@ -12,6 +12,8 @@ Scripts and assets for comparing cost and speed across AI models when running th
 | File                       | Description                                                                                                                                                                                                                                                                    |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `model_cost_comparison.py` | CLI script that runs the Market Analyst agent across one or all configured models, records timing and token usage, prints Rich tables for speed/tokens and cost breakdown, runs DCF valuation on each agent output, and writes a combined `ModelRunOutput` JSON to `outputs/`. |
+| `view_ticker_results.py`   | CLI script that takes a ticker as a positional argument, loads all matching JSON files from `outputs/`, and pretty-prints a Rich summary table. Use `--detail` for side-by-side Stock Data / Assumptions panels per run; add `--reasoning` to also display the model's full reasoning text. |
+| `shared.py`                | Shared data types (`ModelRunOutput`, `RunResult`, `RunConfig`, `ModelPricing`, `CostBreakdown`, `FormattedCostResult`), constants (`MODEL_PRICING_FALLBACK`, `AUTO_CACHE_MODELS`), and helpers (`outputs_dir`, `output_filename`, `write_model_output`, `calc_actual_cost`) used by both scripts. |
 
 ## Subdirectories
 
