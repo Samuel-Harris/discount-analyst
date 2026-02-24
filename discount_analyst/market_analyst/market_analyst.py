@@ -1,6 +1,7 @@
 from aiolimiter import AsyncLimiter
 from perplexity import AsyncPerplexity
-from pydantic_ai import Agent, WebSearchTool
+from pydantic_ai import Agent, WebFetchTool, WebSearchTool
+from pydantic_ai.builtin_tools import AbstractBuiltinTool
 from discount_analyst.shared.data_types import MarketAnalystOutput
 from discount_analyst.shared.ai_models_config import AIModelsConfig
 from discount_analyst.shared.settings import settings
@@ -24,13 +25,21 @@ def create_market_analyst_agent(
             ``web_search`` and ``sec_filings_search`` tools. When False,
             those tools are omitted and pydantic-ai's built-in
             ``WebSearchTool`` is used instead (model-native web search).
+            When Perplexity is disabled, ``WebFetchTool`` is also added for
+            Anthropic and Gemini so the agent can fetch content from URLs.
 
     Returns:
         A configured Agent instance for making stock assumptions.
     """
 
+    provider = ai_models_config.market_analyst.provider
+    supports_web_fetch = provider in ("anthropic", "google")
+
     if not use_perplexity:
-        builtin_tools = [WebSearchTool()]
+        builtin_tools: list[AbstractBuiltinTool] = [WebSearchTool()]
+
+        if supports_web_fetch:
+            builtin_tools.append(WebFetchTool())
     else:
         builtin_tools = []
 
