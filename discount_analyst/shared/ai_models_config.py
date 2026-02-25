@@ -7,7 +7,7 @@ from pydantic_ai import UsageLimits
 from pydantic_ai.models.anthropic import AnthropicModelSettings
 from google.genai.types import ThinkingConfigDict
 from pydantic_ai.models.google import GoogleModelSettings
-from pydantic_ai.models.openai import OpenAIChatModelSettings
+from pydantic_ai.models.openai import OpenAIResponsesModelSettings
 
 
 _MAX_TOOL_CALLS = 60
@@ -89,8 +89,8 @@ class OpenAIAIModelConfig(BaseAIModelConfig):
     reasoning_effort: Literal["low", "medium", "high"] | None = None
 
     @property
-    def model_settings(self) -> OpenAIChatModelSettings:
-        settings = OpenAIChatModelSettings(
+    def model_settings(self) -> OpenAIResponsesModelSettings:
+        settings = OpenAIResponsesModelSettings(
             max_tokens=self.max_tokens,
             openai_service_tier="flex",
             parallel_tool_calls=True,

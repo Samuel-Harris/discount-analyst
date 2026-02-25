@@ -1,7 +1,7 @@
 from pydantic_ai.models import Model
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.google import GoogleModel
-from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.models.openai import OpenAIResponsesModel
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.google import GoogleProvider
 from pydantic_ai.providers.openai import OpenAIProvider
@@ -27,7 +27,7 @@ def create_model_from_config(config: AIModelConfig, /) -> Model:
                 ),
             )
         case OpenAIAIModelConfig():
-            return OpenAIChatModel(
+            return OpenAIResponsesModel(
                 config.model_name,
                 provider=OpenAIProvider(
                     api_key=settings.openai.api_key,
