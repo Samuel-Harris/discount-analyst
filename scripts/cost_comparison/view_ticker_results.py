@@ -10,7 +10,6 @@ Usage:
 
 from __future__ import annotations
 
-
 import argparse
 import json
 import sys
@@ -19,11 +18,10 @@ from pathlib import Path
 from typing import NamedTuple
 
 from rich.columns import Columns
-from rich.console import Console
+from rich.console import Console, Group as RichGroup
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-from rich.console import Group as RichGroup
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from shared import (  # noqa: E402
@@ -38,30 +36,67 @@ from shared import (  # noqa: E402
 console = Console()
 
 
+class ParsedFilename(NamedTuple):
+    """Metadata extracted from an output filename."""
+
+    timestamp: str
+    cache_mode: str
+    search_mode: str
+    display_date: str
+
+
+class ModelSearchKey(NamedTuple):
+    """Key for grouping runs by model and search mode."""
+
+    model_name: str
+    search_mode: str
+
+
+class RunConfigKey(NamedTuple):
+    """Key for deduplicating runs by model, cache, and search mode."""
+
+    model_name: str
+    cache_mode: str
+    search_mode: str
+
+
 class LoadedRun(NamedTuple):
     """A run loaded from disk with metadata parsed from the filename."""
 
     timestamp: str
     cache_mode: str
+    search_mode: str
     display_date: str
     run: ModelRunOutput
 
 
-def _parse_filename(filename: str) -> tuple[str, str, str]:
-    """Extract (timestamp, cache_mode, display_date) from an output filename.
+def _parse_filename(filename: str) -> ParsedFilename:
+    """Extract metadata from an output filename.
 
-    Filename format: {YYYYMMDDTHHMMSS}-{model}-{cache|no-cache}-{TICKER}.json
-    The suffix before the ticker is "cache" or "no-cache".
-    Split by "-": parts[-1]=TICKER, parts[-2]="cache", parts[-3]="no" iff no-cache.
+    Supported formats:
+      new: {YYYYMMDDTHHMMSS}-{model}-{cache|no-cache}-{perplexity|web-search}-{TICKER}.json
+      old: {YYYYMMDDTHHMMSS}-{model}-{cache|no-cache}-{TICKER}.json
+
+    Detection works from the tail of the stem:
+      parts[-1] = TICKER
+      parts[-2] = "perplexity"         → new format, perplexity search
+      parts[-2] = "search", [-3]="web" → new format, web-search
+      otherwise                         → legacy format (assumed perplexity)
     """
     stem = Path(filename).stem  # strip .json
     parts = stem.split("-")
     timestamp = parts[0]
-    # parts[-1]=TICKER, parts[-2]="cache", parts[-3]="no" means no-cache
-    if len(parts) >= 3 and parts[-3] == "no":
-        cache_mode = "no-cache"
+
+    if parts[-2] == "perplexity":
+        search_mode = "perplexity"
+        cache_mode = "no-cache" if len(parts) >= 4 and parts[-4] == "no" else "cache"
+    elif parts[-2] == "search" and len(parts) >= 3 and parts[-3] == "web":
+        search_mode = "web-search"
+        cache_mode = "no-cache" if len(parts) >= 6 and parts[-5] == "no" else "cache"
     else:
-        cache_mode = "cache"
+        # Legacy format without search suffix
+        search_mode = "perplexity"
+        cache_mode = "no-cache" if len(parts) >= 3 and parts[-3] == "no" else "cache"
 
     raw_ts = timestamp  # e.g. 20260224T012914
     try:
@@ -69,7 +104,12 @@ def _parse_filename(filename: str) -> tuple[str, str, str]:
     except IndexError:
         display_date = raw_ts
 
-    return timestamp, cache_mode, display_date
+    return ParsedFilename(
+        timestamp=timestamp,
+        cache_mode=cache_mode,
+        search_mode=search_mode,
+        display_date=display_date,
+    )
 
 
 def _fmt_billions(value: float) -> str:
@@ -125,7 +165,7 @@ def _build_cost_speed_comparison_table(runs: list[LoadedRun]) -> Table | None:
 
     rows: list[tuple[str, ...]] = []
     for loaded in sorted(
-        runs_with_usage, key=lambda x: (x.run.model_name, x.cache_mode)
+        runs_with_usage, key=lambda x: (x.run.model_name, x.cache_mode, x.search_mode)
     ):
         r = _run_to_result(loaded.run, loaded.cache_mode)
         if r is None:
@@ -136,6 +176,7 @@ def _build_cost_speed_comparison_table(runs: list[LoadedRun]) -> Table | None:
             (
                 loaded.run.model_name,
                 loaded.cache_mode,
+                loaded.search_mode,
                 f"{r.elapsed_s:.2f}",
                 f"{r.input_tokens:,}",
                 f"{r.output_tokens:,}",
@@ -156,6 +197,7 @@ def _build_cost_speed_comparison_table(runs: list[LoadedRun]) -> Table | None:
     )
     table.add_column("Model", style="cyan", no_wrap=True)
     table.add_column("Cache", justify="center")
+    table.add_column("Search", justify="center")
     table.add_column("Time (s)", justify="right")
     table.add_column("Input Tok", justify="right")
     table.add_column("Output Tok", justify="right")
@@ -169,14 +211,18 @@ def _build_cost_speed_comparison_table(runs: list[LoadedRun]) -> Table | None:
 
 
 def _build_cache_comparison_tables(runs: list[LoadedRun]) -> list[Table]:
-    """For each model that has both cache and no-cache runs with usage data, build a comparison table."""
-    by_model: dict[str, list[LoadedRun]] = defaultdict(list)
+    """For each (model, search_mode) that has both cache and no-cache runs with usage data, build a comparison table."""
+    by_model: dict[ModelSearchKey, list[LoadedRun]] = defaultdict(list)
     for loaded in runs:
-        by_model[loaded.run.model_name].append(loaded)
+        key = ModelSearchKey(
+            model_name=loaded.run.model_name, search_mode=loaded.search_mode
+        )
+        by_model[key].append(loaded)
 
     tables: list[Table] = []
-    for model_name in sorted(by_model.keys()):
-        model_runs = by_model[model_name]
+    for key in sorted(by_model.keys()):
+        model_runs = by_model[key]
+        model_name, search_mode = key.model_name, key.search_mode
         cache_runs = [x for x in model_runs if x.cache_mode == "cache"]
         no_cache_runs = [x for x in model_runs if x.cache_mode == "no-cache"]
         if not cache_runs or not no_cache_runs:
@@ -243,7 +289,7 @@ def _build_cache_comparison_tables(runs: list[LoadedRun]) -> list[Table]:
         if not rows:
             continue
         table = Table(
-            title=f"Cache vs no-cache: [cyan]{model_name}[/cyan]",
+            title=f"Cache vs no-cache: [cyan]{model_name}[/cyan]  [dim]{search_mode}[/dim]",
             show_header=True,
             header_style="bold magenta",
             show_lines=True,
@@ -272,6 +318,7 @@ def _build_summary_table(runs: list[LoadedRun]) -> Table:
     table.add_column("Date / Time", style="dim", no_wrap=True)
     table.add_column("Model", style="cyan", no_wrap=True)
     table.add_column("Cache", justify="center")
+    table.add_column("Search", justify="center")
     table.add_column("Fcst Yrs", justify="right")
     table.add_column("Rev Growth", justify="right")
     table.add_column("EBIT Margin", justify="right")
@@ -306,6 +353,7 @@ def _build_summary_table(runs: list[LoadedRun]) -> Table:
             display_date,
             run.model_name,
             "yes" if cache_mode == "cache" else "no",
+            loaded.search_mode,
             str(sa.forecast_period_years),
             _fmt_pct(sa.assumed_forecast_period_annual_revenue_growth_rate),
             _fmt_pct(sa.assumed_ebit_margin),
@@ -375,6 +423,7 @@ def _build_assumptions_table(run: ModelRunOutput) -> Table:
 def _build_detail_panel(
     filename: str,
     cache_mode: str,
+    search_mode: str,
     display_date: str,
     run: ModelRunOutput,
     *,
@@ -429,6 +478,7 @@ def _build_detail_panel(
     cache_label = "cache" if cache_mode == "cache" else "no-cache"
     title = (
         f"[cyan]{run.model_name}[/cyan]  [dim]{cache_label}[/dim]  "
+        f"[dim]{search_mode}[/dim]  "
         f"[dim]{display_date}[/dim]  [dim]{filename}[/dim]"
     )
     return Panel(RichGroup(*group_items), title=title, border_style="magenta")
@@ -452,21 +502,36 @@ def load_runs_for_ticker(ticker: str) -> list[LoadedRun]:
                 f"[yellow]Warning: could not load {path.name}: {exc}[/yellow]"
             )
             continue
-        ts, cache_mode, display_date = _parse_filename(path.name)
-        results.append(LoadedRun(ts, cache_mode, display_date, run))
+        parsed = _parse_filename(path.name)
+        results.append(
+            LoadedRun(
+                timestamp=parsed.timestamp,
+                cache_mode=parsed.cache_mode,
+                search_mode=parsed.search_mode,
+                display_date=parsed.display_date,
+                run=run,
+            )
+        )
 
     return results
 
 
 def _deduplicate_to_latest(runs: list[LoadedRun]) -> list[LoadedRun]:
-    """Keep only the latest run per (model_name, cache_mode). Timestamp format sorts chronologically."""
-    by_config: dict[tuple[str, str], LoadedRun] = {}
+    """Keep only the latest run per (model_name, cache_mode, search_mode). Timestamp format sorts chronologically."""
+    by_config: dict[RunConfigKey, LoadedRun] = {}
     for loaded in runs:
-        key = (loaded.run.model_name, loaded.cache_mode)
+        key = RunConfigKey(
+            model_name=loaded.run.model_name,
+            cache_mode=loaded.cache_mode,
+            search_mode=loaded.search_mode,
+        )
         existing = by_config.get(key)
         if existing is None or loaded.timestamp > existing.timestamp:
             by_config[key] = loaded
-    return sorted(by_config.values(), key=lambda x: (x.run.model_name, x.cache_mode))
+    return sorted(
+        by_config.values(),
+        key=lambda x: (x.run.model_name, x.cache_mode, x.search_mode),
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -550,10 +615,11 @@ def main() -> None:
     if show_detail:
         console.print()
         for loaded in runs:
-            filename = f"{loaded.timestamp}-{loaded.run.model_name.replace('.', '-')}-{loaded.cache_mode}-{ticker}.json"
+            filename = f"{loaded.timestamp}-{loaded.run.model_name.replace('.', '-')}-{loaded.cache_mode}-{loaded.search_mode}-{ticker}.json"
             panel = _build_detail_panel(
                 filename,
                 loaded.cache_mode,
+                loaded.search_mode,
                 loaded.display_date,
                 loaded.run,
                 show_reasoning=args.reasoning,

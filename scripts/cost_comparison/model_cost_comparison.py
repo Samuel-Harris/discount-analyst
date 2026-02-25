@@ -6,6 +6,8 @@ Usage:
     uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AAPL --model claude-sonnet-4-5
     uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AMZN --continue-from claude-opus-4-6
     uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AAPL --research-report-path path/to/report.md
+    uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AMZN --web-search built-in
+    uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AMZN --web-search both
 """
 
 from __future__ import annotations
@@ -101,11 +103,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--web-search",
-        action="store_true",
-        default=False,
+        choices=("perplexity", "built-in", "both"),
+        default="perplexity",
         help=(
-            "Add a web-search variant for every model: disables Perplexity and uses the "
-            "model's native built-in web search (pydantic-ai WebSearchTool) instead."
+            "Search tool to use: perplexity (default, Perplexity-backed tools), "
+            "built-in (model-native WebSearchTool + WebFetchTool, no Perplexity), "
+            "both (run a perplexity variant and a built-in variant for every model)."
         ),
     )
     parser.add_argument(
@@ -139,13 +142,21 @@ def build_run_configs(
     caching: str,
     models_to_run: list[ModelName],
     *,
-    add_web_search: bool = False,
+    web_search: str = "perplexity",
 ) -> list[RunConfig]:
     """Build the ordered list of RunConfigs from CLI flags and model list.
 
-    Base configs are determined by --caching. When add_web_search is True a
-    cached web-search variant is appended for every model (Perplexity disabled,
-    model-native WebSearchTool enabled).
+    Base configs (Perplexity) are determined by --caching. Built-in web-search
+    variants are always cached; use --caching both to also get no-cache runs for
+    Anthropic models.
+
+    Args:
+        caching: One of "enabled", "disabled", "both".
+        models_to_run: Ordered list of models to include.
+        web_search: One of "perplexity" (default), "built-in", or "both".
+            "perplexity"  — only Perplexity-backed runs.
+            "built-in"    — only model-native WebSearchTool runs (no Perplexity).
+            "both"        — a Perplexity run and a built-in run per model.
     """
     base_configs: list[RunConfig] = []
     for model_name in models_to_run:
@@ -174,24 +185,26 @@ def build_run_configs(
                     RunConfig(model_name=model_name, cache_enabled=False)
                 )
 
-    configs: list[RunConfig] = list(base_configs)
-
-    # Web-search variants are always cached; use --caching both to also get
-    # no-cache runs for Anthropic models.
-    if add_web_search:
-        seen_web_search: set[ModelName] = set()
-        for cfg in base_configs:
-            if cfg.model_name not in seen_web_search:
-                configs.append(
-                    RunConfig(
-                        model_name=cfg.model_name,
-                        cache_enabled=True,
-                        use_web_search=True,
-                    )
+    # Built-in web-search variants: one cached run per unique model.
+    builtin_configs: list[RunConfig] = []
+    seen: set[ModelName] = set()
+    for cfg in base_configs:
+        if cfg.model_name not in seen:
+            builtin_configs.append(
+                RunConfig(
+                    model_name=cfg.model_name,
+                    cache_enabled=True,
+                    use_web_search=True,
                 )
-                seen_web_search.add(cfg.model_name)
+            )
+            seen.add(cfg.model_name)
 
-    return configs
+    if web_search == "perplexity":
+        return base_configs
+    elif web_search == "built-in":
+        return builtin_configs
+    else:  # both
+        return list(base_configs) + builtin_configs
 
 
 async def run_one_model(
@@ -271,7 +284,7 @@ async def main() -> None:
     run_configs = build_run_configs(
         args.caching,
         models_to_run,
-        add_web_search=args.web_search,
+        web_search=args.web_search,
     )
 
     if args.dry_run:
