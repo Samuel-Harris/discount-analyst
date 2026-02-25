@@ -6,6 +6,7 @@ Usage:
     uv run python scripts/cost_comparison/view_ticker_results.py AAPL --detail
     uv run python scripts/cost_comparison/view_ticker_results.py AMZN --compare-cache
     uv run python scripts/cost_comparison/view_ticker_results.py AMZN --compare-cost
+    uv run python scripts/cost_comparison/view_ticker_results.py AMZN --compare-web-search
 """
 
 from __future__ import annotations
@@ -60,6 +61,26 @@ class RunConfigKey(NamedTuple):
     search_mode: str
 
 
+class ModelCacheKey(NamedTuple):
+    """Key for grouping runs by model and cache mode (for web-search comparison)."""
+
+    model_name: str
+    cache_mode: str
+
+
+# Cost per tool call for web search (Perplexity or built-in) in USD.
+TOOL_CALL_COST_PER_CALL = 0.005
+
+# Search mode values (from filename parsing).
+SEARCH_MODE_PERPLEXITY = "perplexity"
+SEARCH_MODE_WEB_SEARCH = "web-search"
+
+
+def _search_mode_display(search_mode: str) -> str:
+    """Return display label for search mode (web-search -> built-in)."""
+    return "built-in" if search_mode == SEARCH_MODE_WEB_SEARCH else search_mode
+
+
 class LoadedRun(NamedTuple):
     """A run loaded from disk with metadata parsed from the filename."""
 
@@ -87,15 +108,15 @@ def _parse_filename(filename: str) -> ParsedFilename:
     parts = stem.split("-")
     timestamp = parts[0]
 
-    if parts[-2] == "perplexity":
-        search_mode = "perplexity"
+    if parts[-2] == SEARCH_MODE_PERPLEXITY:
+        search_mode = SEARCH_MODE_PERPLEXITY
         cache_mode = "no-cache" if len(parts) >= 4 and parts[-4] == "no" else "cache"
     elif parts[-2] == "search" and len(parts) >= 3 and parts[-3] == "web":
-        search_mode = "web-search"
+        search_mode = SEARCH_MODE_WEB_SEARCH
         cache_mode = "no-cache" if len(parts) >= 6 and parts[-5] == "no" else "cache"
     else:
         # Legacy format without search suffix
-        search_mode = "perplexity"
+        search_mode = SEARCH_MODE_PERPLEXITY
         cache_mode = "no-cache" if len(parts) >= 3 and parts[-3] == "no" else "cache"
 
     raw_ts = timestamp  # e.g. 20260224T012914
@@ -176,7 +197,7 @@ def _build_cost_speed_comparison_table(runs: list[LoadedRun]) -> Table | None:
             (
                 loaded.run.model_name,
                 loaded.cache_mode,
-                loaded.search_mode,
+                _search_mode_display(loaded.search_mode),
                 f"{r.elapsed_s:.2f}",
                 f"{r.input_tokens:,}",
                 f"{r.output_tokens:,}",
@@ -197,7 +218,7 @@ def _build_cost_speed_comparison_table(runs: list[LoadedRun]) -> Table | None:
     )
     table.add_column("Model", style="cyan", no_wrap=True)
     table.add_column("Cache", justify="center")
-    table.add_column("Search", justify="center")
+    table.add_column("Web Search", justify="center")
     table.add_column("Time (s)", justify="right")
     table.add_column("Input Tok", justify="right")
     table.add_column("Output Tok", justify="right")
@@ -288,8 +309,9 @@ def _build_cache_comparison_tables(runs: list[LoadedRun]) -> list[Table]:
 
         if not rows:
             continue
+        search_label = _search_mode_display(search_mode)
         table = Table(
-            title=f"Cache vs no-cache: [cyan]{model_name}[/cyan]  [dim]{search_mode}[/dim]",
+            title=f"Cache vs no-cache: [cyan]{model_name}[/cyan]  [dim]{search_label}[/dim]",
             show_header=True,
             header_style="bold magenta",
             show_lines=True,
@@ -307,6 +329,139 @@ def _build_cache_comparison_tables(runs: list[LoadedRun]) -> list[Table]:
     return tables
 
 
+def _build_web_search_comparison_tables(runs: list[LoadedRun]) -> list[Table]:
+    """For each (model, cache_mode) that has both perplexity and web-search runs, build a comparison table with total estimated cost (base + tool_calls * $0.005)."""
+    by_model_cache: dict[ModelCacheKey, list[LoadedRun]] = defaultdict(list)
+    for loaded in runs:
+        key = ModelCacheKey(
+            model_name=loaded.run.model_name, cache_mode=loaded.cache_mode
+        )
+        by_model_cache[key].append(loaded)
+
+    tables: list[Table] = []
+    for key in sorted(by_model_cache.keys()):
+        model_runs = by_model_cache[key]
+        model_name, cache_mode = key.model_name, key.cache_mode
+        perplexity_runs = [
+            x for x in model_runs if x.search_mode == SEARCH_MODE_PERPLEXITY
+        ]
+        web_search_runs = [
+            x for x in model_runs if x.search_mode == SEARCH_MODE_WEB_SEARCH
+        ]
+        if not perplexity_runs or not web_search_runs:
+            continue
+
+        def with_usage(lst: list[LoadedRun]) -> list[LoadedRun]:
+            have = [x for x in lst if _run_has_usage(x.run)]
+            return have[-1:] if have else lst[-1:]
+
+        perplexity_pick = with_usage(perplexity_runs)
+        web_search_pick = with_usage(web_search_runs)
+        rows: list[tuple[str, ...]] = []
+        perplexity_result: RunResult | None = None
+        web_search_result: RunResult | None = None
+        perplexity_total_est: float | None = None
+        web_search_total_est: float | None = None
+        for label, picked in [
+            (SEARCH_MODE_PERPLEXITY, perplexity_pick),
+            (_search_mode_display(SEARCH_MODE_WEB_SEARCH), web_search_pick),
+        ]:
+            if not picked:
+                continue
+            loaded = picked[0]
+            r = _run_to_result(loaded.run, loaded.cache_mode)
+            if r is None:
+                rows.append((label, "-", "-", "-", "-", "-", "-", "-"))
+                continue
+            if label == SEARCH_MODE_PERPLEXITY:
+                perplexity_result = r
+            else:
+                web_search_result = r
+            base_cost = calc_raw_cost(r)
+            tool_cost = r.tool_calls * TOOL_CALL_COST_PER_CALL
+            if base_cost is not None:
+                total_est = base_cost + tool_cost
+                base_str = f"${base_cost:.4f}"
+                tool_str = f"${tool_cost:.4f}"
+                total_str = f"${total_est:.4f}"
+                if label == SEARCH_MODE_PERPLEXITY:
+                    perplexity_total_est = total_est
+                else:
+                    web_search_total_est = total_est
+            else:
+                base_str = "N/A"
+                tool_str = f"${tool_cost:.4f}"
+                total_str = "N/A"
+            rows.append(
+                (
+                    label,
+                    f"{r.elapsed_s:.2f}",
+                    f"{r.input_tokens:,}",
+                    f"{r.output_tokens:,}",
+                    str(r.tool_calls),
+                    base_str,
+                    tool_str,
+                    total_str,
+                )
+            )
+
+        # Add savings row (web-search vs perplexity) when we have both with valid data
+        if perplexity_result and web_search_result:
+
+            def _fmt_savings(pct: float) -> str:
+                color = "green" if pct >= 0 else "red"
+                return f"[{color}]{pct:.1f}%[/{color}]"
+
+            time_savings: str
+            cost_savings: str
+            if perplexity_result.elapsed_s > 0:
+                pct = (
+                    (perplexity_result.elapsed_s - web_search_result.elapsed_s)
+                    / perplexity_result.elapsed_s
+                    * 100
+                )
+                time_savings = _fmt_savings(pct)
+            else:
+                time_savings = "-"
+            if (
+                perplexity_total_est is not None
+                and web_search_total_est is not None
+                and perplexity_total_est > 0
+            ):
+                pct = (
+                    (perplexity_total_est - web_search_total_est)
+                    / perplexity_total_est
+                    * 100
+                )
+                cost_savings = _fmt_savings(pct)
+            else:
+                cost_savings = "-"
+            rows.append(
+                ("Savings", time_savings, "-", "-", "-", "-", "-", cost_savings)
+            )
+
+        if not rows:
+            continue
+        table = Table(
+            title=f"Web search comparison: [cyan]{model_name}[/cyan]  [dim]{cache_mode}[/dim]",
+            show_header=True,
+            header_style="bold magenta",
+            show_lines=True,
+        )
+        table.add_column("Web Search", style="cyan", no_wrap=True)
+        table.add_column("Time (s)", justify="right")
+        table.add_column("Input Tok", justify="right")
+        table.add_column("Output Tok", justify="right")
+        table.add_column("Tool Calls", justify="right")
+        table.add_column("Base Cost", justify="right")
+        table.add_column("Tool Cost", justify="right")
+        table.add_column("Total Est. Cost", justify="right")
+        for row in rows:
+            table.add_row(*row)
+        tables.append(table)
+    return tables
+
+
 def _build_summary_table(runs: list[LoadedRun]) -> Table:
     """Build a summary table row per run."""
     table = Table(
@@ -318,7 +473,7 @@ def _build_summary_table(runs: list[LoadedRun]) -> Table:
     table.add_column("Date / Time", style="dim", no_wrap=True)
     table.add_column("Model", style="cyan", no_wrap=True)
     table.add_column("Cache", justify="center")
-    table.add_column("Search", justify="center")
+    table.add_column("Web Search", justify="center")
     table.add_column("Fcst Yrs", justify="right")
     table.add_column("Rev Growth", justify="right")
     table.add_column("EBIT Margin", justify="right")
@@ -353,7 +508,7 @@ def _build_summary_table(runs: list[LoadedRun]) -> Table:
             display_date,
             run.model_name,
             "yes" if cache_mode == "cache" else "no",
-            loaded.search_mode,
+            _search_mode_display(loaded.search_mode),
             str(sa.forecast_period_years),
             _fmt_pct(sa.assumed_forecast_period_annual_revenue_growth_rate),
             _fmt_pct(sa.assumed_ebit_margin),
@@ -476,9 +631,10 @@ def _build_detail_panel(
         group_items.append(Text.from_markup(reasoning_text))
 
     cache_label = "cache" if cache_mode == "cache" else "no-cache"
+    search_label = _search_mode_display(search_mode)
     title = (
         f"[cyan]{run.model_name}[/cyan]  [dim]{cache_label}[/dim]  "
-        f"[dim]{search_mode}[/dim]  "
+        f"[dim]{search_label}[/dim]  "
         f"[dim]{display_date}[/dim]  [dim]{filename}[/dim]"
     )
     return Panel(RichGroup(*group_items), title=title, border_style="magenta")
@@ -559,6 +715,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Compare model cost, speed, tokens (input/output/cache write/read) across all runs (requires usage data in saved JSON).",
     )
+    parser.add_argument(
+        "--compare-web-search",
+        action="store_true",
+        help="Compare cost of built-in web search vs Perplexity per model; adds tool cost ($0.005/call) and total estimated cost columns.",
+    )
     return parser.parse_args()
 
 
@@ -609,6 +770,21 @@ def main() -> None:
             console.print(
                 "[dim]No cost/speed comparison available: saved files lack usage data. "
                 "Re-run model_cost_comparison.py to record cost/speed (new runs will include it).[/dim]"
+            )
+            console.print()
+
+    if args.compare_web_search:
+        web_search_tables = _build_web_search_comparison_tables(runs)
+        if web_search_tables:
+            console.print()
+            for table in web_search_tables:
+                console.print(table)
+                console.print()
+        else:
+            console.print()
+            console.print(
+                "[dim]No web-search vs perplexity comparison available: need both perplexity and web-search runs per model. "
+                "Re-run model_cost_comparison.py with --web-search both.[/dim]"
             )
             console.print()
 
