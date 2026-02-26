@@ -22,6 +22,9 @@ from discount_analyst.market_analyst.user_prompt import create_user_prompt
 from discount_analyst.dcf_analysis.data_types import DCFAnalysisParameters
 from discount_analyst.dcf_analysis.dcf_analysis import DCFAnalysis
 
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_OUTPUTS_DIR = _PROJECT_ROOT / "outputs"
+
 logfire.configure(token=settings.pydantic.logfire_api_key, scrubbing=False)
 logfire.instrument_pydantic_ai()
 
@@ -284,7 +287,11 @@ async def main():
         tool_calls=getattr(usage, "tool_calls", 0),
     )
     timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
-    out_path = write_model_output(run_output, timestamp)
+    out_path = write_model_output(
+        run_output=run_output,
+        timestamp=timestamp,
+        output_dir=_OUTPUTS_DIR,
+    )
     console.print(f"\nSaved [dim]{out_path}[/dim]")
 
 

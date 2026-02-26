@@ -231,16 +231,6 @@ def calc_raw_cost(r: RunResult) -> float | None:
     # Note: FormattedCostResult.total_cost is always "$X.XXXX" when not None
 
 
-_SCRIPTS_DIR = Path(__file__).resolve().parent
-
-
-def outputs_dir() -> Path:
-    """Output directory for model run JSON files (cost_comparison/outputs/)."""
-    d = _SCRIPTS_DIR / "cost_comparison" / "outputs"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
-
-
 def output_filename(
     timestamp: str,
     model_name: str,
@@ -256,15 +246,17 @@ def output_filename(
 
 
 def write_model_output(
+    *,
     run_output: ModelRunOutput,
     timestamp: str,
-    *,
     cache_suffix: str = "cache",
     search_suffix: str = "perplexity",
+    output_dir: Path,
 ) -> Path:
     """Serialise the full run output (agent + DCF) to JSON and return the path written."""
     safe_model = run_output.model_name.replace(".", "-")
     filename = f"{timestamp}-{safe_model}-{cache_suffix}-{search_suffix}-{run_output.ticker}.json"
-    path = outputs_dir() / filename
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = output_dir / filename
     path.write_text(run_output.model_dump_json(indent=2))
     return path

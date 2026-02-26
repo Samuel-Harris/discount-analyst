@@ -17,7 +17,7 @@
 # Python
 __pycache__/
 
-# notebooks
+# Notebooks
 discount_analyst/notebooks/
 
 # env
@@ -26,9 +26,12 @@ discount_analyst/notebooks/
 # Documentation
 docs/raw_original_docs/
 
-# data
+# Data
 research_reports/
 experiment_data/
+
+# Outputs
+outputs/
 scripts/cost_comparison/outputs/
 
 # Handoffs

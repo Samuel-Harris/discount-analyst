@@ -44,7 +44,7 @@ from scripts.shared import (
 
 console = Console()
 
-_SCRIPT_DIR = Path(__file__).resolve().parent
+_SCRIPTS_DIR = Path(__file__).resolve().parent
 
 
 def parse_args() -> argparse.Namespace:
@@ -119,7 +119,7 @@ def parse_args() -> argparse.Namespace:
         parser.error("--model and --continue-from are mutually exclusive.")
     if args.research_report_path is None:
         args.research_report_path = str(
-            _SCRIPT_DIR / "inputs" / f"{args.ticker.lower()}.md"
+            _SCRIPTS_DIR / "inputs" / f"{args.ticker.lower()}.md"
         )
     if not (0 < args.risk_free_rate <= 0.15):
         parser.error(
@@ -395,11 +395,13 @@ async def main() -> None:
                 )
                 cache_suffix = "cache" if result.cache_enabled else "no-cache"
                 search_suffix = "web-search" if cfg.use_web_search else "perplexity"
+                output_dir = _SCRIPTS_DIR / "cost_comparison" / "outputs"
                 out_path = write_model_output(
-                    run_output,
-                    timestamp,
+                    run_output=run_output,
+                    timestamp=timestamp,
                     cache_suffix=cache_suffix,
                     search_suffix=search_suffix,
+                    output_dir=output_dir,
                 )
                 console.print(f"    Saved [dim]{out_path}[/dim]")
 
