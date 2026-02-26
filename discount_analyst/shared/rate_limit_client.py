@@ -7,6 +7,7 @@ from httpx import (
 )
 from openai import (
     APIConnectionError,
+    APIError,
     APITimeoutError,
     InternalServerError,
     RateLimitError,
@@ -25,6 +26,7 @@ _RETRY_EXCEPTIONS = (
     APIConnectionError,
     RateLimitError,
     InternalServerError,
+    APIError,
 )
 
 
