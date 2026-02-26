@@ -2,6 +2,7 @@ from discount_analyst.shared.ai_models_config import ModelName
 import asyncio
 import argparse
 import time
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import NewType
@@ -21,6 +22,8 @@ from discount_analyst.shared.ai_models_config import AIModelsConfig
 from discount_analyst.market_analyst.user_prompt import create_user_prompt
 from discount_analyst.dcf_analysis.data_types import DCFAnalysisParameters
 from discount_analyst.dcf_analysis.dcf_analysis import DCFAnalysis
+from discount_analyst.shared.data_types import MarketAnalystOutput
+from discount_analyst.dcf_analysis.data_types import DCFAnalysisResult
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _OUTPUTS_DIR = _PROJECT_ROOT / "outputs"
@@ -97,23 +100,26 @@ def parse_research_report(args: Arguments) -> ResearchReport:
     return research_report_content
 
 
-async def main():
-    args = parse_args()
+@dataclass
+class AgentRunResult:
+    output: MarketAnalystOutput
+    elapsed_s: float
+    input_tokens: int
+    output_tokens: int
+    cache_write_tokens: int
+    cache_read_tokens: int
+    tool_calls: int
 
-    research_report_content = parse_research_report(args)
 
-    console.log(
-        f"Initializing Market Analyst Agent for {args.ticker} (using {args.model} model)..."
-    )
-
+async def run_agent(
+    args: Arguments, research_report_content: ResearchReport
+) -> AgentRunResult:
+    """Run the Market Analyst agent and return output with usage stats."""
     ai_models_config = AIModelsConfig(model_name=args.model)
     agent = create_market_analyst_agent(ai_models_config)
-
     user_prompt = create_user_prompt(
         ticker=args.ticker, research_report=research_report_content
     )
-
-    console.log("Running agent...")
 
     start = time.perf_counter()
     async with stream_with_retries(
@@ -123,68 +129,74 @@ async def main():
     ) as result:
         async for message in result.stream_output():
             console.log(f"Streaming: {message}")
-
         agent_output = await result.get_output()
         usage = result.usage()
     elapsed_s = time.perf_counter() - start
-    stock_data = agent_output.stock_data
-    stock_assumptions = agent_output.stock_assumptions
 
-    # Create stock data table
-    stock_table = Table(
-        title=f"📈 {stock_data.name} ({stock_data.ticker}) - {stock_data.company_scale}",
-        show_header=True,
-        header_style="bold magenta",
+    return AgentRunResult(
+        output=agent_output,
+        elapsed_s=elapsed_s,
+        input_tokens=usage.input_tokens,
+        output_tokens=usage.output_tokens,
+        cache_write_tokens=getattr(usage, "cache_write_tokens", 0),
+        cache_read_tokens=getattr(usage, "cache_read_tokens", 0),
+        tool_calls=getattr(usage, "tool_calls", 0),
     )
-    stock_table.add_column("Metric", style="cyan", no_wrap=True)
-    stock_table.add_column("Value", style="green", justify="right")
-    stock_table.add_column("Notes")
 
-    # Format values nicely
+
+def build_stock_table(output: MarketAnalystOutput) -> Table:
+    """Build a Rich table from the agent's stock data."""
+    stock_data = output.stock_data
     current_price = stock_data.market_cap / stock_data.n_shares_outstanding
     market_cap_b = stock_data.market_cap / 1e9
     revenue_m = stock_data.revenue / 1e6
     ebit_m = stock_data.ebit / 1e6
 
-    stock_table.add_row(
+    table = Table(
+        title=f"📈 {stock_data.name} ({stock_data.ticker}) - {stock_data.company_scale}",
+        show_header=True,
+        header_style="bold magenta",
+    )
+    table.add_column("Metric", style="cyan", no_wrap=True)
+    table.add_column("Value", style="green", justify="right")
+    table.add_column("Notes")
+    table.add_row(
         "Current Share Price", f"${current_price:.2f}", "Implied from market cap"
     )
-    stock_table.add_row(
+    table.add_row(
         "Market Cap",
         f"${market_cap_b:.2f}B",
         f"Based on {stock_data.n_shares_outstanding:,.0f} shares outstanding",
     )
-    stock_table.add_row(
+    table.add_row(
         "Revenue (TTM)",
         f"${revenue_m:.2f}M",
         f"EBIT Margin: {stock_data.ebit_margin:.1%}",
     )
-    stock_table.add_row(
-        "EBIT (TTM)", f"${ebit_m:.2f}M", "Earnings Before Interest & Taxes"
-    )
-    stock_table.add_row(
+    table.add_row("EBIT (TTM)", f"${ebit_m:.2f}M", "Earnings Before Interest & Taxes")
+    table.add_row(
         "Enterprise Value",
         f"${stock_data.enterprise_value / 1e9:.2f}B",
         "Market Cap + Net Debt",
     )
-    stock_table.add_row(
-        "Beta", f"{stock_data.beta:.2f}", "Volatility relative to market"
-    )
-    stock_table.add_row(
+    table.add_row("Beta", f"{stock_data.beta:.2f}", "Volatility relative to market")
+    table.add_row(
         "Interest Rate",
         f"{stock_data.implied_interest_rate:.1%}",
         "Implied cost of debt",
     )
+    return table
 
-    # Create assumptions panel
+
+def display_agent_output(output: MarketAnalystOutput) -> None:
+    """Print the Market Analyst agent output section."""
+    stock_table = build_stock_table(output)
     assumptions_panel = Panel.fit(
-        stock_assumptions.reasoning,
+        output.stock_assumptions.reasoning,
         title="🧠 Assumptions Reasoning",
         border_style="blue",
         padding=(1, 2),
     )
-
-    # Display agent output
     console.print("\n")
     console.print(
         Panel.fit(
@@ -196,7 +208,14 @@ async def main():
     console.print(stock_table)
     console.print(assumptions_panel)
 
-    # DCF Analysis header
+
+def run_dcf_and_display(
+    args: Arguments, agent_output: MarketAnalystOutput
+) -> tuple[DCFAnalysisResult | None, str | None]:
+    """Run DCF analysis and display results. Returns (dcf_result, dcf_error)."""
+    stock_data = agent_output.stock_data
+    stock_assumptions = agent_output.stock_assumptions
+
     console.print("\n")
     console.print(
         Panel.fit(
@@ -205,8 +224,6 @@ async def main():
             padding=(1, 2),
         )
     )
-
-    # DCF Details panel
     dcf_details_panel = Panel.fit(
         f"Risk-free Rate: {args.risk_free_rate:.1%}\n"
         f"Forecast Period: {stock_assumptions.forecast_period_years} years\n"
@@ -225,33 +242,28 @@ async def main():
     )
 
     dcf_error: str | None = None
+    dcf_result: DCFAnalysisResult | None = None
     try:
         dcf_analysis = DCFAnalysis(dcf_params)
         dcf_result = dcf_analysis.dcf_analysis()
     except Exception as exc:
         dcf_error = str(exc)
-        dcf_result = None
         console.print(f"[yellow]DCF error: {dcf_error}[/yellow]")
 
-    # Create DCF results table (only when DCF succeeded)
     if dcf_result is not None:
+        current_price = stock_data.market_cap / stock_data.n_shares_outstanding
+        intrinsic_price = dcf_result.intrinsic_share_price
+        premium_discount = ((intrinsic_price - current_price) / current_price) * 100
+        status_emoji = "📈" if premium_discount > 0 else "📉"
+        status_color = "green" if premium_discount > 0 else "red"
+        status_text = f"{status_emoji} [{status_color}]{premium_discount:+.1f}%[/{status_color}] vs current price"
+
         dcf_table = Table(
             title="💎 VALUATION RESULTS", show_header=True, header_style="bold yellow"
         )
         dcf_table.add_column("Metric", style="cyan", no_wrap=True)
         dcf_table.add_column("Value", style="green", justify="right")
         dcf_table.add_column("Analysis")
-
-        # Calculate valuation comparison
-        current_price = stock_data.market_cap / stock_data.n_shares_outstanding
-        intrinsic_price = dcf_result.intrinsic_share_price
-        premium_discount = ((intrinsic_price - current_price) / current_price) * 100
-
-        # Format values
-        status_emoji = "📈" if premium_discount > 0 else "📉"
-        status_color = "green" if premium_discount > 0 else "red"
-        status_text = f"{status_emoji} [{status_color}]{premium_discount:+.1f}%[/{status_color}] vs current price"
-
         dcf_table.add_row(
             "Enterprise Value",
             f"${dcf_result.enterprise_value / 1e6:.2f}M",
@@ -268,10 +280,19 @@ async def main():
         dcf_table.add_row(
             "Intrinsic Share Value", f"${intrinsic_price:.2f}", status_text
         )
-
         console.print(dcf_table)
 
-    # Write output to file (same format as model_cost_comparison)
+    return dcf_result, dcf_error
+
+
+def save_run_output(
+    args: Arguments,
+    agent_output: MarketAnalystOutput,
+    agent_result: AgentRunResult,
+    dcf_result: DCFAnalysisResult | None,
+    dcf_error: str | None,
+) -> Path:
+    """Build ModelRunOutput, write to outputs/, and return the path."""
     run_output = ModelRunOutput(
         ticker=args.ticker,
         model_name=args.model.value,
@@ -279,18 +300,36 @@ async def main():
         market_analyst=agent_output,
         dcf_result=dcf_result,
         dcf_error=dcf_error,
-        elapsed_s=elapsed_s,
-        input_tokens=usage.input_tokens,
-        output_tokens=usage.output_tokens,
-        cache_write_tokens=getattr(usage, "cache_write_tokens", 0),
-        cache_read_tokens=getattr(usage, "cache_read_tokens", 0),
-        tool_calls=getattr(usage, "tool_calls", 0),
+        elapsed_s=agent_result.elapsed_s,
+        input_tokens=agent_result.input_tokens,
+        output_tokens=agent_result.output_tokens,
+        cache_write_tokens=agent_result.cache_write_tokens,
+        cache_read_tokens=agent_result.cache_read_tokens,
+        tool_calls=agent_result.tool_calls,
     )
     timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
-    out_path = write_model_output(
+    return write_model_output(
         run_output=run_output,
         timestamp=timestamp,
         output_dir=_OUTPUTS_DIR,
+    )
+
+
+async def main():
+    args = parse_args()
+    research_report_content = parse_research_report(args)
+
+    console.log(
+        f"Initializing Market Analyst Agent for {args.ticker} (using {args.model} model)..."
+    )
+    console.log("Running agent...")
+    agent_result = await run_agent(args, research_report_content)
+
+    display_agent_output(agent_result.output)
+    dcf_result, dcf_error = run_dcf_and_display(args, agent_result.output)
+
+    out_path = save_run_output(
+        args, agent_result.output, agent_result, dcf_result, dcf_error
     )
     console.print(f"\nSaved [dim]{out_path}[/dim]")
 
