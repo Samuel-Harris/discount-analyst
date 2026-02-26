@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -249,8 +250,8 @@ def write_model_output(
     *,
     run_output: ModelRunOutput,
     timestamp: str,
-    cache_suffix: str = "cache",
-    search_suffix: str = "perplexity",
+    cache_suffix: Literal["cache", "no-cache"],
+    search_suffix: Literal["web-search", "perplexity"],
     output_dir: Path,
 ) -> Path:
     """Serialise the full run output (agent + DCF) to JSON and return the path written."""

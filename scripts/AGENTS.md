@@ -32,7 +32,7 @@ The `scripts/` directory contains utility and entry-point scripts for the Discou
 ### Testing Requirements
 
 - Currently, there are no automated tests for these scripts. Test changes by running the scripts with sample inputs.
-- Example execution: `uv run python scripts/run_dcf_analysis.py --ticker AAPL --risk-free-rate 0.045 --research-report-path path/to/report.md`.
+- Example execution: `uv run python scripts/run_dcf_analysis.py --pair AAPL:path/to/report.md --risk-free-rate 0.045`. Use multiple `--pair` for batch runs: `--pair AAPL:reports/aapl.md --pair MSFT:reports/msft.md`.
 - Verify `md_docs_parser.py` by checking the generated directory and file structure.
 
 ### Common Patterns

@@ -1,6 +1,7 @@
 from discount_analyst.shared.ai_models_config import ModelName
 import asyncio
 import argparse
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -8,7 +9,6 @@ from pathlib import Path
 from typing import NewType
 
 import logfire
-from pydantic import BaseModel
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -16,7 +16,7 @@ from rich.table import Table
 from discount_analyst.shared.rate_limit_client import stream_with_retries
 from discount_analyst.shared.settings import settings
 
-from scripts.shared import ModelRunOutput, write_model_output
+from scripts.shared import AUTO_CACHE_MODELS, ModelRunOutput, write_model_output
 from discount_analyst.market_analyst.market_analyst import create_market_analyst_agent
 from discount_analyst.shared.ai_models_config import AIModelsConfig
 from discount_analyst.market_analyst.user_prompt import create_user_prompt
@@ -35,31 +35,87 @@ console = Console()
 
 ResearchReport = NewType("ResearchReport", str)
 
+# Ticker: 1-10 chars, starts with A-Z, only letters, digits, dots (e.g. AAPL, BRK.B)
+_TICKER_RE = re.compile(r"^[A-Z][A-Z0-9.]{0,9}$")
 
-class Arguments(BaseModel):
+
+@dataclass(frozen=True)
+class TickerReportPair:
     ticker: str
-    risk_free_rate: float
     research_report_path: str
-    model: ModelName = ModelName.CLAUDE_OPUS_4_5
 
 
-def parse_args() -> Arguments:
+@dataclass
+class SharedArgs:
+    risk_free_rate: float
+    model: ModelName
+
+
+def _validate_pair(raw: str, parser: argparse.ArgumentParser) -> TickerReportPair:
+    """Parse and validate a TICKER:PATH pair. Catches common swap mistakes."""
+    if ":" not in raw:
+        parser.error(
+            f"Invalid pair '{raw}': expected TICKER:PATH (e.g. AAPL:reports/aapl.md). "
+            "Use a colon to separate ticker from path."
+        )
+    parts = raw.split(":", 1)
+    if len(parts) != 2:
+        parser.error(f"Invalid pair '{raw}': expected exactly one colon.")
+    first, second = parts[0].strip(), parts[1].strip()
+    if not first or not second:
+        parser.error(f"Invalid pair '{raw}': ticker and path must be non-empty.")
+
+    # Detect likely swap: first part looks like a path
+    if "/" in first or "\\" in first or first.endswith(".md"):
+        parser.error(
+            f"Invalid pair '{raw}': the first part looks like a path. "
+            f"Did you mean --pair {second}:{first}? Format is TICKER:PATH (e.g. AAPL:reports/aapl.md)."
+        )
+
+    # Second part must look like a path and end in .md
+    if not second.endswith(".md"):
+        hint = ""
+        if _TICKER_RE.match(second):
+            hint = (
+                " The second part looks like a ticker; did you swap ticker and path? "
+            )
+        parser.error(
+            f"Invalid pair '{raw}': path must be a .md file. Got '{second}'.{hint}"
+            "Format is TICKER:PATH (e.g. AAPL:reports/aapl.md)."
+        )
+
+    # First part must look like a ticker (uppercase, alphanumeric + dots)
+    if not _TICKER_RE.match(first):
+        parser.error(
+            f"Invalid pair '{raw}': ticker must be 1-10 chars, start with A-Z, "
+            f"only A-Z, 0-9, dots (e.g. AAPL, BRK.B). Got '{first}'."
+        )
+
+    path = Path(second)
+    if not path.exists():
+        parser.error(
+            f"Invalid pair '{raw}': research report file not found at '{second}'."
+        )
+
+    return TickerReportPair(ticker=first, research_report_path=second)
+
+
+def parse_args() -> tuple[list[TickerReportPair], SharedArgs]:
     parser = argparse.ArgumentParser(
         description="Run Market Analyst Agent and DCF Analysis"
     )
     parser.add_argument(
-        "--ticker", type=str, required=True, help="Stock ticker symbol (e.g., AAPL)"
+        "--pair",
+        action="append",
+        metavar="TICKER:PATH",
+        required=True,
+        help="Ticker and research report path (repeatable). E.g. --pair AAPL:reports/aapl.md --pair MSFT:reports/msft.md",
     )
     parser.add_argument(
         "--risk-free-rate",
         type=float,
         required=True,
         help="Risk-free rate as a decimal (e.g., 0.045)",
-    )
-    parser.add_argument(
-        "--research-report-path",
-        type=str,
-        help="Path to a markdown file containing a research report",
     )
     parser.add_argument(
         "--model",
@@ -77,27 +133,20 @@ def parse_args() -> Arguments:
             f"Got {args.risk_free_rate}. Did you pass a percentage? Use 0.0373 for 3.73%."
         )
 
-    return Arguments(**vars(args))
+    pairs = [_validate_pair(p, parser) for p in args.pair]
+    shared = SharedArgs(risk_free_rate=args.risk_free_rate, model=args.model)
+    return pairs, shared
 
 
-def parse_research_report(args: Arguments) -> ResearchReport:
-    path = Path(args.research_report_path)
+def load_research_report(path: Path) -> ResearchReport:
+    """Load and validate a research report from path."""
     if not path.exists():
-        raise ValueError(
-            f"Error: Research report file not found at {args.research_report_path}"
-        )
-
-    if not path.suffix == ".md":
-        raise ValueError(
-            f"Error: Research report must be a markdown file. Got {path.suffix}"
-        )
-
-    research_report_content = ResearchReport(path.read_text())
-    console.log(
-        f"Loaded research report from {args.research_report_path} ({len(research_report_content)} chars)"
-    )
-
-    return research_report_content
+        raise ValueError(f"Research report file not found at {path}")
+    if path.suffix != ".md":
+        raise ValueError(f"Research report must be a markdown file. Got {path.suffix}")
+    content = ResearchReport(path.read_text())
+    console.log(f"Loaded research report from {path} ({len(content)} chars)")
+    return content
 
 
 @dataclass
@@ -109,14 +158,39 @@ class AgentRunResult:
     cache_write_tokens: int
     cache_read_tokens: int
     tool_calls: int
+    cache_enabled: bool
+    use_web_search: bool
+
+
+@dataclass
+class PairRunArgs:
+    """Args for running analysis on a single ticker/report pair."""
+
+    ticker: str
+    research_report_path: str
+    risk_free_rate: float
+    model: ModelName
+
+
+def _pair_run_args(pair: TickerReportPair, shared: SharedArgs) -> PairRunArgs:
+    """Build run args for a single pair (used by run_agent, run_dcf_and_display, save_run_output)."""
+    return PairRunArgs(
+        ticker=pair.ticker,
+        research_report_path=pair.research_report_path,
+        risk_free_rate=shared.risk_free_rate,
+        model=shared.model,
+    )
 
 
 async def run_agent(
-    args: Arguments, research_report_content: ResearchReport
+    args: PairRunArgs,
+    research_report_content: ResearchReport,
+    *,
+    use_perplexity: bool = True,
 ) -> AgentRunResult:
     """Run the Market Analyst agent and return output with usage stats."""
     ai_models_config = AIModelsConfig(model_name=args.model)
-    agent = create_market_analyst_agent(ai_models_config)
+    agent = create_market_analyst_agent(ai_models_config, use_perplexity=use_perplexity)
     user_prompt = create_user_prompt(
         ticker=args.ticker, research_report=research_report_content
     )
@@ -133,6 +207,12 @@ async def run_agent(
         usage = result.usage()
     elapsed_s = time.perf_counter() - start
 
+    market_analyst = ai_models_config.market_analyst
+    cache_enabled = args.model in AUTO_CACHE_MODELS or getattr(
+        market_analyst, "cache_messages", True
+    )
+    use_web_search = not use_perplexity
+
     return AgentRunResult(
         output=agent_output,
         elapsed_s=elapsed_s,
@@ -141,6 +221,8 @@ async def run_agent(
         cache_write_tokens=getattr(usage, "cache_write_tokens", 0),
         cache_read_tokens=getattr(usage, "cache_read_tokens", 0),
         tool_calls=getattr(usage, "tool_calls", 0),
+        cache_enabled=cache_enabled,
+        use_web_search=use_web_search,
     )
 
 
@@ -210,7 +292,7 @@ def display_agent_output(output: MarketAnalystOutput) -> None:
 
 
 def run_dcf_and_display(
-    args: Arguments, agent_output: MarketAnalystOutput
+    args: PairRunArgs, agent_output: MarketAnalystOutput
 ) -> tuple[DCFAnalysisResult | None, str | None]:
     """Run DCF analysis and display results. Returns (dcf_result, dcf_error)."""
     stock_data = agent_output.stock_data
@@ -286,7 +368,7 @@ def run_dcf_and_display(
 
 
 def save_run_output(
-    args: Arguments,
+    args: PairRunArgs,
     agent_output: MarketAnalystOutput,
     agent_result: AgentRunResult,
     dcf_result: DCFAnalysisResult | None,
@@ -308,16 +390,21 @@ def save_run_output(
         tool_calls=agent_result.tool_calls,
     )
     timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+    cache_suffix = "cache" if agent_result.cache_enabled else "no-cache"
+    search_suffix = "web-search" if agent_result.use_web_search else "perplexity"
     return write_model_output(
         run_output=run_output,
         timestamp=timestamp,
+        cache_suffix=cache_suffix,
+        search_suffix=search_suffix,
         output_dir=_OUTPUTS_DIR,
     )
 
 
-async def main():
-    args = parse_args()
-    research_report_content = parse_research_report(args)
+async def run_one_pair(pair: TickerReportPair, shared: SharedArgs) -> None:
+    """Run analysis for a single ticker/report pair."""
+    args = _pair_run_args(pair, shared)
+    research_report_content = load_research_report(Path(args.research_report_path))
 
     console.log(
         f"Initializing Market Analyst Agent for {args.ticker} (using {args.model} model)..."
@@ -332,6 +419,15 @@ async def main():
         args, agent_result.output, agent_result, dcf_result, dcf_error
     )
     console.print(f"\nSaved [dim]{out_path}[/dim]")
+
+
+async def main():
+    pairs, shared = parse_args()
+
+    for i, pair in enumerate(pairs):
+        if len(pairs) > 1 and i > 0:
+            console.print("\n[bold]─── Next pair ───[/bold]\n")
+        await run_one_pair(pair, shared)
 
 
 if __name__ == "__main__":
