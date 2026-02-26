@@ -29,10 +29,11 @@ from scripts.shared import (
     RunResult,
     calc_actual_cost,
     calc_raw_cost,
-    outputs_dir,
 )
 
 console = Console()
+
+_OUTPUTS_DIR = Path(__file__).resolve().parent / "outputs"
 
 
 class ParsedFilename(NamedTuple):
@@ -640,7 +641,7 @@ def _build_detail_panel(
 
 def load_runs_for_ticker(ticker: str) -> list[LoadedRun]:
     """Load all output files for *ticker* sorted by timestamp ascending."""
-    out_dir = outputs_dir()
+    out_dir = _OUTPUTS_DIR
     pattern = f"*-{ticker.upper()}.json"
     files = sorted(out_dir.glob(pattern))
     if not files:
@@ -731,7 +732,7 @@ def main() -> None:
     if not runs:
         console.print(
             f"[red]No output files found for ticker [bold]{ticker}[/bold] "
-            f"in {outputs_dir()}[/red]"
+            f"in {_OUTPUTS_DIR}[/red]"
         )
         raise SystemExit(1)
 
