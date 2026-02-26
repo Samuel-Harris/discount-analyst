@@ -12,6 +12,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from discount_analyst.shared.rate_limit_client import stream_with_retries
 from discount_analyst.shared.settings import settings
 
 from scripts.shared import ModelRunOutput, write_model_output
@@ -112,8 +113,9 @@ async def main():
     console.log("Running agent...")
 
     start = time.perf_counter()
-    async with agent.run_stream(
-        user_prompt,
+    async with stream_with_retries(
+        agent=agent,
+        user_prompt=user_prompt,
         usage_limits=ai_models_config.market_analyst.usage_limits,
     ) as result:
         async for message in result.stream_output():
