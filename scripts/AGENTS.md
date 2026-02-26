@@ -12,7 +12,8 @@ The `scripts/` directory contains utility and entry-point scripts for the Discou
 | File | Description |
 | --------- | ---------------------------- |
 | `md_docs_parser.py` | Utility to split a large markdown document into a hierarchical directory structure of smaller markdown files. |
-| `run_dcf_analysis.py` | Main execution script that orchestrates the Market Analyst AI agent and performs DCF valuation analysis. |
+| `run_dcf_analysis.py` | Main execution script that orchestrates the Market Analyst AI agent and performs DCF valuation analysis. Writes output (agent + DCF) to `cost_comparison/outputs/` in the same JSON format as `model_cost_comparison.py`. |
+| `shared.py` | Shared data types (`ModelRunOutput`, `RunResult`, `RunConfig`, etc.), constants, and helpers (`outputs_dir`, `write_model_output`, `calc_actual_cost`) used by `run_dcf_analysis.py` and `cost_comparison/` scripts. |
 
 ## Subdirectories
 
@@ -47,6 +48,7 @@ The `scripts/` directory contains utility and entry-point scripts for the Discou
 - `discount_analyst.shared`: Configuration, settings, and shared models.
 - `discount_analyst.market_analyst`: AI agent logic and prompt creation.
 - `discount_analyst.dcf_analysis`: Core financial calculation engine.
+- `scripts.shared`: `ModelRunOutput`, `write_model_output`, and cost helpers (used by `run_dcf_analysis.py` and `cost_comparison/`).
 
 ### External
 

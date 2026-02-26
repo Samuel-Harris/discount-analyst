@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -33,8 +32,7 @@ from discount_analyst.dcf_analysis.dcf_analysis import DCFAnalysis
 from discount_analyst.market_analyst.market_analyst import create_market_analyst_agent
 from discount_analyst.market_analyst.user_prompt import create_user_prompt
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from shared import (  # noqa: E402
+from scripts.shared import (
     AUTO_CACHE_MODELS,
     ModelRunOutput,
     RunConfig,

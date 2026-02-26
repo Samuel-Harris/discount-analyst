@@ -1,16 +1,20 @@
 from discount_analyst.shared.ai_models_config import ModelName
 import asyncio
 import argparse
-from typing import NewType
-import logfire
+import time
+from datetime import datetime
 from pathlib import Path
+from typing import NewType
+
+import logfire
 from pydantic import BaseModel
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-
 from discount_analyst.shared.settings import settings
+
+from scripts.shared import ModelRunOutput, write_model_output
 from discount_analyst.market_analyst.market_analyst import create_market_analyst_agent
 from discount_analyst.shared.ai_models_config import AIModelsConfig
 from discount_analyst.market_analyst.user_prompt import create_user_prompt
@@ -54,11 +58,18 @@ def parse_args() -> Arguments:
         "--model",
         type=ModelName,
         choices=[e.value for e in ModelName],
-        default=ModelName.CLAUDE_OPUS_4_5,
-        help=f"AI model to use (default: {ModelName.CLAUDE_OPUS_4_5})",
+        default=ModelName.CLAUDE_SONNET_4_6,
+        help=f"AI model to use (default: {ModelName.CLAUDE_SONNET_4_6})",
     )
 
     args = parser.parse_args()
+
+    if not (0 < args.risk_free_rate <= 0.15):
+        parser.error(
+            f"--risk-free-rate must be a decimal between 0 and 0.15 (e.g. 0.045 for 4.5%). "
+            f"Got {args.risk_free_rate}. Did you pass a percentage? Use 0.0373 for 3.73%."
+        )
+
     return Arguments(**vars(args))
 
 
@@ -100,6 +111,7 @@ async def main():
 
     console.log("Running agent...")
 
+    start = time.perf_counter()
     async with agent.run_stream(
         user_prompt,
         usage_limits=ai_models_config.market_analyst.usage_limits,
@@ -107,7 +119,9 @@ async def main():
         async for message in result.stream_output():
             console.log(f"Streaming: {message}")
 
-    agent_output = await result.get_output()
+        agent_output = await result.get_output()
+        usage = result.usage()
+    elapsed_s = time.perf_counter() - start
     stock_data = agent_output.stock_data
     stock_assumptions = agent_output.stock_assumptions
 
@@ -205,43 +219,71 @@ async def main():
         risk_free_rate=args.risk_free_rate,
     )
 
-    dcf_analysis = DCFAnalysis(dcf_params)
-    dcf_result = dcf_analysis.dcf_analysis()
+    dcf_error: str | None = None
+    try:
+        dcf_analysis = DCFAnalysis(dcf_params)
+        dcf_result = dcf_analysis.dcf_analysis()
+    except Exception as exc:
+        dcf_error = str(exc)
+        dcf_result = None
+        console.print(f"[yellow]DCF error: {dcf_error}[/yellow]")
 
-    # Create DCF results table
-    dcf_table = Table(
-        title="💎 VALUATION RESULTS", show_header=True, header_style="bold yellow"
+    # Create DCF results table (only when DCF succeeded)
+    if dcf_result is not None:
+        dcf_table = Table(
+            title="💎 VALUATION RESULTS", show_header=True, header_style="bold yellow"
+        )
+        dcf_table.add_column("Metric", style="cyan", no_wrap=True)
+        dcf_table.add_column("Value", style="green", justify="right")
+        dcf_table.add_column("Analysis")
+
+        # Calculate valuation comparison
+        current_price = stock_data.market_cap / stock_data.n_shares_outstanding
+        intrinsic_price = dcf_result.intrinsic_share_price
+        premium_discount = ((intrinsic_price - current_price) / current_price) * 100
+
+        # Format values
+        status_emoji = "📈" if premium_discount > 0 else "📉"
+        status_color = "green" if premium_discount > 0 else "red"
+        status_text = f"{status_emoji} [{status_color}]{premium_discount:+.1f}%[/{status_color}] vs current price"
+
+        dcf_table.add_row(
+            "Enterprise Value",
+            f"${dcf_result.enterprise_value / 1e6:.2f}M",
+            "Present value of projected unlevered free cash flows plus the discounted terminal value",
+        )
+        dcf_table.add_row(
+            "Equity Value",
+            f"${dcf_result.equity_value / 1e6:.2f}M",
+            "Total value of shareholder equity",
+        )
+        dcf_table.add_row(
+            "Current Market Price", f"${current_price:.2f}", "Implied from market cap"
+        )
+        dcf_table.add_row(
+            "Intrinsic Share Value", f"${intrinsic_price:.2f}", status_text
+        )
+
+        console.print(dcf_table)
+
+    # Write output to file (same format as model_cost_comparison)
+    run_output = ModelRunOutput(
+        ticker=args.ticker,
+        model_name=args.model.value,
+        risk_free_rate=args.risk_free_rate,
+        market_analyst=agent_output,
+        dcf_result=dcf_result,
+        dcf_error=dcf_error,
+        elapsed_s=elapsed_s,
+        input_tokens=usage.input_tokens,
+        output_tokens=usage.output_tokens,
+        cache_write_tokens=getattr(usage, "cache_write_tokens", 0),
+        cache_read_tokens=getattr(usage, "cache_read_tokens", 0),
+        tool_calls=getattr(usage, "tool_calls", 0),
     )
-    dcf_table.add_column("Metric", style="cyan", no_wrap=True)
-    dcf_table.add_column("Value", style="green", justify="right")
-    dcf_table.add_column("Analysis")
-
-    # Calculate valuation comparison
-    current_price = stock_data.market_cap / stock_data.n_shares_outstanding
-    intrinsic_price = dcf_result.intrinsic_share_price
-    premium_discount = ((intrinsic_price - current_price) / current_price) * 100
-
-    # Format values
-    status_emoji = "📈" if premium_discount > 0 else "📉"
-    status_color = "green" if premium_discount > 0 else "red"
-    status_text = f"{status_emoji} [{status_color}]{premium_discount:+.1f}%[/{status_color}] vs current price"
-
-    dcf_table.add_row(
-        "Enterprise Value",
-        f"${dcf_result.enterprise_value / 1e6:.2f}M",
-        "Present value of projected unlevered free cash flows plus the discounted terminal value",
-    )
-    dcf_table.add_row(
-        "Equity Value",
-        f"${dcf_result.equity_value / 1e6:.2f}M",
-        "Total value of shareholder equity",
-    )
-    dcf_table.add_row(
-        "Current Market Price", f"${current_price:.2f}", "Implied from market cap"
-    )
-    dcf_table.add_row("Intrinsic Share Value", f"${intrinsic_price:.2f}", status_text)
-
-    console.print(dcf_table)
+    timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+    out_path = write_model_output(run_output, timestamp)
+    console.print(f"\nSaved [dim]{out_path}[/dim]")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""Shared data types, constants, and helpers for cost_comparison scripts."""
+"""Shared data types, constants, and helpers for scripts (cost comparison, DCF analysis)."""
 
 from __future__ import annotations
 
@@ -231,12 +231,13 @@ def calc_raw_cost(r: RunResult) -> float | None:
     # Note: FormattedCostResult.total_cost is always "$X.XXXX" when not None
 
 
-_SCRIPT_DIR = Path(__file__).resolve().parent
+_SCRIPTS_DIR = Path(__file__).resolve().parent
 
 
 def outputs_dir() -> Path:
-    d = _SCRIPT_DIR / "outputs"
-    d.mkdir(exist_ok=True)
+    """Output directory for model run JSON files (cost_comparison/outputs/)."""
+    d = _SCRIPTS_DIR / "cost_comparison" / "outputs"
+    d.mkdir(parents=True, exist_ok=True)
     return d
 
 

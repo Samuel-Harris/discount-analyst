@@ -13,7 +13,6 @@ Scripts and assets for comparing cost and speed across AI models when running th
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `model_cost_comparison.py` | CLI script that runs the Market Analyst agent across one or all configured models, records timing and token usage, prints Rich tables for speed/tokens and cost breakdown, runs DCF valuation on each agent output, and writes a combined `ModelRunOutput` JSON to `outputs/`.                                                                                                                                                                                                           |
 | `view_ticker_results.py`   | CLI script that takes a ticker as a positional argument, loads all matching JSON files from `outputs/`, and pretty-prints a Rich summary table. Use `--detail` for side-by-side Stock Data / Assumptions panels per run; add `--reasoning` to also display the model's full reasoning text. Use `--compare-cache` to compare cost/speed for cache vs no-cache per model; use `--compare-cost` to compare cost, speed, and token usage (input/output/cache write/read) across all models; use `--compare-web-search` to compare built-in web search vs Perplexity with tool cost ($0.005/call) and total estimated cost. |
-| `shared.py`                | Shared data types (`ModelRunOutput`, `RunResult`, `RunConfig`, `ModelPricing`, `CostBreakdown`, `FormattedCostResult`), constants (`MODEL_PRICING_FALLBACK`, `AUTO_CACHE_MODELS`), and helpers (`outputs_dir`, `output_filename`, `write_model_output`, `calc_actual_cost`) used by both scripts.                                                                                                                                                                                        |
 
 ## Subdirectories
 
@@ -44,6 +43,7 @@ Scripts and assets for comparing cost and speed across AI models when running th
 
 ### Internal
 
+- `scripts.shared`: `ModelRunOutput`, `RunResult`, `RunConfig`, `outputs_dir`, `write_model_output`, `calc_actual_cost`, `calc_raw_cost`, `ModelName`.
 - `discount_analyst.shared.ai_models_config`: `ModelName`, `AIModelsConfig`.
 - `discount_analyst.shared.data_types`: `MarketAnalystOutput` (for typing the `RunResult.output` field).
 - `discount_analyst.dcf_analysis`: `DCFAnalysis`, `DCFAnalysisParameters`, `DCFAnalysisResult`.
