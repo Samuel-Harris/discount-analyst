@@ -250,13 +250,23 @@ def write_model_output(
     *,
     run_output: ModelRunOutput,
     timestamp: str,
-    cache_suffix: Literal["cache", "no-cache"],
-    search_suffix: Literal["web-search", "perplexity"],
     output_dir: Path,
+    cache_suffix: Literal["cache", "no-cache"] | None = None,
+    search_suffix: Literal["web-search", "perplexity"] | None = None,
 ) -> Path:
-    """Serialise the full run output (agent + DCF) to JSON and return the path written."""
+    """Serialise the full run output (agent + DCF) to JSON and return the path written.
+
+    When cache_suffix and search_suffix are omitted, the filename is
+    {timestamp}-{model}-{ticker}.json. When set, they are included before the ticker.
+    """
     safe_model = run_output.model_name.replace(".", "-")
-    filename = f"{timestamp}-{safe_model}-{cache_suffix}-{search_suffix}-{run_output.ticker}.json"
+    parts: list[str] = [timestamp, safe_model]
+    if cache_suffix is not None:
+        parts.append(cache_suffix)
+    if search_suffix is not None:
+        parts.append(search_suffix)
+    parts.append(run_output.ticker)
+    filename = "-".join(parts) + ".json"
     output_dir.mkdir(parents=True, exist_ok=True)
     path = output_dir / filename
     path.write_text(run_output.model_dump_json(indent=2))

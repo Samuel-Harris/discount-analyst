@@ -16,7 +16,7 @@ from rich.table import Table
 from discount_analyst.shared.rate_limit_client import stream_with_retries
 from discount_analyst.shared.settings import settings
 
-from scripts.shared import AUTO_CACHE_MODELS, ModelRunOutput, write_model_output
+from scripts.shared import ModelRunOutput, write_model_output
 from discount_analyst.market_analyst.market_analyst import create_market_analyst_agent
 from discount_analyst.shared.ai_models_config import AIModelsConfig
 from discount_analyst.market_analyst.user_prompt import create_user_prompt
@@ -158,8 +158,6 @@ class AgentRunResult:
     cache_write_tokens: int
     cache_read_tokens: int
     tool_calls: int
-    cache_enabled: bool
-    use_web_search: bool
 
 
 @dataclass
@@ -207,12 +205,6 @@ async def run_agent(
         usage = result.usage()
     elapsed_s = time.perf_counter() - start
 
-    market_analyst = ai_models_config.market_analyst
-    cache_enabled = args.model in AUTO_CACHE_MODELS or getattr(
-        market_analyst, "cache_messages", True
-    )
-    use_web_search = not use_perplexity
-
     return AgentRunResult(
         output=agent_output,
         elapsed_s=elapsed_s,
@@ -221,8 +213,6 @@ async def run_agent(
         cache_write_tokens=getattr(usage, "cache_write_tokens", 0),
         cache_read_tokens=getattr(usage, "cache_read_tokens", 0),
         tool_calls=getattr(usage, "tool_calls", 0),
-        cache_enabled=cache_enabled,
-        use_web_search=use_web_search,
     )
 
 
@@ -390,13 +380,9 @@ def save_run_output(
         tool_calls=agent_result.tool_calls,
     )
     timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
-    cache_suffix = "cache" if agent_result.cache_enabled else "no-cache"
-    search_suffix = "web-search" if agent_result.use_web_search else "perplexity"
     return write_model_output(
         run_output=run_output,
         timestamp=timestamp,
-        cache_suffix=cache_suffix,
-        search_suffix=search_suffix,
         output_dir=_OUTPUTS_DIR,
     )
 
