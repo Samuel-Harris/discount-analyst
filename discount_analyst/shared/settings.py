@@ -18,6 +18,14 @@ class Anthropic(BaseModel):
     api_key: str
 
 
+class OpenAI(BaseModel):
+    api_key: str
+
+
+class Google(BaseModel):
+    api_key: str
+
+
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
@@ -29,7 +37,9 @@ class Settings(BaseSettings):
 
     pydantic: Pydantic
     perplexity: Perplexity
-    anthropic: Anthropic
+    anthropic: Anthropic | None = None
+    openai: OpenAI | None = None
+    google: Google | None = None
 
 
 settings = Settings()  # type: ignore[missing-argument]

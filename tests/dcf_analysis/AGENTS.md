@@ -9,8 +9,8 @@ The `tests/dcf_analysis/` directory contains unit tests specifically for the Dis
 
 ## Key Files
 
-| File | Description |
-| --------- | ---------------------------- |
+| File                   | Description                                                                                                                                                  |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `test_dcf_analysis.py` | A comprehensive test suite that uses parametrized test cases to verify DCF results (intrinsic value, enterprise value, equity value) for multiple companies. |
 
 ## Subdirectories
@@ -28,9 +28,11 @@ The `tests/dcf_analysis/` directory contains unit tests specifically for the Dis
 ### Testing Requirements
 
 - Run the tests in this directory using:
+
   ```bash
-  poetry run pytest tests/dcf_analysis/
+  uv run pytest tests/dcf_analysis/
   ```
+
 - All financial comparisons must use `pytest.approx` to account for floating-point precision differences.
 
 ### Common Patterns

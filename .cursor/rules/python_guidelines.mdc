@@ -1,0 +1,12 @@
+---
+globs: **/*.py
+alwaysApply: false
+---
+
+# Python guidelines
+
+When writing Python:
+
+- Prefer named attribute access (Pydantic models, dataclasses, NamedTuples) over plain tuples or dicts.
+- Always import from the top of the file when possible.
+- I am using Python 3.14 in this repo. The latest Python 3.14 syntax is preferred.

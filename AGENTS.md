@@ -1,4 +1,4 @@
-<!-- Generated: 2026-02-23 | Updated: 2026-02-23 -->
+<!-- Generated: 2026-02-23 | Updated: 2026-02-23 (hooks added) -->
 
 # Discount Analyst
 
@@ -10,11 +10,12 @@ An AI-powered stock analysis tool ("Discount Analyst") designed for automated, l
 
 | File | Description |
 | --------- | ---------------------------- |
-| `pyproject.toml` | Project metadata, Poetry configuration, and dependencies. |
-| `poetry.lock` | Locked versions of all project dependencies. |
+| `pyproject.toml` | Project metadata, uv configuration, and dependencies. |
+| `uv.lock` | Locked versions of all project dependencies. |
 | `README.md` | Overview, quick start instructions, and high-level documentation. |
 | `LICENSE` | MIT License terms for the repository. |
 | `pytest.ini` | Configuration for the `pytest` test suite, including coverage settings. |
+| `.cursor/hooks.json` | Cursor hooks: `sessionStart` (injects branch + uv env context) and `afterFileEdit` (auto-runs `ruff` on Python files). |
 
 ## Subdirectories
 
@@ -28,14 +29,14 @@ An AI-powered stock analysis tool ("Discount Analyst") designed for automated, l
 
 ### Working In This Directory
 
-- Use `poetry` for all dependency management and environment execution.
+- Use `uv` for all dependency management and environment execution.
 - Maintain strict typing with Pydantic models for data structures.
 - Use `logfire` for logging and monitoring analysis runs.
 - Follow the modular pattern: keep core logic in `discount_analyst/` and execution logic in `scripts/`.
 
 ### Testing Requirements
 
-- Run the full test suite using `poetry run pytest`.
+- Run the full test suite using `uv run pytest`.
 - Ensure new features include unit tests and, where applicable, integration tests with `yfinance` mocks.
 - Maintain or improve the current test coverage as configured in `pytest.ini`.
 

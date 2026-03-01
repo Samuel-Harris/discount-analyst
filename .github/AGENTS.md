@@ -35,20 +35,20 @@ The `.github/` directory contains GitHub-specific configuration files, automatio
 
 ### Common Patterns
 
-- **Composite Actions**: Uses composite actions (found in `actions/`) to standardize environment setup (Python version, Poetry installation, dependency caching) across different jobs.
+- **Composite Actions**: Uses composite actions (found in `actions/`) to standardize environment setup (Python version, uv installation, dependency caching) across different jobs.
 - **Triggering**: Workflows are typically triggered on `push` and `pull_request` events to the `main` branch.
 
 ## Dependencies
 
 ### Internal
 
-- **Root Project**: Workflows depend on `pyproject.toml` and `poetry.lock` for environment setup and dependency management.
+- **Root Project**: Workflows depend on `pyproject.toml` and `uv.lock` for environment setup and dependency management.
 - **Core Source**: CI workflows execute tests and linters against the code in `discount_analyst/` and `scripts/`.
 
 ### External
 
 - **actions/checkout**: Standard GitHub action for checking out the repository code.
 - **actions/setup-python**: Official GitHub action for setting up the Python environment.
-- **Poetry**: Used within workflows for dependency installation and test execution.
+- **uv**: Used within workflows for dependency installation and test execution.
 
 <!-- MANUAL: Any manually added notes below this line are preserved on regeneration -->

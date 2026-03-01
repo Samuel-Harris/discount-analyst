@@ -29,7 +29,7 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 
 ### Testing Requirements
 
-- Run the full test suite from the project root using `poetry run pytest`.
+- Run the full test suite from the project root using `uv run pytest`.
 - New features should include unit tests and, where applicable, integration tests with `yfinance` mocks (using the `yfinance` pytest marker).
 - Ensure that test coverage is maintained or improved as per the configuration in `pytest.ini`.
 

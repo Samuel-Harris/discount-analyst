@@ -17,7 +17,7 @@ The `.github/actions/` directory contains custom, reusable GitHub Actions develo
 
 | Directory | Purpose |
 | --------- | ----------------------------------------- |
-| `setup-python/` | Standardizes the setup of Python 3.14 and Poetry dependencies (see `setup-python/AGENTS.md`). |
+| `setup-python/` | Standardizes the setup of Python 3.14 and uv dependencies (see `setup-python/AGENTS.md`). |
 
 ## For AI Agents
 
@@ -44,6 +44,6 @@ The `.github/actions/` directory contains custom, reusable GitHub Actions develo
 ### External
 
 - **GitHub Actions Runner**: The environment where these actions execute.
-- **Poetry**: Frequently used within these actions for dependency management.
+- **uv**: Frequently used within these actions for dependency management.
 
 <!-- MANUAL: Any manually added notes below this line are preserved on regeneration -->

@@ -12,11 +12,14 @@ The `scripts/` directory contains utility and entry-point scripts for the Discou
 | File | Description |
 | --------- | ---------------------------- |
 | `md_docs_parser.py` | Utility to split a large markdown document into a hierarchical directory structure of smaller markdown files. |
-| `run_dcf_analysis.py` | Main execution script that orchestrates the Market Analyst AI agent and performs DCF valuation analysis. |
+| `run_dcf_analysis.py` | Main execution script that orchestrates the Market Analyst AI agent and performs DCF valuation analysis. Writes output (agent + DCF) to `outputs/` in the same JSON format as `model_cost_comparison.py`. |
+| `shared.py` | Shared data types (`ModelRunOutput`, `RunResult`, `RunConfig`, etc.), constants, and helpers (`outputs_dir`, `write_model_output`, `calc_actual_cost`) used by `run_dcf_analysis.py` and `cost_comparison/` scripts. |
 
 ## Subdirectories
 
-None.
+| Directory | Purpose |
+| --------- | ----------------------------------------- |
+| `cost_comparison/` | Model cost/speed comparison script (see `cost_comparison/AGENTS.md`). |
 
 ## For AI Agents
 
@@ -29,7 +32,7 @@ None.
 ### Testing Requirements
 
 - Currently, there are no automated tests for these scripts. Test changes by running the scripts with sample inputs.
-- Example execution: `poetry run python scripts/run_dcf_analysis.py --ticker AAPL --risk-free-rate 0.045 --research-report-path path/to/report.md`.
+- Example execution: `uv run python scripts/run_dcf_analysis.py --pair AAPL:path/to/report.md --risk-free-rate 0.045`. Use multiple `--pair` for batch runs: `--pair AAPL:reports/aapl.md --pair MSFT:reports/msft.md`.
 - Verify `md_docs_parser.py` by checking the generated directory and file structure.
 
 ### Common Patterns
@@ -45,6 +48,7 @@ None.
 - `discount_analyst.shared`: Configuration, settings, and shared models.
 - `discount_analyst.market_analyst`: AI agent logic and prompt creation.
 - `discount_analyst.dcf_analysis`: Core financial calculation engine.
+- `scripts.shared`: `ModelRunOutput`, `write_model_output`, and cost helpers (used by `run_dcf_analysis.py` and `cost_comparison/`).
 
 ### External
 

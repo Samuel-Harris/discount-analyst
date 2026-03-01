@@ -32,7 +32,7 @@ None.
 ### Testing Requirements
 
 - Verify agent behavior by adding or updating integration tests in `tests/`. Ensure external API calls (Perplexity, LLMs) are mocked to prevent non-deterministic results and cost.
-- Run tests using `poetry run pytest`.
+- Run tests using `uv run pytest`.
 
 ### Common Patterns
 
