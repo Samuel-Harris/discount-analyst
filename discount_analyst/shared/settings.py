@@ -37,9 +37,9 @@ class Settings(BaseSettings):
 
     pydantic: Pydantic
     perplexity: Perplexity
-    anthropic: Anthropic
-    openai: OpenAI
-    google: Google
+    anthropic: Anthropic | None = None
+    openai: OpenAI | None = None
+    google: Google | None = None
 
 
 settings = Settings()  # type: ignore[missing-argument]
