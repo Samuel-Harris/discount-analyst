@@ -1,6 +1,11 @@
 {
   "include": ["discount_analyst/**/*.py", "scripts/**/*.py", "tests/**/*.py"],
-  "exclude": ["**/__pycache__/**", "**/.venv/**", "**/venv/**"],
+  "exclude": [
+    "**/__pycache__/**",
+    "**/.venv/**",
+    "**/venv/**",
+    "discount_analyst/notebooks/**"
+  ],
   "typeCheckingMode": "basic",
   "pythonVersion": "3.14"
 }
