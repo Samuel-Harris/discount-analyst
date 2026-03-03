@@ -73,4 +73,9 @@ Args:
 Returns:
     The answer to the question based on SEC filings.""",
     ),
+    AgentName.SURVEYOR: PerplexityToolDescriptions(
+        web_search="",
+        sec_filings_search="",
+    ),
 }
+raise NotImplementedError("Not implemented")

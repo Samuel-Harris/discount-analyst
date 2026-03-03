@@ -11,7 +11,7 @@ Central Pydantic models for financial data and agent outputs. Defines the canoni
 
 | File | Description |
 | --------- | ---------------------------- |
-| `data_types.py` | Pydantic models for `StockData`, `StockAssumptions`, and `AppraiserOutput`. Includes computed fields for derived financial metrics. |
+| `data_types.py` | Pydantic models for `StockData`, `StockAssumptions`, `AppraiserOutput`, `StockCandidate`, and `SurveyorOutput`. Includes computed fields for derived financial metrics. |
 
 ## Subdirectories
 
@@ -38,7 +38,7 @@ None.
 
 ### Internal
 
-- This directory is used by `discount_analyst.dcf_analysis`, `discount_analyst.appraiser`, and scripts.
+- This directory is used by `discount_analyst.dcf_analysis`, `discount_analyst.appraiser`, `discount_analyst.surveyor`, and scripts.
 
 ### External
 

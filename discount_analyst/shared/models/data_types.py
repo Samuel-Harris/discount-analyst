@@ -168,3 +168,33 @@ class StockAssumptions(BaseModel):
 class AppraiserOutput(BaseModel):
     stock_data: StockData
     stock_assumptions: StockAssumptions
+
+
+class StockCandidate(BaseModel):
+    ticker: str = Field(description="The stock ticker symbol (e.g., 'AAPL', 'MSFT').")
+    name: str = Field(description="The full legal or common name of the company.")
+    exchange: str = Field(
+        description="The primary exchange where the stock trades (e.g., 'LSE', 'NYSE', 'NASDAQ')."
+    )
+    market_cap: float = Field(
+        description="Market capitalization in USD. Current market value of all outstanding shares."
+    )
+    rationale: str = Field(
+        description="Brief reason for including this stock as a cheap small-cap candidate."
+    )
+
+
+raise NotImplementedError("Not implemented")
+
+
+class SurveyorOutput(BaseModel):
+    candidates: list[StockCandidate] = Field(
+        description="List of cheap small-cap stock candidates discovered."
+    )
+    search_summary: str | None = Field(
+        default=None,
+        description="Optional high-level notes on the search and screening process.",
+    )
+
+
+raise NotImplementedError("Not implemented")
