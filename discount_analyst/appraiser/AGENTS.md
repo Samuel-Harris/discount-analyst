@@ -25,9 +25,8 @@ None.
 
 ### Working In This Directory
 
-- **Agent Tools**: When adding or modifying tools in `appraiser.py`, ensure they have detailed Google-style docstrings, as these are used by the agent for discovery.
+- **Agent Tools**: Perplexity-backed tools (`web_search`, `sec_filings_search`) are provided by `discount_analyst.shared.tools.perplexity` via `create_perplexity_toolset(AgentName.APPRAISER)`. Add or modify agent-specific descriptions in `shared/tools/descriptions.py`.
 - **Prompts**: Keep the system persona in `system_prompt.py` and the user-facing instruction logic in `user_prompt.py`.
-- **Rate Limiting**: Always use the `perplexity_rate_limiter` (defined in `appraiser.py`) for any new tools that call the Perplexity API.
 
 ### Testing Requirements
 
@@ -47,6 +46,7 @@ None.
 - `discount_analyst.shared.config.ai_models_config`: For model configuration and selection.
 - `discount_analyst.shared.config.settings`: For API keys and rate limit settings.
 - `discount_analyst.shared.ai.model`: For creating the LLM model instance.
+- `discount_analyst.shared.tools.perplexity`: For Perplexity-backed search tools via `create_perplexity_toolset(AgentName.APPRAISER)`.
 
 ### External
 

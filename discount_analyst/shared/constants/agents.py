@@ -1,6 +1,6 @@
 from enum import StrEnum
 
 
-class Agent(StrEnum):
+class AgentName(StrEnum):
     APPRAISER = "APPRAISER"
     SURVEYOR = "SURVEYOR"

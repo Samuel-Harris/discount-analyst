@@ -21,6 +21,7 @@ Common data structures, configuration, and utility modules used across the `disc
 | `models/` | Central Pydantic models for stock data and agent outputs (see `models/AGENTS.md`) |
 | `ai/` | Factory for creating rate-limited AI models from config (see `ai/AGENTS.md`) |
 | `http/` | Asynchronous HTTP client with retry logic (see `http/AGENTS.md`) |
+| `tools/` | Tool definitions and agent-specific descriptions (see `tools/AGENTS.md`) |
 
 ## For AI Agents
 
