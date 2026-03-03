@@ -26,6 +26,14 @@ class Google(BaseModel):
     api_key: str
 
 
+class FMP(BaseModel):
+    api_key: str
+
+
+class EODHD(BaseModel):
+    api_key: str
+
+
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
@@ -40,6 +48,8 @@ class Settings(BaseSettings):
     anthropic: Anthropic | None = None
     openai: OpenAI | None = None
     google: Google | None = None
+    fmp: FMP
+    eodhd: EODHD
 
 
 settings = Settings()  # type: ignore[missing-argument]

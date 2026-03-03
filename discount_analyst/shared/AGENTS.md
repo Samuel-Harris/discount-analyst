@@ -46,7 +46,7 @@ None.
 
 ### Internal
 
-- This directory is used by `discount_analyst.dcf_analysis` and `discount_analyst.market_analyst`.
+- This directory is used by `discount_analyst.dcf_analysis` and `discount_analyst.appraiser`.
 
 ### External
 

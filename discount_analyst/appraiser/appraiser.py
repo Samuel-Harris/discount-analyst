@@ -2,22 +2,22 @@ from aiolimiter import AsyncLimiter
 from perplexity import AsyncPerplexity
 from pydantic_ai import Agent, WebFetchTool, WebSearchTool
 from pydantic_ai.builtin_tools import AbstractBuiltinTool
-from discount_analyst.shared.data_types import MarketAnalystOutput
+from discount_analyst.shared.data_types import AppraiserOutput
 from discount_analyst.shared.ai_models_config import AIModelsConfig
 from discount_analyst.shared.settings import settings
-from discount_analyst.market_analyst.system_prompt import SYSTEM_PROMPT
+from discount_analyst.appraiser.system_prompt import SYSTEM_PROMPT
 from discount_analyst.shared.model import create_model_from_config
 
 perplexity_rate_limiter = AsyncLimiter(settings.perplexity.rate_limit_per_minute, 60)
 
 
-def create_market_analyst_agent(
+def create_appraiser_agent(
     ai_models_config: AIModelsConfig,
     /,
     *,
     use_perplexity: bool = True,
-) -> Agent[None, MarketAnalystOutput]:
-    """Create and configure the market analyst agent.
+) -> Agent[None, AppraiserOutput]:
+    """Create and configure the appraiser agent.
 
     Args:
         ai_models_config: Model and caching configuration.
@@ -32,7 +32,7 @@ def create_market_analyst_agent(
         A configured Agent instance for making stock assumptions.
     """
 
-    provider = ai_models_config.market_analyst.provider
+    provider = ai_models_config.appraiser.provider
     supports_web_fetch = provider in ("anthropic", "google")
 
     if not use_perplexity:
@@ -44,9 +44,9 @@ def create_market_analyst_agent(
         builtin_tools = []
 
     agent = Agent(
-        model=create_model_from_config(ai_models_config.market_analyst),
-        output_type=MarketAnalystOutput,
-        model_settings=ai_models_config.market_analyst.model_settings,
+        model=create_model_from_config(ai_models_config.appraiser),
+        output_type=AppraiserOutput,
+        model_settings=ai_models_config.appraiser.model_settings,
         system_prompt=SYSTEM_PROMPT,
         builtin_tools=builtin_tools,
     )

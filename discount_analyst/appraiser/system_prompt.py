@@ -1,4 +1,4 @@
-from discount_analyst.shared.data_types import MarketAnalystOutput
+from discount_analyst.shared.data_types import AppraiserOutput
 import json
 
 SYSTEM_PROMPT = f"""
@@ -16,9 +16,9 @@ You will be given a company ticker or name. You must use your **web_search** too
 
 You must return a single JSON object containing both the `StockData` and `StockAssumptions`:
 
-<MarketAnalystOutput schema>
-{json.dumps(MarketAnalystOutput.model_json_schema(), indent=2)}
-</MarketAnalystOutput schema>
+<AppraiserOutput schema>
+{json.dumps(AppraiserOutput.model_json_schema(), indent=2)}
+</AppraiserOutput schema>
 
 ## Analysis Process
 
@@ -94,5 +94,5 @@ Calculated based on the data you found in Steps 1 & 2.
 2. **Units**: Ensure `revenue`, `ebit`, `market_cap` etc. are in the SAME currency units (usually millions or billions). **Prefer absolute numbers over abbreviations** (e.g., 5000000000 instead of 5B).
 3. **Reasoning**: Fill the `reasoning` field with a concise explanation of your key assumptions (Growth, Margin, Period).
 
-Return ONLY the `MarketAnalystOutput` JSON.
+Return ONLY the `AppraiserOutput` JSON.
 """.strip()

@@ -17,12 +17,12 @@ from discount_analyst.shared.rate_limit_client import stream_with_retries
 from discount_analyst.shared.settings import settings
 
 from scripts.shared import ModelRunOutput, write_model_output
-from discount_analyst.market_analyst.market_analyst import create_market_analyst_agent
+from discount_analyst.appraiser.appraiser import create_appraiser_agent
 from discount_analyst.shared.ai_models_config import AIModelsConfig
-from discount_analyst.market_analyst.user_prompt import create_user_prompt
+from discount_analyst.appraiser.user_prompt import create_user_prompt
 from discount_analyst.dcf_analysis.data_types import DCFAnalysisParameters
 from discount_analyst.dcf_analysis.dcf_analysis import DCFAnalysis
-from discount_analyst.shared.data_types import MarketAnalystOutput
+from discount_analyst.shared.data_types import AppraiserOutput
 from discount_analyst.dcf_analysis.data_types import DCFAnalysisResult
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -151,7 +151,7 @@ def load_research_report(path: Path) -> ResearchReport:
 
 @dataclass
 class AgentRunResult:
-    output: MarketAnalystOutput
+    output: AppraiserOutput
     elapsed_s: float
     input_tokens: int
     output_tokens: int
@@ -188,7 +188,7 @@ async def run_agent(
 ) -> AgentRunResult:
     """Run the Market Analyst agent and return output with usage stats."""
     ai_models_config = AIModelsConfig(model_name=args.model)
-    agent = create_market_analyst_agent(ai_models_config, use_perplexity=use_perplexity)
+    agent = create_appraiser_agent(ai_models_config, use_perplexity=use_perplexity)
     user_prompt = create_user_prompt(
         ticker=args.ticker, research_report=research_report_content
     )
@@ -197,7 +197,7 @@ async def run_agent(
     async with stream_with_retries(
         agent=agent,
         user_prompt=user_prompt,
-        usage_limits=ai_models_config.market_analyst.usage_limits,
+        usage_limits=ai_models_config.appraiser.usage_limits,
     ) as result:
         async for message in result.stream_output():
             console.log(f"Streaming: {message}")
@@ -216,7 +216,7 @@ async def run_agent(
     )
 
 
-def build_stock_table(output: MarketAnalystOutput) -> Table:
+def build_stock_table(output: AppraiserOutput) -> Table:
     """Build a Rich table from the agent's stock data."""
     stock_data = output.stock_data
     current_price = stock_data.market_cap / stock_data.n_shares_outstanding
@@ -260,7 +260,7 @@ def build_stock_table(output: MarketAnalystOutput) -> Table:
     return table
 
 
-def display_agent_output(output: MarketAnalystOutput) -> None:
+def display_agent_output(output: AppraiserOutput) -> None:
     """Print the Market Analyst agent output section."""
     stock_table = build_stock_table(output)
     assumptions_panel = Panel.fit(
@@ -282,7 +282,7 @@ def display_agent_output(output: MarketAnalystOutput) -> None:
 
 
 def run_dcf_and_display(
-    args: PairRunArgs, agent_output: MarketAnalystOutput
+    args: PairRunArgs, agent_output: AppraiserOutput
 ) -> tuple[DCFAnalysisResult | None, str | None]:
     """Run DCF analysis and display results. Returns (dcf_result, dcf_error)."""
     stock_data = agent_output.stock_data
@@ -359,7 +359,7 @@ def run_dcf_and_display(
 
 def save_run_output(
     args: PairRunArgs,
-    agent_output: MarketAnalystOutput,
+    agent_output: AppraiserOutput,
     agent_result: AgentRunResult,
     dcf_result: DCFAnalysisResult | None,
     dcf_error: str | None,
@@ -369,7 +369,7 @@ def save_run_output(
         ticker=args.ticker,
         model_name=args.model.value,
         risk_free_rate=args.risk_free_rate,
-        market_analyst=agent_output,
+        appraiser=agent_output,
         dcf_result=dcf_result,
         dcf_error=dcf_error,
         elapsed_s=agent_result.elapsed_s,
@@ -393,7 +393,7 @@ async def run_one_pair(pair: TickerReportPair, shared: SharedArgs) -> None:
     research_report_content = load_research_report(Path(args.research_report_path))
 
     console.log(
-        f"Initializing Market Analyst Agent for {args.ticker} (using {args.model} model)..."
+        f"Initializing Appraiser Agent for {args.ticker} (using {args.model} model)..."
     )
     console.log("Running agent...")
     agent_result = await run_agent(args, research_report_content)

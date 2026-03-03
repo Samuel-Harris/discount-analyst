@@ -12,7 +12,7 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 | File | Description |
 | --------- | ---------------------------- |
 | `dcf_analysis/dcf_analysis.py` | Implementation of the Discounted Cash Flow calculation engine. |
-| `market_analyst/market_analyst.py` | Factory for the Market Analyst agent, including Perplexity-powered search tools. |
+| `appraiser/appraiser.py` | Factory for the Appraiser agent, including Perplexity-powered search tools. |
 | `shared/data_types.py` | Central Pydantic models defining `StockData`, `StockAssumptions`, and analysis outputs. |
 | `shared/settings.py` | Application configuration using `pydantic-settings` for API keys and environment variables. |
 | `shared/ai_models_config.py` | Configuration for LLM models, including token budgets and thinking parameters. |
@@ -22,7 +22,7 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 | Directory | Purpose |
 | --------- | ----------------------------------------- |
 | `dcf_analysis/` | Core logic for financial calculations and DCF modeling. (see `dcf_analysis/AGENTS.md`) |
-| `market_analyst/` | AI agent implementation using `pydantic-ai` for market research and assumption making. (see `market_analyst/AGENTS.md`) |
+| `appraiser/` | AI agent implementation using `pydantic-ai` for market research and assumption making. (see `appraiser/AGENTS.md`) |
 | `shared/` | Common data structures, configuration, and utility modules used across the package. (see `shared/AGENTS.md`) |
 
 ## For AI Agents
@@ -43,7 +43,7 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 
 - **Agent-Tool Binding**: AI agents use the `@agent.tool_plain` decorator with detailed Google-style docstrings for tool discovery.
 - **Financial Modeling**: Follow the "Bottom-Up/Line-Item" approach for Free Cash Flow (FCF) projections as seen in `DCFAnalysis`.
-- **Rate Limiting**: Use the `aiolimiter` in `market_analyst.py` when making calls to external search or LLM APIs.
+- **Rate Limiting**: Use the `aiolimiter` in `appraiser.py` when making calls to external search or LLM APIs.
 
 ## Dependencies
 

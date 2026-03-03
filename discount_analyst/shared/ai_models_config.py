@@ -133,7 +133,7 @@ AIModelConfig = Annotated[
 ]
 
 
-def _anthropic_market_analyst(
+def _anthropic_appraiser(
     model_name: ModelName, *, cache_messages: bool = True
 ) -> AnthropicAIModelConfig:
     """Fixed-budget extended thinking for 4.5 models."""
@@ -146,7 +146,7 @@ def _anthropic_market_analyst(
     )
 
 
-def _anthropic_adaptive_market_analyst(
+def _anthropic_adaptive_appraiser(
     model_name: ModelName, *, cache_messages: bool = True
 ) -> AnthropicAIModelConfig:
     """Adaptive thinking for 4.6+ models (Anthropic's recommended mode over fixed budget_tokens)."""
@@ -159,7 +159,7 @@ def _anthropic_adaptive_market_analyst(
     )
 
 
-def _openai_market_analyst(
+def _openai_appraiser(
     model_name: ModelName,
     *,
     reasoning_effort: Literal["low", "medium", "high"] | None = "high",
@@ -172,7 +172,7 @@ def _openai_market_analyst(
     )
 
 
-def _google_market_analyst(model_name: ModelName) -> GoogleAIModelConfig:
+def _google_appraiser(model_name: ModelName) -> GoogleAIModelConfig:
     return GoogleAIModelConfig(  # pyright: ignore[reportCallIssue]
         model_name=model_name,
         max_tokens=_MAX_TOKENS,
@@ -187,20 +187,20 @@ class AIModelsConfig(BaseModel):
 
     @computed_field
     @property
-    def market_analyst(self) -> AIModelConfig:
+    def appraiser(self) -> AIModelConfig:
         match self.model_name:
             case ModelName.CLAUDE_OPUS_4_5 | ModelName.CLAUDE_SONNET_4_5:
-                return _anthropic_market_analyst(
+                return _anthropic_appraiser(
                     self.model_name, cache_messages=self.cache_messages
                 )
             case ModelName.CLAUDE_OPUS_4_6 | ModelName.CLAUDE_SONNET_4_6:
-                return _anthropic_adaptive_market_analyst(
+                return _anthropic_adaptive_appraiser(
                     self.model_name, cache_messages=self.cache_messages
                 )
             case ModelName.GPT_5_1 | ModelName.GPT_5_2:
-                return _openai_market_analyst(self.model_name)
+                return _openai_appraiser(self.model_name)
             case ModelName.GEMINI_3_PRO_PREVIEW | ModelName.GEMINI_3_1_PRO_PREVIEW:
-                return _google_market_analyst(self.model_name)
+                return _google_appraiser(self.model_name)
             case _:
                 raise ValueError(
                     f"Unsupported AI model: '{self.model_name}'. "

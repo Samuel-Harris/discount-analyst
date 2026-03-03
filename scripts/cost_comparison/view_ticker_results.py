@@ -486,8 +486,8 @@ def _build_summary_table(runs: list[LoadedRun]) -> Table:
         run = loaded.run
         cache_mode = loaded.cache_mode
         display_date = loaded.display_date
-        sd = run.market_analyst.stock_data
-        sa = run.market_analyst.stock_assumptions
+        sd = run.appraiser.stock_data
+        sa = run.appraiser.stock_assumptions
         market_price = sd.market_cap / sd.n_shares_outstanding
 
         if run.dcf_result is not None:
@@ -522,7 +522,7 @@ def _build_summary_table(runs: list[LoadedRun]) -> Table:
 
 
 def _build_stock_data_table(run: ModelRunOutput) -> Table:
-    sd = run.market_analyst.stock_data
+    sd = run.appraiser.stock_data
     table = Table(show_header=False, box=None, padding=(0, 1))
     table.add_column("Field", style="bold")
     table.add_column("Value", justify="right")
@@ -550,7 +550,7 @@ def _build_stock_data_table(run: ModelRunOutput) -> Table:
 
 
 def _build_assumptions_table(run: ModelRunOutput) -> Table:
-    sa = run.market_analyst.stock_assumptions
+    sa = run.appraiser.stock_assumptions
     table = Table(show_header=False, box=None, padding=(0, 1))
     table.add_column("Assumption", style="bold")
     table.add_column("Value", justify="right")
@@ -583,8 +583,8 @@ def _build_detail_panel(
     *,
     show_reasoning: bool,
 ) -> Panel:
-    sd = run.market_analyst.stock_data
-    sa = run.market_analyst.stock_assumptions
+    sd = run.appraiser.stock_data
+    sa = run.appraiser.stock_assumptions
     market_price = sd.market_cap / sd.n_shares_outstanding
 
     content_parts: list[str] = []

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare cost and speed across AI models by running the Market Analyst agent.
+"""Compare cost and speed across AI models by running the Appraiser agent.
 
 Usage:
     uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AMZN
@@ -29,8 +29,8 @@ from discount_analyst.dcf_analysis.data_types import (
     DCFAnalysisResult,
 )
 from discount_analyst.dcf_analysis.dcf_analysis import DCFAnalysis
-from discount_analyst.market_analyst.market_analyst import create_market_analyst_agent
-from discount_analyst.market_analyst.user_prompt import create_user_prompt
+from discount_analyst.appraiser.appraiser import create_appraiser_agent
+from discount_analyst.appraiser.user_prompt import create_user_prompt
 
 from scripts.shared import (
     AUTO_CACHE_MODELS,
@@ -49,7 +49,7 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run Market Analyst across one or more models and compare cost and speed."
+        description="Run Appraiser across one or more models and compare cost and speed."
     )
     parser.add_argument(
         "--model",
@@ -214,8 +214,8 @@ async def run_one_model(
 ) -> RunResult:
     """Run the Market Analyst agent for one model and return timing + usage."""
     config = AIModelsConfig(model_name=model_name, cache_messages=cache_enabled)
-    agent = create_market_analyst_agent(config, use_perplexity=not use_web_search)
-    usage_limits = config.market_analyst.usage_limits
+    agent = create_appraiser_agent(config, use_perplexity=not use_web_search)
+    usage_limits = config.appraiser.usage_limits
 
     start = time.perf_counter()
     try:
@@ -383,7 +383,7 @@ async def main() -> None:
                     ticker=args.ticker,
                     model_name=result.model_name.value,
                     risk_free_rate=args.risk_free_rate,
-                    market_analyst=result.output,
+                    appraiser=result.output,
                     dcf_result=dcf_result,
                     dcf_error=dcf_error,
                     elapsed_s=result.elapsed_s,

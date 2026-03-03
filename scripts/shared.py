@@ -6,12 +6,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from genai_prices import Usage, calc_price
 
 from discount_analyst.shared.ai_models_config import AIModelsConfig, ModelName
-from discount_analyst.shared.data_types import MarketAnalystOutput
+from discount_analyst.shared.data_types import AppraiserOutput
 from discount_analyst.dcf_analysis.data_types import DCFAnalysisResult
 
 # Models that auto-cache (OpenAI, Gemini); no way to disable — skip when --caching disabled.
@@ -61,10 +61,14 @@ class FormattedCostResult:
 class ModelRunOutput(BaseModel):
     """Complete serialisable record for one model run written to outputs/."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     ticker: str
     model_name: str
     risk_free_rate: float
-    market_analyst: MarketAnalystOutput
+    appraiser: AppraiserOutput = Field(
+        validation_alias=AliasChoices("market_analyst", "appraiser"),
+    )
     dcf_result: DCFAnalysisResult | None = None
     dcf_error: str | None = None
     elapsed_s: float
@@ -144,7 +148,7 @@ class RunResult:
     tool_calls: int
     use_web_search: bool = False
     error: str | None = None
-    output: MarketAnalystOutput | None = field(default=None, repr=False)
+    output: AppraiserOutput | None = field(default=None, repr=False)
 
     @property
     def total_tokens(self) -> int:
@@ -185,7 +189,7 @@ def calc_actual_cost(r: RunResult) -> FormattedCostResult | None:
     if not r.has_usage():
         return None
     config = AIModelsConfig(model_name=r.model_name)
-    provider_id = config.market_analyst.provider
+    provider_id = config.appraiser.provider
     usage = Usage(
         input_tokens=r.input_tokens,
         output_tokens=r.output_tokens,
