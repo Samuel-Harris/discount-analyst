@@ -32,7 +32,7 @@ def create_appraiser_agent(
         A configured Agent instance for making stock assumptions.
     """
 
-    provider = ai_models_config.appraiser.provider
+    provider = ai_models_config.model.provider
     supports_web_fetch = provider in ("anthropic", "google")
 
     if not use_perplexity:
@@ -44,9 +44,9 @@ def create_appraiser_agent(
         builtin_tools = []
 
     agent = Agent(
-        model=create_model_from_config(ai_models_config.appraiser),
+        model=create_model_from_config(ai_models_config.model),
         output_type=AppraiserOutput,
-        model_settings=ai_models_config.appraiser.model_settings,
+        model_settings=ai_models_config.model.model_settings,
         system_prompt=SYSTEM_PROMPT,
         builtin_tools=builtin_tools,
     )

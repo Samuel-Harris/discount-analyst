@@ -197,7 +197,7 @@ async def run_agent(
     async with stream_with_retries(
         agent=agent,
         user_prompt=user_prompt,
-        usage_limits=ai_models_config.appraiser.usage_limits,
+        usage_limits=ai_models_config.model.usage_limits,
     ) as result:
         async for message in result.stream_output():
             console.log(f"Streaming: {message}")

@@ -189,7 +189,7 @@ def calc_actual_cost(r: RunResult) -> FormattedCostResult | None:
     if not r.has_usage():
         return None
     config = AIModelsConfig(model_name=r.model_name)
-    provider_id = config.appraiser.provider
+    provider_id = config.model.provider
     usage = Usage(
         input_tokens=r.input_tokens,
         output_tokens=r.output_tokens,

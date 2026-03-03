@@ -14,6 +14,9 @@ _MAX_TOOL_CALLS = 60
 _MAX_TOKENS = 30_000
 _MAX_THINKING_BUDGET_TOKENS = 16_000
 
+_ANTHROPIC_REASONING_EFFORT = "high"
+_OPENAI_REASONING_EFFORT = "high"
+
 
 class ModelName(StrEnum):
     CLAUDE_OPUS_4_5 = "claude-opus-4-5"
@@ -66,6 +69,7 @@ class AnthropicAIModelConfig(BaseAIModelConfig):
             # "adaptive" is accepted by the Anthropic API for 4.6+ models but is not
             # yet present in the SDK's BetaThinkingConfigParam TypedDict union.
             anthropic_thinking = {"type": "adaptive"}  # type: ignore[assignment]
+
         return AnthropicModelSettings(
             temperature=1,
             max_tokens=self.max_tokens,
@@ -133,74 +137,44 @@ AIModelConfig = Annotated[
 ]
 
 
-def _anthropic_appraiser(
-    model_name: ModelName, *, cache_messages: bool = True
-) -> AnthropicAIModelConfig:
-    """Fixed-budget extended thinking for 4.5 models."""
-    return AnthropicAIModelConfig(  # pyright: ignore[reportCallIssue]
-        model_name=model_name,
-        max_tokens=_MAX_TOKENS,
-        thinking_budget_tokens=_MAX_THINKING_BUDGET_TOKENS,
-        usage_limits=UsageLimits(tool_calls_limit=_MAX_TOOL_CALLS),
-        cache_messages=cache_messages,
-    )
-
-
-def _anthropic_adaptive_appraiser(
-    model_name: ModelName, *, cache_messages: bool = True
-) -> AnthropicAIModelConfig:
-    """Adaptive thinking for 4.6+ models (Anthropic's recommended mode over fixed budget_tokens)."""
-    return AnthropicAIModelConfig(  # pyright: ignore[reportCallIssue]
-        model_name=model_name,
-        max_tokens=_MAX_TOKENS,
-        usage_limits=UsageLimits(tool_calls_limit=_MAX_TOOL_CALLS),
-        cache_messages=cache_messages,
-        effort="high",
-    )
-
-
-def _openai_appraiser(
-    model_name: ModelName,
-    *,
-    reasoning_effort: Literal["low", "medium", "high"] | None = "high",
-) -> OpenAIAIModelConfig:
-    return OpenAIAIModelConfig(  # pyright: ignore[reportCallIssue]
-        model_name=model_name,
-        max_tokens=_MAX_TOKENS,
-        usage_limits=UsageLimits(tool_calls_limit=_MAX_TOOL_CALLS),
-        reasoning_effort=reasoning_effort,
-    )
-
-
-def _google_appraiser(model_name: ModelName) -> GoogleAIModelConfig:
-    return GoogleAIModelConfig(  # pyright: ignore[reportCallIssue]
-        model_name=model_name,
-        max_tokens=_MAX_TOKENS,
-        thinking_budget_tokens=_MAX_THINKING_BUDGET_TOKENS,
-        usage_limits=UsageLimits(tool_calls_limit=_MAX_TOOL_CALLS),
-    )
-
-
 class AIModelsConfig(BaseModel):
     model_name: ModelName = ModelName.CLAUDE_OPUS_4_5
     cache_messages: bool = True
 
     @computed_field
     @property
-    def appraiser(self) -> AIModelConfig:
+    def model(self) -> AIModelConfig:
         match self.model_name:
-            case ModelName.CLAUDE_OPUS_4_5 | ModelName.CLAUDE_SONNET_4_5:
-                return _anthropic_appraiser(
-                    self.model_name, cache_messages=self.cache_messages
-                )
             case ModelName.CLAUDE_OPUS_4_6 | ModelName.CLAUDE_SONNET_4_6:
-                return _anthropic_adaptive_appraiser(
-                    self.model_name, cache_messages=self.cache_messages
+                return AnthropicAIModelConfig(
+                    model_name=self.model_name,
+                    max_tokens=_MAX_TOKENS,
+                    usage_limits=UsageLimits(tool_calls_limit=_MAX_TOOL_CALLS),
+                    cache_messages=self.cache_messages,
+                    effort=_ANTHROPIC_REASONING_EFFORT,
+                )
+            case ModelName.CLAUDE_OPUS_4_5 | ModelName.CLAUDE_SONNET_4_5:
+                return AnthropicAIModelConfig(
+                    model_name=self.model_name,
+                    max_tokens=_MAX_TOKENS,
+                    thinking_budget_tokens=_MAX_THINKING_BUDGET_TOKENS,
+                    usage_limits=UsageLimits(tool_calls_limit=_MAX_TOOL_CALLS),
+                    cache_messages=self.cache_messages,
                 )
             case ModelName.GPT_5_1 | ModelName.GPT_5_2:
-                return _openai_appraiser(self.model_name)
+                return OpenAIAIModelConfig(
+                    model_name=self.model_name,
+                    max_tokens=_MAX_TOKENS,
+                    usage_limits=UsageLimits(tool_calls_limit=_MAX_TOOL_CALLS),
+                    reasoning_effort=_OPENAI_REASONING_EFFORT,
+                )
             case ModelName.GEMINI_3_PRO_PREVIEW | ModelName.GEMINI_3_1_PRO_PREVIEW:
-                return _google_appraiser(self.model_name)
+                return GoogleAIModelConfig(
+                    model_name=self.model_name,
+                    max_tokens=_MAX_TOKENS,
+                    thinking_budget_tokens=_MAX_THINKING_BUDGET_TOKENS,
+                    usage_limits=UsageLimits(tool_calls_limit=_MAX_TOOL_CALLS),
+                )
             case _:
                 raise ValueError(
                     f"Unsupported AI model: '{self.model_name}'. "

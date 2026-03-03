@@ -215,7 +215,7 @@ async def run_one_model(
     """Run the Market Analyst agent for one model and return timing + usage."""
     config = AIModelsConfig(model_name=model_name, cache_messages=cache_enabled)
     agent = create_appraiser_agent(config, use_perplexity=not use_web_search)
-    usage_limits = config.appraiser.usage_limits
+    usage_limits = config.model.usage_limits
 
     start = time.perf_counter()
     try:
