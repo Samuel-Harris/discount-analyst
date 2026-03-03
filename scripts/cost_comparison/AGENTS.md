@@ -44,8 +44,8 @@ Scripts and assets for comparing cost and speed across AI models when running th
 ### Internal
 
 - `scripts.shared`: `ModelRunOutput`, `RunResult`, `RunConfig`, `outputs_dir`, `write_model_output`, `calc_actual_cost`, `calc_raw_cost`, `ModelName`.
-- `discount_analyst.shared.ai_models_config`: `ModelName`, `AIModelsConfig`.
-- `discount_analyst.shared.data_types`: `AppraiserOutput` (for typing the `RunResult.output` field).
+- `discount_analyst.shared.config.ai_models_config`: `ModelName`, `AIModelsConfig`.
+- `discount_analyst.shared.models.data_types`: `AppraiserOutput` (for typing the `RunResult.output` field).
 - `discount_analyst.dcf_analysis`: `DCFAnalysis`, `DCFAnalysisParameters`, `DCFAnalysisResult`.
 - `discount_analyst.appraiser`: `create_appraiser_agent`, `create_user_prompt`.
 

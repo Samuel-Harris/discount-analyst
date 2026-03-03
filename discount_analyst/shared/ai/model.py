@@ -6,14 +6,14 @@ from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.google import GoogleProvider
 from pydantic_ai.providers.openai import OpenAIProvider
 
-from discount_analyst.shared.ai_models_config import (
+from discount_analyst.shared.config.ai_models_config import (
     AIModelConfig,
     AnthropicAIModelConfig,
     GoogleAIModelConfig,
     OpenAIAIModelConfig,
 )
-from discount_analyst.shared.rate_limit_client import create_rate_limit_client
-from discount_analyst.shared.settings import settings
+from discount_analyst.shared.config.settings import settings
+from discount_analyst.shared.http.rate_limit_client import create_rate_limit_client
 
 
 def create_model_from_config(config: AIModelConfig, /) -> Model:

@@ -40,7 +40,7 @@ The core financial modeling engine for calculating the intrinsic value of a stoc
 
 ### Internal
 
-- `discount_analyst.shared.data_types`: Depends on `StockData` and `StockAssumptions` models.
+- `discount_analyst.shared.models.data_types`: Depends on `StockData` and `StockAssumptions` models.
 
 ### External
 

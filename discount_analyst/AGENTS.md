@@ -13,9 +13,9 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 | --------- | ---------------------------- |
 | `dcf_analysis/dcf_analysis.py` | Implementation of the Discounted Cash Flow calculation engine. |
 | `appraiser/appraiser.py` | Factory for the Appraiser agent, including Perplexity-powered search tools. |
-| `shared/data_types.py` | Central Pydantic models defining `StockData`, `StockAssumptions`, and analysis outputs. |
-| `shared/settings.py` | Application configuration using `pydantic-settings` for API keys and environment variables. |
-| `shared/ai_models_config.py` | Configuration for LLM models, including token budgets and thinking parameters. |
+| `shared/models/data_types.py` | Central Pydantic models defining `StockData`, `StockAssumptions`, and analysis outputs. |
+| `shared/config/settings.py` | Application configuration using `pydantic-settings` for API keys and environment variables. |
+| `shared/config/ai_models_config.py` | Configuration for LLM models, including token budgets and thinking parameters. |
 
 ## Subdirectories
 
@@ -29,7 +29,7 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 
 ### Working In This Directory
 
-- **Structured Output**: Always use the Pydantic models defined in `shared/data_types.py` for any agent outputs or internal data passing.
+- **Structured Output**: Always use the Pydantic models defined in `shared/models/data_types.py` for any agent outputs or internal data passing.
 - **Async Execution**: Ensure all network calls (AI agents, search tools) are asynchronous.
 - **Type Safety**: Maintain strict typing for all financial metrics (typically `float`).
 

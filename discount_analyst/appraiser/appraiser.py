@@ -2,11 +2,11 @@ from aiolimiter import AsyncLimiter
 from perplexity import AsyncPerplexity
 from pydantic_ai import Agent, WebFetchTool, WebSearchTool
 from pydantic_ai.builtin_tools import AbstractBuiltinTool
-from discount_analyst.shared.data_types import AppraiserOutput
-from discount_analyst.shared.ai_models_config import AIModelsConfig
-from discount_analyst.shared.settings import settings
+from discount_analyst.shared.ai.model import create_model_from_config
+from discount_analyst.shared.config.ai_models_config import AIModelsConfig
+from discount_analyst.shared.config.settings import settings
+from discount_analyst.shared.models.data_types import AppraiserOutput
 from discount_analyst.appraiser.system_prompt import SYSTEM_PROMPT
-from discount_analyst.shared.model import create_model_from_config
 
 perplexity_rate_limiter = AsyncLimiter(settings.perplexity.rate_limit_per_minute, 60)
 

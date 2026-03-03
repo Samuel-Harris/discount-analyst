@@ -37,16 +37,16 @@ None.
 ### Common Patterns
 
 - **Search Tools**: Uses `AsyncPerplexity` with `search_mode="web"` for general research and `search_mode="sec"` for official financial filings.
-- **Structured Output**: The agent is configured to return an `AppraiserOutput` (defined in `shared/data_types.py`) for strict data validation.
+- **Structured Output**: The agent is configured to return an `AppraiserOutput` (defined in `shared/models/data_types.py`) for strict data validation.
 
 ## Dependencies
 
 ### Internal
 
-- `discount_analyst.shared.data_types`: For the `AppraiserOutput` schema.
-- `discount_analyst.shared.ai_models_config`: For model configuration and selection.
-- `discount_analyst.shared.settings`: For API keys and rate limit settings.
-- `discount_analyst.shared.model`: For creating the LLM model instance.
+- `discount_analyst.shared.models.data_types`: For the `AppraiserOutput` schema.
+- `discount_analyst.shared.config.ai_models_config`: For model configuration and selection.
+- `discount_analyst.shared.config.settings`: For API keys and rate limit settings.
+- `discount_analyst.shared.ai.model`: For creating the LLM model instance.
 
 ### External
 

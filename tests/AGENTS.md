@@ -44,7 +44,7 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 ### Internal
 
 - `discount_analyst.dcf_analysis`: The core DCF calculation logic being tested.
-- `discount_analyst.shared.data_types`: Shared Pydantic models for financial data and assumptions.
+- `discount_analyst.shared.models.data_types`: Shared Pydantic models for financial data and assumptions.
 
 ### External
 

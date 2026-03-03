@@ -22,8 +22,8 @@ import logfire
 from rich.console import Console
 from rich.table import Table
 
-from discount_analyst.shared.ai_models_config import AIModelsConfig, ModelName
-from discount_analyst.shared.settings import settings
+from discount_analyst.shared.config.ai_models_config import AIModelsConfig, ModelName
+from discount_analyst.shared.config.settings import settings
 from discount_analyst.dcf_analysis.data_types import (
     DCFAnalysisParameters,
     DCFAnalysisResult,

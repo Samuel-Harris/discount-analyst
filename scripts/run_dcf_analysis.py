@@ -1,4 +1,4 @@
-from discount_analyst.shared.ai_models_config import ModelName
+from discount_analyst.shared.config.ai_models_config import ModelName
 import asyncio
 import argparse
 import re
@@ -13,16 +13,16 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from discount_analyst.shared.rate_limit_client import stream_with_retries
-from discount_analyst.shared.settings import settings
+from discount_analyst.shared.config.settings import settings
+from discount_analyst.shared.http.rate_limit_client import stream_with_retries
 
 from scripts.shared import ModelRunOutput, write_model_output
 from discount_analyst.appraiser.appraiser import create_appraiser_agent
-from discount_analyst.shared.ai_models_config import AIModelsConfig
+from discount_analyst.shared.config.ai_models_config import AIModelsConfig
 from discount_analyst.appraiser.user_prompt import create_user_prompt
 from discount_analyst.dcf_analysis.data_types import DCFAnalysisParameters
 from discount_analyst.dcf_analysis.dcf_analysis import DCFAnalysis
-from discount_analyst.shared.data_types import AppraiserOutput
+from discount_analyst.shared.models.data_types import AppraiserOutput
 from discount_analyst.dcf_analysis.data_types import DCFAnalysisResult
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
