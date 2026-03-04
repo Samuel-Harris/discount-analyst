@@ -407,7 +407,7 @@ async def main() -> None:
                 )
                 cache_suffix = "cache" if result.cache_enabled else "no-cache"
                 search_suffix = "web-search" if cfg.use_web_search else "perplexity"
-                output_dir = _SCRIPTS_DIR / "cost_comparison" / "outputs"
+                output_dir = _SCRIPTS_DIR / "outputs"
                 out_path = write_model_output(
                     run_output=run_output,
                     timestamp=timestamp,
