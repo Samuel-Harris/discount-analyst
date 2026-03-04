@@ -34,6 +34,7 @@ A separate AI agent then scores the resulting report against a detailed checklis
 > Note: the deep-research prompts and checklist prompts are not committed to this repository.
 
 ### Stage 5 — DCF valuation (automated)
+
 Stocks that pass the checklist are processed by `scripts/run_dcf_analysis.py`, which runs the `discount_analyst/appraiser/appraiser.py` agent to perform a full Discounted Cash Flow valuation. The agent consumes the research report produced in stage 4 and writes structured output (agent analysis + DCF figures) to `outputs/`.
 
 ### Stage 6 — Buy (human decision)

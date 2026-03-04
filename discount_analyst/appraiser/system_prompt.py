@@ -1,4 +1,4 @@
-from discount_analyst.shared.models.data_types import AppraiserOutput
+from discount_analyst.appraiser.data_types import AppraiserOutput
 import json
 
 SYSTEM_PROMPT = f"""

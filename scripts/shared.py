@@ -11,7 +11,7 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 from genai_prices import Usage, calc_price
 
 from discount_analyst.shared.config.ai_models_config import AIModelsConfig, ModelName
-from discount_analyst.shared.models.data_types import AppraiserOutput
+from discount_analyst.appraiser.data_types import AppraiserOutput
 from discount_analyst.dcf_analysis.data_types import DCFAnalysisResult
 
 # Models that auto-cache (OpenAI, Gemini); no way to disable — skip when --caching disabled.
