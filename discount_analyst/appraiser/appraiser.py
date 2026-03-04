@@ -1,7 +1,11 @@
-from pydantic_ai import Agent, WebFetchTool, WebSearchTool
+from pydantic_ai import AbstractToolset, Agent, WebFetchTool, WebSearchTool
 from pydantic_ai.builtin_tools import AbstractBuiltinTool
 
 from discount_analyst.shared.ai.model import create_model_from_config
+from discount_analyst.shared.constants.providers import ProviderFeature
+from discount_analyst.shared.utils.agent_tools import (
+    add_required_feature_to_builtin_tools,
+)
 from discount_analyst.shared.config.ai_models_config import AIModelsConfig
 from discount_analyst.shared.constants.agents import AgentName
 from discount_analyst.shared.models.data_types import AppraiserOutput
@@ -14,6 +18,7 @@ def create_appraiser_agent(
     /,
     *,
     use_perplexity: bool = True,
+    use_mcp_financial_data: bool = True,
 ) -> Agent[None, AppraiserOutput]:
     """Create and configure the appraiser agent.
 
@@ -25,21 +30,34 @@ def create_appraiser_agent(
             ``WebSearchTool`` is used instead (model-native web search).
             When Perplexity is disabled, ``WebFetchTool`` is also added for
             Anthropic and Gemini so the agent can fetch content from URLs.
+        use_mcp_financial_data: When True (default), adds EODHD and FMP
+            MCPServerTool instances for financial data. Supported providers:
+            anthropic, openai, xai. Not supported: google. Raises
+            NotImplementedError if True and provider is google.
 
     Returns:
         A configured Agent instance for making stock assumptions.
     """
-
-    provider = ai_models_config.model.provider
-    supports_web_fetch = provider in ("anthropic", "google")
+    builtin_tools: list[AbstractBuiltinTool] = []
+    toolsets: list[AbstractToolset[None]] = []
 
     if not use_perplexity:
-        builtin_tools: list[AbstractBuiltinTool] = [WebSearchTool()]
+        builtin_tools.append(WebSearchTool())
 
+        supports_web_fetch = ai_models_config.model.supports_feature(
+            ProviderFeature.WEB_FETCH
+        )
         if supports_web_fetch:
             builtin_tools.append(WebFetchTool())
     else:
-        builtin_tools = []
+        toolsets.append(create_perplexity_toolset(AgentName.APPRAISER))
+
+    if use_mcp_financial_data:
+        add_required_feature_to_builtin_tools(
+            required_feature=ProviderFeature.MCP,
+            builtin_tools=builtin_tools,
+            provider=ai_models_config.model.provider,
+        )
 
     agent = Agent(
         model=create_model_from_config(ai_models_config.model),
@@ -47,9 +65,7 @@ def create_appraiser_agent(
         model_settings=ai_models_config.model.model_settings,
         system_prompt=SYSTEM_PROMPT,
         builtin_tools=builtin_tools,
-        toolsets=[create_perplexity_toolset(AgentName.APPRAISER)]
-        if use_perplexity
-        else [],
+        toolsets=toolsets,
     )
 
     return agent

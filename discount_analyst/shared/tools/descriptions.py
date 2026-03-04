@@ -78,4 +78,3 @@ Returns:
         sec_filings_search="",
     ),
 }
-raise NotImplementedError("Not implemented")

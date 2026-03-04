@@ -23,7 +23,8 @@ None.
 
 ### Working In This Directory
 
-- **Agent Tools**: Perplexity-backed tools (`web_search`, `sec_filings_search`) are provided by `discount_analyst.shared.tools.perplexity` via `create_perplexity_toolset(AgentName.SURVEYOR)`. Add or modify agent-specific descriptions in `shared/tools/descriptions.py`.
+- **Agent Tools**: Perplexity-backed tools (`web_search`, `sec_filings_search`) are provided by `discount_analyst.shared.tools.perplexity` via `create_perplexity_toolset(AgentName.SURVEYOR)`. EODHD and FMP MCPServerTool instances are added via `create_eodhd_mcp_tool()` and `create_fmp_mcp_tool()` when `use_mcp_financial_data=True` (default). Add or modify agent-specific descriptions in `shared/tools/descriptions.py`.
+- **MCP Financial Data**: Set `use_mcp_financial_data=False` when using Google models; MCPServerTool is not supported by Google. Supported providers: anthropic, openai, xai.
 - **Prompts**: Keep the system persona in `system_prompt.py`.
 
 ### Testing Requirements
@@ -45,6 +46,7 @@ None.
 - `discount_analyst.shared.config.settings`: For API keys and rate limit settings.
 - `discount_analyst.shared.ai.model`: For creating the LLM model instance.
 - `discount_analyst.shared.tools.perplexity`: For Perplexity-backed search tools via `create_perplexity_toolset(AgentName.SURVEYOR)`.
+- `discount_analyst.shared.mcp.servers`: For EODHD and FMP MCPServerTool when `use_mcp_financial_data=True`.
 
 ### External
 

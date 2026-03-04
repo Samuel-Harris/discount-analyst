@@ -2,6 +2,11 @@ from enum import StrEnum
 from typing import Annotated, Literal
 
 from anthropic.types.beta import BetaThinkingConfigEnabledParam
+from discount_analyst.shared.constants.providers import (
+    PROVIDERS_BY_FEATURE,
+    Provider,
+    ProviderFeature,
+)
 from pydantic import BaseModel, Field, computed_field
 from pydantic_ai import UsageLimits
 from pydantic_ai.models.anthropic import AnthropicModelSettings
@@ -36,10 +41,13 @@ class BaseAIModelConfig(BaseModel):
     discriminated union (`AIModelConfig`) can resolve the correct subclass.
     """
 
-    provider: str
+    provider: Provider
     model_name: str
     max_tokens: int
     usage_limits: UsageLimits | None = None
+
+    def supports_feature(self, feature: ProviderFeature) -> bool:
+        return self.provider in PROVIDERS_BY_FEATURE[feature]
 
 
 class AnthropicAIModelConfig(BaseAIModelConfig):
@@ -53,7 +61,7 @@ class AnthropicAIModelConfig(BaseAIModelConfig):
     (`"low"` / `"medium"` / `"high"` / `"max"`). When `None` the model decides its own effort.
     """
 
-    provider: Literal["anthropic"] = "anthropic"
+    provider: Literal[Provider.ANTHROPIC] = Provider.ANTHROPIC
     thinking_budget_tokens: int | None = None
     cache_messages: bool = True
     effort: Literal["low", "medium", "high", "max"] | None = None
@@ -89,7 +97,7 @@ class OpenAIAIModelConfig(BaseAIModelConfig):
     quality (`"low"` / `"medium"` / `"high"`). When `None` the model's default is used.
     """
 
-    provider: Literal["openai"] = "openai"
+    provider: Literal[Provider.OPENAI] = Provider.OPENAI
     reasoning_effort: Literal["low", "medium", "high"] | None = None
 
     @property
@@ -115,7 +123,7 @@ class GoogleAIModelConfig(BaseAIModelConfig):
     `google_cached_content` at call time via model_settings for a guaranteed discount).
     """
 
-    provider: Literal["google"] = "google"
+    provider: Literal[Provider.GOOGLE] = Provider.GOOGLE
     thinking_budget_tokens: int | None = None
 
     @property

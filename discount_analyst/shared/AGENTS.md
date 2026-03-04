@@ -22,6 +22,7 @@ Common data structures, configuration, and utility modules used across the `disc
 | `ai/` | Factory for creating rate-limited AI models from config (see `ai/AGENTS.md`) |
 | `http/` | Asynchronous HTTP client with retry logic (see `http/AGENTS.md`) |
 | `tools/` | Tool definitions and agent-specific descriptions (see `tools/AGENTS.md`) |
+| `mcp/` | MCP server factories for EODHD and FMP financial data (see `mcp/AGENTS.md`) |
 
 ## For AI Agents
 

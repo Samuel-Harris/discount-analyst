@@ -184,9 +184,6 @@ class StockCandidate(BaseModel):
     )
 
 
-raise NotImplementedError("Not implemented")
-
-
 class SurveyorOutput(BaseModel):
     candidates: list[StockCandidate] = Field(
         description="List of cheap small-cap stock candidates discovered."
@@ -195,6 +192,3 @@ class SurveyorOutput(BaseModel):
         default=None,
         description="Optional high-level notes on the search and screening process.",
     )
-
-
-raise NotImplementedError("Not implemented")
