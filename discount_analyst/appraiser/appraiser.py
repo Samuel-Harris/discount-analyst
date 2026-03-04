@@ -8,7 +8,7 @@ from discount_analyst.shared.utils.agent_tools import (
 )
 from discount_analyst.shared.config.ai_models_config import AIModelsConfig
 from discount_analyst.shared.constants.agents import AgentName
-from discount_analyst.shared.models.data_types import AppraiserOutput
+from discount_analyst.appraiser.data_types import AppraiserOutput
 from discount_analyst.shared.tools.perplexity import create_perplexity_toolset
 from discount_analyst.appraiser.system_prompt import SYSTEM_PROMPT
 

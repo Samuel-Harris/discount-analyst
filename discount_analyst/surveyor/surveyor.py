@@ -8,7 +8,7 @@ from discount_analyst.shared.constants.providers import ProviderFeature
 from discount_analyst.shared.utils.agent_tools import (
     add_required_feature_to_builtin_tools,
 )
-from discount_analyst.shared.models.data_types import SurveyorOutput
+from discount_analyst.surveyor.data_types import SurveyorOutput
 from discount_analyst.shared.tools.perplexity import create_perplexity_toolset
 from discount_analyst.surveyor.system_prompt import SYSTEM_PROMPT
 
@@ -32,7 +32,7 @@ def create_surveyor_agent(
             Anthropic and Gemini so the agent can fetch content from URLs.
         use_mcp_financial_data: When True (default), adds EODHD and FMP
             MCPServerTool instances for financial data. Supported providers:
-            anthropic, openai, xai. Not supported: google. Raises
+            anthropic, openai. Not supported: google. Raises
             NotImplementedError if True and provider is google.
 
     Returns:
