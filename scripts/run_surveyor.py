@@ -3,6 +3,8 @@
 import argparse
 import asyncio
 import time
+from datetime import datetime
+from pathlib import Path
 
 import logfire
 from pydantic import BaseModel, Field
@@ -15,6 +17,11 @@ from discount_analyst.shared.config.settings import settings
 from discount_analyst.shared.http.rate_limit_client import stream_with_retries
 from discount_analyst.surveyor.data_types import SurveyorOutput
 from discount_analyst.surveyor.surveyor import create_surveyor_agent
+from discount_analyst.surveyor.user_prompt import USER_PROMPT
+from scripts.shared import SurveyorRunOutput, write_surveyor_output
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_OUTPUTS_DIR = _PROJECT_ROOT / "outputs"
 
 logfire.configure(token=settings.pydantic.logfire_api_key, scrubbing=False)
 logfire.instrument_pydantic_ai()
@@ -114,7 +121,7 @@ async def main() -> None:
 
     async with stream_with_retries(
         agent=agent,
-        user_prompt="",
+        user_prompt=USER_PROMPT,
         usage_limits=ai_models_config.model.usage_limits,
     ) as result:
         async for message in result.stream_output():
@@ -129,6 +136,21 @@ async def main() -> None:
     )
 
     display_output(output)
+
+    run_output = SurveyorRunOutput(
+        model_name=args.model.value,
+        elapsed_s=elapsed_s,
+        input_tokens=usage.input_tokens,
+        output_tokens=usage.output_tokens,
+        output=output,
+    )
+    timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+    out_path = write_surveyor_output(
+        run_output=run_output,
+        timestamp=timestamp,
+        output_dir=_OUTPUTS_DIR,
+    )
+    console.print(f"\nSaved [dim]{out_path}[/dim]")
 
 
 if __name__ == "__main__":

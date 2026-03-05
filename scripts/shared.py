@@ -13,6 +13,7 @@ from genai_prices import Usage, calc_price
 from discount_analyst.shared.config.ai_models_config import AIModelsConfig, ModelName
 from discount_analyst.appraiser.data_types import AppraiserOutput
 from discount_analyst.dcf_analysis.data_types import DCFAnalysisResult
+from discount_analyst.surveyor.data_types import SurveyorOutput
 
 # Models that auto-cache (OpenAI, Gemini); no way to disable — skip when --caching disabled.
 AUTO_CACHE_MODELS: frozenset[ModelName] = frozenset(
@@ -77,6 +78,34 @@ class ModelRunOutput(BaseModel):
     cache_write_tokens: int
     cache_read_tokens: int
     tool_calls: int
+
+
+class SurveyorRunOutput(BaseModel):
+    """Complete serialisable record for one Surveyor run written to outputs/."""
+
+    model_name: str
+    elapsed_s: float
+    input_tokens: int
+    output_tokens: int
+    output: SurveyorOutput
+
+
+def write_surveyor_output(
+    *,
+    run_output: SurveyorRunOutput,
+    timestamp: str,
+    output_dir: Path,
+) -> Path:
+    """Serialise the Surveyor run output to JSON and return the path written.
+
+    Filename format: {timestamp}-surveyor-{model}.json
+    """
+    safe_model = run_output.model_name.replace(".", "-")
+    filename = f"{timestamp}-surveyor-{safe_model}.json"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = output_dir / filename
+    path.write_text(run_output.model_dump_json(indent=2))
+    return path
 
 
 # Fallback pricing when genai_prices does not have the model (e.g. very new models).

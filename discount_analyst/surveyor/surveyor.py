@@ -31,9 +31,11 @@ def create_surveyor_agent(
             When Perplexity is disabled, ``WebFetchTool`` is also added for
             Anthropic and Gemini so the agent can fetch content from URLs.
         use_mcp_financial_data: When True (default), adds EODHD and FMP
-            MCPServerTool instances for financial data. Supported providers:
-            anthropic, openai. Not supported: google. Raises
-            NotImplementedError if True and provider is google.
+            MCPServerStreamableHTTP toolsets for financial data. pydantic-ai
+            manages the MCP connection and exposes tools natively, avoiding
+            the list_tools conversation overhead of the old MCPServerTool
+            builtin. Raises NotImplementedError if the provider does not
+            support the MCP feature.
 
     Returns:
         A configured Agent instance for discovering cheap small-cap stock candidates.
@@ -55,7 +57,7 @@ def create_surveyor_agent(
     if use_mcp_financial_data:
         add_required_feature_to_builtin_tools(
             required_feature=ProviderFeature.MCP,
-            builtin_tools=builtin_tools,
+            toolsets=toolsets,
             provider=ai_models_config.model.provider,
         )
 

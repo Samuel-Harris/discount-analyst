@@ -1,29 +1,27 @@
 """Utilities for configuring agent tools."""
 
-from pydantic_ai.builtin_tools import AbstractBuiltinTool
+from pydantic_ai import AbstractToolset
 
 from discount_analyst.shared.constants.providers import (
     PROVIDERS_BY_FEATURE,
     Provider,
     ProviderFeature,
 )
-from discount_analyst.shared.mcp.financial_data import create_financial_data_mcp_tools
+from discount_analyst.shared.mcp.financial_data import create_financial_data_mcp_servers
 
 
 def add_required_feature_to_builtin_tools(
     *,
-    builtin_tools: list[AbstractBuiltinTool],
+    toolsets: list[AbstractToolset],
     required_feature: ProviderFeature,
     provider: Provider,
 ) -> None:
-    """Extend builtin_tools with the toolset if the provider supports the feature.
+    """Extend builtin_tools or toolsets with the appropriate tools for the feature.
 
     Args:
         required_feature: The feature the provider must support (e.g. MCP).
-        builtin_tools: The list to extend. Modified in place.
+        toolsets: Toolsets list (modified in place where applicable).
         provider: The model provider.
-        toolset_factory: Callable that returns the tools to add. Only invoked
-            when the provider supports the feature.
 
     Raises:
         NotImplementedError: If the provider does not support the required feature.
@@ -37,7 +35,7 @@ def add_required_feature_to_builtin_tools(
 
     match required_feature:
         case ProviderFeature.MCP:
-            builtin_tools.extend(create_financial_data_mcp_tools())
+            toolsets.extend(create_financial_data_mcp_servers())
         case _:
             raise NotImplementedError(
                 f"Feature '{required_feature.value}' is not supported."

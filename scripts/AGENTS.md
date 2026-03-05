@@ -9,17 +9,17 @@ The `scripts/` directory contains utility and entry-point scripts for the Discou
 
 ## Key Files
 
-| File | Description |
-| --------- | ---------------------------- |
-| `md_docs_parser.py` | Utility to split a large markdown document into a hierarchical directory structure of smaller markdown files. |
-| `run_dcf_analysis.py` | Main execution script that orchestrates the Appraiser AI agent and performs DCF valuation analysis. Writes output (agent + DCF) to `outputs/` in the same JSON format as `model_cost_comparison.py`. |
-| `run_surveyor.py` | Runs the Surveyor AI agent to discover cheap small-cap stock candidates in UK and US markets. Prints results to the terminal. |
-| `shared.py` | Shared data types (`ModelRunOutput`, `RunResult`, `RunConfig`, etc.), constants, and helpers (`outputs_dir`, `write_model_output`, `calc_actual_cost`) used by `run_dcf_analysis.py` and `cost_comparison/` scripts. |
+| File                  | Description                                                                                                                                                                                                                                                             |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `md_docs_parser.py`   | Utility to split a large markdown document into a hierarchical directory structure of smaller markdown files.                                                                                                                                                           |
+| `run_dcf_analysis.py` | Main execution script that orchestrates the Appraiser AI agent and performs DCF valuation analysis. Writes output (agent + DCF) to `outputs/` in the same JSON format as `model_cost_comparison.py`.                                                                    |
+| `run_surveyor.py`     | Runs the Surveyor AI agent to discover cheap small-cap stock candidates in UK and US markets. Prints results to the terminal and writes output to `outputs/` as JSON (`{timestamp}-surveyor-{model}.json`).                                                             |
+| `shared.py`           | Shared data types (`ModelRunOutput`, `SurveyorRunOutput`, `RunResult`, `RunConfig`, etc.), constants, and helpers (`write_model_output`, `write_surveyor_output`, `calc_actual_cost`) used by `run_dcf_analysis.py`, `run_surveyor.py`, and `cost_comparison/` scripts. |
 
 ## Subdirectories
 
-| Directory | Purpose |
-| --------- | ----------------------------------------- |
+| Directory          | Purpose                                                               |
+| ------------------ | --------------------------------------------------------------------- |
 | `cost_comparison/` | Model cost/speed comparison script (see `cost_comparison/AGENTS.md`). |
 
 ## For AI Agents
@@ -50,7 +50,7 @@ The `scripts/` directory contains utility and entry-point scripts for the Discou
 - `discount_analyst.appraiser`: AI agent logic and prompt creation.
 - `discount_analyst.surveyor`: Surveyor agent for stock candidate discovery.
 - `discount_analyst.dcf_analysis`: Core financial calculation engine.
-- `scripts.shared`: `ModelRunOutput`, `write_model_output`, and cost helpers (used by `run_dcf_analysis.py` and `cost_comparison/`).
+- `scripts.shared`: `ModelRunOutput`, `SurveyorRunOutput`, `write_model_output`, `write_surveyor_output`, and cost helpers (used by `run_dcf_analysis.py`, `run_surveyor.py`, and `cost_comparison/`).
 
 ### External
 
