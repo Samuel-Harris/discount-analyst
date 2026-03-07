@@ -22,7 +22,7 @@ from discount_analyst.shared.config.ai_models_config import AIModelsConfig
 from discount_analyst.appraiser.user_prompt import create_user_prompt
 from discount_analyst.dcf_analysis.data_types import DCFAnalysisParameters
 from discount_analyst.dcf_analysis.dcf_analysis import DCFAnalysis
-from discount_analyst.shared.models.data_types import AppraiserOutput
+from discount_analyst.appraiser.data_types import AppraiserOutput
 from discount_analyst.dcf_analysis.data_types import DCFAnalysisResult
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
