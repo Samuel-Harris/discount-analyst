@@ -6,25 +6,24 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-import logfire
 from pydantic import BaseModel, Field
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
 from discount_analyst.shared.config.ai_models_config import AIModelsConfig, ModelName
-from discount_analyst.shared.config.settings import settings
 from discount_analyst.shared.http.rate_limit_client import stream_with_retries
 from discount_analyst.surveyor.data_types import SurveyorOutput
 from discount_analyst.surveyor.surveyor import create_surveyor_agent
 from discount_analyst.surveyor.user_prompt import USER_PROMPT
 from scripts.shared import SurveyorRunOutput, write_surveyor_output
 
+from scripts.utils.setup_logfire import setup_logfire
+
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _OUTPUTS_DIR = _PROJECT_ROOT / "outputs"
 
-logfire.configure(token=settings.pydantic.logfire_api_key, scrubbing=False)
-logfire.instrument_pydantic_ai()
+setup_logfire()
 
 console = Console()
 
