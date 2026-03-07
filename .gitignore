@@ -36,4 +36,5 @@ scripts/cost_comparison/outputs/
 
 # Cursor artefacts
 .cursor/handoffs/
+.cursor/interviews/
 .cursor/plans/
