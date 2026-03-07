@@ -34,5 +34,6 @@ experiment_data/
 outputs/
 scripts/cost_comparison/outputs/
 
-# Handoffs
+# Cursor artefacts
 .cursor/handoffs/
+.cursor/plans/
