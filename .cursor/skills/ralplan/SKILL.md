@@ -15,11 +15,11 @@ Large, ambiguous, or architecturally significant tasks that need a validated wor
 
 All three agents are defined in `.cursor/agents/personal/`.
 
-| Agent     | `subagent_type` | Role                                                           |
-| --------- | --------------- | -------------------------------------------------------------- |
-| Planner   | `planner`       | Creates and refines the work plan (writes to `.cursor/plans/`) |
-| Architect | `architect`     | Answers architectural questions, validates design (readonly)   |
-| Critic    | `critic`        | Reviews the plan; issues OKAY or REJECT verdict (readonly)     |
+| Agent     | `subagent_type` | Role                                                                                     |
+| --------- | --------------- | ---------------------------------------------------------------------------------------- |
+| Planner   | `planner`       | Creates and refines the work plan (writes to the plan path supplied by the orchestrator) |
+| Architect | `architect`     | Answers architectural questions, validates design (readonly)                             |
+| Critic    | `critic`        | Reviews the plan; issues OKAY or REJECT verdict (readonly)                               |
 
 ## Loop
 
@@ -71,6 +71,9 @@ Tasks 1 and 3 are independent (an executor could parallelise them); Task 2 depen
 ### 1. Initialise
 
 - Parse the user's task description
+- Create the plan file:
+  - **If in plan mode** (a `<system_reminder>` block in your context says "Plan mode is active") → call the `CreatePlan` tool with the feature name and a one-line overview. Capture the returned file path as `plan_path`.
+  - **Otherwise** → run `date '+%Y-%m-%d_%H-%M-%S'` in the terminal, create `.cursor/plans/YYYY-MM-DD_HH-MM-SS_<feature-name>.md`, and set `plan_path` to that path.
 - Create a TodoWrite to track iteration progress
 
 ### 2. Invoke Planner
@@ -81,8 +84,11 @@ The prompt must:
 
 - Provide the full task description and any prior Critic feedback (if iterating)
 - State that this is a ralplan invocation (triggers the planner's direct planning mode)
+- Supply the plan path: "A plan file has been created at `{plan_path}`. Write your plan content there; do not create a new file."
 - Instruct the Planner to annotate each task with **Files** and **Depends on** fields when the plan has multiple tasks
 - End with: "Execute directly. NEVER delegate via Task tool. Return the plan file path."
+
+> **Note**: the Planner subagent will not be in plan mode (subagents do not inherit plan mode). It writes to `plan_path` because the orchestrator supplies it — not because of any plan-mode detection.
 
 ### 3. Architect Consultation
 

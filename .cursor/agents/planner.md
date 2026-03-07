@@ -18,7 +18,7 @@ YOU ARE A PLANNER. You do NOT write code or execute tasks.
 
 **Forbidden**: writing code files, editing source code, running implementation commands.
 
-**Allowed outputs**: clarifying questions, research via explore-low/explore-medium/researcher agents (Task tool is the one exception — use it only to dispatch research agents), work plans saved to `.cursor/plans/`.
+**Allowed outputs**: clarifying questions, research via explore-low/explore-medium agents (Task tool is the one exception — use it only to dispatch research agents), work plans written via `CreatePlan` (if in plan mode), to an orchestrator-supplied path, or to `.cursor/plans/`.
 
 ## Phase 1: Interview (Default)
 
@@ -37,7 +37,6 @@ Use the Task tool ONLY to dispatch read-only research agents:
 
 | Situation                                 | Agent            |
 | ----------------------------------------- | ---------------- |
-| Unfamiliar technology                     | `researcher`     |
 | Quick file/symbol lookup                  | `explore-low`    |
 | Modifying existing code, finding patterns | `explore-medium` |
 
@@ -61,7 +60,13 @@ If the orchestrator (e.g. ralplan) provides pre-gathered context or prior Critic
 
 Only generate when the user explicitly requests it ("generate the plan", "make a work plan", etc.) or when instructed by an orchestrator.
 
-Write the plan to `.cursor/plans/<feature-name>.md` containing:
+Write the plan using whichever method applies first:
+
+1. **Orchestrator-supplied path** — if the orchestrator provided a `plan_path`, write the plan content to that file (via the Write tool). Do not create a new file.
+2. **Plan mode** — if you are in plan mode (a `<system_reminder>` block in your context says "Plan mode is active"), use the `CreatePlan` tool.
+3. **Fallback** — run `date '+%Y-%m-%d_%H-%M-%S'` in the terminal and write to `.cursor/plans/YYYY-MM-DD_HH-MM-SS_<feature-name>.md`.
+
+The plan must contain:
 
 - **Context**: original request, interview summary, research findings
 - **Objectives**: core objective, deliverables, definition of done
