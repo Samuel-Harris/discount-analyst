@@ -18,10 +18,10 @@ The `scripts/` directory contains utility and entry-point scripts for the Discou
 
 ## Subdirectories
 
-| Directory          | Purpose                                                               |
-| ------------------ | --------------------------------------------------------------------- |
-| `cost_comparison/` | Model cost/speed comparison script (see `cost_comparison/AGENTS.md`). |
-| `mcp/`             | MCP tool fetching and curation dashboard (see `mcp/AGENTS.md`).      |
+| Directory          | Purpose                                                                                 |
+| ------------------ | --------------------------------------------------------------------------------------- |
+| `cost_comparison/` | Model cost/speed comparison script (see `cost_comparison/AGENTS.md`).                   |
+| `mcp/`             | MCP tool fetching and curation (see `mcp/AGENTS.md`). React dashboard in `dashboards/`. |
 
 ## For AI Agents
 

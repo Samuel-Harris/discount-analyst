@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-03-07 | Updated: 2026-03-07 -->
+<!-- Generated: 2026-03-07 | Updated: 2026-03-08 -->
 
 # mcp
 
@@ -12,21 +12,20 @@ MCP (Model Context Protocol) tool management: fetching tool definitions from EOD
 | File                  | Description                                                                 |
 | --------------------- | --------------------------------------------------------------------------- |
 | `fetch_mcp_tool_list.py` | Fetches MCP tools from EODHD and FMP servers, writes `tool_list.json`.   |
-| `dashboard.py`        | Marimo web app to browse, search, and curate tools; writes `curated_tool_list.json`. |
 | `tool_list.json`      | Full tool list (read-only): `{"eodhd": [...], "fmp": [...]}`.              |
 | `curated_tool_list.json` | Curated tool names by server: `{"eodhd": ["name1"], "fmp": ["name2"]}`.  |
+| `dashboard.py`        | **Deprecated.** Marimo web app; use the React dashboard in `dashboards/` instead. |
 
 ## Run Commands
 
 | Command | Description |
 | ------- | ----------- |
 | `uv run python scripts/mcp/fetch_mcp_tool_list.py -o scripts/mcp/tool_list.json` | Regenerate `tool_list.json`. |
-| `uv run marimo run scripts/mcp/dashboard.py` | Launch the MCP Tool Dashboard in the browser. |
-| `uv run marimo edit scripts/mcp/dashboard.py` | Edit the dashboard notebook. |
+| `cd dashboards && pnpm dev` | Launch the MCP Tool Dashboard (React). |
 
 ## For AI Agents
 
 ### Working In This Directory
 
 - Do not modify `tool_list.json`; regenerate it with `fetch_mcp_tool_list.py`.
-- The dashboard reads `tool_list.json` and writes `curated_tool_list.json` on Save.
+- The React dashboard in `dashboards/` reads `tool_list.json` and writes `curated_tool_list.json` on Save.

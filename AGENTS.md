@@ -59,6 +59,7 @@ The analyst reviews the DCF outputs across all stocks that reached stage 5 and b
 | `discount_analyst/` | Core source code for the analysis engine (see `discount_analyst/AGENTS.md`) |
 | `scripts/`          | Entry point scripts for running analyses (see `scripts/AGENTS.md`)          |
 | `tests/`            | Comprehensive unit and integration tests (see `tests/AGENTS.md`)            |
+| `dashboards/`       | React web dashboards, including MCP Tool curation (see `dashboards/AGENTS.md`) |
 
 ## For AI Agents
 
