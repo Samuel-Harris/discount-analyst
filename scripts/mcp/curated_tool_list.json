@@ -1,0 +1,7 @@
+{
+  "eodhd": [
+    "capture_realtime_ws",
+    "get_bulk_fundamentals"
+  ],
+  "fmp": []
+}

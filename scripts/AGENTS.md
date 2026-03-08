@@ -21,6 +21,7 @@ The `scripts/` directory contains utility and entry-point scripts for the Discou
 | Directory          | Purpose                                                               |
 | ------------------ | --------------------------------------------------------------------- |
 | `cost_comparison/` | Model cost/speed comparison script (see `cost_comparison/AGENTS.md`). |
+| `mcp/`             | MCP tool fetching and curation dashboard (see `mcp/AGENTS.md`).      |
 
 ## For AI Agents
 

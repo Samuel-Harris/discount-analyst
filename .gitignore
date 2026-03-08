@@ -17,6 +17,9 @@
 # Python
 __pycache__/
 
+# Marimo
+__marimo__/
+
 # Notebooks
 discount_analyst/notebooks/
 
