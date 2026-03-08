@@ -68,6 +68,16 @@ Tasks 1 and 3 are independent (an executor could parallelise them); Task 2 depen
 
 ## Execution Protocol
 
+### 0. Resolve Ambiguities (if needed)
+
+Before planning, assess whether the developer's intention is clear enough to produce a useful plan.
+
+If the task description is vague, contradictory, missing acceptance criteria, or leaves key architectural decisions open, run the **deep-interview** skill first.
+
+The deep-interview skill runs a Socratic Q&A loop that scores ambiguity across weighted dimensions and refuses to exit until ambiguity drops below 20%. When it completes, it writes a crystal-clear spec to `.cursor/interviews/`. Use that spec as the task description for the planning loop.
+
+**Skip this step** if the request already includes specific file paths and acceptance criteria, the user has an existing plan or interview file, or the user says "just plan it" / "don't interview me".
+
 ### 1. Initialise
 
 - Parse the user's task description
@@ -131,11 +141,12 @@ Once approved, a multi-task plan with dependency annotations can be handed to `c
 
 ## Rules
 
-1. **Critic is mandatory** — no plan is approved without a Critic verdict
-2. **Planner owns the plan file** — only the Planner writes to it
-3. **Architect advises only** — reads and recommends, never modifies
-4. **Feedback is specific** — every rejection includes actionable improvements
-5. **Max 5 iterations** — hard safety limit
-6. **Sequential dispatch** — Planner → (Architect) → Critic, one agent at a time
-7. **No delegation chains** — every agent prompt ends with "Execute directly. NEVER delegate via Task tool."
-8. **Plan describes what, not how** — dependency annotations and file lists inform execution but the plan must not prescribe batch grouping, agent tiers, or execution strategy
+1. **Ambiguity first** — if intention is unclear, run deep-interview before planning
+2. **Critic is mandatory** — no plan is approved without a Critic verdict
+3. **Planner owns the plan file** — only the Planner writes to it
+4. **Architect advises only** — reads and recommends, never modifies
+5. **Feedback is specific** — every rejection includes actionable improvements
+6. **Max 5 iterations** — hard safety limit
+7. **Sequential dispatch** — Planner → (Architect) → Critic, one agent at a time
+8. **No delegation chains** — every agent prompt ends with "Execute directly. NEVER delegate via Task tool."
+9. **Plan describes what, not how** — dependency annotations and file lists inform execution but the plan must not prescribe batch grouping, agent tiers, or execution strategy
