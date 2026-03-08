@@ -77,48 +77,7 @@ class ModelRunOutput(BaseModel):
 
 # Fallback pricing when genai_prices does not have the model (e.g. very new models).
 # Update as needed; genai_prices is used for actual cost when the model is in its snapshot.
-MODEL_PRICING_FALLBACK: dict[ModelName, ModelPricing] = {
-    ModelName.CLAUDE_OPUS_4_5: ModelPricing(
-        input_per_mtok=15.0,
-        output_per_mtok=75.0,
-        cache_write_per_mtok=3.75,
-        cache_read_per_mtok=0.30,
-    ),
-    ModelName.CLAUDE_SONNET_4_5: ModelPricing(
-        input_per_mtok=3.0,
-        output_per_mtok=15.0,
-        cache_write_per_mtok=0.90,
-        cache_read_per_mtok=0.09,
-    ),
-    ModelName.CLAUDE_OPUS_4_6: ModelPricing(
-        input_per_mtok=15.0,
-        output_per_mtok=75.0,
-        cache_write_per_mtok=3.75,
-        cache_read_per_mtok=0.30,
-    ),
-    ModelName.CLAUDE_SONNET_4_6: ModelPricing(
-        input_per_mtok=3.0,
-        output_per_mtok=15.0,
-        cache_write_per_mtok=0.90,
-        cache_read_per_mtok=0.09,
-    ),
-    ModelName.GPT_5_1: ModelPricing(
-        input_per_mtok=2.50,
-        output_per_mtok=10.0,
-    ),
-    ModelName.GPT_5_2: ModelPricing(
-        input_per_mtok=2.50,
-        output_per_mtok=10.0,
-    ),
-    ModelName.GEMINI_3_PRO_PREVIEW: ModelPricing(
-        input_per_mtok=1.25,
-        output_per_mtok=5.0,
-    ),
-    ModelName.GEMINI_3_1_PRO_PREVIEW: ModelPricing(
-        input_per_mtok=1.25,
-        output_per_mtok=5.0,
-    ),
-}
+MODEL_PRICING_FALLBACK: dict[ModelName, ModelPricing] = {}
 
 
 @dataclass(frozen=True)
