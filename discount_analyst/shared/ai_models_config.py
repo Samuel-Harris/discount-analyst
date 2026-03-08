@@ -22,6 +22,7 @@ class ModelName(StrEnum):
     CLAUDE_SONNET_4_6 = "claude-sonnet-4-6"
     GPT_5_1 = "gpt-5.1"
     GPT_5_2 = "gpt-5.2"
+    GPT_5_4 = "gpt-5.4"
     GEMINI_3_PRO_PREVIEW = "gemini-3-pro-preview"
     GEMINI_3_1_PRO_PREVIEW = "gemini-3.1-pro-preview"
 
@@ -197,7 +198,7 @@ class AIModelsConfig(BaseModel):
                 return _anthropic_adaptive_market_analyst(
                     self.model_name, cache_messages=self.cache_messages
                 )
-            case ModelName.GPT_5_1 | ModelName.GPT_5_2:
+            case ModelName.GPT_5_1 | ModelName.GPT_5_2 | ModelName.GPT_5_4:
                 return _openai_market_analyst(self.model_name)
             case ModelName.GEMINI_3_PRO_PREVIEW | ModelName.GEMINI_3_1_PRO_PREVIEW:
                 return _google_market_analyst(self.model_name)
