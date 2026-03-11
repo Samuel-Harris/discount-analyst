@@ -20,6 +20,7 @@ AUTO_CACHE_MODELS: frozenset[ModelName] = frozenset(
     {
         ModelName.GPT_5_1,
         ModelName.GPT_5_2,
+        ModelName.GPT_5_4,
         ModelName.GEMINI_3_PRO_PREVIEW,
         ModelName.GEMINI_3_1_PRO_PREVIEW,
     }

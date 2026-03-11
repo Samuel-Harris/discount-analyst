@@ -31,6 +31,7 @@ class ModelName(StrEnum):
     CLAUDE_HAIKU_4_6 = "claude-haiku-4-6"
     GPT_5_1 = "gpt-5.1"
     GPT_5_2 = "gpt-5.2"
+    GPT_5_4 = "gpt-5.4"
     GEMINI_3_PRO_PREVIEW = "gemini-3-pro-preview"
     GEMINI_3_1_PRO_PREVIEW = "gemini-3.1-pro-preview"
 
@@ -174,7 +175,7 @@ class AIModelsConfig(BaseModel):
                     usage_limits=UsageLimits(tool_calls_limit=_MAX_TOOL_CALLS),
                     cache_messages=self.cache_messages,
                 )
-            case ModelName.GPT_5_1 | ModelName.GPT_5_2:
+            case ModelName.GPT_5_1 | ModelName.GPT_5_2 | ModelName.GPT_5_4:
                 return OpenAIAIModelConfig(
                     model_name=self.model_name,
                     max_tokens=_MAX_TOKENS,
