@@ -6,7 +6,7 @@ An AI-powered stock analysis tool for identifying and valuing promising small-ca
 
 ## Investment Workflow
 
-The tool supports a six-stage pipeline that blends automated AI agents with a lightweight manual review step:
+The tool supports a seven-stage pipeline that blends automated AI agents with a lightweight manual review step:
 
 **1. Survey — discover candidates**
 Run the Surveyor agent to screen for promising small-cap stocks across UK and US markets:
@@ -38,7 +38,10 @@ Stocks that pass enough checklist criteria are passed to the Appraiser agent for
 uv run python scripts/run_dcf_analysis.py --ticker <TICKER> --risk-free-rate <RATE> --research-report-path <path/to/report.md>
 ```
 
-**6. Buy — act on the margin of safety**
+**6. Evaluate — AI buy recommendation**
+Use an AI model (Claude, Gemini, or ChatGPT) to evaluate whether to buy each stock based on the research report and the DCF analysis output.
+
+**7. Buy — act on the margin of safety**
 Review the DCF outputs across all analysed stocks. Buy the stocks with the greatest margin of safety — i.e. where the current market price is furthest below the intrinsic value estimated by the Appraiser.
 
 ## Quick Start

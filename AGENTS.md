@@ -8,7 +8,7 @@ An AI-powered stock analysis tool ("Discount Analyst") for identifying and valui
 
 ## Investment Workflow
 
-The tool supports a six-stage pipeline. Stages 1 and 5 are automated by AI agents in this repo; stages 2–4 involve a lightweight manual step and external AI tools; stage 6 is a human investment decision.
+The tool supports a seven-stage pipeline. Stages 1 and 5 are automated by AI agents in this repo; stages 2–4 involve a lightweight manual step and external AI tools; stage 6 uses an AI model (Claude, Gemini, or ChatGPT) to evaluate buy recommendations; stage 7 is a human investment decision.
 
 ### Stage 1 — Survey (automated)
 
@@ -37,9 +37,13 @@ A separate AI agent then scores the resulting report against a detailed checklis
 
 Stocks that pass the checklist are processed by `scripts/run_dcf_analysis.py`, which runs the `discount_analyst/appraiser/appraiser.py` agent to perform a full Discounted Cash Flow valuation. The agent consumes the research report produced in stage 4 and writes structured output (agent analysis + DCF figures) to `outputs/`.
 
-### Stage 6 — Buy (human decision)
+### Stage 6 — Evaluate (external AI)
 
-The analyst reviews the DCF outputs across all stocks that reached stage 5 and buys those with the greatest margin of safety — i.e. where the current market price is furthest below the intrinsic value estimated by the Appraiser.
+Use an AI model (Claude, Gemini, or ChatGPT) to evaluate whether to buy each stock based on the research report and the DCF analysis output.
+
+### Stage 7 — Buy (human decision)
+
+The analyst reviews the DCF outputs and AI buy recommendations across all stocks that reached stage 5 and buys those with the greatest margin of safety — i.e. where the current market price is furthest below the intrinsic value estimated by the Appraiser.
 
 ## Key Files
 
