@@ -32,6 +32,7 @@ from discount_analyst.dcf_analysis.data_types import (
 from discount_analyst.dcf_analysis.dcf_analysis import DCFAnalysis
 from discount_analyst.appraiser.appraiser import create_appraiser_agent
 from discount_analyst.appraiser.user_prompt import create_user_prompt
+from discount_analyst.shared.http.rate_limit_client import stream_with_retries
 
 from scripts.shared import (
     AUTO_CACHE_MODELS,
@@ -230,8 +231,8 @@ async def run_one_model(
 
     start = time.perf_counter()
     try:
-        async with agent.run_stream(
-            user_prompt, usage_limits=usage_limits
+        async with stream_with_retries(
+            agent=agent, user_prompt=user_prompt, usage_limits=usage_limits
         ) as streamed_run:
             async for _ in streamed_run.stream_output(debounce_by=None):
                 pass  # drain stream; Anthropic requires streaming for long requests
