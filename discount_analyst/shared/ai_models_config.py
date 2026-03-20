@@ -14,6 +14,8 @@ _MAX_TOOL_CALLS = 60
 _MAX_TOKENS = 30_000
 _MAX_THINKING_BUDGET_TOKENS = 16_000
 
+ProviderLiteral = Literal["anthropic", "openai", "google"]
+
 
 class ModelName(StrEnum):
     CLAUDE_OPUS_4_5 = "claude-opus-4-5"
@@ -30,11 +32,12 @@ class ModelName(StrEnum):
 class BaseAIModelConfig(BaseModel):
     """Common fields shared by all provider model configs.
 
-    Subclasses must narrow `provider` to a `Literal` type so Pydantic's
-    discriminated union (`AIModelConfig`) can resolve the correct subclass.
+    Each concrete config sets ``provider`` to a fixed string; the field is typed as
+    ``ProviderLiteral`` so Pyright accepts overrides while Pydantic's discriminated
+    union (``AIModelConfig``) still resolves the correct subclass.
     """
 
-    provider: str
+    provider: ProviderLiteral
     model_name: str
     max_tokens: int
     usage_limits: UsageLimits | None = None
@@ -51,7 +54,7 @@ class AnthropicAIModelConfig(BaseAIModelConfig):
     (`"low"` / `"medium"` / `"high"` / `"max"`). When `None` the model decides its own effort.
     """
 
-    provider: Literal["anthropic"] = "anthropic"
+    provider: ProviderLiteral = "anthropic"
     thinking_budget_tokens: int | None = None
     cache_messages: bool = True
     effort: Literal["low", "medium", "high", "max"] | None = None
@@ -86,7 +89,7 @@ class OpenAIAIModelConfig(BaseAIModelConfig):
     quality (`"low"` / `"medium"` / `"high"`). When `None` the model's default is used.
     """
 
-    provider: Literal["openai"] = "openai"
+    provider: ProviderLiteral = "openai"
     reasoning_effort: Literal["low", "medium", "high"] | None = None
 
     @property
@@ -112,7 +115,7 @@ class GoogleAIModelConfig(BaseAIModelConfig):
     `google_cached_content` at call time via model_settings for a guaranteed discount).
     """
 
-    provider: Literal["google"] = "google"
+    provider: ProviderLiteral = "google"
     thinking_budget_tokens: int | None = None
 
     @property

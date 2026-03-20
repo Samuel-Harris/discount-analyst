@@ -6,6 +6,6 @@
     "**/venv/**",
     "discount_analyst/notebooks/**"
   ],
-  "typeCheckingMode": "basic",
+  "typeCheckingMode": "strict",
   "pythonVersion": "3.14"
 }
