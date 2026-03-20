@@ -1,29 +1,44 @@
 #!/usr/bin/env python3
+# pyright: reportUnknownMemberType=false
 """Scatter plot: Accuracy vs Cost per test, with Pareto frontier for each benchmark."""
 
+from typing import Any
+
 import matplotlib.pyplot as plt
+from matplotlib.artist import Artist
+from matplotlib.legend import Legend
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 from matplotlib.text import Text
+from matplotlib.transforms import Transform
 from matplotlib.legend_handler import HandlerBase
 
 
 class HandlerTwoToneBox(HandlerBase):
     """Legend handler: one box with green top/left edge, purple bottom/right edge."""
 
-    def __init__(self, vals_color: str, finance_color: str, **kwargs):
+    def __init__(self, vals_color: str, finance_color: str, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.vals_color = vals_color
         self.finance_color = finance_color
 
     def create_artists(
-        self, legend, orig_handle, xdescent, ydescent, width, height, fontsize, trans
-    ):
+        self,
+        legend: Legend,
+        orig_handle: Artist,
+        xdescent: float,
+        ydescent: float,
+        width: float,
+        height: float,
+        fontsize: float,
+        trans: Transform,
+    ) -> list[Artist]:
+        _ = (legend, orig_handle)
         side = height * 1.35  # slightly larger than markersize=10 square markers
         x0 = xdescent + (width - side) / 2
         y0 = ydescent + (height - side) / 2
         x1, y1 = x0 + side, y0 + side
-        artists = []
+        artists: list[Artist] = []
         rect = Rectangle(
             (x0, y0),
             side,
@@ -100,7 +115,7 @@ FINANCE = [
 def pareto_frontier(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
     """Points (acc, cost) sorted by cost; keep those with max accuracy so far."""
     sorted_ = sorted(points, key=lambda p: p[1])  # by cost
-    frontier = []
+    frontier: list[tuple[float, float]] = []
     max_acc = -1.0
     for acc, cost in sorted_:
         if acc > max_acc:

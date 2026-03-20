@@ -13,6 +13,7 @@ Scripts and assets for comparing cost and speed across AI models when running th
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `model_cost_comparison.py` | CLI script that runs the Market Analyst agent across one or all configured models, records timing and token usage, prints Rich tables for speed/tokens and cost breakdown, runs DCF valuation on each agent output, and writes a combined `ModelRunOutput` JSON to `outputs/`.                                                                                                                                                                                                           |
 | `view_ticker_results.py`   | CLI script that takes a ticker as a positional argument, loads all matching JSON files from `outputs/`, and pretty-prints a Rich summary table. Use `--detail` for side-by-side Stock Data / Assumptions panels per run; add `--reasoning` to also display the model's full reasoning text. Use `--compare-cache` to compare cost/speed for cache vs no-cache per model; use `--compare-cost` to compare cost, speed, and token usage (input/output/cache write/read) across all models; use `--compare-web-search` to compare built-in web search vs Perplexity with tool cost ($0.005/call) and total estimated cost. |
+| `scatter_plot.py`          | Standalone script that writes a static accuracy-vs-cost scatter PNG next to the script (requires **matplotlib**, listed in the project dev dependency group). |
 
 ## Subdirectories
 
@@ -54,3 +55,4 @@ Scripts and assets for comparing cost and speed across AI models when running th
 - **rich**: Console and table output.
 - **pydantic-ai**: Agent run and usage (`RunUsage`).
 - **genai-prices**: Actual cost from usage (`calc_price`, `Usage`); fallback to built-in `MODEL_PRICING_FALLBACK` when the model is not in the snapshot.
+- **matplotlib** (dev dependency): Used only by `scatter_plot.py` for chart output.

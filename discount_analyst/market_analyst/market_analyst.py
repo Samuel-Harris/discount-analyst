@@ -56,7 +56,7 @@ def create_market_analyst_agent(
         @agent.tool_plain(
             docstring_format="google", require_parameter_descriptions=True
         )
-        async def web_search(question: str) -> str:
+        async def web_search(question: str) -> str:  # pyright: ignore[reportUnusedFunction]
             """Search the general web for market data, industry analysis, and external context.
 
             Use this tool to find:
@@ -105,7 +105,7 @@ def create_market_analyst_agent(
         @agent.tool_plain(
             docstring_format="google", require_parameter_descriptions=True
         )
-        async def sec_filings_search(question: str) -> str:
+        async def sec_filings_search(question: str) -> str:  # pyright: ignore[reportUnusedFunction]
             """Search official SEC filings for authoritative company financial data.
 
             Use this tool to find OFFICIAL, AUDITED data from regulatory filings:
