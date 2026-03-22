@@ -11,7 +11,7 @@ Socratic questioning with mathematical ambiguity scoring. Replaces vague ideas w
 
 - Ask ONE question at a time — never batch multiple questions
 - Target the WEAKEST clarity dimension with each question
-- Gather codebase facts via `explore-medium` subagents BEFORE asking the user about them
+- Gather codebase facts via `explore` subagents BEFORE asking the user about them
 - Score ambiguity after every answer — display the score transparently
 - Do not proceed to execution until ambiguity ≤ threshold (default 0.2)
 - Allow early exit with a clear warning if ambiguity is still high
@@ -21,10 +21,10 @@ Socratic questioning with mathematical ambiguity scoring. Replaces vague ideas w
 
 1. Parse the user's idea from the conversation
 2. **Detect brownfield vs greenfield**:
-   - Use a Task with `subagent_type: "explore-medium"`: check if cwd has existing source code, package files, or git history
+   - Use a Task with `subagent_type: "explore"`: check if cwd has existing source code, package files, or git history
    - If source files exist AND the user's idea references modifying/extending something: **brownfield**
    - Otherwise: **greenfield**
-3. **For brownfield**: Use `explore-medium` subagent to map relevant codebase areas, store as `codebase_context`
+3. **For brownfield**: Use `explore` subagent to map relevant codebase areas, store as `codebase_context`
 4. **Create TodoWrite** to track interview progress (rounds, current phase)
 5. **Announce the interview** to the user:
 
@@ -115,7 +115,7 @@ When ambiguity ≤ threshold (or hard cap / early exit):
 
 1. Generate the specification from the full interview transcript
 2. **Run `date '+%Y-%m-%d_%H-%M-%S'` in the terminal** to get the current timestamp
-3. Write to `.cursor/interviews/{timestamp}_{slug}_interview.md` (e.g., `2026-03-04_14-22-10_auth-refactor_interview.md`)
+3. Write to `.cursor/artefacts/interviews/{timestamp}_{slug}_interview.md` (e.g., `2026-03-04_14-22-10_auth-refactor_interview.md`)
 
 ### Spec Structure
 
@@ -170,7 +170,7 @@ When ambiguity ≤ threshold (or hard cap / early exit):
 
 ## Technical Context
 
-{brownfield: relevant codebase findings from explore-medium subagent}
+{brownfield: relevant codebase findings from explore subagent}
 {greenfield: technology choices and constraints}
 
 ## Ontology (Key Entities)
