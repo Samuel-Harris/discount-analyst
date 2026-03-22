@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from rich.columns import Columns
-from rich.console import Console, Group as RichGroup
+from rich.console import Console, Group as RichGroup, RenderableType
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -146,19 +146,11 @@ def _fmt_pct(value: float) -> str:
     return f"{value:.1%}"
 
 
-def _run_has_usage(run: ModelRunOutput) -> bool:
-    """True if this run has stored cost/speed data."""
-    return (
-        run.elapsed_s is not None
-        and run.input_tokens is not None
-        and run.output_tokens is not None
-    )
-
-
 def _run_to_result(run: ModelRunOutput, cache_mode: str) -> RunResult | None:
-    """Build a RunResult from stored ModelRunOutput for cost calculation. Returns None if usage missing or model unknown."""
-    if not _run_has_usage(run):
-        return None
+    """Build a RunResult from stored ModelRunOutput for cost calculation.
+
+    Returns None if ``model_name`` is not a known :class:`ModelName` value.
+    """
     try:
         model_name = ModelName(run.model_name)
     except ValueError:
@@ -179,13 +171,12 @@ def _run_to_result(run: ModelRunOutput, cache_mode: str) -> RunResult | None:
 
 def _build_cost_speed_comparison_table(runs: list[LoadedRun]) -> Table | None:
     """Build a single table comparing cost, speed, and token usage across all models."""
-    runs_with_usage = [x for x in runs if _run_has_usage(x.run)]
-    if not runs_with_usage:
+    if not runs:
         return None
 
     rows: list[tuple[str, ...]] = []
     for loaded in sorted(
-        runs_with_usage, key=lambda x: (x.run.model_name, x.cache_mode, x.search_mode)
+        runs, key=lambda x: (x.run.model_name, x.cache_mode, x.search_mode)
     ):
         r = _run_to_result(loaded.run, loaded.cache_mode)
         if r is None:
@@ -248,13 +239,9 @@ def _build_cache_comparison_tables(runs: list[LoadedRun]) -> list[Table]:
         if not cache_runs or not no_cache_runs:
             continue
 
-        # Prefer runs that have usage; take latest of each if multiple
-        def with_usage(lst: list[LoadedRun]) -> list[LoadedRun]:
-            have = [x for x in lst if _run_has_usage(x.run)]
-            return have[-1:] if have else lst[-1:]
-
-        cache_pick = with_usage(cache_runs)
-        no_cache_pick = with_usage(no_cache_runs)
+        # Latest run of each mode if multiple
+        cache_pick = cache_runs[-1:]
+        no_cache_pick = no_cache_runs[-1:]
         rows: list[tuple[str, ...]] = []
         cache_result: RunResult | None = None
         no_cache_result: RunResult | None = None
@@ -350,12 +337,8 @@ def _build_web_search_comparison_tables(runs: list[LoadedRun]) -> list[Table]:
         if not perplexity_runs or not web_search_runs:
             continue
 
-        def with_usage(lst: list[LoadedRun]) -> list[LoadedRun]:
-            have = [x for x in lst if _run_has_usage(x.run)]
-            return have[-1:] if have else lst[-1:]
-
-        perplexity_pick = with_usage(perplexity_runs)
-        web_search_pick = with_usage(web_search_runs)
+        perplexity_pick = perplexity_runs[-1:]
+        web_search_pick = web_search_runs[-1:]
         rows: list[tuple[str, ...]] = []
         perplexity_result: RunResult | None = None
         web_search_result: RunResult | None = None
@@ -624,7 +607,7 @@ def _build_detail_panel(
     if show_reasoning and sa.reasoning:
         reasoning_text = f"\n[bold]Reasoning:[/bold]\n[dim]{sa.reasoning}[/dim]"
 
-    group_items: list = [Text.from_markup(content_parts[0])]
+    group_items: list[RenderableType] = [Text.from_markup(content_parts[0])]
     group_items.append(Columns([stock_panel, assumptions_panel], expand=False))
     if reasoning_text:
         group_items.append(Text.from_markup(reasoning_text))

@@ -39,8 +39,9 @@ class ModelName(StrEnum):
 class BaseAIModelConfig(BaseModel):
     """Common fields shared by all provider model configs.
 
-    Subclasses must narrow `provider` to a `Literal` type so Pydantic's
-    discriminated union (`AIModelConfig`) can resolve the correct subclass.
+    Each concrete config sets ``provider`` to a fixed string; the field is typed as
+    ``ProviderLiteral`` so Pyright accepts overrides while Pydantic's discriminated
+    union (``AIModelConfig``) still resolves the correct subclass.
     """
 
     provider: Provider
