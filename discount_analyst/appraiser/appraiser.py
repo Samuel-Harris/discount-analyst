@@ -3,9 +3,6 @@ from pydantic_ai.builtin_tools import AbstractBuiltinTool
 
 from discount_analyst.shared.ai.model import create_model_from_config
 from discount_analyst.shared.constants.providers import ProviderFeature
-from discount_analyst.shared.utils.agent_tools import (
-    add_required_feature_to_builtin_tools,
-)
 from discount_analyst.shared.config.ai_models_config import AIModelsConfig
 from discount_analyst.shared.constants.agents import AgentName
 from discount_analyst.appraiser.data_types import AppraiserOutput
@@ -18,7 +15,6 @@ def create_appraiser_agent(
     /,
     *,
     use_perplexity: bool = True,
-    use_mcp_financial_data: bool = True,
 ) -> Agent[None, AppraiserOutput]:
     """Create and configure the appraiser agent.
 
@@ -30,12 +26,6 @@ def create_appraiser_agent(
             ``WebSearchTool`` is used instead (model-native web search).
             When Perplexity is disabled, ``WebFetchTool`` is also added for
             Anthropic and Gemini so the agent can fetch content from URLs.
-        use_mcp_financial_data: When True (default), adds EODHD and FMP
-            MCPServerStreamableHTTP toolsets for financial data. pydantic-ai
-            manages the MCP connection and exposes tools natively, avoiding
-            the list_tools conversation overhead of the old MCPServerTool
-            builtin. Raises NotImplementedError if the provider does not
-            support the MCP feature.
 
     Returns:
         A configured Agent instance for making stock assumptions.
@@ -53,13 +43,6 @@ def create_appraiser_agent(
             builtin_tools.append(WebFetchTool())
     else:
         toolsets.append(create_perplexity_toolset(AgentName.APPRAISER))
-
-    if use_mcp_financial_data:
-        add_required_feature_to_builtin_tools(
-            required_feature=ProviderFeature.MCP,
-            toolsets=toolsets,
-            provider=ai_models_config.model.provider,
-        )
 
     agent = Agent(
         model=create_model_from_config(ai_models_config.model),

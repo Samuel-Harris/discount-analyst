@@ -12,16 +12,16 @@ The `scripts/` directory contains utility and entry-point scripts for the Discou
 | File                  | Description                                                                                                                                                                                                                                                             |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `md_docs_parser.py`   | Utility to split a large markdown document into a hierarchical directory structure of smaller markdown files.                                                                                                                                                           |
-| `run_dcf_analysis.py` | Main execution script that orchestrates the Appraiser AI agent and performs DCF valuation analysis. Writes output (agent + DCF) to `outputs/` in the same JSON format as `model_cost_comparison.py`.                                                                    |
-| `run_surveyor.py`     | Runs the Surveyor AI agent to discover cheap small-cap stock candidates in UK and US markets. Prints results to the terminal and writes output to `outputs/` as JSON (`{timestamp}-surveyor-{model}.json`).                                                             |
-| `shared.py`           | Shared data types (`ModelRunOutput`, `SurveyorRunOutput`, `RunResult`, `RunConfig`, etc.), constants, and helpers (`write_model_output`, `write_surveyor_output`, `calc_actual_cost`) used by `run_dcf_analysis.py`, `run_surveyor.py`, and `cost_comparison/` scripts. |
+| `agents/run_dcf_analysis.py` | Main execution script that orchestrates the Appraiser AI agent and performs DCF valuation analysis. Writes output (agent + DCF) to `outputs/` in the same JSON format as `model_cost_comparison.py`.                                                                    |
+| `agents/run_surveyor.py`     | Runs the Surveyor AI agent to discover cheap small-cap stock candidates in UK and US markets. Prints results to the terminal and writes output to `outputs/` as JSON (`{timestamp}-surveyor-{model}.json`).                                                             |
+| `shared.py`           | Shared data types (`ModelRunOutput`, `SurveyorRunOutput`, `RunResult`, `RunConfig`, etc.), constants, and helpers (`write_model_output`, `write_surveyor_output`, `calc_actual_cost`) used by `agents/run_dcf_analysis.py`, `agents/run_surveyor.py`, and `cost_comparison/` scripts. |
 
 ## Subdirectories
 
 | Directory          | Purpose                                                                                 |
 | ------------------ | --------------------------------------------------------------------------------------- |
+| `agents/`          | Entry points for the Surveyor and DCF / Appraiser workflows (`run_surveyor.py`, `run_dcf_analysis.py`). |
 | `cost_comparison/` | Model cost/speed comparison script (see `cost_comparison/AGENTS.md`).                   |
-| `mcp/`             | MCP tool fetching and curation (see `mcp/AGENTS.md`). React dashboard in `dashboards/`. |
 
 ## For AI Agents
 
@@ -34,7 +34,7 @@ The `scripts/` directory contains utility and entry-point scripts for the Discou
 ### Testing Requirements
 
 - Currently, there are no automated tests for these scripts. Test changes by running the scripts with sample inputs.
-- Example execution: `uv run python scripts/run_dcf_analysis.py --pair AAPL:path/to/report.md --risk-free-rate 0.045`. Use multiple `--pair` for batch runs: `--pair AAPL:reports/aapl.md --pair MSFT:reports/msft.md`.
+- Example execution: `uv run python scripts/agents/run_dcf_analysis.py --pair AAPL:path/to/report.md --risk-free-rate 0.045`. Use multiple `--pair` for batch runs: `--pair AAPL:reports/aapl.md --pair MSFT:reports/msft.md`.
 - Verify `md_docs_parser.py` by checking the generated directory and file structure.
 
 ### Common Patterns
@@ -51,7 +51,7 @@ The `scripts/` directory contains utility and entry-point scripts for the Discou
 - `discount_analyst.appraiser`: AI agent logic and prompt creation.
 - `discount_analyst.surveyor`: Surveyor agent for stock candidate discovery.
 - `discount_analyst.dcf_analysis`: Core financial calculation engine.
-- `scripts.shared`: `ModelRunOutput`, `SurveyorRunOutput`, `write_model_output`, `write_surveyor_output`, and cost helpers (used by `run_dcf_analysis.py`, `run_surveyor.py`, and `cost_comparison/`).
+- `scripts.shared`: `ModelRunOutput`, `SurveyorRunOutput`, `write_model_output`, `write_surveyor_output`, and cost helpers (used by `agents/run_dcf_analysis.py`, `agents/run_surveyor.py`, and `cost_comparison/`).
 
 ### External
 

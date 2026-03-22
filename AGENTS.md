@@ -12,7 +12,7 @@ The tool supports a seven-stage pipeline. Stages 1 and 5 are automated by AI age
 
 ### Stage 1 — Survey (automated)
 
-`scripts/run_surveyor.py` runs the `discount_analyst/surveyor/surveyor.py` agent, which uses AI-powered web research to screen for promising small-cap stocks across UK and US markets. It outputs a ranked list of candidates with tickers, exchange listings, market caps, and a rationale for each.
+`scripts/agents/run_surveyor.py` runs the `discount_analyst/surveyor/surveyor.py` agent, which uses AI-powered web research to screen for promising small-cap stocks across UK and US markets. It outputs a ranked list of candidates with tickers, exchange listings, market caps, and a rationale for each.
 
 ### Stage 2 — Shortlist (manual)
 
@@ -35,7 +35,7 @@ A separate AI agent then scores the resulting report against a detailed checklis
 
 ### Stage 5 — DCF valuation (automated)
 
-Stocks that pass the checklist are processed by `scripts/run_dcf_analysis.py`, which runs the `discount_analyst/appraiser/appraiser.py` agent to perform a full Discounted Cash Flow valuation. The agent consumes the research report produced in stage 4 and writes structured output (agent analysis + DCF figures) to `outputs/`.
+Stocks that pass the checklist are processed by `scripts/agents/run_dcf_analysis.py`, which runs the `discount_analyst/appraiser/appraiser.py` agent to perform a full Discounted Cash Flow valuation. The agent consumes the research report produced in stage 4 and writes structured output (agent analysis + DCF figures) to `outputs/`.
 
 ### Stage 6 — Evaluate (external AI)
 
@@ -63,7 +63,6 @@ The analyst reviews the DCF outputs and AI buy recommendations across all stocks
 | `discount_analyst/` | Core source code for the analysis engine (see `discount_analyst/AGENTS.md`) |
 | `scripts/`          | Entry point scripts for running analyses (see `scripts/AGENTS.md`)          |
 | `tests/`            | Comprehensive unit and integration tests (see `tests/AGENTS.md`)            |
-| `dashboards/`       | React web dashboards, including MCP Tool curation (see `dashboards/AGENTS.md`) |
 
 ## For AI Agents
 

@@ -37,10 +37,6 @@ class SurveyorArgs(BaseModel):
         default=False,
         description="Use model-native web search instead of Perplexity API",
     )
-    no_mcp: bool = Field(
-        default=False,
-        description="Disable EODHD/FMP MCP financial data tools (required for Google models)",
-    )
 
 
 def parse_args() -> SurveyorArgs:
@@ -59,16 +55,10 @@ def parse_args() -> SurveyorArgs:
         action="store_true",
         help="Use model-native web search instead of Perplexity API",
     )
-    parser.add_argument(
-        "--no-mcp",
-        action="store_true",
-        help="Disable EODHD/FMP MCP financial data tools (required for Google models)",
-    )
     raw = parser.parse_args()
     return SurveyorArgs(
         model=raw.model,
         no_perplexity=raw.no_perplexity,
-        no_mcp=raw.no_mcp,
     )
 
 
@@ -112,7 +102,6 @@ async def main() -> None:
     agent = create_surveyor_agent(
         ai_models_config,
         use_perplexity=not args.no_perplexity,
-        use_mcp_financial_data=not args.no_mcp,
     )
 
     console.log(f"Running Surveyor agent (model: {args.model})...")

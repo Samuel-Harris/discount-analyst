@@ -8,7 +8,6 @@ Usage:
     uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AAPL --research-report-path path/to/report.md
     uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AMZN --web-search built-in
     uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AMZN --web-search both
-    uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AMZN --no-mcp
 """
 
 from __future__ import annotations
@@ -112,11 +111,6 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--no-mcp",
-        action="store_true",
-        help="Disable MCP financial data tools (EODHD, FMP). Default: MCP enabled.",
-    )
-    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print which configs would run (model, cache mode, output file) and exit without running.",
@@ -218,14 +212,12 @@ async def run_one_model(
     cache_enabled: bool,
     *,
     use_web_search: bool = False,
-    use_mcp_financial_data: bool = True,
 ) -> RunResult:
     """Run the Market Analyst agent for one model and return timing + usage."""
     config = AIModelsConfig(model_name=model_name, cache_messages=cache_enabled)
     agent = create_appraiser_agent(
         config,
         use_perplexity=not use_web_search,
-        use_mcp_financial_data=use_mcp_financial_data,
     )
     usage_limits = config.model.usage_limits
 
@@ -353,7 +345,6 @@ async def main() -> None:
             user_prompt,
             cfg.cache_enabled,
             use_web_search=cfg.use_web_search,
-            use_mcp_financial_data=not args.no_mcp,
         )
         results.append(result)
         if result.error:
