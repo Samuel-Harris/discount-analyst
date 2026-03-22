@@ -36,15 +36,14 @@ class ModelName(StrEnum):
     GEMINI_3_1_PRO_PREVIEW = "gemini-3.1-pro-preview"
 
 
-class BaseAIModelConfig(BaseModel):
+class BaseAIModelConfig[P: Provider](BaseModel):
     """Common fields shared by all provider model configs.
 
-    Each concrete config sets ``provider`` to a fixed string; the field is typed as
-    ``ProviderLiteral`` so Pyright accepts overrides while Pydantic's discriminated
-    union (``AIModelConfig``) still resolves the correct subclass.
+    Each concrete config specializes ``P`` to ``Literal[Provider.X]`` so the ``provider``
+    field is a discriminant for ``AIModelConfig`` without invariant override errors.
     """
 
-    provider: Provider
+    provider: P
     model_name: str
     max_tokens: int
     usage_limits: UsageLimits | None = None
@@ -53,7 +52,7 @@ class BaseAIModelConfig(BaseModel):
         return self.provider in PROVIDERS_BY_FEATURE[feature]
 
 
-class AnthropicAIModelConfig(BaseAIModelConfig):
+class AnthropicAIModelConfig(BaseAIModelConfig[Literal[Provider.ANTHROPIC]]):
     """Anthropic model config with thinking, cache, and effort settings.
 
     Set `thinking_budget_tokens` for older models (4.5) that use fixed-budget extended thinking
@@ -93,7 +92,7 @@ class AnthropicAIModelConfig(BaseAIModelConfig):
         )
 
 
-class OpenAIAIModelConfig(BaseAIModelConfig):
+class OpenAIAIModelConfig(BaseAIModelConfig[Literal[Provider.OPENAI]]):
     """OpenAI model config with flex service tier, 24h prompt caching, and privacy settings.
 
     Set `reasoning_effort` for reasoning models (e.g. o-series, GPT-5.x) to trade cost for
@@ -117,7 +116,7 @@ class OpenAIAIModelConfig(BaseAIModelConfig):
         return settings
 
 
-class GoogleAIModelConfig(BaseAIModelConfig):
+class GoogleAIModelConfig(BaseAIModelConfig[Literal[Provider.GOOGLE]]):
     """Google model config with explicit thinking budget.
 
     Set `thinking_budget_tokens` to cap Gemini 3's reasoning cost. Without a budget the model
@@ -189,10 +188,4 @@ class AIModelsConfig(BaseModel):
                     max_tokens=_MAX_TOKENS,
                     thinking_budget_tokens=_MAX_THINKING_BUDGET_TOKENS,
                     usage_limits=UsageLimits(tool_calls_limit=_MAX_TOOL_CALLS),
-                )
-            case _:
-                raise ValueError(
-                    f"Unsupported AI model: '{self.model_name}'. "
-                    f"Supported models: {[e.value for e in ModelName]}. "
-                    "Please update the model_name to one of the supported options."
                 )
