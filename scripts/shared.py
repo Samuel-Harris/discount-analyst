@@ -13,7 +13,7 @@ from genai_prices import Usage, calc_price
 from discount_analyst.shared.config.ai_models_config import AIModelsConfig, ModelName
 from discount_analyst.appraiser.data_types import AppraiserOutput
 from discount_analyst.dcf_analysis.data_types import DCFAnalysisResult
-from discount_analyst.surveyor.data_types import SurveyorOutput
+from discount_analyst.shared.models.data_types import SurveyorOutput
 
 # Models that auto-cache (OpenAI, Gemini); no way to disable — skip when --caching disabled.
 AUTO_CACHE_MODELS: frozenset[ModelName] = frozenset(

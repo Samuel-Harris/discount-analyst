@@ -11,7 +11,7 @@ Central Pydantic models for financial data and agent outputs. Defines the canoni
 
 | File | Description |
 | --------- | ---------------------------- |
-| `data_types.py` | Pydantic models for `StockData`, `StockAssumptions`, `AppraiserOutput`, `StockCandidate`, and `SurveyorOutput`. Includes computed fields for derived financial metrics. |
+| `data_types.py` | Pydantic models for `StockData`, `StockAssumptions`, surveyor enums (`Exchange`, `Currency`, `StockCategory`), `KeyMetrics`, `SurveyorCandidate`, `SurveyorOutput`, and computed fields on `StockData`. |
 
 ## Subdirectories
 

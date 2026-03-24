@@ -9,23 +9,23 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 
 ## Key Files
 
-| File | Description |
-| --------- | ---------------------------- |
-| `dcf_analysis/dcf_analysis.py` | Implementation of the Discounted Cash Flow calculation engine. |
-| `appraiser/appraiser.py` | Factory for the Appraiser agent, including Perplexity-powered search tools. |
-| `surveyor/surveyor.py` | Factory for the Surveyor agent for discovering cheap small-cap stock candidates. |
-| `shared/models/data_types.py` | Central Pydantic models defining `StockData`, `StockAssumptions`, and analysis outputs. |
-| `shared/config/settings.py` | Application configuration using `pydantic-settings` for API keys and environment variables. |
-| `shared/config/ai_models_config.py` | Configuration for LLM models, including token budgets and thinking parameters. |
+| File                                | Description                                                                                                          |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `dcf_analysis/dcf_analysis.py`      | Implementation of the Discounted Cash Flow calculation engine.                                                       |
+| `appraiser/appraiser.py`            | Factory for the Appraiser agent, including Perplexity-powered search tools.                                          |
+| `surveyor/surveyor.py`              | Factory for the Surveyor agent for discovering cheap small-cap stock candidates.                                     |
+| `shared/models/data_types.py`       | Central Pydantic models: `StockData`, `StockAssumptions`, `SurveyorCandidate` / `SurveyorOutput`, and related enums. |
+| `shared/config/settings.py`         | Application configuration using `pydantic-settings` for API keys and environment variables.                          |
+| `shared/config/ai_models_config.py` | Configuration for LLM models, including token budgets and thinking parameters.                                       |
 
 ## Subdirectories
 
-| Directory | Purpose |
-| --------- | ----------------------------------------- |
-| `dcf_analysis/` | Core logic for financial calculations and DCF modeling. (see `dcf_analysis/AGENTS.md`) |
-| `appraiser/` | AI agent implementation using `pydantic-ai` for market research and assumption making. (see `appraiser/AGENTS.md`) |
-| `surveyor/` | AI agent for discovering cheap small-cap stock candidates in UK and US markets. (see `surveyor/AGENTS.md`) |
-| `shared/` | Common data structures, configuration, and utility modules used across the package. (see `shared/AGENTS.md`) |
+| Directory       | Purpose                                                                                                            |
+| --------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `dcf_analysis/` | Core logic for financial calculations and DCF modeling. (see `dcf_analysis/AGENTS.md`)                             |
+| `appraiser/`    | AI agent implementation using `pydantic-ai` for market research and assumption making. (see `appraiser/AGENTS.md`) |
+| `surveyor/`     | AI agent for discovering cheap small-cap stock candidates in UK and US markets. (see `surveyor/AGENTS.md`)         |
+| `shared/`       | Common data structures, configuration, and utility modules used across the package. (see `shared/AGENTS.md`)       |
 
 ## For AI Agents
 
