@@ -21,7 +21,7 @@ None.
 
 ### Working In This Directory
 
-- **Retry Configuration**: Adjust `_RETRY_EXCEPTIONS`, `RETRY_WAIT_MULTIPLIER`, and `stop_after_attempt` for different failure profiles.
+- **Retry Configuration**: Adjust `_http_transport_should_retry`, `RETRY_WAIT_MULTIPLIER`, and Tenacity `stop_after_attempt` for different failure profiles.
 - **Streaming**: `stream_with_retries` handles async generator retries (Tenacity cannot retry during iteration).
 
 ### Testing Requirements
@@ -33,6 +33,8 @@ None.
 
 - **AsyncTenacityTransport**: Uses pydantic-ai's `AsyncTenacityTransport` with `RetryConfig` and `wait_retry_after` for Retry-After header support.
 - **Exponential Backoff**: Fallback for errors without Retry-After header.
+- **OpenAI diagnostics**: On non-success responses from `api.openai.com`, `create_rate_limit_client()` logs a truncated response body to Logfire (`OpenAI HTTP error response`) before raising, so 400s from `/v1/responses` include the API's error JSON in traces. (408/429 are skipped to avoid spam during retries.) Error bodies are loaded with `await response.aread()` in `_AsyncTenacityTransportWithErrorBody` first — otherwise httpx async `Response.text` raises `ResponseNotRead` and Logfire would show `<response body unavailable>`. Logging falls back to decoding `response.content` if `.text` still fails.
+- **HTTP retries**: The Tenacity transport retries timeouts, connection errors, 408/429, and 5xx. **4xx other than 408/429 are not retried** (fail fast); retrying e.g. 400 Bad Request only delays failures and floods logs.
 
 ## Dependencies
 
@@ -46,5 +48,6 @@ None.
 - **pydantic-ai**: `AsyncTenacityTransport`, `RetryConfig`, `wait_retry_after`.
 - **tenacity**: Retry strategies.
 - **openai**: Exception types for rate limit and timeout handling.
+- **logfire**: Warning logs for OpenAI HTTP error bodies (when configured).
 
 <!-- MANUAL: Any manually added notes below this line are preserved on regeneration -->
