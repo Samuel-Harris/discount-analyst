@@ -9,11 +9,11 @@ The `surveyor` directory contains the implementation of the "Surveyor" AI agent.
 
 ## Key Files
 
-| File | Description |
-| --------- | ---------------------------- |
-| `surveyor.py` | Factory function for creating the Surveyor agent, including its search tools. |
-| `system_prompt.py` | System prompt for the Surveyor agent persona and instructions. |
-| `__init__.py` | Package initialization for the surveyor module. |
+| File               | Description                                                                   |
+| ------------------ | ----------------------------------------------------------------------------- |
+| `surveyor.py`      | Factory function for creating the Surveyor agent, including its search tools. |
+| `system_prompt.py` | System prompt for the Surveyor agent persona and instructions.                |
+| `__init__.py`      | Package initialization for the surveyor module.                               |
 
 ## Subdirectories
 
@@ -23,7 +23,7 @@ None.
 
 ### Working In This Directory
 
-- **Agent Tools**: Perplexity-backed tools (`web_search`, `sec_filings_search`) are provided by `discount_analyst.shared.tools.perplexity` via `create_perplexity_toolset(AgentName.SURVEYOR)` when `use_perplexity=True` (default). With `use_perplexity=False`, the agent uses pydantic-ai built-in `WebSearchTool` and, for providers that support it, `WebFetchTool`. Add or modify agent-specific descriptions in `shared/tools/descriptions.py`.
+- **Agent Tools**: By default (`use_perplexity=False`), the agent uses pydantic-ai built-in `WebSearchTool` and, for providers that support it, `WebFetchTool`. With `use_perplexity=True`, Perplexity-backed tools (`web_search`, `sec_filings_search`) are provided by `discount_analyst.shared.tools.perplexity` via `create_perplexity_toolset(AgentName.SURVEYOR)`. Add or modify agent-specific descriptions in `shared/tools/descriptions.py`.
 - **Prompts**: Keep the system persona in `system_prompt.py`.
 
 ### Testing Requirements

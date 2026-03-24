@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -26,6 +27,62 @@ AUTO_CACHE_MODELS: frozenset[ModelName] = frozenset(
         ModelName.GEMINI_3_1_PRO_PREVIEW,
     }
 )
+
+
+@dataclass(frozen=True, slots=True)
+class AgentCliDefaults:
+    """Default model and web-search backend for `scripts/agents/` entry points."""
+
+    model: ModelName
+    use_perplexity: bool
+
+
+DEFAULT_AGENT_CLI_DEFAULTS = AgentCliDefaults(
+    model=ModelName.GPT_5_1,
+    use_perplexity=False,
+)
+
+
+def add_agent_cli_model_argument(
+    parser: argparse.ArgumentParser,
+    *,
+    default_override: AgentCliDefaults | None = None,
+) -> None:
+    """Register ``--model`` using shared agent CLI defaults."""
+    resolved_defaults = default_override or DEFAULT_AGENT_CLI_DEFAULTS
+    parser.add_argument(
+        "--model",
+        type=ModelName,
+        choices=[e.value for e in ModelName],
+        default=resolved_defaults.model,
+        help=f"AI model to use (default: {resolved_defaults.model})",
+    )
+
+
+def add_agent_cli_web_search_arguments(
+    parser: argparse.ArgumentParser,
+    *,
+    default_override: AgentCliDefaults | None = None,
+) -> None:
+    """Register ``--perplexity`` / ``--no-perplexity`` (mutually exclusive).
+
+    Namespace attribute: ``use_perplexity``.
+    """
+    resolved_defaults = default_override or DEFAULT_AGENT_CLI_DEFAULTS
+    parser.set_defaults(use_perplexity=resolved_defaults.use_perplexity)
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--perplexity",
+        action="store_true",
+        dest="use_perplexity",
+        help="Use Perplexity API for web_search and sec_filings_search.",
+    )
+    group.add_argument(
+        "--no-perplexity",
+        action="store_false",
+        dest="use_perplexity",
+        help="Use model-native web search tools (default).",
+    )
 
 
 @dataclass(frozen=True)

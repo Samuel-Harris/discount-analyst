@@ -25,8 +25,11 @@ from discount_analyst.shared.http.rate_limit_client import stream_with_retries
 from discount_analyst.shared.models.data_types import SurveyorCandidate
 
 from scripts.shared import (
+    DEFAULT_AGENT_CLI_DEFAULTS,
     ModelRunOutput,
     TurnUsage,
+    add_agent_cli_model_argument,
+    add_agent_cli_web_search_arguments,
     extract_turn_usage,
     write_model_output,
 )
@@ -56,6 +59,7 @@ class StockResearchDir:
 class SharedArgs:
     risk_free_rate: float
     model: ModelName
+    use_perplexity: bool
 
 
 def _validate_stock_dir(raw: str, parser: argparse.ArgumentParser) -> StockResearchDir:
@@ -106,13 +110,8 @@ def parse_args() -> tuple[list[StockResearchDir], SharedArgs]:
         required=True,
         help="Risk-free rate as a decimal (e.g., 0.045)",
     )
-    parser.add_argument(
-        "--model",
-        type=ModelName,
-        choices=[e.value for e in ModelName],
-        default=ModelName.CLAUDE_SONNET_4_6,
-        help=f"AI model to use (default: {ModelName.CLAUDE_SONNET_4_6})",
-    )
+    add_agent_cli_model_argument(parser)
+    add_agent_cli_web_search_arguments(parser)
 
     args = parser.parse_args()
 
@@ -123,7 +122,11 @@ def parse_args() -> tuple[list[StockResearchDir], SharedArgs]:
         )
 
     stock_dirs = [_validate_stock_dir(d, parser) for d in args.stock_dirs]
-    shared = SharedArgs(risk_free_rate=args.risk_free_rate, model=args.model)
+    shared = SharedArgs(
+        risk_free_rate=args.risk_free_rate,
+        model=args.model,
+        use_perplexity=args.use_perplexity,
+    )
     return stock_dirs, shared
 
 
@@ -183,7 +186,7 @@ async def run_agent(
     args: StockRunArgs,
     research_report_content: ResearchReport,
     *,
-    use_perplexity: bool = True,
+    use_perplexity: bool = DEFAULT_AGENT_CLI_DEFAULTS.use_perplexity,
 ) -> AgentRunResult:
     """Run the Market Analyst agent and return output with usage stats."""
     ai_models_config = AIModelsConfig(model_name=args.model)
@@ -411,7 +414,9 @@ async def run_one_stock(stock: StockResearchDir, shared: SharedArgs) -> None:
         f"(using {args.model} model)..."
     )
     console.log("Running agent...")
-    agent_result = await run_agent(args, research_report_content)
+    agent_result = await run_agent(
+        args, research_report_content, use_perplexity=shared.use_perplexity
+    )
 
     display_agent_output(agent_result.output)
     dcf_result, dcf_error = run_dcf_and_display(args, agent_result.output)

@@ -9,13 +9,13 @@ The `appraiser` directory contains the implementation of the "Appraiser" AI agen
 
 ## Key Files
 
-| File               | Description                                                                                |
-| ------------------ | ------------------------------------------------------------------------------------------ |
+| File               | Description                                                                                                                                         |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `appraiser.py`     | Factory for the Appraiser agent (`create_appraiser_agent`) and `create_appraiser_user_prompt` (research report + `SurveyorCandidate` for DCF runs). |
-| `system_prompt.py` | The expert financial analyst persona and step-by-step analysis instructions for the agent. |
-| `user_prompt.py`   | `create_user_prompt`: requires ticker, research report body, and `SurveyorCandidate` JSON context. |
-| `data_types.py`    | `AppraiserOutput` (agent structured output: `StockData` + `StockAssumptions`).            |
-| `__init__.py`      | Package initialization for the appraiser module.                                           |
+| `system_prompt.py` | The expert financial analyst persona and step-by-step analysis instructions for the agent.                                                          |
+| `user_prompt.py`   | `create_user_prompt`: requires ticker, research report body, and `SurveyorCandidate` JSON context.                                                  |
+| `data_types.py`    | `AppraiserOutput` (agent structured output: `StockData` + `StockAssumptions`).                                                                      |
+| `__init__.py`      | Package initialization for the appraiser module.                                                                                                    |
 
 ## Subdirectories
 
@@ -25,7 +25,7 @@ None.
 
 ### Working In This Directory
 
-- **Agent Tools**: Perplexity-backed tools (`web_search`, `sec_filings_search`) are provided by `discount_analyst.shared.tools.perplexity` via `create_perplexity_toolset(AgentName.APPRAISER)` when `use_perplexity=True` (default). With `use_perplexity=False`, the agent uses pydantic-ai built-in `WebSearchTool` and, for providers that support it, `WebFetchTool`. Add or modify agent-specific descriptions in `shared/tools/descriptions.py`.
+- **Agent Tools**: By default (`use_perplexity=False`), the agent uses pydantic-ai built-in `WebSearchTool` and, for providers that support it, `WebFetchTool`. With `use_perplexity=True`, Perplexity-backed tools (`web_search`, `sec_filings_search`) are provided by `discount_analyst.shared.tools.perplexity` via `create_perplexity_toolset(AgentName.APPRAISER)`. Add or modify agent-specific descriptions in `shared/tools/descriptions.py`.
 - **Prompts**: Keep the system persona in `system_prompt.py` and the user-facing instruction logic in `user_prompt.py`.
 
 ### Testing Requirements

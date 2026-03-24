@@ -12,7 +12,7 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 | File                                | Description                                                                                                          |
 | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `dcf_analysis/dcf_analysis.py`      | Implementation of the Discounted Cash Flow calculation engine.                                                       |
-| `appraiser/appraiser.py`            | Factory for the Appraiser agent, including Perplexity-powered search tools.                                          |
+| `appraiser/appraiser.py`            | Factory for the Appraiser agent with model-native or optional Perplexity-backed search tools.                        |
 | `surveyor/surveyor.py`              | Factory for the Surveyor agent for discovering cheap small-cap stock candidates.                                     |
 | `shared/models/data_types.py`       | Central Pydantic models: `StockData`, `StockAssumptions`, `SurveyorCandidate` / `SurveyorOutput`, and related enums. |
 | `shared/config/settings.py`         | Application configuration using `pydantic-settings` for API keys and environment variables.                          |

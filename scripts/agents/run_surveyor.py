@@ -6,7 +6,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -16,7 +16,13 @@ from discount_analyst.shared.http.rate_limit_client import stream_with_retries
 from discount_analyst.shared.models.data_types import SurveyorOutput
 from discount_analyst.surveyor.surveyor import create_surveyor_agent
 from discount_analyst.surveyor.user_prompt import USER_PROMPT
-from scripts.shared import SurveyorRunOutput, extract_turn_usage, write_surveyor_output
+from scripts.shared import (
+    SurveyorRunOutput,
+    add_agent_cli_model_argument,
+    add_agent_cli_web_search_arguments,
+    extract_turn_usage,
+    write_surveyor_output,
+)
 
 from scripts.utils.setup_logfire import setup_logfire
 
@@ -29,36 +35,20 @@ console = Console()
 
 
 class SurveyorArgs(BaseModel):
-    model: ModelName = Field(
-        default=ModelName.CLAUDE_SONNET_4_6,
-        description="AI model to use",
-    )
-    no_perplexity: bool = Field(
-        default=False,
-        description="Use model-native web search instead of Perplexity API",
-    )
+    model: ModelName
+    use_perplexity: bool
 
 
 def parse_args() -> SurveyorArgs:
     parser = argparse.ArgumentParser(
         description="Run the Surveyor agent to discover cheap small-cap stock candidates."
     )
-    parser.add_argument(
-        "--model",
-        type=ModelName,
-        choices=[e.value for e in ModelName],
-        default=ModelName.CLAUDE_SONNET_4_6,
-        help=f"AI model to use (default: {ModelName.CLAUDE_SONNET_4_6})",
-    )
-    parser.add_argument(
-        "--no-perplexity",
-        action="store_true",
-        help="Use model-native web search instead of Perplexity API",
-    )
+    add_agent_cli_model_argument(parser)
+    add_agent_cli_web_search_arguments(parser)
     raw = parser.parse_args()
     return SurveyorArgs(
         model=raw.model,
-        no_perplexity=raw.no_perplexity,
+        use_perplexity=raw.use_perplexity,
     )
 
 
@@ -101,7 +91,7 @@ async def main() -> None:
     ai_models_config = AIModelsConfig(model_name=args.model)
     agent = create_surveyor_agent(
         ai_models_config,
-        use_perplexity=not args.no_perplexity,
+        use_perplexity=args.use_perplexity,
     )
 
     console.log(f"Running Surveyor agent (model: {args.model})...")

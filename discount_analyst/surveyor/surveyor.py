@@ -17,14 +17,14 @@ def create_surveyor_agent(
     ai_models_config: AIModelsConfig,
     /,
     *,
-    use_perplexity: bool = True,
+    use_perplexity: bool = False,
 ) -> Agent[None, SurveyorOutput]:
     """Create and configure the surveyor agent.
 
     Args:
         ai_models_config: Model and caching configuration.
-        use_perplexity: When True (default), registers Perplexity-backed
-            ``web_search`` and ``sec_filings_search`` tools. When False,
+        use_perplexity: When True, registers Perplexity-backed
+            ``web_search`` and ``sec_filings_search`` tools. When False (default),
             those tools are omitted and pydantic-ai's built-in
             ``WebSearchTool`` is used instead (model-native web search).
             When Perplexity is disabled, ``WebFetchTool`` is also added for
