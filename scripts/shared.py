@@ -7,12 +7,13 @@ from pathlib import Path
 from typing import Literal
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic_ai.messages import ModelMessage, ModelResponse
 
 from genai_prices import Usage, calc_price
 
-from discount_analyst.shared.config.ai_models_config import AIModelsConfig, ModelName
 from discount_analyst.appraiser.data_types import AppraiserOutput
 from discount_analyst.dcf_analysis.data_types import DCFAnalysisResult
+from discount_analyst.shared.config.ai_models_config import AIModelsConfig, ModelName
 from discount_analyst.shared.models.data_types import SurveyorOutput
 
 # Models that auto-cache (OpenAI, Gemini); no way to disable — skip when --caching disabled.
@@ -79,6 +80,7 @@ class ModelRunOutput(BaseModel):
     cache_write_tokens: int
     cache_read_tokens: int
     tool_calls: int
+    turn_usage: list["TurnUsage"] = Field(default_factory=list)
 
 
 class SurveyorRunOutput(BaseModel):
@@ -88,7 +90,60 @@ class SurveyorRunOutput(BaseModel):
     elapsed_s: float
     input_tokens: int
     output_tokens: int
+    turn_usage: list["TurnUsage"] = Field(default_factory=list)
     output: SurveyorOutput
+
+
+class TurnUsage(BaseModel):
+    """Usage stats for one model-response turn within a run."""
+
+    turn: int = Field(ge=1)
+    input_tokens: int = Field(ge=0)
+    output_tokens: int = Field(ge=0)
+    cache_write_tokens: int = Field(default=0, ge=0)
+    cache_read_tokens: int = Field(default=0, ge=0)
+    total_tokens: int = Field(ge=0)
+    cumulative_input_tokens: int = Field(ge=0)
+    cumulative_output_tokens: int = Field(ge=0)
+    cumulative_total_tokens: int = Field(ge=0)
+
+
+def extract_turn_usage(messages: list[ModelMessage]) -> list[TurnUsage]:
+    """Extract per-turn usage by walking ModelResponse messages in order."""
+    turns: list[TurnUsage] = []
+    cumulative_input = 0
+    cumulative_output = 0
+    cumulative_total = 0
+
+    for message in messages:
+        if not isinstance(message, ModelResponse):
+            continue
+
+        usage = message.usage
+        input_tokens = getattr(usage, "input_tokens", 0)
+        output_tokens = getattr(usage, "output_tokens", 0)
+        cache_write_tokens = getattr(usage, "cache_write_tokens", 0)
+        cache_read_tokens = getattr(usage, "cache_read_tokens", 0)
+        total_tokens = getattr(usage, "total_tokens", input_tokens + output_tokens)
+
+        cumulative_input += input_tokens
+        cumulative_output += output_tokens
+        cumulative_total += total_tokens
+        turns.append(
+            TurnUsage(
+                turn=len(turns) + 1,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cache_write_tokens=cache_write_tokens,
+                cache_read_tokens=cache_read_tokens,
+                total_tokens=total_tokens,
+                cumulative_input_tokens=cumulative_input,
+                cumulative_output_tokens=cumulative_output,
+                cumulative_total_tokens=cumulative_total,
+            )
+        )
+
+    return turns
 
 
 def write_surveyor_output(

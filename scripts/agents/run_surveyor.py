@@ -16,7 +16,7 @@ from discount_analyst.shared.http.rate_limit_client import stream_with_retries
 from discount_analyst.shared.models.data_types import SurveyorOutput
 from discount_analyst.surveyor.surveyor import create_surveyor_agent
 from discount_analyst.surveyor.user_prompt import USER_PROMPT
-from scripts.shared import SurveyorRunOutput, write_surveyor_output
+from scripts.shared import SurveyorRunOutput, extract_turn_usage, write_surveyor_output
 
 from scripts.utils.setup_logfire import setup_logfire
 
@@ -116,12 +116,20 @@ async def main() -> None:
             console.log(f"Streaming: {message}")
         output = await result.get_output()
         usage = result.usage()
+        turn_usage = extract_turn_usage(result.all_messages())
 
     elapsed_s = time.perf_counter() - start
     console.log(
         f"Completed in {elapsed_s:.1f}s "
         f"(input: {usage.input_tokens}, output: {usage.output_tokens} tokens)"
     )
+    for turn in turn_usage:
+        console.log(
+            f"Turn {turn.turn} usage: in={turn.input_tokens} "
+            f"out={turn.output_tokens} total={turn.total_tokens} "
+            f"(cum_in={turn.cumulative_input_tokens} "
+            f"cum_out={turn.cumulative_output_tokens})"
+        )
 
     display_output(output)
 
@@ -130,6 +138,7 @@ async def main() -> None:
         elapsed_s=elapsed_s,
         input_tokens=usage.input_tokens,
         output_tokens=usage.output_tokens,
+        turn_usage=turn_usage,
         output=output,
     )
     timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
