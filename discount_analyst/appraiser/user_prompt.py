@@ -1,9 +1,29 @@
-def create_user_prompt(*, ticker: str, research_report: str | None = None) -> str:
+from discount_analyst.shared.models.data_types import SurveyorCandidate
+
+
+def create_user_prompt(
+    *,
+    ticker: str,
+    research_report: str,
+    surveyor_candidate: SurveyorCandidate,
+) -> str:
+    candidate_json = surveyor_candidate.model_dump_json(indent=2)
+
     return f"""
 Please analyze **{ticker}** and determine the DCF valuation assumptions.
 
 Step 1: Find the current financial data for {ticker} (StockData).
 Step 2: Determine appropriate future assumptions (StockAssumptions).
+
+<SurveyorCandidate>
+{candidate_json}
+</SurveyorCandidate>
+
+The SurveyorCandidate JSON above is structured screening context from an earlier discovery pass. Use it alongside the research report to:
+- Align with the suggested value vs growth category and sector/industry framing
+- Weigh the stated rationale and key metrics (where present) against your own StockData and assumptions
+- Treat red_flags and data_gaps as hypotheses to validate or refine — not as ground truth
+- Prefer the deep research report and live data for numbers; use this block for consistency with prior screening narrative
 
 <ResearchReport>
 {research_report}

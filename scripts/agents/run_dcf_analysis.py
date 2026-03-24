@@ -1,7 +1,5 @@
-from discount_analyst.shared.config.ai_models_config import ModelName
-import asyncio
 import argparse
-import re
+import asyncio
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -12,17 +10,27 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from discount_analyst.shared.http.rate_limit_client import stream_with_retries
-
-from scripts.shared import ModelRunOutput, write_model_output
-from scripts.utils.setup_logfire import setup_logfire
-from discount_analyst.appraiser.appraiser import create_appraiser_agent
-from discount_analyst.shared.config.ai_models_config import AIModelsConfig
-from discount_analyst.appraiser.user_prompt import create_user_prompt
-from discount_analyst.dcf_analysis.data_types import DCFAnalysisParameters
-from discount_analyst.dcf_analysis.dcf_analysis import DCFAnalysis
+from discount_analyst.appraiser.appraiser import (
+    create_appraiser_agent,
+    create_appraiser_user_prompt,
+)
 from discount_analyst.appraiser.data_types import AppraiserOutput
-from discount_analyst.dcf_analysis.data_types import DCFAnalysisResult
+from discount_analyst.dcf_analysis.data_types import (
+    DCFAnalysisParameters,
+    DCFAnalysisResult,
+)
+from discount_analyst.dcf_analysis.dcf_analysis import DCFAnalysis
+from discount_analyst.shared.config.ai_models_config import AIModelsConfig, ModelName
+from discount_analyst.shared.http.rate_limit_client import stream_with_retries
+from discount_analyst.shared.models.data_types import SurveyorCandidate
+
+from scripts.shared import (
+    ModelRunOutput,
+    TurnUsage,
+    extract_turn_usage,
+    write_model_output,
+)
+from scripts.utils.setup_logfire import setup_logfire
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _OUTPUTS_DIR = _PROJECT_ROOT / "outputs"
@@ -33,14 +41,15 @@ console = Console()
 
 ResearchReport = NewType("ResearchReport", str)
 
-# Ticker: 1-10 chars, starts with A-Z, only letters, digits, dots (e.g. AAPL, BRK.B)
-_TICKER_RE = re.compile(r"^[A-Z][A-Z0-9.]{0,9}$")
+DEEP_RESEARCH_FILENAME = "deep-research.md"
+SURVEYOR_REPORT_FILENAME = "surveyor-report.json"
 
 
 @dataclass(frozen=True)
-class TickerReportPair:
-    ticker: str
-    research_report_path: str
+class StockResearchDir:
+    """A directory containing deep-research.md and surveyor-report.json."""
+
+    dir_path: Path
 
 
 @dataclass
@@ -49,65 +58,47 @@ class SharedArgs:
     model: ModelName
 
 
-def _validate_pair(raw: str, parser: argparse.ArgumentParser) -> TickerReportPair:
-    """Parse and validate a TICKER:PATH pair. Catches common swap mistakes."""
-    if ":" not in raw:
-        parser.error(
-            f"Invalid pair '{raw}': expected TICKER:PATH (e.g. AAPL:reports/aapl.md). "
-            "Use a colon to separate ticker from path."
-        )
-    parts = raw.split(":", 1)
-    if len(parts) != 2:
-        parser.error(f"Invalid pair '{raw}': expected exactly one colon.")
-    first, second = parts[0].strip(), parts[1].strip()
-    if not first or not second:
-        parser.error(f"Invalid pair '{raw}': ticker and path must be non-empty.")
+def _validate_stock_dir(raw: str, parser: argparse.ArgumentParser) -> StockResearchDir:
+    """Resolve a stock folder and ensure required files exist."""
+    path = Path(raw).expanduser().resolve()
+    if not path.is_dir():
+        parser.error(f"Invalid --dir '{raw}': not a directory (resolved: {path}).")
 
-    # Detect likely swap: first part looks like a path
-    if "/" in first or "\\" in first or first.endswith(".md"):
+    md = path / DEEP_RESEARCH_FILENAME
+    sj = path / SURVEYOR_REPORT_FILENAME
+    if not md.is_file():
         parser.error(
-            f"Invalid pair '{raw}': the first part looks like a path. "
-            f"Did you mean --pair {second}:{first}? Format is TICKER:PATH (e.g. AAPL:reports/aapl.md)."
+            f"Invalid --dir '{raw}': missing {DEEP_RESEARCH_FILENAME!r} "
+            f"(expected at {md})."
         )
-
-    # Second part must look like a path and end in .md
-    if not second.endswith(".md"):
-        hint = ""
-        if _TICKER_RE.match(second):
-            hint = (
-                " The second part looks like a ticker; did you swap ticker and path? "
-            )
+    if md.suffix.lower() != ".md":
         parser.error(
-            f"Invalid pair '{raw}': path must be a .md file. Got '{second}'.{hint}"
-            "Format is TICKER:PATH (e.g. AAPL:reports/aapl.md)."
+            f"Invalid --dir '{raw}': research file must be markdown (.md). Got {md}."
+        )
+    if not sj.is_file():
+        parser.error(
+            f"Invalid --dir '{raw}': missing {SURVEYOR_REPORT_FILENAME!r} "
+            f"(expected at {sj})."
         )
 
-    # First part must look like a ticker (uppercase, alphanumeric + dots)
-    if not _TICKER_RE.match(first):
-        parser.error(
-            f"Invalid pair '{raw}': ticker must be 1-10 chars, start with A-Z, "
-            f"only A-Z, 0-9, dots (e.g. AAPL, BRK.B). Got '{first}'."
-        )
-
-    path = Path(second)
-    if not path.exists():
-        parser.error(
-            f"Invalid pair '{raw}': research report file not found at '{second}'."
-        )
-
-    return TickerReportPair(ticker=first, research_report_path=second)
+    return StockResearchDir(dir_path=path)
 
 
-def parse_args() -> tuple[list[TickerReportPair], SharedArgs]:
+def parse_args() -> tuple[list[StockResearchDir], SharedArgs]:
     parser = argparse.ArgumentParser(
         description="Run Market Analyst Agent and DCF Analysis"
     )
     parser.add_argument(
-        "--pair",
+        "--dir",
         action="append",
-        metavar="TICKER:PATH",
+        dest="stock_dirs",
+        metavar="PATH",
         required=True,
-        help="Ticker and research report path (repeatable). E.g. --pair AAPL:reports/aapl.md --pair MSFT:reports/msft.md",
+        help=(
+            "Stock research folder (repeatable). Each directory must contain "
+            f"{DEEP_RESEARCH_FILENAME!r} and {SURVEYOR_REPORT_FILENAME!r}. "
+            "Ticker is taken from the surveyor JSON."
+        ),
     )
     parser.add_argument(
         "--risk-free-rate",
@@ -131,9 +122,9 @@ def parse_args() -> tuple[list[TickerReportPair], SharedArgs]:
             f"Got {args.risk_free_rate}. Did you pass a percentage? Use 0.0373 for 3.73%."
         )
 
-    pairs = [_validate_pair(p, parser) for p in args.pair]
+    stock_dirs = [_validate_stock_dir(d, parser) for d in args.stock_dirs]
     shared = SharedArgs(risk_free_rate=args.risk_free_rate, model=args.model)
-    return pairs, shared
+    return stock_dirs, shared
 
 
 def load_research_report(path: Path) -> ResearchReport:
@@ -147,6 +138,11 @@ def load_research_report(path: Path) -> ResearchReport:
     return content
 
 
+def load_surveyor_candidate(path: Path) -> SurveyorCandidate:
+    """Parse ``surveyor-report.json`` as a single ``SurveyorCandidate``."""
+    return SurveyorCandidate.model_validate_json(path.read_text())
+
+
 @dataclass
 class AgentRunResult:
     output: AppraiserOutput
@@ -156,30 +152,35 @@ class AgentRunResult:
     cache_write_tokens: int
     cache_read_tokens: int
     tool_calls: int
+    turn_usage: list[TurnUsage]
 
 
 @dataclass
-class PairRunArgs:
-    """Args for running analysis on a single ticker/report pair."""
+class StockRunArgs:
+    """Args for running analysis on a single stock research directory."""
 
-    ticker: str
-    research_report_path: str
+    stock_dir: Path
+    surveyor_candidate: SurveyorCandidate
     risk_free_rate: float
     model: ModelName
 
 
-def _pair_run_args(pair: TickerReportPair, shared: SharedArgs) -> PairRunArgs:
-    """Build run args for a single pair (used by run_agent, run_dcf_and_display, save_run_output)."""
-    return PairRunArgs(
-        ticker=pair.ticker,
-        research_report_path=pair.research_report_path,
+def _stock_run_args(
+    stock: StockResearchDir,
+    candidate: SurveyorCandidate,
+    shared: SharedArgs,
+) -> StockRunArgs:
+    """Build run args for one stock folder (run_agent, DCF, save_run_output)."""
+    return StockRunArgs(
+        stock_dir=stock.dir_path,
+        surveyor_candidate=candidate,
         risk_free_rate=shared.risk_free_rate,
         model=shared.model,
     )
 
 
 async def run_agent(
-    args: PairRunArgs,
+    args: StockRunArgs,
     research_report_content: ResearchReport,
     *,
     use_perplexity: bool = True,
@@ -187,8 +188,9 @@ async def run_agent(
     """Run the Market Analyst agent and return output with usage stats."""
     ai_models_config = AIModelsConfig(model_name=args.model)
     agent = create_appraiser_agent(ai_models_config, use_perplexity=use_perplexity)
-    user_prompt = create_user_prompt(
-        ticker=args.ticker, research_report=research_report_content
+    user_prompt = create_appraiser_user_prompt(
+        research_report=research_report_content,
+        surveyor_candidate=args.surveyor_candidate,
     )
 
     start = time.perf_counter()
@@ -201,6 +203,15 @@ async def run_agent(
             console.log(f"Streaming: {message}")
         agent_output = await result.get_output()
         usage = result.usage()
+        turn_usage = extract_turn_usage(result.all_messages())
+
+    for turn in turn_usage:
+        console.log(
+            f"Turn {turn.turn} usage: in={turn.input_tokens} "
+            f"out={turn.output_tokens} total={turn.total_tokens} "
+            f"(cum_in={turn.cumulative_input_tokens} "
+            f"cum_out={turn.cumulative_output_tokens})"
+        )
     elapsed_s = time.perf_counter() - start
 
     return AgentRunResult(
@@ -211,6 +222,7 @@ async def run_agent(
         cache_write_tokens=getattr(usage, "cache_write_tokens", 0),
         cache_read_tokens=getattr(usage, "cache_read_tokens", 0),
         tool_calls=getattr(usage, "tool_calls", 0),
+        turn_usage=turn_usage,
     )
 
 
@@ -280,7 +292,7 @@ def display_agent_output(output: AppraiserOutput) -> None:
 
 
 def run_dcf_and_display(
-    args: PairRunArgs, agent_output: AppraiserOutput
+    args: StockRunArgs, agent_output: AppraiserOutput
 ) -> tuple[DCFAnalysisResult | None, str | None]:
     """Run DCF analysis and display results. Returns (dcf_result, dcf_error)."""
     stock_data = agent_output.stock_data
@@ -356,7 +368,7 @@ def run_dcf_and_display(
 
 
 def save_run_output(
-    args: PairRunArgs,
+    args: StockRunArgs,
     agent_output: AppraiserOutput,
     agent_result: AgentRunResult,
     dcf_result: DCFAnalysisResult | None,
@@ -364,7 +376,7 @@ def save_run_output(
 ) -> Path:
     """Build ModelRunOutput, write to outputs/, and return the path."""
     run_output = ModelRunOutput(
-        ticker=args.ticker,
+        ticker=args.surveyor_candidate.ticker,
         model_name=args.model.value,
         risk_free_rate=args.risk_free_rate,
         appraiser=agent_output,
@@ -376,6 +388,7 @@ def save_run_output(
         cache_write_tokens=agent_result.cache_write_tokens,
         cache_read_tokens=agent_result.cache_read_tokens,
         tool_calls=agent_result.tool_calls,
+        turn_usage=agent_result.turn_usage,
     )
     timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
     return write_model_output(
@@ -385,13 +398,17 @@ def save_run_output(
     )
 
 
-async def run_one_pair(pair: TickerReportPair, shared: SharedArgs) -> None:
-    """Run analysis for a single ticker/report pair."""
-    args = _pair_run_args(pair, shared)
-    research_report_content = load_research_report(Path(args.research_report_path))
+async def run_one_stock(stock: StockResearchDir, shared: SharedArgs) -> None:
+    """Run analysis for a single stock research directory."""
+    deep_research_path = stock.dir_path / DEEP_RESEARCH_FILENAME
+    surveyor_report_path = stock.dir_path / SURVEYOR_REPORT_FILENAME
+    candidate = load_surveyor_candidate(surveyor_report_path)
+    args = _stock_run_args(stock, candidate, shared)
+    research_report_content = load_research_report(deep_research_path)
 
     console.log(
-        f"Initializing Appraiser Agent for {args.ticker} (using {args.model} model)..."
+        f"Initializing Appraiser Agent for {args.surveyor_candidate.ticker} "
+        f"(using {args.model} model)..."
     )
     console.log("Running agent...")
     agent_result = await run_agent(args, research_report_content)
@@ -406,12 +423,12 @@ async def run_one_pair(pair: TickerReportPair, shared: SharedArgs) -> None:
 
 
 async def main():
-    pairs, shared = parse_args()
+    stock_dirs, shared = parse_args()
 
-    for i, pair in enumerate(pairs):
-        if len(pairs) > 1 and i > 0:
-            console.print("\n[bold]─── Next pair ───[/bold]\n")
-        await run_one_pair(pair, shared)
+    for i, stock in enumerate(stock_dirs):
+        if len(stock_dirs) > 1 and i > 0:
+            console.print("\n[bold]─── Next stock ───[/bold]\n")
+        await run_one_stock(stock, shared)
 
 
 if __name__ == "__main__":

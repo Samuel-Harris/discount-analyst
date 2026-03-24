@@ -11,10 +11,10 @@ The `appraiser` directory contains the implementation of the "Appraiser" AI agen
 
 | File               | Description                                                                                |
 | ------------------ | ------------------------------------------------------------------------------------------ |
-| `appraiser.py`     | Factory function for creating the Appraiser agent, including its search tools.             |
+| `appraiser.py`     | Factory for the Appraiser agent (`create_appraiser_agent`) and `create_appraiser_user_prompt` (research report + `SurveyorCandidate` for DCF runs). |
 | `system_prompt.py` | The expert financial analyst persona and step-by-step analysis instructions for the agent. |
-| `user_prompt.py`   | Helper for generating dynamic user prompts that can include research report context.       |
-| `data_types.py`    | Internal Pydantic models for the appraiser module (e.g., `SearchResult`).                  |
+| `user_prompt.py`   | `create_user_prompt`: requires ticker, research report body, and `SurveyorCandidate` JSON context. |
+| `data_types.py`    | `AppraiserOutput` (agent structured output: `StockData` + `StockAssumptions`).            |
 | `__init__.py`      | Package initialization for the appraiser module.                                           |
 
 ## Subdirectories
@@ -36,13 +36,14 @@ None.
 ### Common Patterns
 
 - **Search Tools**: Uses `AsyncPerplexity` with `search_mode="web"` for general research and `search_mode="sec"` for official financial filings.
-- **Structured Output**: The agent is configured to return an `AppraiserOutput` (defined in `shared/models/data_types.py`) for strict data validation.
+- **Structured Output**: The agent returns `AppraiserOutput` from `appraiser/data_types.py`. Surveyor screening context is passed via `create_appraiser_user_prompt` → `user_prompt.create_user_prompt` using `SurveyorCandidate` from `shared/models/data_types.py`.
 
 ## Dependencies
 
 ### Internal
 
-- `discount_analyst.shared.models.data_types`: For the `AppraiserOutput` schema.
+- `discount_analyst.appraiser.data_types`: For `AppraiserOutput`.
+- `discount_analyst.shared.models.data_types`: For `SurveyorCandidate` in user prompts.
 - `discount_analyst.shared.config.ai_models_config`: For model configuration and selection.
 - `discount_analyst.shared.config.settings`: For API keys and rate limit settings.
 - `discount_analyst.shared.ai.model`: For creating the LLM model instance.

@@ -5,7 +5,7 @@ Usage:
     uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AMZN
     uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AAPL --model claude-sonnet-4-5
     uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AMZN --continue-from claude-opus-4-6
-    uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AAPL --research-report-path path/to/report.md
+    uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AAPL --research-report-path path/to/report.md --surveyor-report-path path/to/surveyor-report.json
     uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AMZN --web-search built-in
     uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AMZN --web-search both
 """
@@ -24,6 +24,7 @@ from rich.table import Table
 
 from discount_analyst.shared.config.ai_models_config import AIModelsConfig, ModelName
 from discount_analyst.shared.config.settings import settings
+from discount_analyst.shared.models.data_types import SurveyorCandidate
 from discount_analyst.dcf_analysis.data_types import (
     DCFAnalysisParameters,
     DCFAnalysisResult,
@@ -90,6 +91,15 @@ def parse_args() -> argparse.Namespace:
         help="Path to research report markdown (optional; defaults to inputs/{ticker}.md).",
     )
     parser.add_argument(
+        "--surveyor-report-path",
+        type=str,
+        default=None,
+        help=(
+            "Path to surveyor-report.json (one SurveyorCandidate). "
+            "Optional; defaults to inputs/{ticker}-surveyor-report.json."
+        ),
+    )
+    parser.add_argument(
         "--caching",
         choices=("enabled", "disabled", "both"),
         default="enabled",
@@ -122,6 +132,10 @@ def parse_args() -> argparse.Namespace:
         args.research_report_path = str(
             _SCRIPTS_DIR / "inputs" / f"{args.ticker.lower()}.md"
         )
+    if args.surveyor_report_path is None:
+        args.surveyor_report_path = str(
+            _SCRIPTS_DIR / "inputs" / f"{args.ticker.lower()}-surveyor-report.json"
+        )
     if not (0 < args.risk_free_rate <= 0.15):
         parser.error(
             f"--risk-free-rate must be a decimal between 0 and 0.15 (e.g. 0.045 for 4.5%). "
@@ -135,6 +149,13 @@ def load_research_report(path: str) -> str:
     if not p.exists():
         raise FileNotFoundError(f"Research report not found: {path}")
     return p.read_text()
+
+
+def load_surveyor_candidate(path: str) -> SurveyorCandidate:
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(f"Surveyor report not found: {path}")
+    return SurveyorCandidate.model_validate_json(p.read_text())
 
 
 def build_run_configs(
@@ -321,13 +342,17 @@ async def main() -> None:
     logfire.instrument_pydantic_ai()
 
     research_report = load_research_report(args.research_report_path)
+    surveyor_candidate = load_surveyor_candidate(args.surveyor_report_path)
     user_prompt = create_user_prompt(
-        ticker=args.ticker, research_report=research_report
+        ticker=args.ticker,
+        research_report=research_report,
+        surveyor_candidate=surveyor_candidate,
     )
 
     console.print(
         f"Running Market Analyst for [bold]{args.ticker}[/bold] "
-        f"across {len(run_configs)} config(s) (report: {args.research_report_path})."
+        f"across {len(run_configs)} config(s) "
+        f"(report: {args.research_report_path}, surveyor: {args.surveyor_report_path})."
     )
 
     timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")

@@ -34,7 +34,7 @@ The `scripts/` directory contains utility and entry-point scripts for the Discou
 ### Testing Requirements
 
 - Currently, there are no automated tests for these scripts. Test changes by running the scripts with sample inputs.
-- Example execution: `uv run python scripts/agents/run_dcf_analysis.py --pair AAPL:path/to/report.md --risk-free-rate 0.045`. Use multiple `--pair` for batch runs: `--pair AAPL:reports/aapl.md --pair MSFT:reports/msft.md`.
+- Example execution: `uv run python scripts/agents/run_dcf_analysis.py --dir path/to/stock_folder --risk-free-rate 0.045`. Each `--dir` must contain `deep-research.md` and `surveyor-report.json` (a single `SurveyorCandidate`). Repeat `--dir` for batch runs.
 - Verify `md_docs_parser.py` by checking the generated directory and file structure.
 
 ### Common Patterns
