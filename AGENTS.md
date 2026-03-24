@@ -35,7 +35,7 @@ A separate AI agent then scores the resulting report against a detailed checklis
 
 ### Stage 5 — DCF valuation (automated)
 
-Stocks that pass the checklist are processed by `scripts/agents/run_dcf_analysis.py`, which runs the `discount_analyst/appraiser/appraiser.py` agent to perform a full Discounted Cash Flow valuation. The agent consumes the research report produced in stage 4 and writes structured output (agent analysis + DCF figures) to `outputs/`.
+Stocks that pass the checklist are processed by `scripts/agents/run_dcf_analysis.py` (per-stock `--dir` folders containing `deep-research.md` and `surveyor-report.json`), which runs the `discount_analyst/appraiser/appraiser.py` agent to perform a full Discounted Cash Flow valuation. The agent consumes the deep-research report plus structured Surveyor candidate context and writes output (agent analysis + DCF figures) to `outputs/`.
 
 ### Stage 6 — Evaluate (external AI)
 

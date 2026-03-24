@@ -12,7 +12,7 @@ The tool supports a seven-stage pipeline that blends automated AI agents with a 
 Run the Surveyor agent to screen for promising small-cap stocks across UK and US markets:
 
 ```bash
-uv run python scripts/run_surveyor.py
+uv run python scripts/agents/run_surveyor.py
 ```
 
 The agent uses AI-powered web research to surface a ranked list of candidates with market caps, exchange listings, and a rationale for each.
@@ -29,19 +29,23 @@ Use an AI model (ChatGPT or Gemini) with a structured deep-research prompt to pr
 - Value stocks: assessed on financial health, valuation multiples, competitive moats, balance sheet strength, and red flags.
 - Growth stocks: assessed on revenue growth quality, unit economics, market opportunity, product differentiation, customer metrics, and catalysts.
 
+**5. Review the deep research report**
+
 An AI agent then scores the resulting report against a detailed checklist for the appropriate category and produces a pass/fail summary per section.
 
-**5. Value — DCF analysis**
+**6. Value — DCF analysis**
 Stocks that pass enough checklist criteria are passed to the Appraiser agent for a full Discounted Cash Flow valuation:
 
 ```bash
-uv run python scripts/run_dcf_analysis.py --ticker <TICKER> --risk-free-rate <RATE> --research-report-path <path/to/report.md>
+uv run python scripts/agents/run_dcf_analysis.py --dir <path/to/stock_folder> --risk-free-rate <RATE>
 ```
 
-**6. Evaluate — AI buy recommendation**
+The folder must contain `deep-research.md` (stage-4 report) and `surveyor-report.json` (one `SurveyorCandidate`; ticker is read from the JSON).
+
+**7. Evaluate — AI buy recommendation**
 Use an AI model (Claude, Gemini, or ChatGPT) to evaluate whether to buy each stock based on the research report and the DCF analysis output.
 
-**7. Buy — act on the margin of safety**
+**8. Buy — act on the margin of safety**
 Review the DCF outputs across all analysed stocks. Buy the stocks with the greatest margin of safety — i.e. where the current market price is furthest below the intrinsic value estimated by the Appraiser.
 
 ## Quick Start
@@ -49,5 +53,5 @@ Review the DCF outputs across all analysed stocks. Buy the stocks with the great
 1. [Install uv](https://docs.astral.sh/uv/getting-started/installation/) if needed
 2. Set up your environment variables (see [scripts/README.md](scripts/README.md))
 3. Install dependencies: `uv sync`
-4. Run the Surveyor to find candidates: `uv run python scripts/run_surveyor.py`
-5. After shortlisting and research (steps 2–4 above), run DCF analysis: `uv run python scripts/run_dcf_analysis.py --ticker <ticker> --risk-free-rate <risk free rate> --research-report-path <path to your research report (markdown format only)>`
+4. Run the Surveyor to find candidates: `uv run python scripts/agents/run_surveyor.py`
+5. After shortlisting and research (steps 2–4 above), run DCF analysis: `uv run python scripts/agents/run_dcf_analysis.py --dir <folder with deep-research.md and surveyor-report.json> --risk-free-rate <decimal e.g. 0.045>`
