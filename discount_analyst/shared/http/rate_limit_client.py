@@ -1,7 +1,7 @@
 import asyncio
 import sys
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, cast
 
 import logfire
 from httpx import (
@@ -113,7 +113,7 @@ class _AsyncTenacityTransportWithErrorBody(AsyncTenacityTransport):
     """
 
     async def handle_async_request(self, request: Request) -> Response:
-        @retry(**self.config)
+        @retry(**cast(dict[str, Any], self.config))
         async def handle_async_request_inner(req: Request) -> Response:
             response = await self.wrapped.handle_async_request(req)
             response.request = req

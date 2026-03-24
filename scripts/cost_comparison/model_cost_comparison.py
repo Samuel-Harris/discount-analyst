@@ -40,6 +40,7 @@ from scripts.shared import (
     RunConfig,
     RunResult,
     calc_actual_cost,
+    extract_turn_usage,
     output_filename,
     write_model_output,
 )
@@ -249,8 +250,9 @@ async def run_one_model(
         ) as streamed_run:
             async for _ in streamed_run.stream_output(debounce_by=None):
                 pass  # drain stream; Anthropic requires streaming for long requests
-        output = await streamed_run.get_output()
-        usage = streamed_run.usage()
+            output = await streamed_run.get_output()
+            usage = streamed_run.usage()
+            turn_usage = extract_turn_usage(streamed_run.all_messages())
         elapsed_s = time.perf_counter() - start
         return RunResult(
             model_name=model_name,
@@ -264,6 +266,7 @@ async def run_one_model(
             tool_calls=usage.tool_calls,
             error=None,
             output=output,
+            turn_usage=turn_usage,
         )
     except Exception as e:  # noqa: BLE001
         elapsed_s = time.perf_counter() - start
@@ -421,6 +424,7 @@ async def main() -> None:
                     cache_write_tokens=result.cache_write_tokens,
                     cache_read_tokens=result.cache_read_tokens,
                     tool_calls=result.tool_calls,
+                    turn_usage=result.turn_usage,
                 )
                 cache_suffix = "cache" if result.cache_enabled else "no-cache"
                 search_suffix = "web-search" if cfg.use_web_search else "perplexity"

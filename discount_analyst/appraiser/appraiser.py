@@ -5,11 +5,11 @@ from discount_analyst.shared.ai.history_processors import (
     get_history_processors_for_model,
 )
 from discount_analyst.shared.ai.model import create_model_from_config
-from discount_analyst.shared.constants.providers import ProviderFeature
 from discount_analyst.shared.config.ai_models_config import AIModelsConfig
 from discount_analyst.shared.constants.agents import AgentName
 from discount_analyst.appraiser.data_types import AppraiserOutput
 from discount_analyst.appraiser.user_prompt import create_user_prompt
+from discount_analyst.shared.constants.providers import ProviderFeature
 from discount_analyst.shared.models.data_types import SurveyorCandidate
 from discount_analyst.shared.tools.perplexity import create_perplexity_toolset
 from discount_analyst.appraiser.system_prompt import SYSTEM_PROMPT

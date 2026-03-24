@@ -166,6 +166,7 @@ def _run_to_result(run: ModelRunOutput, cache_mode: str) -> RunResult | None:
         tool_calls=run.tool_calls or 0,
         error=None,
         output=None,
+        turn_usage=run.turn_usage,
     )
 
 

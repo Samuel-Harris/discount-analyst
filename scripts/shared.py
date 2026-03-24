@@ -61,6 +61,24 @@ class FormattedCostResult:
     used_fallback: bool
 
 
+class TurnUsage(BaseModel):
+    """Usage stats for one model-response turn within a run."""
+
+    turn: int = Field(ge=1)
+    input_tokens: int = Field(ge=0)
+    output_tokens: int = Field(ge=0)
+    cache_write_tokens: int = Field(default=0, ge=0)
+    cache_read_tokens: int = Field(default=0, ge=0)
+    total_tokens: int = Field(ge=0)
+    cumulative_input_tokens: int = Field(ge=0)
+    cumulative_output_tokens: int = Field(ge=0)
+    cumulative_total_tokens: int = Field(ge=0)
+
+
+def _default_turn_usage_list() -> list[TurnUsage]:
+    return []
+
+
 class ModelRunOutput(BaseModel):
     """Complete serialisable record for one model run written to outputs/."""
 
@@ -80,7 +98,7 @@ class ModelRunOutput(BaseModel):
     cache_write_tokens: int
     cache_read_tokens: int
     tool_calls: int
-    turn_usage: list["TurnUsage"] = Field(default_factory=list)
+    turn_usage: list[TurnUsage] = Field(default_factory=_default_turn_usage_list)
 
 
 class SurveyorRunOutput(BaseModel):
@@ -90,22 +108,8 @@ class SurveyorRunOutput(BaseModel):
     elapsed_s: float
     input_tokens: int
     output_tokens: int
-    turn_usage: list["TurnUsage"] = Field(default_factory=list)
+    turn_usage: list[TurnUsage] = Field(default_factory=_default_turn_usage_list)
     output: SurveyorOutput
-
-
-class TurnUsage(BaseModel):
-    """Usage stats for one model-response turn within a run."""
-
-    turn: int = Field(ge=1)
-    input_tokens: int = Field(ge=0)
-    output_tokens: int = Field(ge=0)
-    cache_write_tokens: int = Field(default=0, ge=0)
-    cache_read_tokens: int = Field(default=0, ge=0)
-    total_tokens: int = Field(ge=0)
-    cumulative_input_tokens: int = Field(ge=0)
-    cumulative_output_tokens: int = Field(ge=0)
-    cumulative_total_tokens: int = Field(ge=0)
 
 
 def extract_turn_usage(messages: list[ModelMessage]) -> list[TurnUsage]:
@@ -193,6 +197,7 @@ class RunResult:
     use_web_search: bool = False
     error: str | None = None
     output: AppraiserOutput | None = field(default=None, repr=False)
+    turn_usage: list[TurnUsage] = field(default_factory=_default_turn_usage_list)
 
     @property
     def total_tokens(self) -> int:
