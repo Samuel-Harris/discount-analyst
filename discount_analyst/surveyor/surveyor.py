@@ -1,6 +1,9 @@
 from pydantic_ai import AbstractToolset, Agent, WebFetchTool, WebSearchTool
 from pydantic_ai.builtin_tools import AbstractBuiltinTool
 
+from discount_analyst.shared.ai.history_processors import (
+    get_history_processors_for_model,
+)
 from discount_analyst.shared.ai.model import create_model_from_config
 from discount_analyst.shared.config.ai_models_config import AIModelsConfig
 from discount_analyst.shared.constants.agents import AgentName
@@ -49,6 +52,9 @@ def create_surveyor_agent(
         output_type=SurveyorOutput,
         model_settings=ai_models_config.model.model_settings,
         system_prompt=SYSTEM_PROMPT,
+        history_processors=get_history_processors_for_model(
+            ai_models_config.model_name
+        ),
         builtin_tools=builtin_tools,
         toolsets=toolsets,
     )

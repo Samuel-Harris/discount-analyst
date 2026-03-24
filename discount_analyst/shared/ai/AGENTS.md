@@ -12,6 +12,7 @@ Factory for creating AI model instances from configuration. Instantiates pydanti
 | File | Description |
 | --------- | ---------------------------- |
 | `model.py` | Factory function `create_model_from_config` that creates rate-limited AI models from `AIModelConfig`. |
+| `history_processors.py` | `get_history_processors_for_model`: returns pydantic-ai `history_processors` hooks per model (currently none; OpenAI uses server-side compaction). |
 
 ## Subdirectories
 
