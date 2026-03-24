@@ -18,6 +18,7 @@ from pydantic_ai.models.openai import OpenAIResponsesModelSettings
 _MAX_TOOL_CALLS = 60
 _MAX_TOKENS = 30_000
 _MAX_THINKING_BUDGET_TOKENS = 16_000
+_OPENAI_COMPACTION_THRESHOLD_TOKENS = 200_000
 
 _ANTHROPIC_REASONING_EFFORT = "high"
 _OPENAI_REASONING_EFFORT = "high"
@@ -93,10 +94,15 @@ class AnthropicAIModelConfig(BaseAIModelConfig[Literal[Provider.ANTHROPIC]]):
 
 
 class OpenAIAIModelConfig(BaseAIModelConfig[Literal[Provider.OPENAI]]):
-    """OpenAI model config with flex service tier, 24h prompt caching, and privacy settings.
+    """OpenAI model config with compaction, caching, and privacy settings.
 
     Set `reasoning_effort` for reasoning models (e.g. o-series, GPT-5.x) to trade cost for
     quality (`"low"` / `"medium"` / `"high"`). When `None` the model's default is used.
+
+    ``openai_previous_response_id="auto"`` is intentionally omitted: with
+    ``openai_store=False``, OpenAI does not retain responses for server-side chaining, so
+    continuing with a stored ``provider_response_id`` yields ``previous_response_not_found``
+    (400). Conversation context is carried in the full message history instead.
     """
 
     provider: Literal[Provider.OPENAI] = Provider.OPENAI
@@ -111,6 +117,14 @@ class OpenAIAIModelConfig(BaseAIModelConfig[Literal[Provider.OPENAI]]):
             openai_prompt_cache_retention="24h",
             openai_store=False,
         )
+        settings["extra_body"] = {
+            "context_management": [
+                {
+                    "type": "compaction",
+                    "compact_threshold": _OPENAI_COMPACTION_THRESHOLD_TOKENS,
+                }
+            ]
+        }
         if self.reasoning_effort is not None:
             settings["openai_reasoning_effort"] = self.reasoning_effort
         return settings

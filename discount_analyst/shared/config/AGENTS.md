@@ -24,6 +24,7 @@ None.
 
 - **Configuration**: Always use `settings.py` for accessing environment variables; do not use `os.environ` directly.
 - **Model Selection**: Add new models to `ModelName` enum and extend the `appraiser` computed field in `AIModelsConfig` when supporting additional providers.
+- **OpenAI + privacy**: `OpenAIAIModelConfig` uses `openai_store=False` and does **not** set `openai_previous_response_id="auto"`, because unstored responses are not valid targets for `previous_response_id` and the API returns `previous_response_not_found`.
 
 ### Testing Requirements
 
