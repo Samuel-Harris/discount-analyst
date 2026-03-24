@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-03-03 | Updated: 2026-03-03 -->
+<!-- Generated: 2026-03-03 | Updated: 2026-03-24 -->
 
 # shared
 
@@ -18,6 +18,7 @@ Common data structures, configuration, and utility modules used across the `disc
 | Directory | Purpose |
 | --------- | ----------------------------------------- |
 | `config/` | Application and AI model configuration (see `config/AGENTS.md`) |
+| `constants/` | Shared enums and literals: agent names, provider features, and the editable fund creed (`creed.py`) prepended to agent system prompts |
 | `models/` | Central Pydantic models for stock data and agent outputs (see `models/AGENTS.md`) |
 | `ai/` | Factory for creating rate-limited AI models from config (see `ai/AGENTS.md`) |
 | `http/` | Asynchronous HTTP client with retry logic (see `http/AGENTS.md`) |
@@ -30,6 +31,7 @@ Common data structures, configuration, and utility modules used across the `disc
 - **Source of Truth**: Use `models/data_types.py` as the primary reference for all structured data models.
 - **Metric Definitions**: When adding new financial metrics to `StockData`, include detailed `Field` descriptions for AI tool discovery.
 - **Configuration**: Always use `config/settings.py` for accessing environment variables; do not use `os.environ` directly.
+- **Fund creed**: Edit `constants/creed.py` (`AGENT_CREED` and `fund_creed_system_prefix`) to change the guiding principle prepended to Surveyor and Appraiser system prompts.
 
 ### Testing Requirements
 
