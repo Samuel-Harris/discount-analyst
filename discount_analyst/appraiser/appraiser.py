@@ -61,6 +61,7 @@ def create_appraiser_agent(
         toolsets.append(create_perplexity_toolset(AgentName.APPRAISER))
 
     agent = Agent(
+        name=AgentName.APPRAISER,
         model=create_model_from_config(ai_models_config.model),
         output_type=AppraiserOutput,
         model_settings=ai_models_config.model.model_settings,

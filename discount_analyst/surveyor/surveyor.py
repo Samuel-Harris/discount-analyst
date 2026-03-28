@@ -48,6 +48,7 @@ def create_surveyor_agent(
         toolsets.append(create_perplexity_toolset(AgentName.SURVEYOR))
 
     agent = Agent(
+        name=AgentName.SURVEYOR,
         model=create_model_from_config(ai_models_config.model),
         output_type=SurveyorOutput,
         model_settings=ai_models_config.model.model_settings,
