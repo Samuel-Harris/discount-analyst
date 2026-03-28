@@ -40,7 +40,7 @@ None.
 
 ### Internal
 
-- This is used by `discount_analyst.shared.ai.model` and `scripts/run_dcf_analysis.py`.
+- This is used by `discount_analyst.shared.ai.model` and `scripts/agents/run_appraiser.py`.
 
 ### External
 

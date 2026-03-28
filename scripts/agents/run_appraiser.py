@@ -1,3 +1,5 @@
+"""Run the Appraiser agent and DCF valuation for stock research folders."""
+
 import argparse
 import asyncio
 import time
@@ -57,6 +59,7 @@ class SharedArgs:
     risk_free_rate: float
     model: ModelName
     use_perplexity: bool
+    use_mcp_financial_data: bool
 
 
 def _validate_stock_dir(raw: str, parser: argparse.ArgumentParser) -> StockResearchDir:
@@ -86,9 +89,7 @@ def _validate_stock_dir(raw: str, parser: argparse.ArgumentParser) -> StockResea
 
 
 def parse_args() -> tuple[list[StockResearchDir], SharedArgs]:
-    parser = argparse.ArgumentParser(
-        description="Run Market Analyst Agent and DCF Analysis"
-    )
+    parser = argparse.ArgumentParser(description="Run Appraiser agent and DCF analysis")
     parser.add_argument(
         "--dir",
         action="append",
@@ -109,6 +110,14 @@ def parse_args() -> tuple[list[StockResearchDir], SharedArgs]:
     )
     add_agent_cli_model_argument(parser)
     add_agent_cli_web_search_arguments(parser)
+    parser.add_argument(
+        "--no-mcp",
+        action="store_true",
+        help=(
+            "Do not register EODHD/FMP MCP toolsets (required for Google models; "
+            "optional for Anthropic/OpenAI)."
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -123,6 +132,7 @@ def parse_args() -> tuple[list[StockResearchDir], SharedArgs]:
         risk_free_rate=args.risk_free_rate,
         model=args.model,
         use_perplexity=args.use_perplexity,
+        use_mcp_financial_data=not args.no_mcp,
     )
     return stock_dirs, shared
 
@@ -184,10 +194,15 @@ async def run_agent(
     research_report_content: ResearchReport,
     *,
     use_perplexity: bool = DEFAULT_AGENT_CLI_DEFAULTS.use_perplexity,
+    use_mcp_financial_data: bool = True,
 ) -> AgentRunResult:
     """Run the Market Analyst agent and return output with usage stats."""
     ai_models_config = AIModelsConfig(model_name=args.model)
-    agent = create_appraiser_agent(ai_models_config, use_perplexity=use_perplexity)
+    agent = create_appraiser_agent(
+        ai_models_config,
+        use_perplexity=use_perplexity,
+        use_mcp_financial_data=use_mcp_financial_data,
+    )
     user_prompt = create_appraiser_user_prompt(
         research_report=research_report_content,
         surveyor_candidate=args.surveyor_candidate,
@@ -412,7 +427,10 @@ async def run_one_stock(stock: StockResearchDir, shared: SharedArgs) -> None:
     )
     console.log("Running agent...")
     agent_result = await run_agent(
-        args, research_report_content, use_perplexity=shared.use_perplexity
+        args,
+        research_report_content,
+        use_perplexity=shared.use_perplexity,
+        use_mcp_financial_data=shared.use_mcp_financial_data,
     )
 
     display_agent_output(agent_result.output)

@@ -37,7 +37,7 @@ An AI agent then scores the resulting report against a detailed checklist for th
 Stocks that pass enough checklist criteria are passed to the Appraiser agent for a full Discounted Cash Flow valuation:
 
 ```bash
-uv run python scripts/agents/run_dcf_analysis.py --dir <path/to/stock_folder> --risk-free-rate <RATE>
+uv run python scripts/agents/run_appraiser.py --dir <path/to/stock_folder> --risk-free-rate <RATE>
 ```
 
 The folder must contain `deep-research.md` (stage-4 report) and `surveyor-report.json` (one `SurveyorCandidate`; ticker is read from the JSON).
@@ -54,4 +54,4 @@ Review the DCF outputs across all analysed stocks. Buy the stocks with the great
 2. Set up your environment variables (see [scripts/README.md](scripts/README.md))
 3. Install dependencies: `uv sync`
 4. Run the Surveyor to find candidates: `uv run python scripts/agents/run_surveyor.py`
-5. After shortlisting and research (steps 2–4 above), run DCF analysis: `uv run python scripts/agents/run_dcf_analysis.py --dir <folder with deep-research.md and surveyor-report.json> --risk-free-rate <decimal e.g. 0.045>`
+5. After shortlisting and research (steps 2–4 above), run DCF analysis: `uv run python scripts/agents/run_appraiser.py --dir <folder with deep-research.md and surveyor-report.json> --risk-free-rate <decimal e.g. 0.045>`

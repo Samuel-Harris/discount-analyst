@@ -33,6 +33,7 @@ console = Console()
 class SurveyorArgs(BaseModel):
     model: ModelName
     use_perplexity: bool
+    use_mcp_financial_data: bool
 
 
 def parse_args() -> SurveyorArgs:
@@ -41,10 +42,19 @@ def parse_args() -> SurveyorArgs:
     )
     add_agent_cli_model_argument(parser)
     add_agent_cli_web_search_arguments(parser)
+    parser.add_argument(
+        "--no-mcp",
+        action="store_true",
+        help=(
+            "Do not register EODHD/FMP MCP toolsets (required for Google models; "
+            "optional for Anthropic/OpenAI)."
+        ),
+    )
     raw = parser.parse_args()
     return SurveyorArgs(
         model=raw.model,
         use_perplexity=raw.use_perplexity,
+        use_mcp_financial_data=not raw.no_mcp,
     )
 
 
@@ -88,6 +98,7 @@ async def main() -> None:
     agent = create_surveyor_agent(
         ai_models_config,
         use_perplexity=args.use_perplexity,
+        use_mcp_financial_data=args.use_mcp_financial_data,
     )
 
     console.log(f"Running Surveyor agent (model: {args.model})...")

@@ -8,6 +8,7 @@ Usage:
     uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AAPL --research-report-path path/to/report.md --surveyor-report-path path/to/surveyor-report.json
     uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AMZN --web-search built-in
     uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AMZN --web-search both
+    uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AMZN --no-mcp
 """
 
 from __future__ import annotations
@@ -126,6 +127,14 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Print which configs would run (model, cache mode, output file) and exit without running.",
     )
+    parser.add_argument(
+        "--no-mcp",
+        action="store_true",
+        help=(
+            "Do not register EODHD/FMP MCP toolsets (required for Google models; "
+            "optional for Anthropic/OpenAI)."
+        ),
+    )
     args = parser.parse_args()
     if args.model is not None and args.continue_from is not None:
         parser.error("--model and --continue-from are mutually exclusive.")
@@ -234,12 +243,14 @@ async def run_one_model(
     cache_enabled: bool,
     *,
     use_web_search: bool = False,
+    use_mcp_financial_data: bool = True,
 ) -> RunResult:
     """Run the Market Analyst agent for one model and return timing + usage."""
     config = AIModelsConfig(model_name=model_name, cache_messages=cache_enabled)
     agent = create_appraiser_agent(
         config,
         use_perplexity=not use_web_search,
+        use_mcp_financial_data=use_mcp_financial_data,
     )
     usage_limits = config.model.usage_limits
 
@@ -323,7 +334,9 @@ async def main() -> None:
         table.add_column("Model", style="cyan", no_wrap=True)
         table.add_column("Cache", justify="center")
         table.add_column("Web Search", justify="center")
+        table.add_column("MCP", justify="center")
         table.add_column("Output File", style="dim")
+        mcp_label = "no" if args.no_mcp else "yes"
         for cfg in run_configs:
             fname = output_filename(
                 timestamp,
@@ -336,6 +349,7 @@ async def main() -> None:
                 cfg.model_name.value,
                 "yes" if cfg.cache_enabled else "no",
                 "yes" if cfg.use_web_search else "no",
+                mcp_label,
                 fname,
             )
         console.print(table)
@@ -373,6 +387,7 @@ async def main() -> None:
             user_prompt,
             cfg.cache_enabled,
             use_web_search=cfg.use_web_search,
+            use_mcp_financial_data=not args.no_mcp,
         )
         results.append(result)
         if result.error:

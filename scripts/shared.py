@@ -69,24 +69,20 @@ def add_agent_cli_web_search_arguments(
     *,
     default_override: AgentCliDefaults | None = None,
 ) -> None:
-    """Register ``--perplexity`` / ``--no-perplexity`` (mutually exclusive).
+    """Register optional ``--perplexity`` (default: model-native web search).
 
     Namespace attribute: ``use_perplexity``.
     """
     resolved_defaults = default_override or DEFAULT_AGENT_CLI_DEFAULTS
     parser.set_defaults(use_perplexity=resolved_defaults.use_perplexity)
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument(
+    parser.add_argument(
         "--perplexity",
         action="store_true",
         dest="use_perplexity",
-        help="Use Perplexity API for web_search and sec_filings_search.",
-    )
-    group.add_argument(
-        "--no-perplexity",
-        action="store_false",
-        dest="use_perplexity",
-        help="Use model-native web search tools (default).",
+        help=(
+            "Use Perplexity API for web_search and sec_filings_search "
+            "(default: model-native web search)."
+        ),
     )
 
 

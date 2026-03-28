@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-03-03 | Updated: 2026-03-03 -->
+<!-- Generated: 2026-03-03 | Updated: 2026-03-28 -->
 
 # appraiser
 
@@ -25,7 +25,7 @@ None.
 
 ### Working In This Directory
 
-- **Agent Tools**: By default (`use_perplexity=False`), the agent uses pydantic-ai built-in `WebSearchTool` and, for providers that support it, `WebFetchTool`. With `use_perplexity=True`, Perplexity-backed tools (`web_search`, `sec_filings_search`) are provided by `discount_analyst.shared.tools.perplexity` via `create_perplexity_toolset(AgentName.APPRAISER)`. Add or modify agent-specific descriptions in `shared/tools/descriptions.py`.
+- **Agent Tools**: By default (`use_perplexity=False`), the agent uses pydantic-ai built-in `WebSearchTool` and, for providers that support it, `WebFetchTool`. With `use_perplexity=True`, Perplexity-backed tools (`web_search`, `sec_filings_search`) are provided by `discount_analyst.shared.tools.perplexity` via `create_perplexity_toolset(AgentName.APPRAISER)`. When `use_mcp_financial_data=True` (default), EODHD and FMP MCP toolsets are added for Anthropic and OpenAI via `add_required_feature_to_builtin_tools` (`ProviderFeature.MCP`). Google does not support MCP—use `use_mcp_financial_data=False` or `scripts/agents/run_appraiser.py --no-mcp` / `scripts/cost_comparison/model_cost_comparison.py --no-mcp`. Add or modify agent-specific descriptions in `shared/tools/descriptions.py`.
 - **Prompts**: Keep the system persona in `system_prompt.py` and the user-facing instruction logic in `user_prompt.py`.
 
 ### Testing Requirements
@@ -48,6 +48,8 @@ None.
 - `discount_analyst.shared.config.settings`: For API keys and rate limit settings.
 - `discount_analyst.shared.ai.model`: For creating the LLM model instance.
 - `discount_analyst.shared.tools.perplexity`: For Perplexity-backed search tools via `create_perplexity_toolset(AgentName.APPRAISER)`.
+- `discount_analyst.shared.utils.agent_tools`: MCP toolset wiring via `add_required_feature_to_builtin_tools`.
+- `discount_analyst.shared.mcp.financial_data`: EODHD/FMP `MCPServerStreamableHTTP` factories.
 
 ### External
 

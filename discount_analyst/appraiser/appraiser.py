@@ -11,6 +11,9 @@ from discount_analyst.appraiser.data_types import AppraiserOutput
 from discount_analyst.appraiser.user_prompt import create_user_prompt
 from discount_analyst.shared.constants.providers import ProviderFeature
 from discount_analyst.shared.models.data_types import SurveyorCandidate
+from discount_analyst.shared.utils.agent_tools import (
+    add_required_feature_to_builtin_tools,
+)
 from discount_analyst.shared.tools.perplexity import create_perplexity_toolset
 from discount_analyst.appraiser.system_prompt import SYSTEM_PROMPT
 
@@ -31,6 +34,7 @@ def create_appraiser_agent(
     /,
     *,
     use_perplexity: bool = False,
+    use_mcp_financial_data: bool = True,
 ) -> Agent[None, AppraiserOutput]:
     """Create and configure the appraiser agent.
 
@@ -42,6 +46,9 @@ def create_appraiser_agent(
             ``WebSearchTool`` is used instead (model-native web search).
             When Perplexity is disabled, ``WebFetchTool`` is also added for
             Anthropic and Gemini so the agent can fetch content from URLs.
+        use_mcp_financial_data: When True (default), registers EODHD and FMP
+            MCP toolsets for providers that support MCP (Anthropic, OpenAI).
+            Use False or ``--no-mcp`` for Google or when MCP should be omitted.
 
     Returns:
         A configured Agent instance for making stock assumptions.
@@ -59,6 +66,13 @@ def create_appraiser_agent(
             builtin_tools.append(WebFetchTool())
     else:
         toolsets.append(create_perplexity_toolset(AgentName.APPRAISER))
+
+    if use_mcp_financial_data:
+        add_required_feature_to_builtin_tools(
+            required_feature=ProviderFeature.MCP,
+            toolsets=toolsets,
+            provider=ai_models_config.model.provider,
+        )
 
     agent = Agent(
         name=AgentName.APPRAISER,

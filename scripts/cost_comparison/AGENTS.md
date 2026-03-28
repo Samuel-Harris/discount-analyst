@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-24 | Updated: 2026-02-24 -->
+<!-- Generated: 2026-02-24 | Updated: 2026-03-28 -->
 
 # cost_comparison
 
@@ -28,7 +28,7 @@ Scripts and assets for comparing cost and speed across AI models when running th
 
 - **Pricing**: Cost is computed with **genai-prices** when the model is in its snapshot; otherwise the script uses the `MODEL_PRICING_FALLBACK` dict. Update `MODEL_PRICING_FALLBACK` only for models not yet in genai-prices.
 - **Rich**: Use the `rich` library for all terminal output (tables, console) per project rules.
-- **CLI**: Keep `argparse` for CLI; `--ticker` is required. `--research-report-path` is optional; when omitted, defaults to `inputs/{lowercase_ticker}.md` (relative to script). `--surveyor-report-path` is optional; when omitted, defaults to `inputs/{lowercase_ticker}-surveyor-report.json` (one `SurveyorCandidate`, same shape as DCF `surveyor-report.json`). Both files must exist for a real run (dry-run skips loading them). Default risk-free rate `0.037276`. `--caching` (`enabled` | `disabled` | `both`, default `both`) controls prompt caching: Anthropic's `anthropic_cache_messages` is toggled; OpenAI and Gemini auto-cache and are skipped when `disabled`. `--dry-run` prints a table of configs that would run (model, cache mode, output filename) and exits without making API calls.
+- **CLI**: Keep `argparse` for CLI; `--ticker` is required. `--research-report-path` is optional; when omitted, defaults to `inputs/{lowercase_ticker}.md` (relative to script). `--surveyor-report-path` is optional; when omitted, defaults to `inputs/{lowercase_ticker}-surveyor-report.json` (one `SurveyorCandidate`, same shape as DCF `surveyor-report.json`). Both files must exist for a real run (dry-run skips loading them). Default risk-free rate `0.037276`. `--caching` (`enabled` | `disabled` | `both`, default `both`) controls prompt caching: Anthropic's `anthropic_cache_messages` is toggled; OpenAI and Gemini auto-cache and are skipped when `disabled`. `--dry-run` prints a table of configs that would run (model, cache mode, web search, MCP, output filename) and exits without making API calls. `--no-mcp` omits EODHD/FMP MCP toolsets (use with Google models).
 - **Outputs**: After each successful model run the script (1) runs `DCFAnalysis` on the agent output and (2) serialises a `ModelRunOutput` (ticker, model_name, risk_free_rate, appraiser output, dcf_result, dcf_error) to `outputs/{timestamp}-{model}-{cache|no-cache}-{ticker}.json`. DCF errors are caught and stored in `dcf_error` without failing the whole run. A shared timestamp is generated once before the run loop so all files from one invocation share the same prefix.
 
 ### Testing Requirements
