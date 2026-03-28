@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import re
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
@@ -15,7 +17,10 @@ from genai_prices import Usage, calc_price
 from discount_analyst.appraiser.data_types import AppraiserOutput
 from discount_analyst.dcf_analysis.data_types import DCFAnalysisResult
 from discount_analyst.shared.config.ai_models_config import AIModelsConfig, ModelName
+from discount_analyst.shared.constants.agents import AgentName
 from discount_analyst.shared.models.data_types import SurveyorOutput
+
+SCRIPTS_OUTPUTS_DIR = Path(__file__).resolve().parent / "outputs"
 
 # Models that auto-cache (OpenAI, Gemini); no way to disable — skip when --caching disabled.
 AUTO_CACHE_MODELS: frozenset[ModelName] = frozenset(
@@ -136,7 +141,7 @@ def _default_turn_usage_list() -> list[TurnUsage]:
     return []
 
 
-class ModelRunOutput(BaseModel):
+class AppraiserRunOutput(BaseModel):
     """Complete serialisable record for one model run written to outputs/."""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -207,22 +212,45 @@ def extract_turn_usage(messages: list[ModelMessage]) -> list[TurnUsage]:
     return turns
 
 
-def write_surveyor_output(
-    *,
-    run_output: SurveyorRunOutput,
-    timestamp: str,
-    output_dir: Path,
-) -> Path:
-    """Serialise the Surveyor run output to JSON and return the path written.
+def _sanitize_filename_suffix_body(s: str) -> str:
+    """Allow [A-Za-z0-9._-] only; other chars become '-'; collapse and trim hyphens."""
+    stripped = s.strip()
+    if not stripped:
+        return ""
+    chars: list[str] = []
+    for c in stripped:
+        if c in "._-" or ("A" <= c <= "Z") or ("a" <= c <= "z") or ("0" <= c <= "9"):
+            chars.append(c)
+        else:
+            chars.append("-")
+    collapsed = re.sub(r"-+", "-", "".join(chars)).strip("-")
+    return collapsed
 
-    Filename format: {timestamp}-surveyor-{model}.json
+
+def write_agent_json(
+    *,
+    payload: BaseModel,
+    model_name: ModelName,
+    agent_name: AgentName,
+    filename_suffix: str | None = None,
+) -> Path:
+    """Serialise a Pydantic payload to ``scripts/outputs/`` and return the path written.
+
+    Filename stem: ``{timestamp}-{model}-{AGENT}{optional_suffix}.json`` with
+    ``timestamp`` as ``YYYY-mm-dd-HH-MM-SS`` and model dots replaced by hyphens.
     """
-    safe_model = run_output.model_name.replace(".", "-")
-    filename = f"{timestamp}-surveyor-{safe_model}.json"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    path = output_dir / filename
-    path.write_text(run_output.model_dump_json(indent=2))
-    return path
+    ts = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    safe_model = model_name.value.replace(".", "-")
+    if filename_suffix is None or not filename_suffix.strip():
+        suffix = ""
+    else:
+        body = _sanitize_filename_suffix_body(filename_suffix)
+        suffix = "" if body == "" else (body if body.startswith("-") else f"-{body}")
+    filename = f"{ts}-{safe_model}-{agent_name.value}{suffix}.json"
+    SCRIPTS_OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+    path = SCRIPTS_OUTPUTS_DIR / filename
+    path.write_text(payload.model_dump_json(indent=2))
+    return path.resolve()
 
 
 # Fallback pricing when genai_prices does not have the model (e.g. very new models).
@@ -358,7 +386,7 @@ def output_filename(
 
 def write_model_output(
     *,
-    run_output: ModelRunOutput,
+    run_output: AppraiserRunOutput,
     timestamp: str,
     output_dir: Path,
     cache_suffix: Literal["cache", "no-cache"] | None = None,

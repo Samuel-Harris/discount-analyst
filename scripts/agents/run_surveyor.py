@@ -3,8 +3,6 @@
 import argparse
 import asyncio
 import time
-from datetime import datetime
-from pathlib import Path
 
 from pydantic import BaseModel
 from rich.console import Console
@@ -12,6 +10,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from discount_analyst.shared.config.ai_models_config import AIModelsConfig, ModelName
+from discount_analyst.shared.constants.agents import AgentName
 from discount_analyst.shared.http.rate_limit_client import stream_with_retries
 from discount_analyst.shared.models.data_types import SurveyorOutput
 from discount_analyst.surveyor.surveyor import create_surveyor_agent
@@ -21,13 +20,10 @@ from scripts.shared import (
     add_agent_cli_model_argument,
     add_agent_cli_web_search_arguments,
     extract_turn_usage,
-    write_surveyor_output,
+    write_agent_json,
 )
 
 from scripts.utils.setup_logfire import setup_logfire
-
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
-_OUTPUTS_DIR = _PROJECT_ROOT / "outputs"
 
 setup_logfire()
 
@@ -131,11 +127,10 @@ async def main() -> None:
         turn_usage=turn_usage,
         output=output,
     )
-    timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
-    out_path = write_surveyor_output(
-        run_output=run_output,
-        timestamp=timestamp,
-        output_dir=_OUTPUTS_DIR,
+    out_path = write_agent_json(
+        payload=run_output,
+        model_name=args.model,
+        agent_name=AgentName.SURVEYOR,
     )
     console.print(f"\nSaved [dim]{out_path}[/dim]")
 

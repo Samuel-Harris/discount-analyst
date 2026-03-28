@@ -2,7 +2,6 @@ import argparse
 import asyncio
 import time
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import NewType
 
@@ -21,22 +20,20 @@ from discount_analyst.dcf_analysis.data_types import (
 )
 from discount_analyst.dcf_analysis.dcf_analysis import DCFAnalysis
 from discount_analyst.shared.config.ai_models_config import AIModelsConfig, ModelName
+from discount_analyst.shared.constants.agents import AgentName
 from discount_analyst.shared.http.rate_limit_client import stream_with_retries
 from discount_analyst.shared.models.data_types import SurveyorCandidate
 
 from scripts.shared import (
     DEFAULT_AGENT_CLI_DEFAULTS,
-    ModelRunOutput,
+    AppraiserRunOutput,
     TurnUsage,
     add_agent_cli_model_argument,
     add_agent_cli_web_search_arguments,
     extract_turn_usage,
-    write_model_output,
+    write_agent_json,
 )
 from scripts.utils.setup_logfire import setup_logfire
-
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
-_OUTPUTS_DIR = _PROJECT_ROOT / "outputs"
 
 setup_logfire()
 
@@ -378,7 +375,7 @@ def save_run_output(
     dcf_error: str | None,
 ) -> Path:
     """Build ModelRunOutput, write to outputs/, and return the path."""
-    run_output = ModelRunOutput(
+    run_output = AppraiserRunOutput(
         ticker=args.surveyor_candidate.ticker,
         model_name=args.model.value,
         risk_free_rate=args.risk_free_rate,
@@ -393,11 +390,11 @@ def save_run_output(
         tool_calls=agent_result.tool_calls,
         turn_usage=agent_result.turn_usage,
     )
-    timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
-    return write_model_output(
-        run_output=run_output,
-        timestamp=timestamp,
-        output_dir=_OUTPUTS_DIR,
+    return write_agent_json(
+        payload=run_output,
+        model_name=args.model,
+        agent_name=AgentName.APPRAISER,
+        filename_suffix=args.surveyor_candidate.ticker.upper(),
     )
 
 

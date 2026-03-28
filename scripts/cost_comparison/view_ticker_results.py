@@ -24,7 +24,7 @@ from rich.table import Table
 from rich.text import Text
 
 from scripts.shared import (
-    ModelRunOutput,
+    AppraiserRunOutput,
     ModelName,
     RunResult,
     calc_actual_cost,
@@ -87,7 +87,7 @@ class LoadedRun(NamedTuple):
     cache_mode: str
     search_mode: str
     display_date: str
-    run: ModelRunOutput
+    run: AppraiserRunOutput
 
 
 def _parse_filename(filename: str) -> ParsedFilename:
@@ -146,7 +146,7 @@ def _fmt_pct(value: float) -> str:
     return f"{value:.1%}"
 
 
-def _run_to_result(run: ModelRunOutput, cache_mode: str) -> RunResult | None:
+def _run_to_result(run: AppraiserRunOutput, cache_mode: str) -> RunResult | None:
     """Build a RunResult from stored ModelRunOutput for cost calculation.
 
     Returns None if ``model_name`` is not a known :class:`ModelName` value.
@@ -505,7 +505,7 @@ def _build_summary_table(runs: list[LoadedRun]) -> Table:
     return table
 
 
-def _build_stock_data_table(run: ModelRunOutput) -> Table:
+def _build_stock_data_table(run: AppraiserRunOutput) -> Table:
     sd = run.appraiser.stock_data
     table = Table(show_header=False, box=None, padding=(0, 1))
     table.add_column("Field", style="bold")
@@ -533,7 +533,7 @@ def _build_stock_data_table(run: ModelRunOutput) -> Table:
     return table
 
 
-def _build_assumptions_table(run: ModelRunOutput) -> Table:
+def _build_assumptions_table(run: AppraiserRunOutput) -> Table:
     sa = run.appraiser.stock_assumptions
     table = Table(show_header=False, box=None, padding=(0, 1))
     table.add_column("Assumption", style="bold")
@@ -563,7 +563,7 @@ def _build_detail_panel(
     cache_mode: str,
     search_mode: str,
     display_date: str,
-    run: ModelRunOutput,
+    run: AppraiserRunOutput,
     *,
     show_reasoning: bool,
 ) -> Panel:
@@ -635,7 +635,7 @@ def load_runs_for_ticker(ticker: str) -> list[LoadedRun]:
     for path in files:
         try:
             data = json.loads(path.read_text())
-            run = ModelRunOutput.model_validate(data)
+            run = AppraiserRunOutput.model_validate(data)
         except Exception as exc:  # noqa: BLE001
             console.print(
                 f"[yellow]Warning: could not load {path.name}: {exc}[/yellow]"

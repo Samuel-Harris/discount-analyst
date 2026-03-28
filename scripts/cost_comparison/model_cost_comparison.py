@@ -36,7 +36,7 @@ from discount_analyst.shared.http.rate_limit_client import stream_with_retries
 
 from scripts.shared import (
     AUTO_CACHE_MODELS,
-    ModelRunOutput,
+    AppraiserRunOutput,
     RunConfig,
     RunResult,
     calc_actual_cost,
@@ -411,7 +411,7 @@ async def main() -> None:
                     dcf_error = str(exc)
                     console.print(f"    [yellow]DCF error: {dcf_error}[/yellow]")
 
-                run_output = ModelRunOutput(
+                run_output = AppraiserRunOutput(
                     ticker=args.ticker,
                     model_name=result.model_name.value,
                     risk_free_rate=args.risk_free_rate,
