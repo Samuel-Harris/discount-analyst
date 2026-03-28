@@ -1,5 +1,5 @@
 import asyncio
-import sys
+import re
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator, cast
 
@@ -49,16 +49,54 @@ def _http_transport_should_retry(exc: BaseException) -> bool:
     )
 
 
-_STREAMING_RETRY_EXCEPTIONS = (APIError,)
+_STREAMING_RETRY_HINT_TRY_AGAIN = re.compile(
+    r"try\s+again\s+in\s+(\d+\.?\d*)\s*s", re.IGNORECASE
+)
 
 RETRY_WAIT_MULTIPLIER = 10
 RETRY_AFTER_MAX_WEIGHT_SECONDS = 120  # Max wait after receiving a Retry-After header
 FALLBACK_MAX_WEIGHT_SECONDS = 90  # Max wait on fallback after error
-MAX_RETRY_ATTEMPTS = 3
+# Streaming can fail mid-`stream_output()` (e.g. OpenAI TPM) after a successful `run_stream` start.
+MAX_STREAM_RETRY_ATTEMPTS = 6
 
 _OPENAI_API_HOST = "api.openai.com"
 # Cap logged bodies so Logfire and local logs stay usable on huge error payloads.
 _MAX_OPENAI_ERROR_BODY_CHARS = 16_000
+
+
+def _openai_error_text(exc: BaseException) -> str:
+    if isinstance(exc, APIError):
+        msg = getattr(exc, "message", None)
+        if msg:
+            return str(msg)
+    return str(exc)
+
+
+def api_error_indicates_rate_limit(exc: APIError) -> bool:
+    """True when OpenAI signals quota / TPM / RPM limits (not all APIError cases)."""
+    text = _openai_error_text(exc).lower()
+    return any(
+        needle in text
+        for needle in (
+            "rate limit",
+            "tokens per min",
+            "requests per min",
+            "tpm",
+            "rpm",
+            "too many requests",
+        )
+    )
+
+
+def should_retry_streaming_error(exc: BaseException) -> bool:
+    """Whether to backoff and restart a streamed agent run."""
+    if isinstance(
+        exc, (RateLimitError, InternalServerError, APITimeoutError, APIConnectionError)
+    ):
+        return True
+    if isinstance(exc, APIError):
+        return api_error_indicates_rate_limit(exc)
+    return False
 
 
 def _log_openai_http_error_if_applicable(response: Response) -> None:
@@ -170,6 +208,17 @@ def _stream_wait(attempt: int) -> float:
     )
 
 
+def streaming_retry_sleep_seconds(exc: BaseException, attempt: int) -> float:
+    """Sleep before retry; prefer OpenAI's suggested delay when present."""
+    text = _openai_error_text(exc)
+    m = _STREAMING_RETRY_HINT_TRY_AGAIN.search(text)
+    if m:
+        suggested = float(m.group(1))
+        # Small cushion so the TPM window has cleared.
+        return min(max(suggested + 1.0, 1.0), RETRY_AFTER_MAX_WEIGHT_SECONDS)
+    return min(_stream_wait(attempt), FALLBACK_MAX_WEIGHT_SECONDS)
+
+
 @asynccontextmanager
 async def stream_with_retries[T](
     *,
@@ -180,28 +229,49 @@ async def stream_with_retries[T](
     """Stream agent output with retries on transient API errors.
 
     Tenacity's @retry does not work with async generators: exceptions occur during
-    iteration (when entering the context), not during the initial call. We use a
-    manual retry loop around agent.run_stream() entry instead.
+    iteration (e.g. ``stream_output()``), not only when entering ``run_stream``.
+    We use a manual retry loop around the full stream lifecycle.
     """
-    last_exception: BaseException | None = None
-    for attempt in range(MAX_RETRY_ATTEMPTS):
+    for attempt in range(MAX_STREAM_RETRY_ATTEMPTS):
         cm = agent.run_stream(user_prompt, usage_limits=usage_limits)
         try:
             result = await cm.__aenter__()
-        except _STREAMING_RETRY_EXCEPTIONS as e:
-            last_exception = e
-            if attempt < MAX_RETRY_ATTEMPTS - 1:
-                await asyncio.sleep(_stream_wait(attempt))
-            else:
+        except BaseException as e:
+            if (
+                not should_retry_streaming_error(e)
+                or attempt >= MAX_STREAM_RETRY_ATTEMPTS - 1
+            ):
                 raise
+            wait = streaming_retry_sleep_seconds(e, attempt)
+            logfire.info(
+                "Agent stream start failed, retrying",
+                attempt=attempt + 1,
+                max_attempts=MAX_STREAM_RETRY_ATTEMPTS,
+                wait_s=wait,
+                error=str(e),
+            )
+            await asyncio.sleep(wait)
+            continue
+        try:
+            yield result
+        except BaseException as e:
+            if (
+                not should_retry_streaming_error(e)
+                or attempt >= MAX_STREAM_RETRY_ATTEMPTS - 1
+            ):
+                await cm.__aexit__(type(e), e, e.__traceback__)
+                raise
+            await cm.__aexit__(type(e), e, e.__traceback__)
+            wait = streaming_retry_sleep_seconds(e, attempt)
+            logfire.info(
+                "Agent stream interrupted, retrying",
+                attempt=attempt + 1,
+                max_attempts=MAX_STREAM_RETRY_ATTEMPTS,
+                wait_s=wait,
+                error=str(e),
+            )
+            await asyncio.sleep(wait)
+            continue
         else:
-            try:
-                yield result
-            finally:
-                exc_type, exc_val, exc_tb = sys.exc_info()
-                if exc_type is GeneratorExit:
-                    exc_type, exc_val, exc_tb = None, None, None
-                await cm.__aexit__(exc_type, exc_val, exc_tb)
+            await cm.__aexit__(None, None, None)
             return
-    if last_exception is not None:
-        raise last_exception

@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-03-03 | Updated: 2026-03-03 -->
+<!-- Generated: 2026-03-03 | Updated: 2026-03-28 -->
 
 # http
 
@@ -22,7 +22,7 @@ None.
 ### Working In This Directory
 
 - **Retry Configuration**: Adjust `_http_transport_should_retry`, `RETRY_WAIT_MULTIPLIER`, and Tenacity `stop_after_attempt` for different failure profiles.
-- **Streaming**: `stream_with_retries` handles async generator retries (Tenacity cannot retry during iteration).
+- **Streaming**: `stream_with_retries` retries transient errors on `run_stream` entry and during `stream_output()` iteration (e.g. OpenAI TPM mid-stream), using exponential backoff or the API’s “try again in Xs” hint when present.
 
 ### Testing Requirements
 
