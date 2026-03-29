@@ -13,8 +13,6 @@ Large, ambiguous, or architecturally significant tasks that need a validated wor
 
 ## Agent Roles
 
-All three agents are defined in `.cursor/agents/personal/`.
-
 | Agent     | `subagent_type` | Role                                                                                     |
 | --------- | --------------- | ---------------------------------------------------------------------------------------- |
 | Planner   | `planner`       | Creates and refines the work plan (writes to the plan path supplied by the orchestrator) |
@@ -34,7 +32,7 @@ Planner creates plan
 
 ## Plan Structure
 
-The Planner decides how to structure the plan, but must annotate **task dependencies** when the plan contains multiple tasks. This lets downstream execution (manual or via `cursor-swarm`) determine ordering and parallelism.
+The Planner decides how to structure the plan, but must annotate **task dependencies** when the plan contains multiple tasks. This lets downstream execution determine ordering and parallelism.
 
 ### Dependency Annotations
 
@@ -74,7 +72,7 @@ Before planning, assess whether the developer's intention is clear enough to pro
 
 If the task description is vague, contradictory, missing acceptance criteria, or leaves key architectural decisions open, run the **deep-interview** skill first.
 
-The deep-interview skill runs a Socratic Q&A loop that scores ambiguity across weighted dimensions and refuses to exit until ambiguity drops below 20%. When it completes, it writes a crystal-clear spec to `.cursor/interviews/`. Use that spec as the task description for the planning loop.
+The deep-interview skill runs a Socratic Q&A loop that scores ambiguity across weighted dimensions and refuses to exit until ambiguity drops below 20%. When it completes, it writes a crystal-clear spec to `.cursor/artefacts/interviews/`. Use that spec as the task description for the planning loop.
 
 **Skip this step** if the request already includes specific file paths and acceptance criteria, the user has an existing plan or interview file, or the user says "just plan it" / "don't interview me".
 
