@@ -17,6 +17,9 @@
 # Python
 __pycache__/
 
+# Marimo
+__marimo__/
+
 # Notebooks
 discount_analyst/notebooks/
 
@@ -34,5 +37,6 @@ experiment_data/
 outputs/
 scripts/cost_comparison/outputs/
 
-# Handoffs
-.cursor/handoffs/
+# Cursor artefacts
+.cursor/artefacts/
+.cursor/plans/

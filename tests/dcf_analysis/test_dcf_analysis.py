@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from discount_analyst.dcf_analysis.dcf_analysis import DCFAnalysis
 from discount_analyst.dcf_analysis.data_types import DCFAnalysisParameters
-from discount_analyst.shared.data_types import StockData, StockAssumptions
+from discount_analyst.shared.models.data_types import StockData, StockAssumptions
 import pytest
 
 from discount_analyst.dcf_analysis.data_types import DCFAnalysisResult

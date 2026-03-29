@@ -2,6 +2,11 @@ from enum import StrEnum
 from typing import Annotated, Literal
 
 from anthropic.types.beta import BetaThinkingConfigEnabledParam
+from discount_analyst.shared.constants.providers import (
+    PROVIDERS_BY_FEATURE,
+    Provider,
+    ProviderFeature,
+)
 from pydantic import BaseModel, Field, computed_field
 from pydantic_ai import UsageLimits
 from pydantic_ai.models.anthropic import AnthropicModelSettings
@@ -13,8 +18,10 @@ from pydantic_ai.models.openai import OpenAIResponsesModelSettings
 _MAX_TOOL_CALLS = 60
 _MAX_TOKENS = 30_000
 _MAX_THINKING_BUDGET_TOKENS = 16_000
+_OPENAI_COMPACTION_THRESHOLD_TOKENS = 200_000
 
-ProviderLiteral = Literal["anthropic", "openai", "google"]
+_ANTHROPIC_REASONING_EFFORT = "high"
+_OPENAI_REASONING_EFFORT = "high"
 
 
 class ModelName(StrEnum):
@@ -22,6 +29,7 @@ class ModelName(StrEnum):
     CLAUDE_SONNET_4_5 = "claude-sonnet-4-5"
     CLAUDE_OPUS_4_6 = "claude-opus-4-6"
     CLAUDE_SONNET_4_6 = "claude-sonnet-4-6"
+    CLAUDE_HAIKU_4_6 = "claude-haiku-4-6"
     GPT_5_1 = "gpt-5.1"
     GPT_5_2 = "gpt-5.2"
     GPT_5_4 = "gpt-5.4"
@@ -29,21 +37,23 @@ class ModelName(StrEnum):
     GEMINI_3_1_PRO_PREVIEW = "gemini-3.1-pro-preview"
 
 
-class BaseAIModelConfig(BaseModel):
+class BaseAIModelConfig[P: Provider](BaseModel):
     """Common fields shared by all provider model configs.
 
-    Each concrete config sets ``provider`` to a fixed string; the field is typed as
-    ``ProviderLiteral`` so Pyright accepts overrides while Pydantic's discriminated
-    union (``AIModelConfig``) still resolves the correct subclass.
+    Each concrete config specializes ``P`` to ``Literal[Provider.X]`` so the ``provider``
+    field is a discriminant for ``AIModelConfig`` without invariant override errors.
     """
 
-    provider: ProviderLiteral
+    provider: P
     model_name: str
     max_tokens: int
     usage_limits: UsageLimits | None = None
 
+    def supports_feature(self, feature: ProviderFeature) -> bool:
+        return self.provider in PROVIDERS_BY_FEATURE[feature]
 
-class AnthropicAIModelConfig(BaseAIModelConfig):
+
+class AnthropicAIModelConfig(BaseAIModelConfig[Literal[Provider.ANTHROPIC]]):
     """Anthropic model config with thinking, cache, and effort settings.
 
     Set `thinking_budget_tokens` for older models (4.5) that use fixed-budget extended thinking
@@ -54,7 +64,7 @@ class AnthropicAIModelConfig(BaseAIModelConfig):
     (`"low"` / `"medium"` / `"high"` / `"max"`). When `None` the model decides its own effort.
     """
 
-    provider: ProviderLiteral = "anthropic"
+    provider: Literal[Provider.ANTHROPIC] = Provider.ANTHROPIC
     thinking_budget_tokens: int | None = None
     cache_messages: bool = True
     effort: Literal["low", "medium", "high", "max"] | None = None
@@ -70,6 +80,7 @@ class AnthropicAIModelConfig(BaseAIModelConfig):
             # "adaptive" is accepted by the Anthropic API for 4.6+ models but is not
             # yet present in the SDK's BetaThinkingConfigParam TypedDict union.
             anthropic_thinking = {"type": "adaptive"}  # type: ignore[assignment]
+
         return AnthropicModelSettings(
             temperature=1,
             max_tokens=self.max_tokens,
@@ -82,14 +93,19 @@ class AnthropicAIModelConfig(BaseAIModelConfig):
         )
 
 
-class OpenAIAIModelConfig(BaseAIModelConfig):
-    """OpenAI model config with flex service tier, 24h prompt caching, and privacy settings.
+class OpenAIAIModelConfig(BaseAIModelConfig[Literal[Provider.OPENAI]]):
+    """OpenAI model config with compaction, caching, and privacy settings.
 
     Set `reasoning_effort` for reasoning models (e.g. o-series, GPT-5.x) to trade cost for
     quality (`"low"` / `"medium"` / `"high"`). When `None` the model's default is used.
+
+    ``openai_previous_response_id="auto"`` is intentionally omitted: with
+    ``openai_store=False``, OpenAI does not retain responses for server-side chaining, so
+    continuing with a stored ``provider_response_id`` yields ``previous_response_not_found``
+    (400). Conversation context is carried in the full message history instead.
     """
 
-    provider: ProviderLiteral = "openai"
+    provider: Literal[Provider.OPENAI] = Provider.OPENAI
     reasoning_effort: Literal["low", "medium", "high"] | None = None
 
     @property
@@ -101,12 +117,20 @@ class OpenAIAIModelConfig(BaseAIModelConfig):
             openai_prompt_cache_retention="24h",
             openai_store=False,
         )
+        settings["extra_body"] = {
+            "context_management": [
+                {
+                    "type": "compaction",
+                    "compact_threshold": _OPENAI_COMPACTION_THRESHOLD_TOKENS,
+                }
+            ]
+        }
         if self.reasoning_effort is not None:
             settings["openai_reasoning_effort"] = self.reasoning_effort
         return settings
 
 
-class GoogleAIModelConfig(BaseAIModelConfig):
+class GoogleAIModelConfig(BaseAIModelConfig[Literal[Provider.GOOGLE]]):
     """Google model config with explicit thinking budget.
 
     Set `thinking_budget_tokens` to cap Gemini 3's reasoning cost. Without a budget the model
@@ -115,7 +139,7 @@ class GoogleAIModelConfig(BaseAIModelConfig):
     `google_cached_content` at call time via model_settings for a guaranteed discount).
     """
 
-    provider: ProviderLiteral = "google"
+    provider: Literal[Provider.GOOGLE] = Provider.GOOGLE
     thinking_budget_tokens: int | None = None
 
     @property
@@ -137,77 +161,45 @@ AIModelConfig = Annotated[
 ]
 
 
-def _anthropic_market_analyst(
-    model_name: ModelName, *, cache_messages: bool = True
-) -> AnthropicAIModelConfig:
-    """Fixed-budget extended thinking for 4.5 models."""
-    return AnthropicAIModelConfig(  # pyright: ignore[reportCallIssue]
-        model_name=model_name,
-        max_tokens=_MAX_TOKENS,
-        thinking_budget_tokens=_MAX_THINKING_BUDGET_TOKENS,
-        usage_limits=UsageLimits(tool_calls_limit=_MAX_TOOL_CALLS),
-        cache_messages=cache_messages,
-    )
-
-
-def _anthropic_adaptive_market_analyst(
-    model_name: ModelName, *, cache_messages: bool = True
-) -> AnthropicAIModelConfig:
-    """Adaptive thinking for 4.6+ models (Anthropic's recommended mode over fixed budget_tokens)."""
-    return AnthropicAIModelConfig(  # pyright: ignore[reportCallIssue]
-        model_name=model_name,
-        max_tokens=_MAX_TOKENS,
-        usage_limits=UsageLimits(tool_calls_limit=_MAX_TOOL_CALLS),
-        cache_messages=cache_messages,
-        effort="high",
-    )
-
-
-def _openai_market_analyst(
-    model_name: ModelName,
-    *,
-    reasoning_effort: Literal["low", "medium", "high"] | None = "high",
-) -> OpenAIAIModelConfig:
-    return OpenAIAIModelConfig(  # pyright: ignore[reportCallIssue]
-        model_name=model_name,
-        max_tokens=_MAX_TOKENS,
-        usage_limits=UsageLimits(tool_calls_limit=_MAX_TOOL_CALLS),
-        reasoning_effort=reasoning_effort,
-    )
-
-
-def _google_market_analyst(model_name: ModelName) -> GoogleAIModelConfig:
-    return GoogleAIModelConfig(  # pyright: ignore[reportCallIssue]
-        model_name=model_name,
-        max_tokens=_MAX_TOKENS,
-        thinking_budget_tokens=_MAX_THINKING_BUDGET_TOKENS,
-        usage_limits=UsageLimits(tool_calls_limit=_MAX_TOOL_CALLS),
-    )
-
-
 class AIModelsConfig(BaseModel):
     model_name: ModelName = ModelName.CLAUDE_OPUS_4_5
     cache_messages: bool = True
 
     @computed_field
     @property
-    def market_analyst(self) -> AIModelConfig:
+    def model(self) -> AIModelConfig:
         match self.model_name:
-            case ModelName.CLAUDE_OPUS_4_5 | ModelName.CLAUDE_SONNET_4_5:
-                return _anthropic_market_analyst(
-                    self.model_name, cache_messages=self.cache_messages
-                )
             case ModelName.CLAUDE_OPUS_4_6 | ModelName.CLAUDE_SONNET_4_6:
-                return _anthropic_adaptive_market_analyst(
-                    self.model_name, cache_messages=self.cache_messages
+                return AnthropicAIModelConfig(
+                    model_name=self.model_name,
+                    max_tokens=_MAX_TOKENS,
+                    usage_limits=UsageLimits(tool_calls_limit=_MAX_TOOL_CALLS),
+                    cache_messages=self.cache_messages,
+                    effort=_ANTHROPIC_REASONING_EFFORT,
+                )
+            case (
+                ModelName.CLAUDE_OPUS_4_5
+                | ModelName.CLAUDE_SONNET_4_5
+                | ModelName.CLAUDE_HAIKU_4_6
+            ):
+                return AnthropicAIModelConfig(
+                    model_name=self.model_name,
+                    max_tokens=_MAX_TOKENS,
+                    thinking_budget_tokens=_MAX_THINKING_BUDGET_TOKENS,
+                    usage_limits=UsageLimits(tool_calls_limit=_MAX_TOOL_CALLS),
+                    cache_messages=self.cache_messages,
                 )
             case ModelName.GPT_5_1 | ModelName.GPT_5_2 | ModelName.GPT_5_4:
-                return _openai_market_analyst(self.model_name)
+                return OpenAIAIModelConfig(
+                    model_name=self.model_name,
+                    max_tokens=_MAX_TOKENS,
+                    usage_limits=UsageLimits(tool_calls_limit=_MAX_TOOL_CALLS),
+                    reasoning_effort=_OPENAI_REASONING_EFFORT,
+                )
             case ModelName.GEMINI_3_PRO_PREVIEW | ModelName.GEMINI_3_1_PRO_PREVIEW:
-                return _google_market_analyst(self.model_name)
-            case _:
-                raise ValueError(
-                    f"Unsupported AI model: '{self.model_name}'. "
-                    f"Supported models: {[e.value for e in ModelName]}. "
-                    "Please update the model_name to one of the supported options."
+                return GoogleAIModelConfig(
+                    model_name=self.model_name,
+                    max_tokens=_MAX_TOKENS,
+                    thinking_budget_tokens=_MAX_THINKING_BUDGET_TOKENS,
+                    usage_limits=UsageLimits(tool_calls_limit=_MAX_TOOL_CALLS),
                 )

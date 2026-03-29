@@ -2,17 +2,25 @@
 
 from __future__ import annotations
 
+import argparse
+import re
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic_ai.messages import ModelMessage, ModelResponse
 
 from genai_prices import Usage, calc_price
 
-from discount_analyst.shared.ai_models_config import AIModelsConfig, ModelName
-from discount_analyst.shared.data_types import MarketAnalystOutput
+from discount_analyst.appraiser.data_types import AppraiserOutput
 from discount_analyst.dcf_analysis.data_types import DCFAnalysisResult
+from discount_analyst.shared.config.ai_models_config import AIModelsConfig, ModelName
+from discount_analyst.shared.constants.agents import AgentName
+from discount_analyst.shared.models.data_types import SurveyorOutput
+
+SCRIPTS_OUTPUTS_DIR = Path(__file__).resolve().parent / "outputs"
 
 # Models that auto-cache (OpenAI, Gemini); no way to disable — skip when --caching disabled.
 AUTO_CACHE_MODELS: frozenset[ModelName] = frozenset(
@@ -24,6 +32,58 @@ AUTO_CACHE_MODELS: frozenset[ModelName] = frozenset(
         ModelName.GEMINI_3_1_PRO_PREVIEW,
     }
 )
+
+
+@dataclass(frozen=True, slots=True)
+class AgentCliDefaults:
+    """Default model and web-search backend for `scripts/agents/` entry points."""
+
+    model: ModelName
+    use_perplexity: bool
+
+
+DEFAULT_AGENT_CLI_DEFAULTS = AgentCliDefaults(
+    model=ModelName.GPT_5_1,
+    use_perplexity=False,
+)
+
+
+def add_agent_cli_model_argument(
+    parser: argparse.ArgumentParser,
+    *,
+    default_override: AgentCliDefaults | None = None,
+) -> None:
+    """Register ``--model`` using shared agent CLI defaults."""
+    resolved_defaults = default_override or DEFAULT_AGENT_CLI_DEFAULTS
+    parser.add_argument(
+        "--model",
+        type=ModelName,
+        choices=[e.value for e in ModelName],
+        default=resolved_defaults.model,
+        help=f"AI model to use (default: {resolved_defaults.model})",
+    )
+
+
+def add_agent_cli_web_search_arguments(
+    parser: argparse.ArgumentParser,
+    *,
+    default_override: AgentCliDefaults | None = None,
+) -> None:
+    """Register optional ``--perplexity`` (default: model-native web search).
+
+    Namespace attribute: ``use_perplexity``.
+    """
+    resolved_defaults = default_override or DEFAULT_AGENT_CLI_DEFAULTS
+    parser.set_defaults(use_perplexity=resolved_defaults.use_perplexity)
+    parser.add_argument(
+        "--perplexity",
+        action="store_true",
+        dest="use_perplexity",
+        help=(
+            "Use Perplexity API for web_search and sec_filings_search "
+            "(default: model-native web search)."
+        ),
+    )
 
 
 @dataclass(frozen=True)
@@ -59,13 +119,35 @@ class FormattedCostResult:
     used_fallback: bool
 
 
-class ModelRunOutput(BaseModel):
+class TurnUsage(BaseModel):
+    """Usage stats for one model-response turn within a run."""
+
+    turn: int = Field(ge=1)
+    input_tokens: int = Field(ge=0)
+    output_tokens: int = Field(ge=0)
+    cache_write_tokens: int = Field(default=0, ge=0)
+    cache_read_tokens: int = Field(default=0, ge=0)
+    total_tokens: int = Field(ge=0)
+    cumulative_input_tokens: int = Field(ge=0)
+    cumulative_output_tokens: int = Field(ge=0)
+    cumulative_total_tokens: int = Field(ge=0)
+
+
+def _default_turn_usage_list() -> list[TurnUsage]:
+    return []
+
+
+class AppraiserRunOutput(BaseModel):
     """Complete serialisable record for one model run written to outputs/."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     ticker: str
     model_name: str
     risk_free_rate: float
-    market_analyst: MarketAnalystOutput
+    appraiser: AppraiserOutput = Field(
+        validation_alias=AliasChoices("market_analyst", "appraiser"),
+    )
     dcf_result: DCFAnalysisResult | None = None
     dcf_error: str | None = None
     elapsed_s: float
@@ -74,6 +156,97 @@ class ModelRunOutput(BaseModel):
     cache_write_tokens: int
     cache_read_tokens: int
     tool_calls: int
+    turn_usage: list[TurnUsage] = Field(default_factory=_default_turn_usage_list)
+
+
+class SurveyorRunOutput(BaseModel):
+    """Complete serialisable record for one Surveyor run written to outputs/."""
+
+    model_name: str
+    elapsed_s: float
+    input_tokens: int
+    output_tokens: int
+    turn_usage: list[TurnUsage] = Field(default_factory=_default_turn_usage_list)
+    output: SurveyorOutput
+
+
+def extract_turn_usage(messages: list[ModelMessage]) -> list[TurnUsage]:
+    """Extract per-turn usage by walking ModelResponse messages in order."""
+    turns: list[TurnUsage] = []
+    cumulative_input = 0
+    cumulative_output = 0
+    cumulative_total = 0
+
+    for message in messages:
+        if not isinstance(message, ModelResponse):
+            continue
+
+        usage = message.usage
+        input_tokens = getattr(usage, "input_tokens", 0)
+        output_tokens = getattr(usage, "output_tokens", 0)
+        cache_write_tokens = getattr(usage, "cache_write_tokens", 0)
+        cache_read_tokens = getattr(usage, "cache_read_tokens", 0)
+        total_tokens = getattr(usage, "total_tokens", input_tokens + output_tokens)
+
+        cumulative_input += input_tokens
+        cumulative_output += output_tokens
+        cumulative_total += total_tokens
+        turns.append(
+            TurnUsage(
+                turn=len(turns) + 1,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cache_write_tokens=cache_write_tokens,
+                cache_read_tokens=cache_read_tokens,
+                total_tokens=total_tokens,
+                cumulative_input_tokens=cumulative_input,
+                cumulative_output_tokens=cumulative_output,
+                cumulative_total_tokens=cumulative_total,
+            )
+        )
+
+    return turns
+
+
+def _sanitize_filename_suffix_body(s: str) -> str:
+    """Allow [A-Za-z0-9._-] only; other chars become '-'; collapse and trim hyphens."""
+    stripped = s.strip()
+    if not stripped:
+        return ""
+    chars: list[str] = []
+    for c in stripped:
+        if c in "._-" or ("A" <= c <= "Z") or ("a" <= c <= "z") or ("0" <= c <= "9"):
+            chars.append(c)
+        else:
+            chars.append("-")
+    collapsed = re.sub(r"-+", "-", "".join(chars)).strip("-")
+    return collapsed
+
+
+def write_agent_json(
+    *,
+    payload: BaseModel,
+    model_name: ModelName,
+    agent_name: AgentName,
+    filename_suffix: str | None = None,
+) -> Path:
+    """Serialise a Pydantic payload to ``scripts/outputs/`` and return the path written.
+
+    Filename stem: ``{timestamp}-{model}-{AGENT}{optional_suffix}.json`` with
+    ``timestamp`` as ``YYYY-mm-dd-HH-MM-SS`` and model dots replaced by hyphens.
+    """
+    ts = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    safe_model = model_name.value.replace(".", "-")
+    if filename_suffix is None or not filename_suffix.strip():
+        suffix = ""
+    else:
+        body = _sanitize_filename_suffix_body(filename_suffix)
+        suffix = "" if body == "" else (body if body.startswith("-") else f"-{body}")
+    filename = f"{ts}-{safe_model}-{agent_name.value}{suffix}.json"
+    SCRIPTS_OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+    path = SCRIPTS_OUTPUTS_DIR / filename
+    path.write_text(payload.model_dump_json(indent=2))
+    return path.resolve()
 
 
 # Fallback pricing when genai_prices does not have the model (e.g. very new models).
@@ -104,7 +277,8 @@ class RunResult:
     tool_calls: int
     use_web_search: bool = False
     error: str | None = None
-    output: MarketAnalystOutput | None = field(default=None, repr=False)
+    output: AppraiserOutput | None = field(default=None, repr=False)
+    turn_usage: list[TurnUsage] = field(default_factory=_default_turn_usage_list)
 
     @property
     def total_tokens(self) -> int:
@@ -145,7 +319,7 @@ def calc_actual_cost(r: RunResult) -> FormattedCostResult | None:
     if not r.has_usage():
         return None
     config = AIModelsConfig(model_name=r.model_name)
-    provider_id = config.market_analyst.provider
+    provider_id = config.model.provider
     usage = Usage(
         input_tokens=r.input_tokens,
         output_tokens=r.output_tokens,
@@ -208,7 +382,7 @@ def output_filename(
 
 def write_model_output(
     *,
-    run_output: ModelRunOutput,
+    run_output: AppraiserRunOutput,
     timestamp: str,
     output_dir: Path,
     cache_suffix: Literal["cache", "no-cache"] | None = None,

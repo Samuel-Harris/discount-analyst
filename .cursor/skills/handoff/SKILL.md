@@ -115,7 +115,7 @@ except APIError as e:
 
 ---
 
-**After you create this handoff document, save it as:** `.cursor/handoffs/YYYY-MM-DD_HH-MM-SS_<brief description>_handoff.md` (e.g., `2026-02-04_11-30-00_memory_leak_investigation_handoff.md`)
+**After you create this handoff document, save it as:** `.cursor/artefacts/handoffs/YYYY-MM-DD_HH-MM-SS_<brief description>_handoff.md` (e.g., `2026-02-04_11-30-00_memory_leak_investigation_handoff.md`)
 
 Then provide me with:
 

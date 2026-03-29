@@ -26,11 +26,19 @@ class Google(BaseModel):
     api_key: str
 
 
+class FMP(BaseModel):
+    api_key: str
+
+
+class EODHD(BaseModel):
+    api_key: str
+
+
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     model_config = SettingsConfigDict(
-        env_file=Path(__file__).parent.parent / ".env",
+        env_file=Path(__file__).parent.parent.parent / ".env",
         env_file_encoding="utf-8",
         env_nested_delimiter="__",
     )
@@ -40,6 +48,8 @@ class Settings(BaseSettings):
     anthropic: Anthropic | None = None
     openai: OpenAI | None = None
     google: Google | None = None
+    fmp: FMP
+    eodhd: EODHD
 
 
 settings = Settings()  # type: ignore[missing-argument]

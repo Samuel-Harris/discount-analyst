@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from discount_analyst.shared.data_types import StockAssumptions, StockData
+from discount_analyst.shared.models.data_types import StockAssumptions, StockData
 
 
 class DCFAnalysisParameters(BaseModel):

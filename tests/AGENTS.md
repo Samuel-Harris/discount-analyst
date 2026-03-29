@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-23 | Updated: 2026-02-23 -->
+<!-- Generated: 2026-02-23 | Updated: 2026-03-28 -->
 
 # tests
 
@@ -12,12 +12,14 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | File | Description |
 | --------- | ---------------------------- |
 | `tests/dcf_analysis/test_dcf_analysis.py` | Comprehensive unit tests for the DCF calculation engine using real-world stock data scenarios. |
+| `tests/shared/http/test_rate_limit_client.py` | Unit tests for streaming retry helpers (`should_retry_streaming_error`, sleep parsing). |
 
 ## Subdirectories
 
 | Directory | Purpose |
 | --------- | ----------------------------------------- |
 | `dcf_analysis/` | Contains tests specifically targeting the Discounted Cash Flow analysis module. |
+| `shared/http/` | Tests for `discount_analyst.shared.http` (rate limit / streaming retries). |
 
 ## For AI Agents
 
@@ -44,7 +46,8 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 ### Internal
 
 - `discount_analyst.dcf_analysis`: The core DCF calculation logic being tested.
-- `discount_analyst.shared.data_types`: Shared Pydantic models for financial data and assumptions.
+- `discount_analyst.shared.models.data_types`: Shared Pydantic models for financial data and assumptions.
+- `discount_analyst.shared.http.rate_limit_client`: HTTP and streaming retry behaviour.
 
 ### External
 

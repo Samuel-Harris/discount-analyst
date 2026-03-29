@@ -46,7 +46,7 @@ The `tests/dcf_analysis/` directory contains unit tests specifically for the Dis
 
 - `discount_analyst.dcf_analysis.dcf_analysis`: The core DCF calculation logic.
 - `discount_analyst.dcf_analysis.data_types`: Data structures for DCF parameters and results.
-- `discount_analyst.shared.data_types`: Shared models for stock data and assumptions.
+- `discount_analyst.shared.models.data_types`: Shared models for stock data and assumptions.
 
 ### External
 

@@ -24,7 +24,7 @@ from rich.table import Table
 from rich.text import Text
 
 from scripts.shared import (
-    ModelRunOutput,
+    AppraiserRunOutput,
     ModelName,
     RunResult,
     calc_actual_cost,
@@ -87,7 +87,7 @@ class LoadedRun(NamedTuple):
     cache_mode: str
     search_mode: str
     display_date: str
-    run: ModelRunOutput
+    run: AppraiserRunOutput
 
 
 def _parse_filename(filename: str) -> ParsedFilename:
@@ -146,7 +146,7 @@ def _fmt_pct(value: float) -> str:
     return f"{value:.1%}"
 
 
-def _run_to_result(run: ModelRunOutput, cache_mode: str) -> RunResult | None:
+def _run_to_result(run: AppraiserRunOutput, cache_mode: str) -> RunResult | None:
     """Build a RunResult from stored ModelRunOutput for cost calculation.
 
     Returns None if ``model_name`` is not a known :class:`ModelName` value.
@@ -166,6 +166,7 @@ def _run_to_result(run: ModelRunOutput, cache_mode: str) -> RunResult | None:
         tool_calls=run.tool_calls or 0,
         error=None,
         output=None,
+        turn_usage=run.turn_usage,
     )
 
 
@@ -469,8 +470,8 @@ def _build_summary_table(runs: list[LoadedRun]) -> Table:
         run = loaded.run
         cache_mode = loaded.cache_mode
         display_date = loaded.display_date
-        sd = run.market_analyst.stock_data
-        sa = run.market_analyst.stock_assumptions
+        sd = run.appraiser.stock_data
+        sa = run.appraiser.stock_assumptions
         market_price = sd.market_cap / sd.n_shares_outstanding
 
         if run.dcf_result is not None:
@@ -504,8 +505,8 @@ def _build_summary_table(runs: list[LoadedRun]) -> Table:
     return table
 
 
-def _build_stock_data_table(run: ModelRunOutput) -> Table:
-    sd = run.market_analyst.stock_data
+def _build_stock_data_table(run: AppraiserRunOutput) -> Table:
+    sd = run.appraiser.stock_data
     table = Table(show_header=False, box=None, padding=(0, 1))
     table.add_column("Field", style="bold")
     table.add_column("Value", justify="right")
@@ -532,8 +533,8 @@ def _build_stock_data_table(run: ModelRunOutput) -> Table:
     return table
 
 
-def _build_assumptions_table(run: ModelRunOutput) -> Table:
-    sa = run.market_analyst.stock_assumptions
+def _build_assumptions_table(run: AppraiserRunOutput) -> Table:
+    sa = run.appraiser.stock_assumptions
     table = Table(show_header=False, box=None, padding=(0, 1))
     table.add_column("Assumption", style="bold")
     table.add_column("Value", justify="right")
@@ -562,12 +563,12 @@ def _build_detail_panel(
     cache_mode: str,
     search_mode: str,
     display_date: str,
-    run: ModelRunOutput,
+    run: AppraiserRunOutput,
     *,
     show_reasoning: bool,
 ) -> Panel:
-    sd = run.market_analyst.stock_data
-    sa = run.market_analyst.stock_assumptions
+    sd = run.appraiser.stock_data
+    sa = run.appraiser.stock_assumptions
     market_price = sd.market_cap / sd.n_shares_outstanding
 
     content_parts: list[str] = []
@@ -634,7 +635,7 @@ def load_runs_for_ticker(ticker: str) -> list[LoadedRun]:
     for path in files:
         try:
             data = json.loads(path.read_text())
-            run = ModelRunOutput.model_validate(data)
+            run = AppraiserRunOutput.model_validate(data)
         except Exception as exc:  # noqa: BLE001
             console.print(
                 f"[yellow]Warning: could not load {path.name}: {exc}[/yellow]"
