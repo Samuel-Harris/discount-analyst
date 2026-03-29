@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -153,6 +154,41 @@ def load_surveyor_candidate(path: Path) -> SurveyorCandidate:
     return SurveyorCandidate.model_validate_json(path.read_text())
 
 
+def _ticker_appears_in_research_report(*, ticker: str, report: str) -> bool:
+    """True if ``ticker`` appears case-insensitively in ``report``."""
+    stripped = ticker.strip()
+    if not stripped:
+        return False
+    return stripped.casefold() in report.casefold()
+
+
+def _confirm_if_ticker_missing_from_report(
+    *,
+    ticker: str,
+    report: str,
+    dir_path: Path,
+) -> None:
+    """Prompt or exit when the surveyor ticker is absent from the deep-research body."""
+    if _ticker_appears_in_research_report(ticker=ticker, report=report):
+        return
+
+    console.print(
+        f"[yellow]Warning:[/yellow] Ticker [bold]{ticker}[/bold] from "
+        f"{SURVEYOR_REPORT_FILENAME} does not appear in {DEEP_RESEARCH_FILENAME} "
+        f"under {dir_path}."
+    )
+    if not sys.stdin.isatty():
+        console.print(
+            "[red]Non-interactive terminal: cannot confirm. Ensure the ticker appears in "
+            f"{DEEP_RESEARCH_FILENAME}, or run from an interactive terminal.[/red]"
+        )
+        raise SystemExit(1)
+    answer = input("Continue anyway? [y/N]: ").strip().lower()
+    if answer not in ("y", "yes"):
+        console.print("[red]Aborted.[/red]")
+        raise SystemExit(1)
+
+
 @dataclass
 class AgentRunResult:
     output: AppraiserOutput
@@ -196,7 +232,7 @@ async def run_agent(
     use_perplexity: bool = DEFAULT_AGENT_CLI_DEFAULTS.use_perplexity,
     use_mcp_financial_data: bool = True,
 ) -> AgentRunResult:
-    """Run the Market Analyst agent and return output with usage stats."""
+    """Run the Appraiser agent and return output with usage stats."""
     ai_models_config = AIModelsConfig(model_name=args.model)
     agent = create_appraiser_agent(
         ai_models_config,
@@ -286,7 +322,7 @@ def build_stock_table(output: AppraiserOutput) -> Table:
 
 
 def display_agent_output(output: AppraiserOutput) -> None:
-    """Print the Market Analyst agent output section."""
+    """Print the Appraiser agent output section."""
     stock_table = build_stock_table(output)
     assumptions_panel = Panel.fit(
         output.stock_assumptions.reasoning,
@@ -297,7 +333,7 @@ def display_agent_output(output: AppraiserOutput) -> None:
     console.print("\n")
     console.print(
         Panel.fit(
-            "[bold green]🤖 MARKET ANALYST AGENT OUTPUT[/bold green]",
+            "[bold green]🤖 APPRAISER AGENT OUTPUT[/bold green]",
             border_style="green",
             padding=(1, 2),
         )
@@ -389,7 +425,7 @@ def save_run_output(
     dcf_result: DCFAnalysisResult | None,
     dcf_error: str | None,
 ) -> Path:
-    """Build ModelRunOutput, write to outputs/, and return the path."""
+    """Build ``AppraiserRunOutput``, write JSON via ``write_agent_json``, return path."""
     run_output = AppraiserRunOutput(
         ticker=args.surveyor_candidate.ticker,
         model_name=args.model.value,
@@ -420,6 +456,11 @@ async def run_one_stock(stock: StockResearchDir, shared: SharedArgs) -> None:
     candidate = load_surveyor_candidate(surveyor_report_path)
     args = _stock_run_args(stock, candidate, shared)
     research_report_content = load_research_report(deep_research_path)
+    _confirm_if_ticker_missing_from_report(
+        ticker=candidate.ticker,
+        report=str(research_report_content),
+        dir_path=stock.dir_path,
+    )
 
     console.log(
         f"Initializing Appraiser Agent for {args.surveyor_candidate.ticker} "
