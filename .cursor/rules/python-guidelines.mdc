@@ -11,3 +11,4 @@ When writing Python:
 - Always import from the top of the file when possible.
 - I am using Python 3.14 in this repo. The latest Python 3.14 syntax is preferred.
 - Do not create barrel import files or use __all__ in __init__.py files. it is an antipattern as it makes circular dependencies more common.
+- Always use the rich library for pretty printing when writing Python scripts.
