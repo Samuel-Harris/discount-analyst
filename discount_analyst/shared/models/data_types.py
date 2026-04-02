@@ -251,7 +251,6 @@ class KeyMetrics(BaseModel):
 class SurveyorCandidate(BaseModel):
     """A single stock candidate surfaced by the Surveyor agent."""
 
-    rank: int = Field(ge=1, description="Conviction rank. 1 = highest conviction.")
     ticker: str = Field(
         description=(
             "Primary ticker symbol. For UK stocks use the exchange suffix "
@@ -269,13 +268,6 @@ class SurveyorCandidate(BaseModel):
     )
     sector: str
     industry: str
-    suggested_category: StockCategory = Field(
-        description=(
-            "Preliminary categorisation. 'value' = mature business potentially "
-            "trading below intrinsic value. 'growth' = high-growth company with "
-            "strong revenue trajectory, possibly pre-profit."
-        ),
-    )
     analyst_coverage_count: int | None = Field(
         default=None,
         description=(
