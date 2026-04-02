@@ -23,13 +23,10 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from scripts.shared import (
-    AppraiserRunOutput,
-    ModelName,
-    RunResult,
-    calc_actual_cost,
-    calc_raw_cost,
-)
+from discount_analyst.shared.config.ai_models_config import ModelName
+
+from scripts.shared.cost import RunResult, calc_actual_cost, calc_raw_cost
+from scripts.shared.schemas.run_outputs import AppraiserRunOutput
 
 console = Console()
 

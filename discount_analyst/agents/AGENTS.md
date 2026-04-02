@@ -1,11 +1,11 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-04-02 | Updated: 2026-04-02 -->
+<!-- Generated: 2026-04-02 | Updated: 2026-04-03 -->
 
 # agents
 
 ## Purpose
 
-Contains AI agent packages used by the project workflows. This directory groups the Appraiser and Surveyor implementations under a shared namespace.
+Contains AI agent packages used by the project workflows. This directory groups the Surveyor, Researcher, and Appraiser implementations under a shared namespace.
 
 ## Key Files
 
@@ -17,14 +17,15 @@ Contains AI agent packages used by the project workflows. This directory groups 
 
 | Directory | Purpose |
 | --------- | ------- |
-| `appraiser/` | Appraiser agent implementation and prompts for DCF workflows (see `appraiser/AGENTS.md`) |
 | `surveyor/` | Surveyor agent implementation and prompts for candidate discovery (see `surveyor/AGENTS.md`) |
+| `researcher/` | Researcher agent implementation and prompts for structured deep-research evidence output (see `researcher/AGENTS.md`) |
+| `appraiser/` | Appraiser agent implementation and prompts for DCF workflows (see `appraiser/AGENTS.md`) |
 
 ## For AI Agents
 
 ### Working In This Directory
 
-- Keep appraiser and surveyor code in separate subpackages to avoid cross-coupling.
+- Keep surveyor, researcher, and appraiser code in separate subpackages to avoid cross-coupling.
 - Use fully qualified imports from `discount_analyst.agents.*` in callers.
 
 ### Testing Requirements
@@ -33,7 +34,7 @@ Contains AI agent packages used by the project workflows. This directory groups 
 
 ### Common Patterns
 
-- Agent factories live in each subpackage's main module (`appraiser.py` and `surveyor.py`).
+- Agent factories live in each subpackage's main module (`surveyor.py`, `researcher.py`, `appraiser.py`).
 - Prompt definitions stay inside their owning subpackage.
 
 ## Dependencies

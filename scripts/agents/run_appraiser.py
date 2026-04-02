@@ -27,15 +27,14 @@ from discount_analyst.shared.constants.agents import AgentName
 from discount_analyst.shared.http.rate_limit_client import stream_with_retries
 from discount_analyst.shared.schemas.surveyor import SurveyorCandidate
 
-from scripts.shared import (
+from scripts.shared.cli import (
     DEFAULT_AGENT_CLI_DEFAULTS,
-    AppraiserRunOutput,
-    TurnUsage,
     add_agent_cli_model_argument,
     add_agent_cli_web_search_arguments,
-    extract_turn_usage,
-    write_agent_json,
 )
+from scripts.shared.outputs import write_agent_json
+from scripts.shared.schemas.run_outputs import AppraiserRunOutput, TurnUsage
+from scripts.shared.usage import extract_turn_usage
 from scripts.utils.setup_logfire import setup_logfire
 
 setup_logfire()

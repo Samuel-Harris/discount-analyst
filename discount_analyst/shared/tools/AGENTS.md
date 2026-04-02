@@ -1,18 +1,18 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-03-03 | Updated: 2026-03-03 -->
+<!-- Generated: 2026-03-03 | Updated: 2026-04-03 -->
 
 # tools
 
 ## Purpose
 
-Shared tool definitions and agent-specific descriptions for AI agents. Provides reusable Perplexity-backed search tools (web_search, sec_filings_search) that can be registered with different agents via `create_perplexity_toolset(AgentName.X)`.
+Shared tool definitions and agent-specific descriptions for AI agents. Provides reusable Perplexity-backed search tools (web_search, sec_filings_search) that can be registered with different agents via `create_perplexity_toolset(AgentName.X)` for Surveyor, Researcher, and Appraiser.
 
 ## Key Files
 
-| File | Description |
-| --------- | ---------------------------- |
-| `descriptions.py` | `PerplexityToolDescriptions` dataclass and `AGENT_TOOL_DESCRIPTIONS` mapping agent names to tool docstrings. |
-| `perplexity.py` | Shared implementation (`_web_search_impl`, `_sec_filings_search_impl`) and `create_perplexity_toolset()` factory. |
+| File              | Description                                                                                                       |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `descriptions.py` | `PerplexityToolDescriptions` dataclass and `AGENT_TOOL_DESCRIPTIONS` mapping agent names to tool docstrings.      |
+| `perplexity.py`   | Shared implementation (`_web_search_impl`, `_sec_filings_search_impl`) and `create_perplexity_toolset()` factory. |
 
 ## Subdirectories
 
@@ -22,7 +22,7 @@ None.
 
 ### Working In This Directory
 
-- **Add agent descriptions**: When implementing a new agent, add a `PerplexityToolDescriptions` instance to `AGENT_TOOL_DESCRIPTIONS` keyed by `AgentName.X`.
+- **Add agent descriptions**: When implementing a new agent, add a `PerplexityToolDescriptions` instance to `AGENT_TOOL_DESCRIPTIONS` keyed by `AgentName.X` (currently includes APPRAISER, SURVEYOR, and RESEARCHER).
 - **Use the factory**: When building agents, call `create_perplexity_toolset(AgentName.X)` and pass the result to the Agent's `toolsets` parameter.
 - **Rate limiting**: The `perplexity_rate_limiter` lives in `perplexity.py`; all Perplexity API calls use it.
 

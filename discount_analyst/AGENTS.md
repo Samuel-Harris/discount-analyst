@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-23 | Updated: 2026-04-02 -->
+<!-- Generated: 2026-02-23 | Updated: 2026-04-03 -->
 
 # discount_analyst
 
@@ -14,18 +14,22 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 | `dcf_analysis/dcf_analysis.py`      | Implementation of the Discounted Cash Flow calculation engine.                                                       |
 | `agents/appraiser/appraiser.py`     | Factory for the Appraiser agent with model-native or optional Perplexity-backed search tools.                        |
 | `agents/surveyor/surveyor.py`       | Factory for the Surveyor agent for discovering cheap small-cap stock candidates.                                     |
+| `agents/researcher/researcher.py`   | Factory for the Researcher agent that produces structured `DeepResearchReport` output from `SurveyorCandidate`.     |
 | `shared/schemas/stock.py`           | Core financial schemas: `StockData` and `StockAssumptions` used by DCF and Appraiser output typing.                  |
 | `shared/schemas/surveyor.py`        | Surveyor enums and schemas: `SurveyorCandidate`, `SurveyorOutput`, and `KeyMetrics`.                                 |
+| `shared/schemas/researcher.py`      | Researcher report schemas: `DeepResearchReport` plus nested neutral-evidence sections and data-gap progression.      |
 | `shared/config/settings.py`         | Application configuration using `pydantic-settings` for API keys and environment variables.                          |
 | `shared/config/ai_models_config.py` | Configuration for LLM models, including token budgets and thinking parameters.                                       |
+| `workflows/run_surveyor_then_researcher.py` | Orchestrates Surveyor once, then sequential Researcher runs for each discovered candidate.                   |
 
 ## Subdirectories
 
 | Directory       | Purpose                                                                                                            |
 | --------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `dcf_analysis/` | Core logic for financial calculations and DCF modeling. (see `dcf_analysis/AGENTS.md`)                             |
-| `agents/`       | AI agent packages for appraiser and surveyor workflows. (see `agents/AGENTS.md`)                                   |
+| `agents/`       | AI agent packages for surveyor, researcher, and appraiser workflows. (see `agents/AGENTS.md`)                      |
 | `shared/`       | Common data structures, configuration, and utility modules used across the package. (see `shared/AGENTS.md`)       |
+| `workflows/`    | Multi-agent orchestration scripts (see `workflows/AGENTS.md`)                                                      |
 
 ## For AI Agents
 
