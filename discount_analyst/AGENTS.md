@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-23 | Updated: 2026-02-23 -->
+<!-- Generated: 2026-02-23 | Updated: 2026-04-02 -->
 
 # discount_analyst
 
@@ -12,9 +12,10 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 | File                                | Description                                                                                                          |
 | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `dcf_analysis/dcf_analysis.py`      | Implementation of the Discounted Cash Flow calculation engine.                                                       |
-| `appraiser/appraiser.py`            | Factory for the Appraiser agent with model-native or optional Perplexity-backed search tools.                        |
-| `surveyor/surveyor.py`              | Factory for the Surveyor agent for discovering cheap small-cap stock candidates.                                     |
-| `shared/models/data_types.py`       | Central Pydantic models: `StockData`, `StockAssumptions`, `SurveyorCandidate` / `SurveyorOutput`, and related enums. |
+| `agents/appraiser/appraiser.py`     | Factory for the Appraiser agent with model-native or optional Perplexity-backed search tools.                        |
+| `agents/surveyor/surveyor.py`       | Factory for the Surveyor agent for discovering cheap small-cap stock candidates.                                     |
+| `shared/schemas/stock.py`           | Core financial schemas: `StockData` and `StockAssumptions` used by DCF and Appraiser output typing.                  |
+| `shared/schemas/surveyor.py`        | Surveyor enums and schemas: `SurveyorCandidate`, `SurveyorOutput`, and `KeyMetrics`.                                 |
 | `shared/config/settings.py`         | Application configuration using `pydantic-settings` for API keys and environment variables.                          |
 | `shared/config/ai_models_config.py` | Configuration for LLM models, including token budgets and thinking parameters.                                       |
 
@@ -23,15 +24,14 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 | Directory       | Purpose                                                                                                            |
 | --------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `dcf_analysis/` | Core logic for financial calculations and DCF modeling. (see `dcf_analysis/AGENTS.md`)                             |
-| `appraiser/`    | AI agent implementation using `pydantic-ai` for market research and assumption making. (see `appraiser/AGENTS.md`) |
-| `surveyor/`     | AI agent for discovering cheap small-cap stock candidates in UK and US markets. (see `surveyor/AGENTS.md`)         |
+| `agents/`       | AI agent packages for appraiser and surveyor workflows. (see `agents/AGENTS.md`)                                   |
 | `shared/`       | Common data structures, configuration, and utility modules used across the package. (see `shared/AGENTS.md`)       |
 
 ## For AI Agents
 
 ### Working In This Directory
 
-- **Structured Output**: Always use the Pydantic models defined in `shared/models/data_types.py` for any agent outputs or internal data passing.
+- **Structured Output**: Always use the Pydantic schemas in `shared/schemas/stock.py` and `shared/schemas/surveyor.py` for agent outputs and internal data passing.
 - **Async Execution**: Ensure all network calls (AI agents, search tools) are asynchronous.
 - **Type Safety**: Maintain strict typing for all financial metrics (typically `float`).
 
@@ -45,7 +45,7 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 
 - **Agent-Tool Binding**: AI agents use the `@agent.tool_plain` decorator with detailed Google-style docstrings for tool discovery.
 - **Financial Modeling**: Follow the "Bottom-Up/Line-Item" approach for Free Cash Flow (FCF) projections as seen in `DCFAnalysis`.
-- **Rate Limiting**: Use the `aiolimiter` in `appraiser.py` when making calls to external search or LLM APIs.
+- **Rate Limiting**: Use the `aiolimiter` in `agents/appraiser/appraiser.py` when making calls to external search or LLM APIs.
 
 ## Dependencies
 

@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-24 | Updated: 2026-03-29 -->
+<!-- Generated: 2026-02-24 | Updated: 2026-04-02 -->
 
 # cost_comparison
 
@@ -11,7 +11,7 @@ Scripts and assets for comparing cost and speed across AI models when running th
 
 | File                       | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `model_cost_comparison.py` | CLI script that runs the Appraiser agent across one or all configured models, records timing and token usage, prints Rich tables for speed/tokens and cost breakdown, runs DCF valuation on each agent output, and writes a combined `AppraiserRunOutput` JSON under `scripts/cost_comparison/outputs/`.                                                                                                                                                                                                                                                                                                               |
+| `model_cost_comparison.py` | CLI script that runs the Appraiser agent across one or all configured models, records timing and token usage, prints Rich tables for speed/tokens and cost breakdown, runs DCF valuation on each agent output, and writes a combined `AppraiserRunOutput` JSON under `scripts/cost_comparison/outputs/`.                                                                                                                                                                                                                                                                                                                |
 | `view_ticker_results.py`   | CLI script that takes a ticker as a positional argument, loads all matching JSON files from `outputs/`, and pretty-prints a Rich summary table. Use `--detail` for side-by-side Stock Data / Assumptions panels per run; add `--reasoning` to also display the model's full reasoning text. Use `--compare-cache` to compare cost/speed for cache vs no-cache per model; use `--compare-cost` to compare cost, speed, and token usage (input/output/cache write/read) across all models; use `--compare-web-search` to compare built-in web search vs Perplexity with tool cost ($0.005/call) and total estimated cost. |
 | `scatter_plot.py`          | Standalone script that writes a static accuracy-vs-cost scatter PNG next to the script (requires **matplotlib**, listed in the project dev dependency group).                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
@@ -46,9 +46,10 @@ Scripts and assets for comparing cost and speed across AI models when running th
 
 - `scripts.shared`: `AppraiserRunOutput`, `RunResult`, `RunConfig`, `write_model_output`, `output_filename`, `calc_actual_cost`, `calc_raw_cost`, `ModelName` (the script passes `output_dir` as `Path(__file__).parent / "outputs"`).
 - `discount_analyst.shared.config.ai_models_config`: `ModelName`, `AIModelsConfig`.
-- `discount_analyst.shared.models.data_types`: `AppraiserOutput` (for typing the `RunResult.output` field).
+- `discount_analyst.agents.appraiser.data_types`: `AppraiserOutput` (for typing the `RunResult.output` field).
+- `discount_analyst.shared.schemas.surveyor`: `SurveyorCandidate` for loading `surveyor-report.json` context.
 - `discount_analyst.dcf_analysis`: `DCFAnalysis`, `DCFAnalysisParameters`, `DCFAnalysisResult`.
-- `discount_analyst.appraiser`: `create_appraiser_agent`, `create_appraiser_user_prompt` (or `user_prompt.create_user_prompt` for the low-level prompt string).
+- `discount_analyst.agents.appraiser`: `create_appraiser_agent`, `create_appraiser_user_prompt` (or `user_prompt.create_user_prompt` for the low-level prompt string).
 
 ### External
 

@@ -12,9 +12,9 @@ from rich.table import Table
 from discount_analyst.shared.config.ai_models_config import AIModelsConfig, ModelName
 from discount_analyst.shared.constants.agents import AgentName
 from discount_analyst.shared.http.rate_limit_client import stream_with_retries
-from discount_analyst.shared.models.data_types import SurveyorOutput
-from discount_analyst.surveyor.surveyor import create_surveyor_agent
-from discount_analyst.surveyor.user_prompt import USER_PROMPT
+from discount_analyst.shared.schemas.surveyor import SurveyorOutput
+from discount_analyst.agents.surveyor.surveyor import create_surveyor_agent
+from discount_analyst.agents.surveyor.user_prompt import USER_PROMPT
 from scripts.shared import (
     SurveyorRunOutput,
     add_agent_cli_model_argument,

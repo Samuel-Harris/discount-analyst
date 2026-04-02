@@ -1,4 +1,4 @@
-<!-- Generated: 2026-02-23 | Updated: 2026-02-23 (hooks added) -->
+<!-- Generated: 2026-02-23 | Updated: 2026-04-02 (agent package move) -->
 
 # Discount Analyst
 
@@ -12,7 +12,7 @@ The tool supports a seven-stage pipeline. Stages 1 and 5 are automated by AI age
 
 ### Stage 1 — Survey (automated)
 
-`scripts/agents/run_surveyor.py` runs the `discount_analyst/surveyor/surveyor.py` agent, which uses AI-powered web research to screen for promising small-cap stocks across UK and US markets. It outputs a ranked list of candidates with tickers, exchange listings, market caps, and a rationale for each.
+`scripts/agents/run_surveyor.py` runs the `discount_analyst/agents/surveyor/surveyor.py` agent, which uses AI-powered web research to screen for promising small-cap stocks across UK and US markets. It outputs a ranked list of candidates with tickers, exchange listings, market caps, and a rationale for each.
 
 ### Stage 2 — Shortlist (manual)
 
@@ -35,7 +35,7 @@ A separate AI agent then scores the resulting report against a detailed checklis
 
 ### Stage 5 — DCF valuation (automated)
 
-Stocks that pass the checklist are processed by `scripts/agents/run_appraiser.py` (per-stock `--dir` folders containing `deep-research.md` and `surveyor-report.json`), which runs the `discount_analyst/appraiser/appraiser.py` agent to perform a full Discounted Cash Flow valuation. The agent consumes the deep-research report plus structured Surveyor candidate context and writes output (agent analysis + DCF figures) to `outputs/`.
+Stocks that pass the checklist are processed by `scripts/agents/run_appraiser.py` (per-stock `--dir` folders containing `deep-research.md` and `surveyor-report.json`), which runs the `discount_analyst/agents/appraiser/appraiser.py` agent to perform a full Discounted Cash Flow valuation. The agent consumes the deep-research report plus structured Surveyor candidate context and writes output (agent analysis + DCF figures) to `outputs/`.
 
 ### Stage 6 — Evaluate (external AI)
 

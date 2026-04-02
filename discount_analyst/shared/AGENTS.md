@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-03-03 | Updated: 2026-03-28 -->
+<!-- Generated: 2026-03-03 | Updated: 2026-04-02 -->
 
 # shared
 
@@ -19,7 +19,7 @@ Common data structures, configuration, and utility modules used across the `disc
 | --------- | ----------------------------------------- |
 | `config/` | Application and AI model configuration (see `config/AGENTS.md`) |
 | `constants/` | Shared enums and literals: agent names, provider features, and the editable fund creed (`creed.py`) prepended to agent system prompts |
-| `models/` | Central Pydantic models for stock data and agent outputs (see `models/AGENTS.md`) |
+| `schemas/` | Central Pydantic schemas for stock data and agent outputs (see `schemas/AGENTS.md`) |
 | `ai/` | Factory for creating rate-limited AI models from config (see `ai/AGENTS.md`) |
 | `http/` | Asynchronous HTTP client with retry logic (see `http/AGENTS.md`) |
 | `mcp/` | EODHD/FMP MCP Streamable HTTP toolset factories (see `mcp/AGENTS.md`) |
@@ -30,7 +30,7 @@ Common data structures, configuration, and utility modules used across the `disc
 
 ### Working In This Directory
 
-- **Source of Truth**: Use `models/data_types.py` as the primary reference for all structured data models.
+- **Source of Truth**: Use `schemas/stock.py` and `schemas/surveyor.py` as the primary reference for structured financial and surveyor models.
 - **Metric Definitions**: When adding new financial metrics to `StockData`, include detailed `Field` descriptions for AI tool discovery.
 - **Configuration**: Always use `config/settings.py` for accessing environment variables; do not use `os.environ` directly.
 - **Fund creed**: Edit `constants/creed.py` (`AGENT_CREED` and `fund_creed_system_prefix`) to change the guiding principle prepended to Surveyor and Appraiser system prompts.
@@ -51,7 +51,7 @@ Common data structures, configuration, and utility modules used across the `disc
 
 ### Internal
 
-- This directory is used by `discount_analyst.dcf_analysis` and `discount_analyst.appraiser`.
+- This directory is used by `discount_analyst.dcf_analysis` and `discount_analyst.agents.appraiser`.
 
 ### External
 

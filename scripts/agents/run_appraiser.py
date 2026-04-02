@@ -12,11 +12,11 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from discount_analyst.appraiser.appraiser import (
+from discount_analyst.agents.appraiser.appraiser import (
     create_appraiser_agent,
     create_appraiser_user_prompt,
 )
-from discount_analyst.appraiser.data_types import AppraiserOutput
+from discount_analyst.agents.appraiser.data_types import AppraiserOutput
 from discount_analyst.dcf_analysis.data_types import (
     DCFAnalysisParameters,
     DCFAnalysisResult,
@@ -25,7 +25,7 @@ from discount_analyst.dcf_analysis.dcf_analysis import DCFAnalysis
 from discount_analyst.shared.config.ai_models_config import AIModelsConfig, ModelName
 from discount_analyst.shared.constants.agents import AgentName
 from discount_analyst.shared.http.rate_limit_client import stream_with_retries
-from discount_analyst.shared.models.data_types import SurveyorCandidate
+from discount_analyst.shared.schemas.surveyor import SurveyorCandidate
 
 from scripts.shared import (
     DEFAULT_AGENT_CLI_DEFAULTS,
