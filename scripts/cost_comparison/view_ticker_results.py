@@ -9,8 +9,6 @@ Usage:
     uv run python scripts/cost_comparison/view_ticker_results.py AMZN --compare-web-search
 """
 
-from __future__ import annotations
-
 import argparse
 import json
 from collections import defaultdict

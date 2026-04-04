@@ -12,11 +12,9 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from discount_analyst.agents.appraiser.appraiser import (
-    create_appraiser_agent,
-    create_appraiser_user_prompt,
-)
-from discount_analyst.agents.appraiser.data_types import AppraiserOutput
+from discount_analyst.agents.appraiser.appraiser import create_appraiser_agent
+from discount_analyst.agents.appraiser.user_prompt import create_user_prompt
+from discount_analyst.shared.schemas.appraiser import AppraiserOutput
 from discount_analyst.dcf_analysis.data_types import (
     DCFAnalysisParameters,
     DCFAnalysisResult,
@@ -24,7 +22,7 @@ from discount_analyst.dcf_analysis.data_types import (
 from discount_analyst.dcf_analysis.dcf_analysis import DCFAnalysis
 from discount_analyst.shared.config.ai_models_config import AIModelsConfig, ModelName
 from discount_analyst.shared.constants.agents import AgentName
-from discount_analyst.shared.http.rate_limit_client import stream_with_retries
+from discount_analyst.shared.ai.streamed_agent_run import run_streamed_agent
 from discount_analyst.shared.schemas.surveyor import SurveyorCandidate
 
 from scripts.shared.cli import (
@@ -238,22 +236,22 @@ async def run_agent(
         use_perplexity=use_perplexity,
         use_mcp_financial_data=use_mcp_financial_data,
     )
-    user_prompt = create_appraiser_user_prompt(
+    user_prompt = create_user_prompt(
+        ticker=args.surveyor_candidate.ticker,
         research_report=research_report_content,
         surveyor_candidate=args.surveyor_candidate,
     )
 
     start = time.perf_counter()
-    async with stream_with_retries(
+    outcome = await run_streamed_agent(
         agent=agent,
         user_prompt=user_prompt,
         usage_limits=ai_models_config.model.usage_limits,
-    ) as result:
-        async for message in result.stream_output():
-            console.log(f"Streaming: {message}")
-        agent_output = await result.get_output()
-        usage = result.usage()
-        turn_usage = extract_turn_usage(result.all_messages())
+        on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
+    )
+    agent_output = outcome.output
+    usage = outcome.usage
+    turn_usage = extract_turn_usage(outcome.all_messages)
 
     for turn in turn_usage:
         console.log(

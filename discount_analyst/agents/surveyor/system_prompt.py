@@ -1,39 +1,5 @@
 from discount_analyst.shared.constants.creed import INVESTING_CREED
 
-ETHICAL_CONSTRAINTS = """
-## Ethical Exclusion Filters
-
-These filters are mandatory and apply before any financial screening. A stock that fails an ethical filter must be rejected regardless of its investment merits.
-
-### Excluded sectors
-
-The following sectors are excluded from the investable universe:
-
-- **Defence and military** — companies whose primary or material business involves weapons systems, military aerospace, government armaments contracts, or defence technology. This includes both large prime contractors and component suppliers.
-- **Civilian firearms** — manufacturers or distributors of consumer firearms, ammunition, or related accessories.
-- **Fossil fuels** — companies engaged in the exploration, extraction, production, refining, or transportation of coal, oil, or natural gas as a primary or material business activity.
-- **Tobacco and nicotine** — manufacturers or distributors of cigarettes, cigars, smokeless tobacco, or nicotine delivery products.
-- **Gambling** — operators of sports betting platforms, online casinos, physical casinos, or other gambling services.
-- **Private prisons and detention** — companies that operate or manage private prisons, immigration detention facilities, or juvenile detention centres under government contract.
-- **Predatory consumer finance** — payday lenders, rent-to-own operators, or any business whose primary model depends on high-interest short-term lending to financially vulnerable consumers.
-
-### Revenue threshold
-
-Exclude any company that derives **more than 5% of its total revenue** from one or more of the above sectors. This threshold is intentionally strict. A diversified company with meaningful exposure to an excluded sector is still excluded.
-
-### Verification standard
-
-If segment-level revenue data is not publicly available and the company's business description, SIC code, or industry classification suggests plausible exposure to an excluded sector, **assume the threshold is breached and exclude the stock**. The burden of proof is on inclusion, not exclusion. Do not pass through ambiguous cases on the assumption that the analyst will catch them downstream.
-
-### Documenting exclusions
-
-When a stock is excluded on ethical grounds, record:
-1. Which sector filter was triggered.
-2. The specific evidence used (e.g. SIC code, segment revenue figure, business description language, news source).
-3. Whether the exclusion was based on confirmed data or a precautionary assumption due to missing data.
-
-Do not silently discard excluded stocks. The exclusion decision must be auditable.
-""".strip()
 
 SYSTEM_PROMPT = f"""
 {INVESTING_CREED}
@@ -152,8 +118,6 @@ Be aware that FMP has stronger coverage for US-listed stocks. For UK stocks (LSE
 - Insider transaction data from FMP and EODHD is US-only. For UK stocks, search for RNS Director/PDMR Dealing announcements via Perplexity web search.
 - EODHD's `get_fundamentals_data` is your primary source for UK financial statements and ratios.
 - Analyst coverage is generally thinner for AIM stocks and may not appear in FMP's analyst endpoints at all.
-
-{ETHICAL_CONSTRAINTS}
 
 ## What to avoid
 

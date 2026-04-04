@@ -2,7 +2,6 @@
 
 import argparse
 import asyncio
-import time
 from collections import Counter
 from dataclasses import dataclass
 
@@ -11,15 +10,13 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from discount_analyst.agents.researcher.researcher import (
-    create_researcher_agent,
-    create_researcher_user_prompt,
-)
+from discount_analyst.agents.researcher.researcher import create_researcher_agent
+from discount_analyst.agents.researcher.user_prompt import create_user_prompt
 from discount_analyst.agents.surveyor.surveyor import create_surveyor_agent
 from discount_analyst.agents.surveyor.user_prompt import USER_PROMPT
 from discount_analyst.shared.config.ai_models_config import AIModelsConfig, ModelName
 from discount_analyst.shared.constants.agents import AgentName
-from discount_analyst.shared.http.rate_limit_client import stream_with_retries
+from discount_analyst.shared.ai.streamed_agent_run import run_streamed_agent
 from discount_analyst.shared.schemas.researcher import DeepResearchReport
 from discount_analyst.shared.schemas.surveyor import SurveyorCandidate, SurveyorOutput
 from scripts.shared.cli import (
@@ -164,25 +161,22 @@ async def run_surveyor_once(
 ) -> tuple[SurveyorRunOutput, str]:
     ai_models_config = AIModelsConfig(model_name=model_name)
     agent = create_surveyor_agent(
-        ai_models_config,
+        ai_models_config=ai_models_config,
         use_perplexity=use_perplexity,
         use_mcp_financial_data=use_mcp_financial_data,
     )
     console.log(f"Running Surveyor agent (model: {model_name})...")
 
-    start = time.perf_counter()
-    async with stream_with_retries(
+    outcome = await run_streamed_agent(
         agent=agent,
         user_prompt=USER_PROMPT,
         usage_limits=ai_models_config.model.usage_limits,
-    ) as result:
-        async for message in result.stream_output():
-            console.log(f"Streaming: {message}")
-        output = await result.get_output()
-        usage = result.usage()
-        turn_usage = extract_turn_usage(result.all_messages())
-
-    elapsed_s = time.perf_counter() - start
+        on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
+    )
+    output = outcome.output
+    usage = outcome.usage
+    turn_usage = extract_turn_usage(outcome.all_messages)
+    elapsed_s = outcome.elapsed_s
     run_output = SurveyorRunOutput(
         model_name=model_name.value,
         elapsed_s=elapsed_s,
@@ -214,21 +208,18 @@ async def run_researcher_once(
         use_perplexity=use_perplexity,
         use_mcp_financial_data=use_mcp_financial_data,
     )
-    user_prompt = create_researcher_user_prompt(surveyor_candidate=candidate)
+    user_prompt = create_user_prompt(surveyor_candidate=candidate)
 
-    start = time.perf_counter()
-    async with stream_with_retries(
+    outcome = await run_streamed_agent(
         agent=agent,
         user_prompt=user_prompt,
         usage_limits=ai_models_config.model.usage_limits,
-    ) as result:
-        async for message in result.stream_output():
-            console.log(f"Streaming: {message}")
-        output = await result.get_output()
-        usage = result.usage()
-        turn_usage = extract_turn_usage(result.all_messages())
-
-    elapsed_s = time.perf_counter() - start
+        on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
+    )
+    output = outcome.output
+    usage = outcome.usage
+    turn_usage = extract_turn_usage(outcome.all_messages)
+    elapsed_s = outcome.elapsed_s
     console.log(
         f"Researcher completed for {candidate.ticker} "
         f"(candidate_index={candidate_index}, source={surveyor_report_path})."

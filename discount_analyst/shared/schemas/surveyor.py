@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from enum import StrEnum
 
 from pydantic import BaseModel, Field
@@ -20,21 +18,6 @@ class Currency(StrEnum):
 class StockCategory(StrEnum):
     VALUE = "value"
     GROWTH = "growth"
-
-
-class EthicalExclusionFilter(StrEnum):
-    DEFENCE_AND_MILITARY = "Defence and military"
-    CIVILIAN_FIREARMS = "Civilian firearms"
-    FOSSIL_FUELS = "Fossil fuels"
-    TOBACCO_AND_NICOTINE = "Tobacco and nicotine"
-    GAMBLING = "Gambling"
-    PRIVATE_PRISONS_AND_DETENTION = "Private prisons and detention"
-    PREDATORY_CONSUMER_FINANCE = "Predatory consumer finance"
-
-
-class EthicalExclusionBasis(StrEnum):
-    CONFIRMED_DATA = "Confirmed data"
-    PRECAUTIONARY = "Precautionary — data unavailable"
 
 
 class KeyMetrics(BaseModel):
@@ -151,42 +134,6 @@ class SurveyorCandidate(BaseModel):
     )
 
 
-class EthicalExclusion(BaseModel):
-    """A stock rejected on ethical grounds before financial evaluation."""
-
-    ticker: str = Field(
-        description=(
-            "Primary ticker symbol. For UK stocks use the exchange suffix "
-            "where needed, e.g. 'ABCD.L'."
-        ),
-    )
-    company_name: str
-    triggered_filter: EthicalExclusionFilter = Field(
-        description="The specific ethical filter that caused this stock to be excluded."
-    )
-    evidence: str = Field(
-        description=(
-            "The specific evidence used to trigger this filter: e.g. SIC code, "
-            "segment revenue figure, business description language, or news source. "
-            "Be concrete — cite the source and the data point."
-        ),
-    )
-    revenue_exposure_pct: float | None = Field(
-        default=None,
-        description=(
-            "Estimated percentage of revenue derived from the excluded sector, "
-            "if segment data was available. Null if unavailable."
-        ),
-    )
-    exclusion_basis: EthicalExclusionBasis = Field(
-        description=(
-            "Whether the exclusion was based on confirmed segment revenue data, "
-            "or a precautionary assumption because the revenue breakdown could "
-            "not be verified."
-        ),
-    )
-
-
 class SurveyorOutput(BaseModel):
     """Complete output from a single Surveyor run."""
 
@@ -196,16 +143,5 @@ class SurveyorOutput(BaseModel):
             "Ranked list of candidates. Must contain at least 10. Aim for "
             "15-25, but do not pad - a shorter list of strong candidates is "
             "better than a diluted one."
-        ),
-    )
-    ethical_exclusions: list[EthicalExclusion] = Field(
-        default_factory=list[EthicalExclusion],
-        description=(
-            "Stocks rejected on ethical grounds before financial evaluation. "
-            "Always populate this field — use an empty list if no stocks were "
-            "excluded, so that the absence of exclusions is itself auditable. "
-            "Each entry must record which filter triggered, the evidence used, "
-            "and whether the exclusion was based on confirmed data or a "
-            "precautionary assumption due to missing segment data."
         ),
     )

@@ -1,7 +1,5 @@
 """Write script run JSON artifacts and build output filenames."""
 
-from __future__ import annotations
-
 import re
 from datetime import datetime
 from pathlib import Path
