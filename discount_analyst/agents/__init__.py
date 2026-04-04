@@ -1,1 +1,1 @@
-"""Agent packages for surveyor, researcher, and appraiser."""
+"""Agent packages for surveyor, researcher, strategist, and appraiser."""

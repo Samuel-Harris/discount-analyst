@@ -2,7 +2,6 @@ from pydantic_ai import AbstractToolset, Agent, WebFetchTool, WebSearchTool
 from pydantic_ai.builtin_tools import AbstractBuiltinTool
 
 from discount_analyst.agents.researcher.system_prompt import SYSTEM_PROMPT
-from discount_analyst.agents.researcher.user_prompt import create_user_prompt
 from discount_analyst.shared.ai.history_processors import (
     get_history_processors_for_model,
 )
@@ -11,16 +10,10 @@ from discount_analyst.shared.config.ai_models_config import AIModelsConfig
 from discount_analyst.shared.constants.agents import AgentName
 from discount_analyst.shared.constants.providers import ProviderFeature
 from discount_analyst.shared.schemas.researcher import DeepResearchReport
-from discount_analyst.shared.schemas.surveyor import SurveyorCandidate
 from discount_analyst.shared.tools.perplexity import create_perplexity_toolset
 from discount_analyst.shared.utils.agent_tools import (
     add_required_feature_to_builtin_tools,
 )
-
-
-def create_researcher_user_prompt(*, surveyor_candidate: SurveyorCandidate) -> str:
-    """Build the user prompt for a Researcher run from Surveyor context."""
-    return create_user_prompt(surveyor_candidate=surveyor_candidate)
 
 
 def create_researcher_agent(

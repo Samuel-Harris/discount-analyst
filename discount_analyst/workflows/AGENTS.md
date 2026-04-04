@@ -5,14 +5,14 @@
 
 ## Purpose
 
-Contains orchestration scripts that run multiple agents in sequence. The initial workflow runs Surveyor once, then executes Researcher sequentially for each returned candidate and writes one artifact per stage.
+Contains orchestration scripts that run multiple agents in sequence. The primary workflow runs Surveyor once, then Researcher sequentially for each candidate, then Strategist for each successful Researcher run, writing artifacts per stage.
 
 ## Key Files
 
-| File                              | Description                                                                                                        |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `run_surveyor_then_researcher.py` | End-to-end workflow: Surveyor batch discovery followed by sequential Researcher runs for each `SurveyorCandidate`. |
-| `__init__.py`                     | Package initialization for workflow scripts.                                                                       |
+| File                                    | Description                                                                                                                    |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `run_surveyor_researcher_strategist.py` | Surveyor discovery, sequential Researcher per candidate, then Strategist per successful Researcher (artifacts for each stage). |
+| `__init__.py`                           | Package initialization for workflow scripts.                                                                                   |
 
 ## Subdirectories
 
@@ -24,13 +24,13 @@ None.
 
 - Keep workflows orchestration-only: core agent logic should stay in `discount_analyst/agents/`.
 - Preserve sequential execution semantics for candidate processing unless explicitly changed.
-- Continue-on-error is intentional for per-candidate Researcher failures; retain final failure summary behavior.
+- Continue-on-error is intentional for per-candidate Researcher failures and per-success Strategist failures; retain final failure summary tables.
 
 ### Testing Requirements
 
 - Run `uv run ruff check discount_analyst/workflows`.
 - Run `uv run pytest`.
-- For manual verification, run `uv run python discount_analyst/workflows/run_surveyor_then_researcher.py`.
+- For manual verification, run `uv run python discount_analyst/workflows/run_surveyor_researcher_strategist.py`.
 
 ### Common Patterns
 
@@ -43,6 +43,7 @@ None.
 
 - `discount_analyst.agents.surveyor`: Surveyor factory and prompt.
 - `discount_analyst.agents.researcher`: Researcher factory and prompt builder.
+- `discount_analyst.agents.strategist`: Strategist factory and prompt builder.
 - `scripts.shared.cli`, `scripts.shared.outputs`, `scripts.shared.schemas.run_outputs`, `scripts.shared.usage`: CLI helpers, JSON writer, run-output models, usage extraction.
 
 ### External

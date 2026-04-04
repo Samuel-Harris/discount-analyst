@@ -13,10 +13,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from discount_analyst.agents.researcher.researcher import (
-    create_researcher_agent,
-    create_researcher_user_prompt,
-)
+from discount_analyst.agents.researcher.researcher import create_researcher_agent
+from discount_analyst.agents.researcher.user_prompt import create_user_prompt
 from discount_analyst.shared.config.ai_models_config import AIModelsConfig, ModelName
 from discount_analyst.shared.constants.agents import AgentName
 from discount_analyst.shared.http.rate_limit_client import stream_with_retries
@@ -289,7 +287,7 @@ async def run_agent(
         use_perplexity=use_perplexity,
         use_mcp_financial_data=use_mcp_financial_data,
     )
-    user_prompt = create_researcher_user_prompt(surveyor_candidate=candidate)
+    user_prompt = create_user_prompt(surveyor_candidate=candidate)
 
     start = time.perf_counter()
     async with stream_with_retries(
