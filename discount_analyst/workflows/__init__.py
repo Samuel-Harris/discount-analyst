@@ -1,1 +1,1 @@
-"""Workflow orchestration scripts for multi-agent pipelines."""
+"""Compatibility workflow entry points for discount_analyst package paths."""

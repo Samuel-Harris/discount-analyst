@@ -16,6 +16,8 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 | `agents/surveyor/surveyor.py`                     | Factory for the Surveyor agent for discovering cheap small-cap stock candidates.                                   |
 | `agents/researcher/researcher.py`                 | Factory for the Researcher agent that produces structured `DeepResearchReport` output from `SurveyorCandidate`.    |
 | `agents/strategist/strategist.py`                 | Factory for the Strategist agent that produces `MispricingThesis` from `SurveyorCandidate` + `DeepResearchReport`. |
+| `shared/ai/agent_factory.py`                      | Shared `AgentSpec` + `create_agent` factory used by pipeline agents (and Strategist in no-tools mode).             |
+| `shared/ai/streamed_agent_run.py`                 | Shared streaming helper wrapping `stream_with_retries` and returning output, usage, and elapsed time.              |
 | `shared/schemas/stock.py`                         | Core financial schemas: `StockData` and `StockAssumptions` used by DCF and Appraiser output typing.                |
 | `shared/schemas/surveyor.py`                      | Surveyor enums and schemas: `SurveyorCandidate`, `SurveyorOutput`, and `KeyMetrics`.                               |
 | `shared/schemas/researcher.py`                    | Researcher report schemas: `DeepResearchReport` plus nested neutral-evidence sections and data-gap progression.    |
@@ -23,7 +25,7 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 | `shared/schemas/appraiser.py`                     | Appraiser output schema: `AppraiserOutput` (`StockData` + `StockAssumptions`).                                     |
 | `shared/config/settings.py`                       | Application configuration using `pydantic-settings` for API keys and environment variables.                        |
 | `shared/config/ai_models_config.py`               | Configuration for LLM models, including token budgets and thinking parameters.                                     |
-| `workflows/run_surveyor_researcher_strategist.py` | Orchestrates Surveyor, sequential Researcher per candidate, then Strategist per successful Researcher.             |
+| `workflows/run_surveyor_researcher_strategist.py` | Compatibility wrapper to run Surveyor->Researcher->Strategist orchestration via `scripts/workflows/`.              |
 
 ## Subdirectories
 

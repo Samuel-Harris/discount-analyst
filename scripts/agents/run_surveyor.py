@@ -2,7 +2,6 @@
 
 import argparse
 import asyncio
-import time
 
 from pydantic import BaseModel
 from rich.console import Console
@@ -11,7 +10,7 @@ from rich.table import Table
 
 from discount_analyst.shared.config.ai_models_config import AIModelsConfig, ModelName
 from discount_analyst.shared.constants.agents import AgentName
-from discount_analyst.shared.http.rate_limit_client import stream_with_retries
+from discount_analyst.shared.ai.streamed_agent_run import run_streamed_agent
 from discount_analyst.shared.schemas.surveyor import SurveyorOutput
 from discount_analyst.agents.surveyor.surveyor import create_surveyor_agent
 from discount_analyst.agents.surveyor.user_prompt import USER_PROMPT
@@ -96,26 +95,23 @@ async def main() -> None:
 
     ai_models_config = AIModelsConfig(model_name=args.model)
     agent = create_surveyor_agent(
-        ai_models_config,
+        ai_models_config=ai_models_config,
         use_perplexity=args.use_perplexity,
         use_mcp_financial_data=args.use_mcp_financial_data,
     )
 
     console.log(f"Running Surveyor agent (model: {args.model})...")
-    start = time.perf_counter()
 
-    async with stream_with_retries(
+    outcome = await run_streamed_agent(
         agent=agent,
         user_prompt=USER_PROMPT,
         usage_limits=ai_models_config.model.usage_limits,
-    ) as result:
-        async for message in result.stream_output():
-            console.log(f"Streaming: {message}")
-        output = await result.get_output()
-        usage = result.usage()
-        turn_usage = extract_turn_usage(result.all_messages())
-
-    elapsed_s = time.perf_counter() - start
+        on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
+    )
+    output = outcome.output
+    usage = outcome.usage
+    turn_usage = extract_turn_usage(outcome.all_messages)
+    elapsed_s = outcome.elapsed_s
     console.log(
         f"Completed in {elapsed_s:.1f}s "
         f"(input: {usage.input_tokens}, output: {usage.output_tokens} tokens)"

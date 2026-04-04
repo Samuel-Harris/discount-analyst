@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-23 | Updated: 2026-04-03 -->
+<!-- Generated: 2026-02-23 | Updated: 2026-04-05 -->
 
 # scripts
 
@@ -9,21 +9,24 @@ The `scripts/` directory contains utility and entry-point scripts for the Discou
 
 ## Key Files
 
-| File                       | Description                                                                                                                                                       |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `md_docs_parser.py`        | Splits a large markdown document into a hierarchical folder/file structure of smaller markdown files.                                                             |
-| `agents/run_appraiser.py`  | Runs Appraiser + DCF workflows from research folders and writes `AppraiserRunOutput` JSON (`--no-mcp` supported).                                                 |
-| `agents/run_surveyor.py`   | Runs Surveyor stock discovery and writes `SurveyorRunOutput` JSON (`--no-mcp` supported).                                                                         |
-| `agents/run_researcher.py` | Runs Researcher from Surveyor JSON selectors and writes one `ResearcherRunOutput` artifact per candidate (`--no-mcp` supported).                                  |
-| `agents/run_strategist.py` | Runs Strategist from Researcher JSON selectors and writes one `StrategistRunOutput` artifact per target (model-only CLI).                                        |
-| `shared/`                  | Package of script helpers: `cli`, `constants`, `cost`, `outputs`, `usage`, `schemas/run_outputs` (import from submodules; package `__init__` does not re-export). |
+| File                                              | Description                                                                                                                                                       |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `md_docs_parser.py`                               | Splits a large markdown document into a hierarchical folder/file structure of smaller markdown files.                                                             |
+| `agents/run_appraiser.py`                         | Runs Appraiser + DCF workflows from research folders and writes `AppraiserRunOutput` JSON (`--no-mcp` supported).                                                 |
+| `agents/run_surveyor.py`                          | Runs Surveyor stock discovery and writes `SurveyorRunOutput` JSON (`--no-mcp` supported).                                                                         |
+| `agents/run_researcher.py`                        | Runs Researcher from Surveyor JSON selectors and writes one `ResearcherRunOutput` artifact per candidate (`--no-mcp` supported).                                  |
+| `agents/run_strategist.py`                        | Runs Strategist from Researcher JSON selectors and writes one `StrategistRunOutput` artifact per target (model-only CLI).                                         |
+| `workflows/run_surveyor_researcher_strategist.py` | Runs Surveyor once, then sequential Researcher and Strategist per candidate.                                                                                      |
+| `workflows/run_surveyor_then_researcher.py`       | Runs Surveyor once, then sequential Researcher per candidate (no Strategist stage).                                                                               |
+| `shared/`                                         | Package of script helpers: `cli`, `constants`, `cost`, `outputs`, `usage`, `schemas/run_outputs` (import from submodules; package `__init__` does not re-export). |
 
 ## Subdirectories
 
-| Directory          | Purpose                                                                                                                          |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| Directory          | Purpose                                                                                                                                                           |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `agents/`          | Entry points for Surveyor, Researcher, Strategist, and DCF/Appraiser workflows (`run_surveyor.py`, `run_researcher.py`, `run_strategist.py`, `run_appraiser.py`). |
-| `cost_comparison/` | Model cost/speed comparison script (see `cost_comparison/AGENTS.md`).                                                            |
+| `workflows/`       | Multi-agent workflow entry points combining Surveyor/Researcher/Strategist orchestration.                                                                         |
+| `cost_comparison/` | Model cost/speed comparison script (see `cost_comparison/AGENTS.md`).                                                                                             |
 
 ## For AI Agents
 
@@ -56,7 +59,7 @@ The `scripts/` directory contains utility and entry-point scripts for the Discou
 - `discount_analyst.agents.appraiser`: AI agent logic and prompt creation.
 - `discount_analyst.agents.surveyor`: Surveyor agent for stock candidate discovery.
 - `discount_analyst.dcf_analysis`: Core financial calculation engine.
-- `scripts.shared.cli`, `scripts.shared.constants`, `scripts.shared.cost`, `scripts.shared.outputs`, `scripts.shared.usage`, `scripts.shared.schemas.run_outputs`: CLI defaults and argparse helpers, output paths and auto-cache model set, cost comparison types and pricing helpers, JSON writers and filenames, pydantic-ai usage extraction, and run-output Pydantic models (used by `agents/`, `cost_comparison/`, and `discount_analyst/workflows/`).
+- `scripts.shared.cli`, `scripts.shared.constants`, `scripts.shared.cost`, `scripts.shared.outputs`, `scripts.shared.usage`, `scripts.shared.schemas.run_outputs`: CLI defaults and argparse helpers, output paths and auto-cache model set, cost comparison types and pricing helpers, JSON writers and filenames, pydantic-ai usage extraction, and run-output Pydantic models (used by `agents/`, `workflows/`, `cost_comparison/`, and `discount_analyst/workflows/` wrappers).
 
 ### External
 
