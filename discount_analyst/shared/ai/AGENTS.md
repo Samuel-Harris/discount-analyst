@@ -1,18 +1,19 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-03-03 | Updated: 2026-03-03 -->
+<!-- Generated: 2026-03-03 | Updated: 2026-04-04 -->
 
 # ai
 
 ## Purpose
 
-Factory for creating AI model instances from configuration. Instantiates pydantic-ai models (Anthropic, OpenAI, Google) with rate-limited HTTP clients and provider-specific settings.
+Factory for creating AI model instances from configuration and shared research-style agents. Instantiates pydantic-ai models (Anthropic, OpenAI, Google) with rate-limited HTTP clients and provider-specific settings; researcher, appraiser, and surveyor agents share web / Perplexity / financial MCP tooling via `research_tooling_agent.create_agent`.
 
 ## Key Files
 
-| File | Description |
-| --------- | ---------------------------- |
-| `model.py` | Factory function `create_model_from_config` that creates rate-limited AI models from `AIModelConfig`. |
-| `history_processors.py` | `get_history_processors_for_model`: returns pydantic-ai `history_processors` hooks per model (currently none; OpenAI uses server-side compaction). |
+| File                        | Description                                                                                                                                                                       |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `model.py`                  | Factory function `create_model_from_config` that creates rate-limited AI models from `AIModelConfig`.                                                                             |
+| `history_processors.py`     | `get_history_processors_for_model`: returns pydantic-ai `history_processors` hooks per model (currently none; OpenAI uses server-side compaction).                                |
+| `research_tooling_agent.py` | `create_agent`: builds pipeline agents (researcher, appraiser, surveyor) with shared built-in web search/fetch, optional Perplexity toolset, and optional financial MCP toolsets. |
 
 ## Subdirectories
 
