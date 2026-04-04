@@ -1,6 +1,7 @@
 import asyncio
+from copy import deepcopy
 import re
-from contextlib import asynccontextmanager
+from contextlib import AbstractAsyncContextManager
 from typing import Any, AsyncIterator, cast
 
 import logfire
@@ -21,8 +22,9 @@ from openai import (
     RateLimitError,
 )
 from pydantic_ai.agent.abstract import AbstractAgent
+from pydantic_ai.messages import ModelMessage
 from pydantic_ai.result import StreamedRunResult
-from pydantic_ai.usage import UsageLimits
+from pydantic_ai.usage import RunUsage, UsageLimits
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from pydantic_ai.retries import AsyncTenacityTransport, RetryConfig, wait_retry_after
@@ -219,59 +221,186 @@ def streaming_retry_sleep_seconds(exc: BaseException, attempt: int) -> float:
     return min(_stream_wait(attempt), FALLBACK_MAX_WEIGHT_SECONDS)
 
 
-@asynccontextmanager
-async def stream_with_retries[T](
+class StreamWithRetriesContext[T]:
+    """Own stream attempts and reopen safely on retryable interruptions."""
+
+    def __init__(
+        self,
+        *,
+        agent: AbstractAgent[Any, T],
+        user_prompt: str,
+        usage_limits: UsageLimits,
+    ) -> None:
+        self._agent = agent
+        self._user_prompt = user_prompt
+        self._usage_limits = usage_limits
+
+        self._next_message_history: list[ModelMessage] | None = None
+        self._next_usage: RunUsage | None = None
+
+        self._run_stream_context_manager: (
+            AbstractAsyncContextManager[StreamedRunResult[Any, T]] | None
+        ) = None
+        self._active_streamed_result: StreamedRunResult[Any, T] | None = None
+        self._attempt_index = 0
+
+        self._result = StreamedResultWrapper(self)
+
+    async def __aenter__(self) -> "StreamedResultWrapper[T]":
+        await self._open_attempt_with_retries()
+        return self._result
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: Any,
+    ) -> None:
+        await self._close_active_attempt(exc_type, exc, traceback)
+
+    @property
+    def active_streamed_result(self) -> StreamedRunResult[Any, T]:
+        if self._active_streamed_result is None:
+            raise RuntimeError("No active stream attempt is open.")
+        return self._active_streamed_result
+
+    async def reopen_after_stream_interrupt(self, exc: BaseException) -> None:
+        """Handle a stream error, optionally reopening a fresh attempt."""
+        if not should_retry_streaming_error(exc) or self._attempt_index >= (
+            MAX_STREAM_RETRY_ATTEMPTS - 1
+        ):
+            await self._close_active_attempt(type(exc), exc, exc.__traceback__)
+            raise exc
+
+        self._next_message_history = deepcopy(
+            self.active_streamed_result.all_messages()
+        )
+        self._next_usage = deepcopy(self.active_streamed_result.usage())
+
+        await self._close_active_attempt(type(exc), exc, exc.__traceback__)
+        wait = streaming_retry_sleep_seconds(exc, self._attempt_index)
+        logfire.info(
+            "Agent stream interrupted, retrying",
+            attempt=self._attempt_index + 1,
+            max_attempts=MAX_STREAM_RETRY_ATTEMPTS,
+            wait_s=wait,
+            error=str(exc),
+        )
+        await asyncio.sleep(wait)
+        self._attempt_index += 1
+        await self._open_attempt_with_retries()
+
+    async def _open_attempt_with_retries(self) -> None:
+        while True:
+            context_manager = self._agent.run_stream(
+                self._next_user_prompt(),
+                message_history=self._next_message_history,
+                usage_limits=self._usage_limits,
+                usage=self._next_usage,
+            )
+            try:
+                result = await context_manager.__aenter__()
+            except BaseException as exc:
+                if not should_retry_streaming_error(exc) or self._attempt_index >= (
+                    MAX_STREAM_RETRY_ATTEMPTS - 1
+                ):
+                    raise
+                wait = streaming_retry_sleep_seconds(exc, self._attempt_index)
+                logfire.info(
+                    "Agent stream start failed, retrying",
+                    attempt=self._attempt_index + 1,
+                    max_attempts=MAX_STREAM_RETRY_ATTEMPTS,
+                    wait_s=wait,
+                    error=str(exc),
+                )
+                await asyncio.sleep(wait)
+                self._attempt_index += 1
+                continue
+
+            self._run_stream_context_manager = context_manager
+            self._active_streamed_result = result
+            return
+
+    def _next_user_prompt(self) -> str | None:
+        if self._next_message_history is None:
+            return self._user_prompt
+        return None
+
+    async def _close_active_attempt(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: Any,
+    ) -> None:
+        context_manager = self._run_stream_context_manager
+        if context_manager is None:
+            return
+        try:
+            await context_manager.__aexit__(exc_type, exc, traceback)
+        finally:
+            self._run_stream_context_manager = None
+            self._active_streamed_result = None
+
+
+class StreamedResultWrapper[T]:
+    """Retry-aware facade that delegates to the active streamed result."""
+
+    def __init__(self, retries_context: StreamWithRetriesContext[T]) -> None:
+        self._retries_context = retries_context
+
+    @property
+    def _active_result(self) -> StreamedRunResult[Any, T]:
+        return self._retries_context.active_streamed_result
+
+    async def stream_output(
+        self, *, debounce_by: float | None = 0.1
+    ) -> AsyncIterator[T]:
+        for _ in range(MAX_STREAM_RETRY_ATTEMPTS):
+            try:
+                async for output in self._active_result.stream_output(
+                    debounce_by=debounce_by
+                ):
+                    yield output
+            except BaseException as exc:
+                await self._retries_context.reopen_after_stream_interrupt(exc)
+                continue
+            return
+        raise RuntimeError("Stream retries exhausted without terminal result")
+
+    async def get_output(self) -> T:
+        for _ in range(MAX_STREAM_RETRY_ATTEMPTS):
+            try:
+                return await self._active_result.get_output()
+            except BaseException as exc:
+                await self._retries_context.reopen_after_stream_interrupt(exc)
+        raise RuntimeError("Output retries exhausted without terminal result")
+
+    def usage(self) -> RunUsage:
+        return self._active_result.usage()
+
+    def all_messages(
+        self, *, output_tool_return_content: str | None = None
+    ) -> list[ModelMessage]:
+        return self._active_result.all_messages(
+            output_tool_return_content=output_tool_return_content
+        )
+
+
+def stream_with_retries[T](
     *,
     agent: AbstractAgent[Any, T],
     user_prompt: str,
-    usage_limits: UsageLimits | None = None,
-) -> AsyncIterator[StreamedRunResult[Any, T]]:
+    usage_limits: UsageLimits,
+) -> StreamWithRetriesContext[T]:
     """Stream agent output with retries on transient API errors.
 
-    Tenacity's @retry does not work with async generators: exceptions occur during
-    iteration (e.g. ``stream_output()``), not only when entering ``run_stream``.
-    We use a manual retry loop around the full stream lifecycle.
+    Tenacity's @retry does not work with async generators: exceptions can occur
+    during stream iteration (e.g. ``stream_output()``), not only entering
+    ``run_stream``. This context manager keeps attempt lifecycle state so
+    retryable interruptions can reopen safely with resumed message history/usage.
     """
-    for attempt in range(MAX_STREAM_RETRY_ATTEMPTS):
-        cm = agent.run_stream(user_prompt, usage_limits=usage_limits)
-        try:
-            result = await cm.__aenter__()
-        except BaseException as e:
-            if (
-                not should_retry_streaming_error(e)
-                or attempt >= MAX_STREAM_RETRY_ATTEMPTS - 1
-            ):
-                raise
-            wait = streaming_retry_sleep_seconds(e, attempt)
-            logfire.info(
-                "Agent stream start failed, retrying",
-                attempt=attempt + 1,
-                max_attempts=MAX_STREAM_RETRY_ATTEMPTS,
-                wait_s=wait,
-                error=str(e),
-            )
-            await asyncio.sleep(wait)
-            continue
-        try:
-            yield result
-        except BaseException as e:
-            if (
-                not should_retry_streaming_error(e)
-                or attempt >= MAX_STREAM_RETRY_ATTEMPTS - 1
-            ):
-                await cm.__aexit__(type(e), e, e.__traceback__)
-                raise
-            await cm.__aexit__(type(e), e, e.__traceback__)
-            wait = streaming_retry_sleep_seconds(e, attempt)
-            logfire.info(
-                "Agent stream interrupted, retrying",
-                attempt=attempt + 1,
-                max_attempts=MAX_STREAM_RETRY_ATTEMPTS,
-                wait_s=wait,
-                error=str(e),
-            )
-            await asyncio.sleep(wait)
-            continue
-        else:
-            await cm.__aexit__(None, None, None)
-            return
+    return StreamWithRetriesContext(
+        agent=agent,
+        user_prompt=user_prompt,
+        usage_limits=usage_limits,
+    )

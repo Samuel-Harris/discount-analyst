@@ -99,6 +99,10 @@ class OpenAIAIModelConfig(BaseAIModelConfig[Literal[Provider.OPENAI]]):
     Set `reasoning_effort` for reasoning models (e.g. o-series, GPT-5.x) to trade cost for
     quality (`"low"` / `"medium"` / `"high"`). When `None` the model's default is used.
 
+    Set `reasoning_summary` so the API returns reasoning summaries (e.g. for Logfire / debugging).
+    Default `"auto"` picks the highest available reasoning-summary level for the model; set to `None` to omit
+    `openai_reasoning_summary` (summaries are opt-in). See the comment on `reasoning_summary` below.
+
     ``openai_previous_response_id="auto"`` is intentionally omitted: with
     ``openai_store=False``, OpenAI does not retain responses for server-side chaining, so
     continuing with a stored ``provider_response_id`` yields ``previous_response_not_found``
@@ -107,6 +111,10 @@ class OpenAIAIModelConfig(BaseAIModelConfig[Literal[Provider.OPENAI]]):
 
     provider: Literal[Provider.OPENAI] = Provider.OPENAI
     reasoning_effort: Literal["low", "medium", "high"] | None = None
+    # "auto" sets the reasoning summary to the highest available level for the model (often
+    # equivalent to "detailed" today; OpenAI may add finer tiers later). See:
+    # https://developers.openai.com/api/docs/guides/reasoning#reasoning-summaries
+    reasoning_summary: Literal["detailed", "concise", "auto"] | None = "auto"
 
     @property
     def model_settings(self) -> OpenAIResponsesModelSettings:
@@ -127,6 +135,8 @@ class OpenAIAIModelConfig(BaseAIModelConfig[Literal[Provider.OPENAI]]):
         }
         if self.reasoning_effort is not None:
             settings["openai_reasoning_effort"] = self.reasoning_effort
+        if self.reasoning_summary is not None:
+            settings["openai_reasoning_summary"] = self.reasoning_summary
         return settings
 
 
