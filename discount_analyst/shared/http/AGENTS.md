@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-03-03 | Updated: 2026-04-04 -->
+<!-- Generated: 2026-03-03 | Updated: 2026-03-28 -->
 
 # http
 
@@ -9,8 +9,8 @@ Asynchronous HTTP client with exponential backoff and retry logic for rate limit
 
 ## Key Files
 
-| File                   | Description                                                                                               |
-| ---------------------- | --------------------------------------------------------------------------------------------------------- |
+| File | Description |
+| --------- | ---------------------------- |
 | `rate_limit_client.py` | `create_rate_limit_client()` factory and `stream_with_retries()` context manager for resilient API calls. |
 
 ## Subdirectories
@@ -22,7 +22,7 @@ None.
 ### Working In This Directory
 
 - **Retry Configuration**: Adjust `_http_transport_should_retry`, `RETRY_WAIT_MULTIPLIER`, and Tenacity `stop_after_attempt` for different failure profiles.
-- **Streaming**: `stream_with_retries` returns an async context manager; `async with ... as result` binds a small façade whose `stream_output()` may reopen `run_stream` on retryable errors (e.g. OpenAI TPM mid-stream), using exponential backoff or the API’s “try again in Xs” hint when present. After a failure while streaming, the next attempt calls `run_stream(user_prompt=None, message_history=..., usage=...)` with a deep-copied snapshot of `all_messages()` and `usage()` so completed turns (e.g. tool rounds) and cumulative usage are preserved without duplicating the user message. Partial assistant text from `response` is **not** merged into history (chat APIs do not support resuming a half-message). Retries assume the transcript plus agent config are enough for the next step: mutable `deps`, non-idempotent tools, or other hidden per-attempt state are not reset—keep tools idempotent or consistent if the model may see the same messages again.
+- **Streaming**: `stream_with_retries` retries transient errors on `run_stream` entry and during `stream_output()` iteration (e.g. OpenAI TPM mid-stream), using exponential backoff or the API’s “try again in Xs” hint when present.
 
 ### Testing Requirements
 
