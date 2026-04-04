@@ -1,5 +1,0 @@
----
-alwaysApply: true
----
-
-Always use the rich library for pretty printing when writing Python scripts.

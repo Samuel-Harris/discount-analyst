@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-03-03 | Updated: 2026-03-28 -->
+<!-- Generated: 2026-03-03 | Updated: 2026-04-02 -->
 
 # surveyor
 
@@ -34,13 +34,13 @@ None.
 ### Common Patterns
 
 - **Search Tools**: Uses `AsyncPerplexity` with `search_mode="web"` for general research and `search_mode="sec"` for official financial filings.
-- **Structured Output**: The agent is configured to return a `SurveyorOutput` (defined in `shared/models/data_types.py`) for strict data validation.
+- **Structured Output**: The agent is configured to return a `SurveyorOutput` (defined in `shared/schemas/surveyor.py`) for strict data validation.
 
 ## Dependencies
 
 ### Internal
 
-- `discount_analyst.shared.models.data_types`: For the `SurveyorOutput` schema.
+- `discount_analyst.shared.schemas.surveyor`: For the `SurveyorOutput` schema.
 - `discount_analyst.shared.config.ai_models_config`: For model configuration and selection.
 - `discount_analyst.shared.config.settings`: For API keys and rate limit settings.
 - `discount_analyst.shared.ai.model`: For creating the LLM model instance.

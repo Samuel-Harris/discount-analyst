@@ -1,4 +1,4 @@
-<!-- Generated: 2026-02-23 | Updated: 2026-02-23 (hooks added) -->
+<!-- Generated: 2026-02-23 | Updated: 2026-04-03 (researcher workflow added) -->
 
 # Discount Analyst
 
@@ -8,11 +8,11 @@ An AI-powered stock analysis tool ("Discount Analyst") for identifying and valui
 
 ## Investment Workflow
 
-The tool supports a seven-stage pipeline. Stages 1 and 5 are automated by AI agents in this repo; stages 2–4 involve a lightweight manual step and external AI tools; stage 6 uses an AI model (Claude, Gemini, or ChatGPT) to evaluate buy recommendations; stage 7 is a human investment decision.
+The tool supports a seven-stage pipeline. Stages 1 and 5 are automated by AI agents in this repo, and stage 4 can now be generated in-repo via the Researcher agent workflow; stages 2–3 remain lightweight manual steps, stage 6 uses an AI model (Claude, Gemini, or ChatGPT) to evaluate buy recommendations, and stage 7 is a human investment decision.
 
 ### Stage 1 — Survey (automated)
 
-`scripts/agents/run_surveyor.py` runs the `discount_analyst/surveyor/surveyor.py` agent, which uses AI-powered web research to screen for promising small-cap stocks across UK and US markets. It outputs a ranked list of candidates with tickers, exchange listings, market caps, and a rationale for each.
+`scripts/agents/run_surveyor.py` runs the `discount_analyst/agents/surveyor/surveyor.py` agent, which uses AI-powered web research to screen for promising small-cap stocks across UK and US markets. It outputs a ranked list of candidates with tickers, exchange listings, market caps, and a rationale for each.
 
 ### Stage 2 — Shortlist (manual)
 
@@ -22,9 +22,9 @@ The analyst reviews the Surveyor output and manually selects the top ~10 most pr
 
 Each shortlisted stock is manually categorised as either a **value** stock (mature business believed to be trading below intrinsic value) or a **growth** stock (high-growth company, often pre-profit).
 
-### Stage 4 — Deep research and checklist scoring (external AI tools)
+### Stage 4 — Deep research and checklist scoring (in-repo Researcher or external AI tools)
 
-An AI model (ChatGPT or Gemini, run interactively) is prompted with a structured deep-research prompt to produce a comprehensive research report for each stock. The prompts differ by category:
+Deep research can be produced either by the in-repo `Researcher` agent (`scripts/agents/run_researcher.py` or `discount_analyst/workflows/run_surveyor_then_researcher.py`) or by an external AI model (ChatGPT/Gemini run interactively). The checklist-scoring step can still be done externally. Prompts differ by category:
 
 - **Value stocks**: assessed on financial health, valuation multiples, competitive moats, balance sheet strength, and red flags.
 - **Growth stocks**: assessed on revenue growth quality, unit economics, market opportunity, product differentiation, customer metrics, and catalysts.
@@ -35,7 +35,7 @@ A separate AI agent then scores the resulting report against a detailed checklis
 
 ### Stage 5 — DCF valuation (automated)
 
-Stocks that pass the checklist are processed by `scripts/agents/run_appraiser.py` (per-stock `--dir` folders containing `deep-research.md` and `surveyor-report.json`), which runs the `discount_analyst/appraiser/appraiser.py` agent to perform a full Discounted Cash Flow valuation. The agent consumes the deep-research report plus structured Surveyor candidate context and writes output (agent analysis + DCF figures) to `outputs/`.
+Stocks that pass the checklist are processed by `scripts/agents/run_appraiser.py` (per-stock `--dir` folders containing `deep-research.md` and `surveyor-report.json`), which runs the `discount_analyst/agents/appraiser/appraiser.py` agent to perform a full Discounted Cash Flow valuation. The agent consumes the deep-research report plus structured Surveyor candidate context and writes output (agent analysis + DCF figures) to `outputs/`.
 
 ### Stage 6 — Evaluate (external AI)
 
@@ -47,14 +47,16 @@ The analyst reviews the DCF outputs and AI buy recommendations across all stocks
 
 ## Key Files
 
-| File                 | Description                                                                                                            |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `pyproject.toml`     | Project metadata, uv configuration, and dependencies.                                                                  |
-| `uv.lock`            | Locked versions of all project dependencies.                                                                           |
-| `README.md`          | Overview, quick start instructions, and high-level documentation.                                                      |
-| `LICENSE`            | MIT License terms for the repository.                                                                                  |
-| `pytest.ini`         | Configuration for the `pytest` test suite, including coverage settings.                                                |
-| `.cursor/hooks.json` | Cursor hooks: `sessionStart` (injects branch + uv env context) and `afterFileEdit` (auto-runs `ruff` on Python files). |
+| File                                                         | Description                                                                                                            |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `pyproject.toml`                                             | Project metadata, uv configuration, and dependencies.                                                                  |
+| `uv.lock`                                                    | Locked versions of all project dependencies.                                                                           |
+| `README.md`                                                  | Overview, quick start instructions, and high-level documentation.                                                      |
+| `LICENSE`                                                    | MIT License terms for the repository.                                                                                  |
+| `pytest.ini`                                                 | Configuration for the `pytest` test suite, including coverage settings.                                                |
+| `.cursor/hooks.json`                                         | Cursor hooks: `sessionStart` (injects branch + uv env context) and `afterFileEdit` (auto-runs `ruff` on Python files). |
+| `scripts/agents/run_researcher.py`                           | Runs Researcher from Surveyor output selectors (`<json>` or `<json>:<TICKER>`) and writes one JSON per candidate.      |
+| `discount_analyst/workflows/run_surveyor_then_researcher.py` | Runs Surveyor once then Researcher sequentially over all returned candidates.                                          |
 
 ## Subdirectories
 

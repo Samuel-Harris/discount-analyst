@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-03-03 | Updated: 2026-03-29 -->
+<!-- Generated: 2026-03-03 | Updated: 2026-04-02 -->
 
 # config
 
@@ -40,7 +40,7 @@ None.
 
 ### Internal
 
-- This directory is used by `discount_analyst.shared.ai`, `discount_analyst.appraiser`, and scripts.
+- This directory is used by `discount_analyst.shared.ai`, `discount_analyst.agents.appraiser`, and scripts.
 
 ### External
 

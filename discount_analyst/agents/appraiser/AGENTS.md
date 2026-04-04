@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-03-03 | Updated: 2026-03-28 -->
+<!-- Generated: 2026-03-03 | Updated: 2026-04-02 -->
 
 # appraiser
 
@@ -36,14 +36,14 @@ None.
 ### Common Patterns
 
 - **Search Tools**: Uses `AsyncPerplexity` with `search_mode="web"` for general research and `search_mode="sec"` for official financial filings.
-- **Structured Output**: The agent returns `AppraiserOutput` from `appraiser/data_types.py`. Surveyor screening context is passed via `create_appraiser_user_prompt` → `user_prompt.create_user_prompt` using `SurveyorCandidate` from `shared/models/data_types.py`.
+- **Structured Output**: The agent returns `AppraiserOutput` from `appraiser/data_types.py`. Surveyor screening context is passed via `create_appraiser_user_prompt` → `user_prompt.create_user_prompt` using `SurveyorCandidate` from `shared/schemas/surveyor.py`.
 
 ## Dependencies
 
 ### Internal
 
-- `discount_analyst.appraiser.data_types`: For `AppraiserOutput`.
-- `discount_analyst.shared.models.data_types`: For `SurveyorCandidate` in user prompts.
+- `discount_analyst.agents.appraiser.data_types`: For `AppraiserOutput`.
+- `discount_analyst.shared.schemas.surveyor`: For `SurveyorCandidate` in user prompts.
 - `discount_analyst.shared.config.ai_models_config`: For model configuration and selection.
 - `discount_analyst.shared.config.settings`: For API keys and rate limit settings.
 - `discount_analyst.shared.ai.model`: For creating the LLM model instance.

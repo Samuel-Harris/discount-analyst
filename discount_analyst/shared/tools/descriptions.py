@@ -74,7 +74,86 @@ Returns:
     The answer to the question based on SEC filings.""",
     ),
     AgentName.SURVEYOR: PerplexityToolDescriptions(
-        web_search="",
-        sec_filings_search="",
+        web_search="""Search the general web to discover and qualify small-cap equity candidates (UK and US).
+
+Use this tool to find:
+- Thematic ideas, sectors, and industries where under-covered names may trade cheaply
+- Recent news, controversies, and red flags for specific tickers or companies
+- Business models, competitive positioning, and qualitative context beyond raw screens
+- Analyst commentary, media coverage frequency, and signals about sell-side coverage depth
+- UK-listed stocks: RNS announcements (e.g. Director/PDMR dealing, material events)
+- Liquidity, exchange listing, and operating-history clues when MCP data is incomplete
+
+Prefer FMP/EODHD MCP tools for repeatable numeric screens (market cap, ratios, statements).
+Use this tool to broaden the funnel, stress-test narratives, and fill UK gaps where filings tools
+are weaker.
+
+DO NOT rely on this tool alone for:
+- Precise audited line items for US names when SEC filings search can answer (use sec_filings_search)
+
+Args:
+    question: A natural-language question naming the company, ticker, or theme and what you need
+        (e.g. "Recent RNS director dealings for [UK ticker] in the last 6 months" or
+        "News and controversies for [US small-cap] in the last year").
+
+Returns:
+    Answers and synthesis based on web sources.""",
+        sec_filings_search="""Search official SEC filings for US-listed companies only.
+
+Use this tool to verify and deepen screening for NASDAQ/NYSE names:
+- 10-K and 10-Q disclosures vs claims from financial data endpoints
+- Form 4 insider buying and selling patterns
+- 8-K material events and proxy / governance disclosures
+- Risk factors, MD&A, and segment detail from regulatory text
+
+This is not the primary tool for UK/LSE/AIM names (use web_search and EODHD fundamentals).
+
+Args:
+    question: Include ticker or company name and the filing angle (e.g. "Summarize insider
+        open-market purchases on Form 4 for [ticker] in the last 6 months" or
+        "From the latest 10-K, what does [ticker] disclose about debt maturities and liquidity?").
+
+Returns:
+    The answer based on SEC filings.""",
+    ),
+    AgentName.RESEARCHER: PerplexityToolDescriptions(
+        web_search="""Search the general web for neutral evidence on business quality, market framing, and catalysts.
+
+Use this tool to find:
+- Recent management commentary, interviews, and investor communication
+- Industry reports, competitor moves, and demand-side signals
+- News flow that could alter expectations (customers, regulation, products)
+- Media and sell-side framing to build the current market narrative
+- Coverage quality signals (who is paying attention and what they emphasize)
+- Margin and growth context from peers or sector data sources
+
+Do not use this tool for:
+- Precise audited financial statement line items when SEC filings are available
+- Recommendations, valuation calls, or target prices as final conclusions
+
+Args:
+    question: A specific natural-language question describing the exact evidence
+        you need and the relevant company/ticker.
+
+Returns:
+    Evidence and synthesis based on web sources.""",
+        sec_filings_search="""Search SEC filings for authoritative, company-reported facts.
+
+Use this tool to verify:
+- Revenue composition, segment trends, and profitability disclosures
+- Balance sheet, debt, liquidity, and cash flow statement details
+- Risk factors, legal contingencies, and governance disclosures
+- Management discussion and known uncertainties from 10-K/10-Q filings
+- Share count and capital allocation details from official filings
+
+This tool is the preferred source for factual claims tied to US-listed companies.
+Use it to close or refine data gaps identified by Surveyor.
+
+Args:
+    question: A specific question that includes company/ticker, metric/disclosure,
+        and desired period (e.g. latest 10-K or most recent 10-Q).
+
+Returns:
+    Evidence extracted from SEC filings.""",
     ),
 }

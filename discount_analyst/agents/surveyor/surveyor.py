@@ -8,12 +8,12 @@ from discount_analyst.shared.ai.model import create_model_from_config
 from discount_analyst.shared.config.ai_models_config import AIModelsConfig
 from discount_analyst.shared.constants.agents import AgentName
 from discount_analyst.shared.constants.providers import ProviderFeature
-from discount_analyst.shared.models.data_types import SurveyorOutput
+from discount_analyst.shared.schemas.surveyor import SurveyorOutput
 from discount_analyst.shared.utils.agent_tools import (
     add_required_feature_to_builtin_tools,
 )
 from discount_analyst.shared.tools.perplexity import create_perplexity_toolset
-from discount_analyst.surveyor.system_prompt import SYSTEM_PROMPT
+from discount_analyst.agents.surveyor.system_prompt import SYSTEM_PROMPT
 
 
 def create_surveyor_agent(

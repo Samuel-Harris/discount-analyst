@@ -1,4 +1,4 @@
-from discount_analyst.shared.models.data_types import SurveyorCandidate
+from discount_analyst.shared.schemas.surveyor import SurveyorCandidate
 
 
 def create_user_prompt(
