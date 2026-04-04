@@ -47,7 +47,7 @@ class BaseAIModelConfig[P: Provider](BaseModel):
     provider: P
     model_name: str
     max_tokens: int
-    usage_limits: UsageLimits | None = None
+    usage_limits: UsageLimits
 
     def supports_feature(self, feature: ProviderFeature) -> bool:
         return self.provider in PROVIDERS_BY_FEATURE[feature]
