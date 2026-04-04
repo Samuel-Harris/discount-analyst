@@ -199,7 +199,7 @@ class SurveyorOutput(BaseModel):
         ),
     )
     ethical_exclusions: list[EthicalExclusion] = Field(
-        default_factory=list,
+        default_factory=list[EthicalExclusion],
         description=(
             "Stocks rejected on ethical grounds before financial evaluation. "
             "Always populate this field — use an empty list if no stocks were "
