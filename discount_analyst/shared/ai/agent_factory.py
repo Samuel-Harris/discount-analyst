@@ -1,5 +1,7 @@
 """Shared factory for pipeline agents that use web search, fetch, and financial MCP."""
 
+from dataclasses import dataclass
+
 from pydantic_ai import AbstractToolset, Agent, WebFetchTool, WebSearchTool
 from pydantic_ai.builtin_tools import AbstractBuiltinTool
 
@@ -13,17 +15,23 @@ from discount_analyst.shared.utils.agent_tools import (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class AgentSpec[OutT]:
+    """Declarative config for an agent (name, schema, system prompt)."""
+
+    name: AgentName
+    output_type: type[OutT]
+    system_prompt: str
+
+
 def create_agent[OutT](
-    ai_models_config: AIModelsConfig,
-    /,
     *,
-    name: AgentName,
-    output_type: type[OutT],
-    system_prompt: str,
+    spec: AgentSpec[OutT],
+    ai_models_config: AIModelsConfig,
     use_perplexity: bool = False,
     use_mcp_financial_data: bool = True,
 ) -> Agent[None, OutT]:
-    """Build a pydantic-ai agent with shared web / Perplexity / financial MCP tooling."""
+    """Build a pydantic-ai agent from a spec with web / Perplexity / financial MCP tooling."""
     builtin_tools: list[AbstractBuiltinTool] = []
     toolsets: list[AbstractToolset[None]] = []
 
@@ -36,7 +44,7 @@ def create_agent[OutT](
         if supports_web_fetch:
             builtin_tools.append(WebFetchTool())
     else:
-        toolsets.append(create_perplexity_toolset(name))
+        toolsets.append(create_perplexity_toolset(spec.name))
 
     if use_mcp_financial_data:
         add_required_feature_to_builtin_tools(
@@ -46,11 +54,11 @@ def create_agent[OutT](
         )
 
     return Agent(
-        name=name,
+        name=spec.name,
         model=create_model_from_config(ai_models_config.model),
-        output_type=output_type,
+        output_type=spec.output_type,
         model_settings=ai_models_config.model.model_settings,
-        system_prompt=system_prompt,
+        system_prompt=spec.system_prompt,
         builtin_tools=builtin_tools,
         toolsets=toolsets,
     )

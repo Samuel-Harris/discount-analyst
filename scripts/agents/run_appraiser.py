@@ -22,7 +22,7 @@ from discount_analyst.dcf_analysis.data_types import (
 from discount_analyst.dcf_analysis.dcf_analysis import DCFAnalysis
 from discount_analyst.shared.config.ai_models_config import AIModelsConfig, ModelName
 from discount_analyst.shared.constants.agents import AgentName
-from discount_analyst.shared.http.rate_limit_client import stream_with_retries
+from discount_analyst.shared.ai.streamed_agent_run import run_streamed_agent
 from discount_analyst.shared.schemas.surveyor import SurveyorCandidate
 
 from scripts.shared.cli import (
@@ -243,16 +243,15 @@ async def run_agent(
     )
 
     start = time.perf_counter()
-    async with stream_with_retries(
+    outcome = await run_streamed_agent(
         agent=agent,
         user_prompt=user_prompt,
         usage_limits=ai_models_config.model.usage_limits,
-    ) as result:
-        async for message in result.stream_output():
-            console.log(f"Streaming: {message}")
-        agent_output = await result.get_output()
-        usage = result.usage()
-        turn_usage = extract_turn_usage(result.all_messages())
+        on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
+    )
+    agent_output = outcome.output
+    usage = outcome.usage
+    turn_usage = extract_turn_usage(outcome.all_messages)
 
     for turn in turn_usage:
         console.log(
