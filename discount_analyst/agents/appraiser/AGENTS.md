@@ -9,13 +9,12 @@ The `appraiser` directory contains the implementation of the "Appraiser" AI agen
 
 ## Key Files
 
-| File               | Description                                                                                                                                         |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `appraiser.py`     | Factory for the Appraiser agent (`create_appraiser_agent`) and `create_appraiser_user_prompt` (research report + `SurveyorCandidate` for DCF runs). |
-| `system_prompt.py` | The expert financial analyst persona and step-by-step analysis instructions for the agent.                                                          |
-| `user_prompt.py`   | `create_user_prompt`: requires ticker, research report body, and `SurveyorCandidate` JSON context.                                                  |
-| `data_types.py`    | `AppraiserOutput` (agent structured output: `StockData` + `StockAssumptions`).                                                                      |
-| `__init__.py`      | Package initialization for the appraiser module.                                                                                                    |
+| File               | Description                                                                                        |
+| ------------------ | -------------------------------------------------------------------------------------------------- |
+| `appraiser.py`     | Factory for the Appraiser agent (`create_appraiser_agent`).                                        |
+| `system_prompt.py` | The expert financial analyst persona and step-by-step analysis instructions for the agent.         |
+| `user_prompt.py`   | `create_user_prompt`: requires ticker, research report body, and `SurveyorCandidate` JSON context. |
+| `__init__.py`      | Package initialization for the appraiser module.                                                   |
 
 ## Subdirectories
 
@@ -36,13 +35,13 @@ None.
 ### Common Patterns
 
 - **Search Tools**: Uses `AsyncPerplexity` with `search_mode="web"` for general research and `search_mode="sec"` for official financial filings.
-- **Structured Output**: The agent returns `AppraiserOutput` from `appraiser/data_types.py`. Surveyor screening context is passed via `create_appraiser_user_prompt` → `user_prompt.create_user_prompt` using `SurveyorCandidate` from `shared/schemas/surveyor.py`.
+- **Structured Output**: The agent returns `AppraiserOutput` from `shared/schemas/appraiser.py`. Surveyor screening context is passed via `user_prompt.create_user_prompt` using `SurveyorCandidate` from `shared/schemas/surveyor.py`.
 
 ## Dependencies
 
 ### Internal
 
-- `discount_analyst.agents.appraiser.data_types`: For `AppraiserOutput`.
+- `discount_analyst.shared.schemas.appraiser`: For `AppraiserOutput`.
 - `discount_analyst.shared.schemas.surveyor`: For `SurveyorCandidate` in user prompts.
 - `discount_analyst.shared.config.ai_models_config`: For model configuration and selection.
 - `discount_analyst.shared.config.settings`: For API keys and rate limit settings.

@@ -1,12 +1,10 @@
 """Cost comparison types and genai_prices integration for script runs."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 
 from genai_prices import Usage, calc_price
 
-from discount_analyst.agents.appraiser.data_types import AppraiserOutput
+from discount_analyst.shared.schemas.appraiser import AppraiserOutput
 from discount_analyst.shared.config.ai_models_config import AIModelsConfig, ModelName
 
 from scripts.shared.schemas.run_outputs import TurnUsage, default_turn_usage_list

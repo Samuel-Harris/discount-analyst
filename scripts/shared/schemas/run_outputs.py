@@ -2,7 +2,7 @@
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
-from discount_analyst.agents.appraiser.data_types import AppraiserOutput
+from discount_analyst.shared.schemas.appraiser import AppraiserOutput
 from discount_analyst.dcf_analysis.data_types import DCFAnalysisResult
 from discount_analyst.shared.schemas.researcher import DeepResearchReport
 from discount_analyst.shared.schemas.strategist import MispricingThesis

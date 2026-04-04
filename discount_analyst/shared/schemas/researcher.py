@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from pydantic import BaseModel, Field
 
 from discount_analyst.shared.schemas.surveyor import KeyMetrics, SurveyorCandidate

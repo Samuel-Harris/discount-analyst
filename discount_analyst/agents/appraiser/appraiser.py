@@ -7,26 +7,13 @@ from discount_analyst.shared.ai.history_processors import (
 from discount_analyst.shared.ai.model import create_model_from_config
 from discount_analyst.shared.config.ai_models_config import AIModelsConfig
 from discount_analyst.shared.constants.agents import AgentName
-from discount_analyst.agents.appraiser.data_types import AppraiserOutput
-from discount_analyst.agents.appraiser.user_prompt import create_user_prompt
+from discount_analyst.shared.schemas.appraiser import AppraiserOutput
 from discount_analyst.shared.constants.providers import ProviderFeature
-from discount_analyst.shared.schemas.surveyor import SurveyorCandidate
 from discount_analyst.shared.utils.agent_tools import (
     add_required_feature_to_builtin_tools,
 )
 from discount_analyst.shared.tools.perplexity import create_perplexity_toolset
 from discount_analyst.agents.appraiser.system_prompt import SYSTEM_PROMPT
-
-
-def create_appraiser_user_prompt(
-    *, research_report: str, surveyor_candidate: SurveyorCandidate
-) -> str:
-    """Build the user prompt for a DCF/appraiser run using research + surveyor context."""
-    return create_user_prompt(
-        ticker=surveyor_candidate.ticker,
-        research_report=research_report,
-        surveyor_candidate=surveyor_candidate,
-    )
 
 
 def create_appraiser_agent(
