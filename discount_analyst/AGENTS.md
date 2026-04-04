@@ -18,6 +18,7 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 | `shared/schemas/stock.py`           | Core financial schemas: `StockData` and `StockAssumptions` used by DCF and Appraiser output typing.                  |
 | `shared/schemas/surveyor.py`        | Surveyor enums and schemas: `SurveyorCandidate`, `SurveyorOutput`, and `KeyMetrics`.                                 |
 | `shared/schemas/researcher.py`      | Researcher report schemas: `DeepResearchReport` plus nested neutral-evidence sections and data-gap progression.      |
+| `shared/schemas/appraiser.py`       | Appraiser output schema: `AppraiserOutput` (`StockData` + `StockAssumptions`).                                     |
 | `shared/config/settings.py`         | Application configuration using `pydantic-settings` for API keys and environment variables.                          |
 | `shared/config/ai_models_config.py` | Configuration for LLM models, including token budgets and thinking parameters.                                       |
 | `workflows/run_surveyor_then_researcher.py` | Orchestrates Surveyor once, then sequential Researcher runs for each discovered candidate.                   |

@@ -11,8 +11,6 @@ Usage:
     uv run python scripts/cost_comparison/model_cost_comparison.py --ticker AMZN --no-mcp
 """
 
-from __future__ import annotations
-
 import argparse
 import asyncio
 import time

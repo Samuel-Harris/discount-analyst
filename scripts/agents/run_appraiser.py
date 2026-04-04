@@ -12,11 +12,9 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from discount_analyst.agents.appraiser.appraiser import (
-    create_appraiser_agent,
-    create_appraiser_user_prompt,
-)
-from discount_analyst.agents.appraiser.data_types import AppraiserOutput
+from discount_analyst.agents.appraiser.appraiser import create_appraiser_agent
+from discount_analyst.agents.appraiser.user_prompt import create_user_prompt
+from discount_analyst.shared.schemas.appraiser import AppraiserOutput
 from discount_analyst.dcf_analysis.data_types import (
     DCFAnalysisParameters,
     DCFAnalysisResult,
@@ -238,7 +236,8 @@ async def run_agent(
         use_perplexity=use_perplexity,
         use_mcp_financial_data=use_mcp_financial_data,
     )
-    user_prompt = create_appraiser_user_prompt(
+    user_prompt = create_user_prompt(
+        ticker=args.surveyor_candidate.ticker,
         research_report=research_report_content,
         surveyor_candidate=args.surveyor_candidate,
     )

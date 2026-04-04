@@ -46,10 +46,10 @@ Scripts and assets for comparing cost and speed across AI models when running th
 
 - `scripts.shared.constants`, `scripts.shared.cost`, `scripts.shared.outputs`, `scripts.shared.schemas.run_outputs`, `scripts.shared.usage`: run schemas, cost types and calculators, output paths/filenames, usage extraction, `AUTO_CACHE_MODELS` (`model_cost_comparison` passes `output_dir` as `Path(__file__).parent / "outputs"`).
 - `discount_analyst.shared.config.ai_models_config`: `ModelName`, `AIModelsConfig` (`view_ticker_results` imports `ModelName` here directly).
-- `discount_analyst.agents.appraiser.data_types`: `AppraiserOutput` (for typing the `RunResult.output` field).
+- `discount_analyst.shared.schemas.appraiser`: `AppraiserOutput` (for typing the `RunResult.output` field).
 - `discount_analyst.shared.schemas.surveyor`: `SurveyorCandidate` for loading `surveyor-report.json` context.
 - `discount_analyst.dcf_analysis`: `DCFAnalysis`, `DCFAnalysisParameters`, `DCFAnalysisResult`.
-- `discount_analyst.agents.appraiser`: `create_appraiser_agent`, `create_appraiser_user_prompt` (or `user_prompt.create_user_prompt` for the low-level prompt string).
+- `discount_analyst.agents.appraiser`: `create_appraiser_agent`; `user_prompt.create_user_prompt` for the prompt string.
 
 ### External
 
