@@ -5,7 +5,7 @@
 
 ## Purpose
 
-Factory for creating AI model instances from configuration and shared agent construction helpers. Instantiates pydantic-ai models (Anthropic, OpenAI, Google) with rate-limited HTTP clients and provider-specific settings; pipeline agents share web / Perplexity / financial MCP tooling via `agent_factory.create_agent`, while interpretation-only agents can disable web research tool registration. Use `streamed_agent_run.run_streamed_agent` for the standard streaming + retry loop used by scripts.
+Factory for creating AI model instances from configuration and shared agent construction helpers. Instantiates pydantic-ai models (Anthropic, OpenAI, Google) with rate-limited HTTP clients and provider-specific settings; pipeline agents share web / Perplexity / financial MCP tooling via `agent_factory.create_agent`, while interpretation-only agents can disable web research tool registration (`enable_web_research_tools=False`). Use `streamed_agent_run.run_streamed_agent` for the standard streaming + retry loop used by scripts.
 
 ## Key Files
 

@@ -1,11 +1,11 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-04-03 | Updated: 2026-04-05 -->
+<!-- Generated: 2026-04-05 | Updated: 2026-04-05 -->
 
 # workflows
 
 ## Purpose
 
-Contains orchestration scripts that run multiple agents in sequence. The primary workflow runs Surveyor once, then Researcher sequentially for each candidate, then Strategist for each successful Researcher run, writing artifacts per stage.
+Contains orchestration scripts that run multiple agents in sequence: Surveyor once, then Researcher per candidate, then Strategist per successful Researcher run (full pipeline), with JSON artifacts per stage. The Researcher-only variant skips Strategist. `discount_analyst/workflows/run_surveyor_researcher_strategist.py` is a thin compatibility entry point that delegates to `run_surveyor_researcher_strategist` in this package.
 
 ## Key Files
 
@@ -31,12 +31,13 @@ None.
 
 - Run `uv run ruff check scripts/workflows`.
 - Run `uv run pytest`.
-- For manual verification, run `uv run python scripts/workflows/run_surveyor_researcher_strategist.py`.
+- For manual verification: `uv run python scripts/workflows/run_surveyor_researcher_strategist.py` and/or `uv run python discount_analyst/workflows/run_surveyor_researcher_strategist.py --help`.
 
 ### Common Patterns
 
 - Use `discount_analyst.shared.ai.streamed_agent_run.run_streamed_agent` for every agent run.
 - Persist outputs via `scripts.shared.outputs.write_agent_json` with clear agent-specific suffixes.
+- Compatibility wrappers under `discount_analyst/workflows/` should import `main` from `scripts.workflows.*` and call `asyncio.run(main())`.
 
 ## Dependencies
 
