@@ -7,6 +7,9 @@ def create_user_prompt(
     surveyor_candidate: SurveyorCandidate,
     deep_research: DeepResearchReport,
 ) -> str:
+    candidate_json = surveyor_candidate.model_dump_json(indent=2)
+    deep_research_json = deep_research.model_dump_json(indent=2)
+
     return f"""
 You are receiving two inputs: a Surveyor candidate that originally flagged this stock for investigation, and a completed deep research report assembled by the Researcher agent. Your task is to synthesise these into a `MispricingThesis`.
 
@@ -15,7 +18,7 @@ You are receiving two inputs: a Surveyor candidate that originally flagged this 
 ## Surveyor Candidate
 
 <surveyor_candidate>
-{surveyor_candidate}
+{candidate_json}
 </surveyor_candidate>
 
 ---
@@ -23,7 +26,7 @@ You are receiving two inputs: a Surveyor candidate that originally flagged this 
 ## Deep Research Report
 
 <deep_research_report>
-{deep_research}
+{deep_research_json}
 </deep_research_report>
 
 ---

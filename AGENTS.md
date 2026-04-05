@@ -47,18 +47,19 @@ The analyst reviews the DCF outputs and AI buy recommendations across all stocks
 
 ## Key Files
 
-| File                                                      | Description                                                                                                            |
-| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `pyproject.toml`                                          | Project metadata, uv configuration, and dependencies.                                                                  |
-| `uv.lock`                                                 | Locked versions of all project dependencies.                                                                           |
-| `README.md`                                               | Overview, quick start instructions, and high-level documentation.                                                      |
-| `LICENSE`                                                 | MIT License terms for the repository.                                                                                  |
-| `pytest.ini`                                              | Configuration for the `pytest` test suite, including coverage settings.                                                |
-| `.cursor/hooks.json`                                      | Cursor hooks: `sessionStart` (injects branch + uv env context) and `afterFileEdit` (auto-runs `ruff` on Python files). |
-| `scripts/agents/run_researcher.py`                        | Runs Researcher from Surveyor output selectors (`<json>` or `<json>:<TICKER>`) and writes one JSON per candidate.      |
-| `scripts/agents/run_strategist.py`                        | Runs Strategist from Researcher output selectors (`<json>` or `<json>:<TICKER>`) and writes one JSON per target.       |
-| `scripts/workflows/run_surveyor_researcher_strategist.py` | Runs Surveyor once, Researcher per candidate, then Strategist per successful Researcher.                               |
-| `scripts/workflows/run_surveyor_then_researcher.py`       | Runs Surveyor once, then Researcher per candidate (no Strategist).                                                     |
+| File                                                               | Description                                                                                                            |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `pyproject.toml`                                                   | Project metadata, uv configuration, and dependencies.                                                                  |
+| `uv.lock`                                                          | Locked versions of all project dependencies.                                                                           |
+| `README.md`                                                        | Overview, quick start instructions, and high-level documentation.                                                      |
+| `LICENSE`                                                          | MIT License terms for the repository.                                                                                  |
+| `pytest.ini`                                                       | Configuration for the `pytest` test suite, including coverage settings.                                                |
+| `.cursor/hooks.json`                                               | Cursor hooks: `sessionStart` (injects branch + uv env context) and `afterFileEdit` (auto-runs `ruff` on Python files). |
+| `scripts/agents/run_researcher.py`                                 | Runs Researcher from Surveyor output selectors (`<json>` or `<json>:<TICKER>`) and writes one JSON per candidate.      |
+| `scripts/agents/run_strategist.py`                                 | Runs Strategist from Researcher output selectors (`<json>` or `<json>:<TICKER>`) and writes one JSON per target.       |
+| `scripts/workflows/run_surveyor_researcher_strategist.py`          | Runs Surveyor once, Researcher per candidate, then Strategist per successful Researcher.                               |
+| `scripts/workflows/run_surveyor_then_researcher.py`                | Runs Surveyor once, then Researcher per candidate (no Strategist).                                                     |
+| `discount_analyst/workflows/run_surveyor_researcher_strategist.py` | Thin compatibility entry point delegating to `scripts/workflows/run_surveyor_researcher_strategist.py`.                |
 
 ## Subdirectories
 

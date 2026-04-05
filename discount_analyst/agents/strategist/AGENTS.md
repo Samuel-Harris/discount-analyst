@@ -47,6 +47,6 @@ None.
 ### External
 
 - **pydantic-ai**: Agent construction and structured output.
-- **pydantic**: Data model validation via shared schemas.
+- **pydantic**: Data model validation via stage-local schemas.
 
 <!-- MANUAL: Any manually added notes below this line are preserved on regeneration -->
