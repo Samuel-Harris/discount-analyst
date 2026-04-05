@@ -1,15 +1,25 @@
-"""Run Surveyor once, then Researcher, Strategist, Sentinel, and gated Appraiser + DCF."""
+"""Run Surveyor once, then Researcher through Sentinel, gated Appraiser + DCF, Arbiter, Verdicts."""
 
 import argparse
 import asyncio
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import date
 
 from pydantic import BaseModel
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from discount_analyst.agents.arbiter.arbiter import create_arbiter_agent
+from discount_analyst.agents.arbiter.schema import (
+    ArbiterDecision,
+    ArbiterInput,
+    ValuationResult,
+)
+from discount_analyst.agents.arbiter.user_prompt import (
+    create_user_prompt as create_arbiter_user_prompt,
+)
 from discount_analyst.agents.sentinel.schema import (
     EvaluationReport,
     sentinel_proceeds_to_valuation,
@@ -35,6 +45,11 @@ from discount_analyst.agents.strategist.schema import MispricingThesis
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate, SurveyorOutput
 from discount_analyst.agents.appraiser.schema import AppraiserInput
 from discount_analyst.config.ai_models_config import AIModelsConfig, ModelName
+from discount_analyst.pipeline.builders import (
+    build_sentinel_rejection,
+    verdict_from_decision,
+)
+from discount_analyst.pipeline.schema import SentinelRejection, Verdict
 from scripts.agents.run_appraiser import (
     StockRunArgs,
     display_agent_output,
@@ -46,8 +61,9 @@ from scripts.common.cli import (
     add_agent_cli_model_argument,
     add_agent_cli_web_search_arguments,
 )
-from scripts.common.artifacts import write_agent_json
+from scripts.common.artefacts import write_agent_json, write_verdicts_json
 from scripts.common.run_outputs import (
+    ArbiterRunOutput,
     SentinelRunOutput,
     ResearcherRunOutput,
     StrategistRunOutput,
@@ -126,11 +142,31 @@ class FailedAppraiserRun:
     error: str
 
 
+@dataclass
+class FailedArbiterRun:
+    ticker: str
+    candidate_index: int
+    error: str
+
+
+@dataclass
+class ArbiterAgentRunResult:
+    output: ArbiterDecision
+    elapsed_s: float
+    input_tokens: int
+    output_tokens: int
+    cache_write_tokens: int
+    cache_read_tokens: int
+    tool_calls: int
+    turn_usage: list[TurnUsage]
+
+
 class WorkflowArgs(BaseModel):
     model: ModelName
     use_perplexity: bool
     use_mcp_financial_data: bool
     risk_free_rate: float
+    is_existing_position: bool
 
 
 def parse_args() -> WorkflowArgs:
@@ -138,7 +174,8 @@ def parse_args() -> WorkflowArgs:
         description=(
             "Run Surveyor once, then Researcher sequentially for each candidate, "
             "then Strategist and Sentinel for each successful Researcher and Strategist run, "
-            "then Appraiser and DCF when Sentinel recommends Proceed to valuation."
+            "then Appraiser and DCF when the Sentinel valuation gate passes, "
+            "then Arbiter; writes Verdict rows and a verdicts JSON artefact."
         )
     )
     add_agent_cli_model_argument(parser)
@@ -148,6 +185,14 @@ def parse_args() -> WorkflowArgs:
         type=float,
         required=True,
         help="Risk-free rate as a decimal for DCF (e.g. 0.045 for 4.5%%).",
+    )
+    parser.add_argument(
+        "--is-existing-position",
+        action="store_true",
+        help=(
+            "Treat each candidate as an existing portfolio holding for programmatic "
+            "rejections and Arbiter recommended_action framing."
+        ),
     )
     parser.add_argument(
         "--no-mcp",
@@ -168,6 +213,7 @@ def parse_args() -> WorkflowArgs:
         use_perplexity=raw.use_perplexity,
         use_mcp_financial_data=not raw.no_mcp,
         risk_free_rate=raw.risk_free_rate,
+        is_existing_position=raw.is_existing_position,
     )
 
 
@@ -246,7 +292,7 @@ def display_sentinel_output(output: EvaluationReport) -> None:
         "Valuation gate (derived)",
         (
             "Proceed to valuation"
-            if sentinel_proceeds_to_valuation(output.thesis_verdict)
+            if sentinel_proceeds_to_valuation(output)
             else "Do not proceed"
         ),
     )
@@ -307,6 +353,137 @@ def display_appraiser_failure_summary(failures: list[FailedAppraiserRun]) -> Non
     for failed in failures:
         table.add_row(failed.ticker, str(failed.candidate_index), failed.error)
     console.print(table)
+
+
+def display_arbiter_failure_summary(failures: list[FailedArbiterRun]) -> None:
+    table = Table(
+        title="Arbiter Failures",
+        show_header=True,
+        header_style="bold red",
+    )
+    table.add_column("Ticker", style="cyan", no_wrap=True)
+    table.add_column("Candidate Index", style="yellow")
+    table.add_column("Error", style="white")
+    for failed in failures:
+        table.add_row(failed.ticker, str(failed.candidate_index), failed.error)
+    console.print(table)
+
+
+def display_verdicts_table(verdicts: list[Verdict]) -> None:
+    """Portfolio-style summary: one row per Verdict."""
+    if not verdicts:
+        return
+    table = Table(
+        title="Verdicts summary",
+        show_header=True,
+        header_style="bold magenta",
+    )
+    table.add_column("Ticker", style="cyan", no_wrap=True)
+    table.add_column("Company", style="green")
+    table.add_column("Rating", style="yellow")
+    table.add_column("Recommended action", style="white")
+    table.add_column("Provenance", style="blue")
+    table.add_column("Existing", justify="center")
+    table.add_column("Rejection reason", style="dim")
+    table.add_column("Conviction", style="white")
+    table.add_column("MoS verdict", style="white")
+    for v in verdicts:
+        prov = "Arbiter" if isinstance(v.decision, ArbiterDecision) else "Sentinel"
+        if isinstance(v.decision, SentinelRejection):
+            rej = v.decision.rejection_reason
+            conv = "—"
+            mos = "—"
+        else:
+            rej = "—"
+            conv = v.decision.conviction
+            mos = v.decision.margin_of_safety.margin_of_safety_verdict
+        table.add_row(
+            v.ticker,
+            v.company_name,
+            v.rating,
+            v.recommended_action,
+            prov,
+            "Y" if v.is_existing_position else "N",
+            rej,
+            conv,
+            mos,
+        )
+    console.print(table)
+
+
+async def run_arbiter_once(
+    *,
+    model_name: ModelName,
+    arbiter_input: ArbiterInput,
+) -> ArbiterAgentRunResult:
+    ai_models_config = AIModelsConfig(model_name=model_name)
+    agent = create_arbiter_agent(ai_models_config)
+    user_prompt = create_arbiter_user_prompt(arbiter_input=arbiter_input)
+    outcome = await run_streamed_agent(
+        agent=agent,
+        user_prompt=user_prompt,
+        usage_limits=ai_models_config.model.usage_limits,
+        on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
+    )
+    output = outcome.output
+    usage = outcome.usage
+    turn_usage = extract_turn_usage(outcome.all_messages)
+    elapsed_s = outcome.elapsed_s
+    console.log(f"Arbiter completed for {arbiter_input.stock_candidate.ticker}.")
+    return ArbiterAgentRunResult(
+        output=output,
+        elapsed_s=elapsed_s,
+        input_tokens=usage.input_tokens,
+        output_tokens=usage.output_tokens,
+        cache_write_tokens=getattr(usage, "cache_write_tokens", 0),
+        cache_read_tokens=getattr(usage, "cache_read_tokens", 0),
+        tool_calls=getattr(usage, "tool_calls", 0),
+        turn_usage=turn_usage,
+    )
+
+
+def save_arbiter_output(
+    *,
+    model_name: ModelName,
+    ticker: str,
+    risk_free_rate: float,
+    is_existing_position: bool,
+    run_result: ArbiterAgentRunResult,
+    source_surveyor_report: str,
+    source_candidate_index: int,
+    source_researcher_report: str,
+    source_strategist_report: str,
+    source_sentinel_report: str,
+    source_appraiser_report: str,
+    filename_suffix: str,
+) -> str:
+    run_output = ArbiterRunOutput(
+        ticker=ticker,
+        model_name=model_name.value,
+        risk_free_rate=risk_free_rate,
+        is_existing_position=is_existing_position,
+        source_surveyor_report=source_surveyor_report,
+        source_candidate_index=source_candidate_index,
+        source_researcher_report=source_researcher_report,
+        source_strategist_report=source_strategist_report,
+        source_sentinel_report=source_sentinel_report,
+        source_appraiser_report=source_appraiser_report,
+        elapsed_s=run_result.elapsed_s,
+        input_tokens=run_result.input_tokens,
+        output_tokens=run_result.output_tokens,
+        cache_write_tokens=run_result.cache_write_tokens,
+        cache_read_tokens=run_result.cache_read_tokens,
+        tool_calls=run_result.tool_calls,
+        turn_usage=run_result.turn_usage,
+        output=run_result.output,
+    )
+    out_path = write_agent_json(
+        payload=run_output,
+        model_name=model_name,
+        agent_name=AgentName.ARBITER,
+        filename_suffix=filename_suffix,
+    )
+    return str(out_path)
 
 
 async def run_surveyor_once(
@@ -568,6 +745,120 @@ def save_sentinel_output(
     return str(out_path)
 
 
+async def _run_appraiser_dcf_arbiter_for_candidate(
+    *,
+    args: WorkflowArgs,
+    candidate: SurveyorCandidate,
+    index: int,
+    surveyor_path: str,
+    researcher_out_path: str,
+    strat_path: str,
+    sentinel_path: str,
+    filename_suffix: str,
+    run_result: AgentRunResult,
+    strat_result: StrategistAgentRunResult,
+    sent_result: SentinelAgentRunResult,
+    verdicts: list[Verdict],
+    arbiter_failures: list[FailedArbiterRun],
+) -> None:
+    appraiser_input = AppraiserInput(
+        stock_candidate=candidate,
+        deep_research=run_result.output,
+        thesis=strat_result.output,
+        evaluation=sent_result.output,
+        risk_free_rate=args.risk_free_rate,
+    )
+    stock_args = StockRunArgs(
+        surveyor_candidate=candidate,
+        risk_free_rate=args.risk_free_rate,
+        model=args.model,
+    )
+    agent_result = await run_agent(
+        stock_args,
+        appraiser_input,
+        use_perplexity=args.use_perplexity,
+        use_mcp_financial_data=args.use_mcp_financial_data,
+    )
+    display_agent_output(agent_result.output)
+    dcf_result, dcf_error = run_dcf_and_display(stock_args, agent_result.output)
+    appraiser_out_path = save_run_output(
+        stock_args,
+        agent_result.output,
+        agent_result,
+        dcf_result,
+        dcf_error,
+        source_surveyor_report=surveyor_path,
+        source_candidate_index=index,
+        source_researcher_report=researcher_out_path,
+        source_strategist_report=strat_path,
+        source_sentinel_report=sentinel_path,
+        filename_suffix=filename_suffix,
+    )
+    console.print(f"Saved Appraiser output: [dim]{appraiser_out_path}[/dim]")
+
+    if dcf_result is None:
+        console.print(
+            f"[yellow]Warning: DCF did not produce a result for "
+            f"{candidate.ticker}; skipping Arbiter and omitting a "
+            "Verdict for this candidate.[/yellow]"
+        )
+        if dcf_error:
+            console.print(f"[dim]{dcf_error}[/dim]")
+        return
+
+    valuation = ValuationResult(
+        appraiser_output=agent_result.output,
+        dcf_result=dcf_result,
+    )
+    arbiter_input = ArbiterInput(
+        stock_candidate=candidate,
+        deep_research=run_result.output,
+        thesis=strat_result.output,
+        evaluation=sent_result.output,
+        valuation=valuation,
+        risk_free_rate=args.risk_free_rate,
+        is_existing_position=args.is_existing_position,
+    )
+    try:
+        arb_run = await run_arbiter_once(
+            model_name=args.model,
+            arbiter_input=arbiter_input,
+        )
+        arb_decision = arb_run.output.model_copy(
+            update={"decision_date": date.today().isoformat()}
+        )
+        verdicts.append(verdict_from_decision(arb_decision))
+        arb_run_saved = replace(arb_run, output=arb_decision)
+        arb_path = save_arbiter_output(
+            model_name=args.model,
+            ticker=candidate.ticker,
+            risk_free_rate=args.risk_free_rate,
+            is_existing_position=args.is_existing_position,
+            run_result=arb_run_saved,
+            source_surveyor_report=surveyor_path,
+            source_candidate_index=index,
+            source_researcher_report=researcher_out_path,
+            source_strategist_report=strat_path,
+            source_sentinel_report=sentinel_path,
+            source_appraiser_report=str(appraiser_out_path),
+            filename_suffix=filename_suffix,
+        )
+        console.print(f"Saved Arbiter output: [dim]{arb_path}[/dim]")
+    except Exception as arb_exc:
+        arbiter_failures.append(
+            FailedArbiterRun(
+                ticker=candidate.ticker,
+                candidate_index=index,
+                error=str(arb_exc),
+            )
+        )
+        console.print(
+            f"[red]Arbiter failed for {candidate.ticker} "
+            f"(candidate_index={index}). Continuing...[/red]"
+        )
+        console.print(f"[dim]{arb_exc}[/dim]")
+
+
 async def main() -> None:
     args = parse_args()
     surveyor_run_output, surveyor_path = await run_surveyor_once(
@@ -588,6 +879,8 @@ async def main() -> None:
     strategist_failures: list[FailedStrategistRun] = []
     sentinel_failures: list[FailedSentinelRun] = []
     appraiser_failures: list[FailedAppraiserRun] = []
+    arbiter_failures: list[FailedArbiterRun] = []
+    verdicts: list[Verdict] = []
     researcher_successes = 0
     strategist_successes = 0
     sentinel_successes = 0
@@ -612,153 +905,6 @@ async def main() -> None:
                 use_perplexity=args.use_perplexity,
                 use_mcp_financial_data=args.use_mcp_financial_data,
             )
-            display_researcher_output(run_result.output)
-            researcher_out_path = save_researcher_output(
-                model_name=args.model,
-                surveyor_report_path=surveyor_path,
-                candidate_index=index,
-                candidate=candidate,
-                run_result=run_result,
-                filename_suffix=suffixes[index],
-            )
-            researcher_successes += 1
-            console.print(f"Saved Researcher output: [dim]{researcher_out_path}[/dim]")
-
-            try:
-                strat_result = await run_strategist_once(
-                    model_name=args.model,
-                    surveyor_candidate=candidate,
-                    deep_research=run_result.output,
-                )
-                display_strategist_output(strat_result.output)
-                strat_path = save_strategist_output(
-                    model_name=args.model,
-                    source_surveyor_report=surveyor_path,
-                    source_candidate_index=index,
-                    source_researcher_report=researcher_out_path,
-                    ticker=candidate.ticker,
-                    run_result=strat_result,
-                    filename_suffix=suffixes[index],
-                )
-                strategist_successes += 1
-                console.print(f"Saved Strategist output: [dim]{strat_path}[/dim]")
-
-                try:
-                    sent_result = await run_sentinel_once(
-                        model_name=args.model,
-                        surveyor_candidate=candidate,
-                        deep_research=run_result.output,
-                        thesis=strat_result.output,
-                    )
-                    display_sentinel_output(sent_result.output)
-                    sentinel_path = save_sentinel_output(
-                        model_name=args.model,
-                        source_surveyor_report=surveyor_path,
-                        source_candidate_index=index,
-                        source_researcher_report=researcher_out_path,
-                        source_strategist_report=strat_path,
-                        ticker=candidate.ticker,
-                        run_result=sent_result,
-                        filename_suffix=suffixes[index],
-                    )
-                    sentinel_successes += 1
-                    console.print(f"Saved Sentinel output: [dim]{sentinel_path}[/dim]")
-
-                    if sentinel_proceeds_to_valuation(
-                        sent_result.output.thesis_verdict
-                    ):
-                        try:
-                            appraiser_input = AppraiserInput(
-                                stock_candidate=candidate,
-                                deep_research=run_result.output,
-                                thesis=strat_result.output,
-                                evaluation=sent_result.output,
-                                risk_free_rate=args.risk_free_rate,
-                            )
-                            stock_args = StockRunArgs(
-                                surveyor_candidate=candidate,
-                                risk_free_rate=args.risk_free_rate,
-                                model=args.model,
-                            )
-                            console.log(
-                                f"Sentinel recommended Proceed to valuation; "
-                                f"running Appraiser + DCF for {candidate.ticker}..."
-                            )
-                            agent_result = await run_agent(
-                                stock_args,
-                                appraiser_input,
-                                use_perplexity=args.use_perplexity,
-                                use_mcp_financial_data=args.use_mcp_financial_data,
-                            )
-                            display_agent_output(agent_result.output)
-                            dcf_result, dcf_error = run_dcf_and_display(
-                                stock_args, agent_result.output
-                            )
-                            appraiser_out_path = save_run_output(
-                                stock_args,
-                                agent_result.output,
-                                agent_result,
-                                dcf_result,
-                                dcf_error,
-                                source_surveyor_report=surveyor_path,
-                                source_candidate_index=index,
-                                source_researcher_report=researcher_out_path,
-                                source_strategist_report=strat_path,
-                                source_sentinel_report=sentinel_path,
-                                filename_suffix=suffixes[index],
-                            )
-                            appraiser_successes += 1
-                            console.print(
-                                f"Saved Appraiser output: [dim]{appraiser_out_path}[/dim]"
-                            )
-                        except Exception as appr_exc:
-                            appraiser_failures.append(
-                                FailedAppraiserRun(
-                                    ticker=candidate.ticker,
-                                    candidate_index=index,
-                                    error=str(appr_exc),
-                                )
-                            )
-                            console.print(
-                                f"[red]Appraiser failed for {candidate.ticker} "
-                                f"(candidate_index={index}). Continuing...[/red]"
-                            )
-                            console.print(f"[dim]{appr_exc}[/dim]")
-                    else:
-                        appraiser_skipped_sentinel += 1
-                        console.log(
-                            f"Skipping Appraiser for {candidate.ticker}: "
-                            f"thesis_verdict is {sent_result.output.thesis_verdict!r} "
-                            "(valuation gate: Do not proceed)."
-                        )
-                except Exception as exc:
-                    sentinel_failures.append(
-                        FailedSentinelRun(
-                            ticker=candidate.ticker,
-                            candidate_index=index,
-                            error=str(exc),
-                        )
-                    )
-                    console.print(
-                        f"[red]Sentinel failed for {candidate.ticker} "
-                        f"(candidate_index={index}). Continuing...[/red]"
-                    )
-                    console.print(f"[dim]{exc}[/dim]")
-
-            except Exception as exc:
-                strategist_failures.append(
-                    FailedStrategistRun(
-                        ticker=candidate.ticker,
-                        candidate_index=index,
-                        error=str(exc),
-                    )
-                )
-                console.print(
-                    f"[red]Strategist failed for {candidate.ticker} "
-                    f"(candidate_index={index}). Continuing...[/red]"
-                )
-                console.print(f"[dim]{exc}[/dim]")
-
         except Exception as exc:
             failures.append(
                 FailedCandidateRun(
@@ -772,10 +918,153 @@ async def main() -> None:
                 f"(candidate_index={index}). Continuing...[/red]"
             )
             console.print(f"[dim]{exc}[/dim]")
+            continue
+
+        display_researcher_output(run_result.output)
+        researcher_out_path = save_researcher_output(
+            model_name=args.model,
+            surveyor_report_path=surveyor_path,
+            candidate_index=index,
+            candidate=candidate,
+            run_result=run_result,
+            filename_suffix=suffixes[index],
+        )
+        researcher_successes += 1
+        console.print(f"Saved Researcher output: [dim]{researcher_out_path}[/dim]")
+
+        try:
+            strat_result = await run_strategist_once(
+                model_name=args.model,
+                surveyor_candidate=candidate,
+                deep_research=run_result.output,
+            )
+        except Exception as exc:
+            strategist_failures.append(
+                FailedStrategistRun(
+                    ticker=candidate.ticker,
+                    candidate_index=index,
+                    error=str(exc),
+                )
+            )
+            console.print(
+                f"[red]Strategist failed for {candidate.ticker} "
+                f"(candidate_index={index}). Continuing...[/red]"
+            )
+            console.print(f"[dim]{exc}[/dim]")
+            continue
+
+        display_strategist_output(strat_result.output)
+        strat_path = save_strategist_output(
+            model_name=args.model,
+            source_surveyor_report=surveyor_path,
+            source_candidate_index=index,
+            source_researcher_report=researcher_out_path,
+            ticker=candidate.ticker,
+            run_result=strat_result,
+            filename_suffix=suffixes[index],
+        )
+        strategist_successes += 1
+        console.print(f"Saved Strategist output: [dim]{strat_path}[/dim]")
+
+        try:
+            sent_result = await run_sentinel_once(
+                model_name=args.model,
+                surveyor_candidate=candidate,
+                deep_research=run_result.output,
+                thesis=strat_result.output,
+            )
+        except Exception as exc:
+            sentinel_failures.append(
+                FailedSentinelRun(
+                    ticker=candidate.ticker,
+                    candidate_index=index,
+                    error=str(exc),
+                )
+            )
+            console.print(
+                f"[red]Sentinel failed for {candidate.ticker} "
+                f"(candidate_index={index}). Continuing...[/red]"
+            )
+            console.print(f"[dim]{exc}[/dim]")
+            continue
+
+        display_sentinel_output(sent_result.output)
+        sentinel_path = save_sentinel_output(
+            model_name=args.model,
+            source_surveyor_report=surveyor_path,
+            source_candidate_index=index,
+            source_researcher_report=researcher_out_path,
+            source_strategist_report=strat_path,
+            ticker=candidate.ticker,
+            run_result=sent_result,
+            filename_suffix=suffixes[index],
+        )
+        sentinel_successes += 1
+        console.print(f"Saved Sentinel output: [dim]{sentinel_path}[/dim]")
+
+        if not sentinel_proceeds_to_valuation(sent_result.output):
+            appraiser_skipped_sentinel += 1
+            decision_day = date.today().isoformat()
+            rejection = build_sentinel_rejection(
+                sent_result.output,
+                strat_result.output,
+                is_existing_position=args.is_existing_position,
+                decision_date=decision_day,
+            )
+            verdicts.append(verdict_from_decision(rejection))
+            console.log(
+                f"Skipping Appraiser for {candidate.ticker}: "
+                "valuation gate is Do not proceed "
+                f"(thesis_verdict={sent_result.output.thesis_verdict!r}, "
+                "overall_red_flag_verdict="
+                f"{sent_result.output.red_flag_screen.overall_red_flag_verdict!r})."
+            )
+            continue
+
+        console.log(
+            f"Sentinel valuation gate passed; "
+            f"running Appraiser + DCF for {candidate.ticker}..."
+        )
+        try:
+            await _run_appraiser_dcf_arbiter_for_candidate(
+                args=args,
+                candidate=candidate,
+                index=index,
+                surveyor_path=surveyor_path,
+                researcher_out_path=researcher_out_path,
+                strat_path=strat_path,
+                sentinel_path=sentinel_path,
+                filename_suffix=suffixes[index],
+                run_result=run_result,
+                strat_result=strat_result,
+                sent_result=sent_result,
+                verdicts=verdicts,
+                arbiter_failures=arbiter_failures,
+            )
+            appraiser_successes += 1
+        except Exception as appr_exc:
+            appraiser_failures.append(
+                FailedAppraiserRun(
+                    ticker=candidate.ticker,
+                    candidate_index=index,
+                    error=str(appr_exc),
+                )
+            )
+            console.print(
+                f"[red]Appraiser failed for {candidate.ticker} "
+                f"(candidate_index={index}). Continuing...[/red]"
+            )
+            console.print(f"[dim]{appr_exc}[/dim]")
+            continue
+
+    if verdicts:
+        verdicts_path = write_verdicts_json(verdicts=verdicts, model_name=args.model)
+        console.print(f"\nSaved verdicts JSON: [dim]{verdicts_path}[/dim]\n")
+        display_verdicts_table(verdicts)
 
     console.print(
         Panel.fit(
-            f"Workflow complete: Surveyor through Appraiser (gated)\n"
+            f"Workflow complete: Surveyor through Arbiter (gated)\n"
             f"Candidates: {len(candidates)}\n"
             f"Researcher successes: {researcher_successes}\n"
             f"Researcher failures: {len(failures)}\n"
@@ -785,7 +1074,9 @@ async def main() -> None:
             f"Sentinel failures: {len(sentinel_failures)}\n"
             f"Appraiser successes: {appraiser_successes}\n"
             f"Appraiser failures: {len(appraiser_failures)}\n"
-            f"Appraiser skipped (Sentinel not proceed): {appraiser_skipped_sentinel}",
+            f"Appraiser skipped (valuation gate): {appraiser_skipped_sentinel}\n"
+            f"Verdicts recorded: {len(verdicts)}\n"
+            f"Arbiter failures: {len(arbiter_failures)}",
             border_style="cyan",
         )
     )
@@ -797,6 +1088,8 @@ async def main() -> None:
         display_sentinel_failure_summary(sentinel_failures)
     if appraiser_failures:
         display_appraiser_failure_summary(appraiser_failures)
+    if arbiter_failures:
+        display_arbiter_failure_summary(arbiter_failures)
 
 
 if __name__ == "__main__":

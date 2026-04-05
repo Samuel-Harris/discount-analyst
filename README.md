@@ -44,7 +44,7 @@ uv run python scripts/agents/run_appraiser.py \
   --risk-free-rate <RATE>
 ```
 
-Use the Sentinel artifact written under `scripts/outputs/` after `run_sentinel.py` (or the full pipeline). The script follows the same `path.json` / `path.json:TICKER` selector pattern as Sentinel; it loads Surveyor, Researcher, and Strategist JSON paths from fields inside the Sentinel run record.
+Use the Sentinel artefact written under `scripts/outputs/` after `run_sentinel.py` (or the full pipeline). The script follows the same `path.json` / `path.json:TICKER` selector pattern as Sentinel; it loads Surveyor, Researcher, and Strategist JSON paths from fields inside the Sentinel run record.
 
 **4. Evaluate — AI buy recommendation**
 Use an AI model (Claude, Gemini, or ChatGPT) to evaluate whether to buy each stock based on the research report, Strategist thesis, and the DCF analysis output.
@@ -58,4 +58,4 @@ Review the DCF outputs across all analysed stocks. Buy the stocks with the great
 2. Set up your environment variables (see [scripts/README.md](scripts/README.md))
 3. Install dependencies: `uv sync`
 4. Run the Surveyor to find candidates: `uv run python scripts/agents/run_surveyor.py`, or run survey → research → strategy in one command: `uv run python scripts/workflows/run_surveyor_researcher_strategist.py`
-5. After Researcher/Strategist/Sentinel (step 2 above — or `scripts/workflows/run_surveyor_to_appraiser.py` for the full gated pipeline), run DCF analysis: `uv run python scripts/agents/run_appraiser.py --sentinel-report-and-ticker scripts/outputs/<sentinel>.json --risk-free-rate <decimal e.g. 0.045>`
+5. After Researcher/Strategist/Sentinel (step 2 above — or `scripts/workflows/run_full_workflow.py` for the full gated pipeline through Arbiter and verdicts JSON), run DCF analysis: `uv run python scripts/agents/run_appraiser.py --sentinel-report-and-ticker scripts/outputs/<sentinel>.json --risk-free-rate <decimal e.g. 0.045>`

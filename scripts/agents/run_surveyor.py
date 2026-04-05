@@ -18,7 +18,7 @@ from scripts.common.cli import (
     add_agent_cli_model_argument,
     add_agent_cli_web_search_arguments,
 )
-from scripts.common.artifacts import write_agent_json
+from scripts.common.artefacts import write_agent_json
 from scripts.common.run_outputs import SurveyorRunOutput
 from scripts.common.usage import extract_turn_usage
 

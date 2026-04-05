@@ -20,7 +20,7 @@ from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
 from discount_analyst.agents.researcher.schema import DeepResearchReport
 from discount_analyst.agents.strategist.schema import MispricingThesis
 from scripts.common.cli import add_agent_cli_model_argument
-from scripts.common.artifacts import write_agent_json
+from scripts.common.artefacts import write_agent_json
 from scripts.common.run_outputs import (
     ResearcherRunOutput,
     StrategistRunOutput,
@@ -98,7 +98,7 @@ def _parse_selector(raw: str, parser: argparse.ArgumentParser) -> Selector:
     path = Path(report_part).expanduser().resolve()
     if path.suffix.lower() != ".json":
         parser.error(
-            f"Invalid selector '{raw}': expected a .json Researcher run artifact path. "
+            f"Invalid selector '{raw}': expected a .json Researcher run artefact path. "
             f"Got: {path}."
         )
     if not path.is_file():
@@ -124,7 +124,7 @@ def parse_args() -> StrategistArgs:
         dest="selectors",
         metavar="SELECTOR",
         help=(
-            "Researcher artifact selector (repeatable): either "
+            "Researcher artefact selector (repeatable): either "
             "'<researcher_run_output.json>' for that run "
             "or '<researcher_run_output.json>:<TICKER>' to require a ticker match."
         ),
@@ -136,7 +136,7 @@ def parse_args() -> StrategistArgs:
 
 
 def load_researcher_run_output(path: Path) -> ResearcherRunOutput:
-    """Parse a Researcher run output JSON artifact."""
+    """Parse a Researcher run output JSON artefact."""
     try:
         return ResearcherRunOutput.model_validate_json(path.read_text())
     except ValidationError as exc:
@@ -153,7 +153,7 @@ def _resolve_targets_for_selector(selector: Selector) -> list[ResearcherTarget]:
     ticker_folded = selector.ticker.casefold()
     if run_output.ticker.casefold() != ticker_folded:
         raise ValueError(
-            f"Ticker '{selector.ticker}' does not match Researcher artifact "
+            f"Ticker '{selector.ticker}' does not match Researcher artefact "
             f"{selector.researcher_report_path} (ticker={run_output.ticker})."
         )
     return [ResearcherTarget(selector.researcher_report_path, run_output)]
@@ -293,7 +293,7 @@ async def main() -> None:
     args = parse_args()
     targets = resolve_targets(args.selectors)
     if not targets:
-        raise SystemExit("No Researcher artifacts selected to run Strategist.")
+        raise SystemExit("No Researcher artefacts selected to run Strategist.")
 
     suffixes = _build_suffixes(targets)
     failures: list[FailedStrategistRun] = []

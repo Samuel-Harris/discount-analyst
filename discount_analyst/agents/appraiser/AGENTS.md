@@ -36,7 +36,7 @@ None.
 ### Common Patterns
 
 - **Search Tools**: Uses `AsyncPerplexity` with `search_mode="web"` for general research and `search_mode="sec"` for official financial filings.
-- **Structured I/O**: Input contract `AppraiserInput` and output `AppraiserOutput` live in `schema.py`. `scripts/agents/run_appraiser.py` resolves `AppraiserInput` from a Sentinel run artifact (and embedded paths to Surveyor / Researcher / Strategist JSON); other callers (e.g. workflows) build `AppraiserInput` in code and call `user_prompt.create_user_prompt`.
+- **Structured I/O**: Input contract `AppraiserInput` and output `AppraiserOutput` live in `schema.py`. `scripts/agents/run_appraiser.py` resolves `AppraiserInput` from a Sentinel run artefact (and embedded paths to Surveyor / Researcher / Strategist JSON); other callers (e.g. workflows) build `AppraiserInput` in code and call `user_prompt.create_user_prompt`.
 
 ## Dependencies
 

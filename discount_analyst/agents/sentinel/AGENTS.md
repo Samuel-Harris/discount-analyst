@@ -5,17 +5,17 @@
 
 ## Purpose
 
-The `sentinel` directory contains the Sentinel AI agent. It consumes a `SurveyorCandidate`, `DeepResearchReport`, and `MispricingThesis` and produces an `EvaluationReport` (question assessments, red-flag screen, `thesis_verdict`). Whether to run valuation is **derived** via `sentinel_proceeds_to_valuation` in `schema.py` — there is no stored `recommendation` field.
+The `sentinel` directory contains the Sentinel AI agent. It consumes a `SurveyorCandidate`, `DeepResearchReport`, and `MispricingThesis` and produces an `EvaluationReport` (question assessments, red-flag screen, `thesis_verdict`). Whether to run valuation is **derived** via `sentinel_proceeds_to_valuation(evaluation)` in `schema.py` (thesis proceed set **and** red-flag screen — blocks on ``Serious concern``) — there is no stored `recommendation` field.
 
 ## Key Files
 
-| File               | Description                                                                                         |
-| ------------------ | --------------------------------------------------------------------------------------------------- |
-| `sentinel.py`      | Factory for the Sentinel agent (`create_sentinel_agent`).                                           |
-| `schema.py`        | Output contract: `EvaluationReport`, `ThesisVerdict` (`StrEnum`), `sentinel_proceeds_to_valuation`. |
-| `system_prompt.py` | System prompt and Sentinel role instructions.                                                       |
-| `user_prompt.py`   | `create_user_prompt`: injects candidate, deep research, and thesis as tagged context.               |
-| `__init__.py`      | Package initialization for the sentinel module.                                                     |
+| File               | Description                                                                                                                   |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `sentinel.py`      | Factory for the Sentinel agent (`create_sentinel_agent`).                                                                     |
+| `schema.py`        | Output contract: `EvaluationReport`, `ThesisVerdict` / `OverallRedFlagVerdict` (`StrEnum`), `sentinel_proceeds_to_valuation`. |
+| `system_prompt.py` | System prompt and Sentinel role instructions.                                                                                 |
+| `user_prompt.py`   | `create_user_prompt`: injects candidate, deep research, and thesis as tagged context.                                         |
+| `__init__.py`      | Package initialization for the sentinel module.                                                                               |
 
 ## Subdirectories
 
@@ -26,7 +26,7 @@ None.
 ### Working In This Directory
 
 - **No tools**: The Sentinel agent is evaluation-only; do not add web search, fetch, Perplexity, or MCP without an explicit product decision.
-- **Output contract**: Keep output constrained to `EvaluationReport` in `schema.py`. Use `sentinel_proceeds_to_valuation(thesis_verdict)` for the valuation gate; do not add a duplicate persisted recommendation field.
+- **Output contract**: Keep output constrained to `EvaluationReport` in `schema.py`. Use `sentinel_proceeds_to_valuation(evaluation)` for the valuation gate; do not add a duplicate persisted recommendation field.
 
 ### Testing Requirements
 

@@ -17,6 +17,7 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 | `agents/researcher/researcher.py`     | Factory for the Researcher agent that produces structured `DeepResearchReport` output from `SurveyorCandidate`.    |
 | `agents/strategist/strategist.py`     | Factory for the Strategist agent that produces `MispricingThesis` from `SurveyorCandidate` + `DeepResearchReport`. |
 | `agents/sentinel/sentinel.py`         | Factory for the Sentinel agent that produces `EvaluationReport` from candidate + deep research + thesis.           |
+| `agents/arbiter/arbiter.py`           | Factory for the Arbiter agent that produces `ArbiterDecision` (synthesis; no tools).                               |
 | `agents/common/agent_factory.py`      | Shared `AgentSpec` + `create_agent` factory used by pipeline agents (Strategist and Sentinel use no-tools mode).   |
 | `agents/common/streamed_agent_run.py` | Streaming helper wrapping `stream_with_retries` and returning output, usage, and elapsed time.                     |
 | `agents/common/streaming_retries.py`  | Retry/resume logic for `AbstractAgent.run_stream()` / `stream_output()`.                                           |
@@ -30,6 +31,7 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 | `config/ai_models_config.py`          | Configuration for LLM models, including token budgets and thinking parameters.                                     |
 | `http/retrying_client.py`             | Tenacity-backed async HTTP client for provider APIs.                                                               |
 | `integrations/perplexity.py`          | Perplexity-backed toolset factory for agents.                                                                      |
+| `rating.py`                           | `InvestmentRating` (`StrEnum`) shared by Arbiter, `Verdict`, and programmatic rejections.                          |
 
 ## Subdirectories
 
@@ -37,6 +39,7 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 | ---------------- | ---------------------------------------------------------------------------------------------------------- |
 | `valuation/`     | DCF engine, `StockData` / `StockAssumptions`, and DCF parameter/result models (see `valuation/AGENTS.md`). |
 | `agents/`        | AI agent packages and stage-local schemas (see `agents/AGENTS.md`).                                        |
+| `pipeline/`      | Non-LLM verdict types and builders: `Verdict`, `SentinelRejection` (see `pipeline/AGENTS.md`).             |
 | `agents/common/` | Agent runtime: model factory, streaming, tool wiring, creed, agent names (see `agents/common/AGENTS.md`).  |
 | `config/`        | Settings, model config, provider capability flags (see `config/AGENTS.md`).                                |
 | `http/`          | HTTP transport retries (see `http/AGENTS.md`).                                                             |
