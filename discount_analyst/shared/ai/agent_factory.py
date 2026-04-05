@@ -28,23 +28,31 @@ def create_agent[OutT](
     *,
     spec: AgentSpec[OutT],
     ai_models_config: AIModelsConfig,
+    enable_web_research_tools: bool = True,
     use_perplexity: bool = False,
     use_mcp_financial_data: bool = True,
 ) -> Agent[None, OutT]:
-    """Build a pydantic-ai agent from a spec with web / Perplexity / financial MCP tooling."""
+    """Build a pydantic-ai agent from a spec.
+
+    By default, the factory enables model-native web search (+ optional fetch),
+    optional Perplexity search, and optional financial MCP toolsets.
+    Set ``enable_web_research_tools=False`` for interpretation-only agents
+    (for example, Strategist).
+    """
     builtin_tools: list[AbstractBuiltinTool] = []
     toolsets: list[AbstractToolset[None]] = []
 
-    if not use_perplexity:
-        builtin_tools.append(WebSearchTool())
+    if enable_web_research_tools:
+        if not use_perplexity:
+            builtin_tools.append(WebSearchTool())
 
-        supports_web_fetch = ai_models_config.model.supports_feature(
-            ProviderFeature.WEB_FETCH
-        )
-        if supports_web_fetch:
-            builtin_tools.append(WebFetchTool())
-    else:
-        toolsets.append(create_perplexity_toolset(spec.name))
+            supports_web_fetch = ai_models_config.model.supports_feature(
+                ProviderFeature.WEB_FETCH
+            )
+            if supports_web_fetch:
+                builtin_tools.append(WebFetchTool())
+        else:
+            toolsets.append(create_perplexity_toolset(spec.name))
 
     if use_mcp_financial_data:
         add_required_feature_to_builtin_tools(

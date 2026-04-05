@@ -5,6 +5,7 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 from discount_analyst.shared.schemas.appraiser import AppraiserOutput
 from discount_analyst.dcf_analysis.data_types import DCFAnalysisResult
 from discount_analyst.shared.schemas.researcher import DeepResearchReport
+from discount_analyst.shared.schemas.strategist import MispricingThesis
 from discount_analyst.shared.schemas.surveyor import SurveyorOutput
 
 
@@ -74,3 +75,21 @@ class ResearcherRunOutput(BaseModel):
     tool_calls: int
     turn_usage: list[TurnUsage] = Field(default_factory=default_turn_usage_list)
     output: DeepResearchReport
+
+
+class StrategistRunOutput(BaseModel):
+    """Complete serialisable record for one Strategist run written to outputs/."""
+
+    ticker: str
+    model_name: str
+    source_surveyor_report: str
+    source_candidate_index: int = Field(ge=0)
+    source_researcher_report: str
+    elapsed_s: float
+    input_tokens: int
+    output_tokens: int
+    cache_write_tokens: int
+    cache_read_tokens: int
+    tool_calls: int
+    turn_usage: list[TurnUsage] = Field(default_factory=default_turn_usage_list)
+    output: MispricingThesis

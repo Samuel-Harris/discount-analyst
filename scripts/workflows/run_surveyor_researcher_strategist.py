@@ -1,4 +1,4 @@
-"""Run Surveyor once, then Researcher sequentially for each candidate."""
+"""Run Surveyor once, then Researcher sequentially, then Strategist per Researcher success."""
 
 import argparse
 import asyncio
@@ -11,13 +11,20 @@ from rich.panel import Panel
 from rich.table import Table
 
 from discount_analyst.agents.researcher.researcher import create_researcher_agent
-from discount_analyst.agents.researcher.user_prompt import create_user_prompt
+from discount_analyst.agents.researcher.user_prompt import (
+    create_user_prompt as create_researcher_user_prompt,
+)
+from discount_analyst.agents.strategist.strategist import create_strategist_agent
+from discount_analyst.agents.strategist.user_prompt import (
+    create_user_prompt as create_strategist_user_prompt,
+)
 from discount_analyst.agents.surveyor.surveyor import create_surveyor_agent
 from discount_analyst.agents.surveyor.user_prompt import USER_PROMPT
 from discount_analyst.shared.ai.streamed_agent_run import run_streamed_agent
 from discount_analyst.shared.config.ai_models_config import AIModelsConfig, ModelName
 from discount_analyst.shared.constants.agents import AgentName
 from discount_analyst.shared.schemas.researcher import DeepResearchReport
+from discount_analyst.shared.schemas.strategist import MispricingThesis
 from discount_analyst.shared.schemas.surveyor import SurveyorCandidate, SurveyorOutput
 from scripts.shared.cli import (
     add_agent_cli_model_argument,
@@ -26,6 +33,7 @@ from scripts.shared.cli import (
 from scripts.shared.outputs import write_agent_json
 from scripts.shared.schemas.run_outputs import (
     ResearcherRunOutput,
+    StrategistRunOutput,
     SurveyorRunOutput,
     TurnUsage,
 )
@@ -50,7 +58,26 @@ class AgentRunResult:
 
 
 @dataclass
+class StrategistAgentRunResult:
+    output: MispricingThesis
+    elapsed_s: float
+    input_tokens: int
+    output_tokens: int
+    cache_write_tokens: int
+    cache_read_tokens: int
+    tool_calls: int
+    turn_usage: list[TurnUsage]
+
+
+@dataclass
 class FailedCandidateRun:
+    ticker: str
+    candidate_index: int
+    error: str
+
+
+@dataclass
+class FailedStrategistRun:
     ticker: str
     candidate_index: int
     error: str
@@ -64,7 +91,10 @@ class WorkflowArgs(BaseModel):
 
 def parse_args() -> WorkflowArgs:
     parser = argparse.ArgumentParser(
-        description="Run Surveyor once, then Researcher sequentially for each candidate."
+        description=(
+            "Run Surveyor once, then Researcher sequentially for each candidate, "
+            "then Strategist for each successful Researcher run."
+        )
     )
     add_agent_cli_model_argument(parser)
     add_agent_cli_web_search_arguments(parser)
@@ -139,9 +169,33 @@ def display_researcher_output(output: DeepResearchReport) -> None:
     console.print(table)
 
 
+def display_strategist_output(output: MispricingThesis) -> None:
+    table = Table(title=f"Strategist - {output.ticker}", show_header=True)
+    table.add_column("Field", style="cyan", no_wrap=True)
+    table.add_column("Value", style="white")
+    table.add_row("Company", output.company_name)
+    table.add_row("Mispricing type", output.mispricing_type)
+    table.add_row("Conviction", output.conviction_level)
+    console.print(table)
+
+
 def display_failure_summary(failures: list[FailedCandidateRun]) -> None:
     table = Table(
         title="Researcher Failures",
+        show_header=True,
+        header_style="bold red",
+    )
+    table.add_column("Ticker", style="cyan", no_wrap=True)
+    table.add_column("Candidate Index", style="yellow")
+    table.add_column("Error", style="white")
+    for failed in failures:
+        table.add_row(failed.ticker, str(failed.candidate_index), failed.error)
+    console.print(table)
+
+
+def display_strategist_failure_summary(failures: list[FailedStrategistRun]) -> None:
+    table = Table(
+        title="Strategist Failures",
         show_header=True,
         header_style="bold red",
     )
@@ -208,7 +262,7 @@ async def run_researcher_once(
         use_perplexity=use_perplexity,
         use_mcp_financial_data=use_mcp_financial_data,
     )
-    user_prompt = create_user_prompt(surveyor_candidate=candidate)
+    user_prompt = create_researcher_user_prompt(surveyor_candidate=candidate)
 
     outcome = await run_streamed_agent(
         agent=agent,
@@ -225,6 +279,42 @@ async def run_researcher_once(
         f"(candidate_index={candidate_index}, source={surveyor_report_path})."
     )
     return AgentRunResult(
+        output=output,
+        elapsed_s=elapsed_s,
+        input_tokens=usage.input_tokens,
+        output_tokens=usage.output_tokens,
+        cache_write_tokens=getattr(usage, "cache_write_tokens", 0),
+        cache_read_tokens=getattr(usage, "cache_read_tokens", 0),
+        tool_calls=getattr(usage, "tool_calls", 0),
+        turn_usage=turn_usage,
+    )
+
+
+async def run_strategist_once(
+    *,
+    model_name: ModelName,
+    surveyor_candidate: SurveyorCandidate,
+    deep_research: DeepResearchReport,
+) -> StrategistAgentRunResult:
+    ai_models_config = AIModelsConfig(model_name=model_name)
+    agent = create_strategist_agent(ai_models_config)
+    user_prompt = create_strategist_user_prompt(
+        surveyor_candidate=surveyor_candidate,
+        deep_research=deep_research,
+    )
+
+    outcome = await run_streamed_agent(
+        agent=agent,
+        user_prompt=user_prompt,
+        usage_limits=ai_models_config.model.usage_limits,
+        on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
+    )
+    output = outcome.output
+    usage = outcome.usage
+    turn_usage = extract_turn_usage(outcome.all_messages)
+    elapsed_s = outcome.elapsed_s
+    console.log(f"Strategist completed for {surveyor_candidate.ticker}.")
+    return StrategistAgentRunResult(
         output=output,
         elapsed_s=elapsed_s,
         input_tokens=usage.input_tokens,
@@ -268,6 +358,40 @@ def save_researcher_output(
     return str(out_path)
 
 
+def save_strategist_output(
+    *,
+    model_name: ModelName,
+    source_surveyor_report: str,
+    source_candidate_index: int,
+    source_researcher_report: str,
+    ticker: str,
+    run_result: StrategistAgentRunResult,
+    filename_suffix: str,
+) -> str:
+    run_output = StrategistRunOutput(
+        ticker=ticker,
+        model_name=model_name.value,
+        source_surveyor_report=source_surveyor_report,
+        source_candidate_index=source_candidate_index,
+        source_researcher_report=source_researcher_report,
+        elapsed_s=run_result.elapsed_s,
+        input_tokens=run_result.input_tokens,
+        output_tokens=run_result.output_tokens,
+        cache_write_tokens=run_result.cache_write_tokens,
+        cache_read_tokens=run_result.cache_read_tokens,
+        tool_calls=run_result.tool_calls,
+        turn_usage=run_result.turn_usage,
+        output=run_result.output,
+    )
+    out_path = write_agent_json(
+        payload=run_output,
+        model_name=model_name,
+        agent_name=AgentName.STRATEGIST,
+        filename_suffix=filename_suffix,
+    )
+    return str(out_path)
+
+
 async def main() -> None:
     args = parse_args()
     surveyor_run_output, surveyor_path = await run_surveyor_once(
@@ -285,7 +409,9 @@ async def main() -> None:
 
     suffixes = _build_researcher_suffixes(candidates)
     failures: list[FailedCandidateRun] = []
-    successes = 0
+    strategist_failures: list[FailedStrategistRun] = []
+    researcher_successes = 0
+    strategist_successes = 0
 
     for index, candidate in enumerate(candidates):
         if index > 0:
@@ -306,7 +432,7 @@ async def main() -> None:
                 use_mcp_financial_data=args.use_mcp_financial_data,
             )
             display_researcher_output(run_result.output)
-            out_path = save_researcher_output(
+            researcher_out_path = save_researcher_output(
                 model_name=args.model,
                 surveyor_report_path=surveyor_path,
                 candidate_index=index,
@@ -314,8 +440,41 @@ async def main() -> None:
                 run_result=run_result,
                 filename_suffix=suffixes[index],
             )
-            successes += 1
-            console.print(f"Saved Researcher output: [dim]{out_path}[/dim]")
+            researcher_successes += 1
+            console.print(f"Saved Researcher output: [dim]{researcher_out_path}[/dim]")
+
+            try:
+                strat_result = await run_strategist_once(
+                    model_name=args.model,
+                    surveyor_candidate=candidate,
+                    deep_research=run_result.output,
+                )
+                display_strategist_output(strat_result.output)
+                strat_path = save_strategist_output(
+                    model_name=args.model,
+                    source_surveyor_report=surveyor_path,
+                    source_candidate_index=index,
+                    source_researcher_report=researcher_out_path,
+                    ticker=candidate.ticker,
+                    run_result=strat_result,
+                    filename_suffix=suffixes[index],
+                )
+                strategist_successes += 1
+                console.print(f"Saved Strategist output: [dim]{strat_path}[/dim]")
+            except Exception as exc:
+                strategist_failures.append(
+                    FailedStrategistRun(
+                        ticker=candidate.ticker,
+                        candidate_index=index,
+                        error=str(exc),
+                    )
+                )
+                console.print(
+                    f"[red]Strategist failed for {candidate.ticker} "
+                    f"(candidate_index={index}). Continuing...[/red]"
+                )
+                console.print(f"[dim]{exc}[/dim]")
+
         except Exception as exc:
             failures.append(
                 FailedCandidateRun(
@@ -332,15 +491,19 @@ async def main() -> None:
 
     console.print(
         Panel.fit(
-            f"Workflow complete: Surveyor then Researcher\n"
+            f"Workflow complete: Surveyor, Researcher, Strategist\n"
             f"Candidates: {len(candidates)}\n"
-            f"Researcher successes: {successes}\n"
-            f"Researcher failures: {len(failures)}",
+            f"Researcher successes: {researcher_successes}\n"
+            f"Researcher failures: {len(failures)}\n"
+            f"Strategist successes: {strategist_successes}\n"
+            f"Strategist failures: {len(strategist_failures)}",
             border_style="cyan",
         )
     )
     if failures:
         display_failure_summary(failures)
+    if strategist_failures:
+        display_strategist_failure_summary(strategist_failures)
 
 
 if __name__ == "__main__":

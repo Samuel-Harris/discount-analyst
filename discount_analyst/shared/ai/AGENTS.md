@@ -1,18 +1,18 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-03-03 | Updated: 2026-04-04 -->
+<!-- Generated: 2026-03-03 | Updated: 2026-04-05 -->
 
 # ai
 
 ## Purpose
 
-Factory for creating AI model instances from configuration and shared research-style agents. Instantiates pydantic-ai models (Anthropic, OpenAI, Google) with rate-limited HTTP clients and provider-specific settings; researcher, appraiser, and surveyor agents share web / Perplexity / financial MCP tooling via `agent_factory.create_pipeline_agent`. Use `streamed_agent_run.run_streamed_agent` for the standard streaming + retry loop used by scripts.
+Factory for creating AI model instances from configuration and shared agent construction helpers. Instantiates pydantic-ai models (Anthropic, OpenAI, Google) with rate-limited HTTP clients and provider-specific settings; pipeline agents share web / Perplexity / financial MCP tooling via `agent_factory.create_agent`, while interpretation-only agents can disable web research tool registration (`enable_web_research_tools=False`). Use `streamed_agent_run.run_streamed_agent` for the standard streaming + retry loop used by scripts.
 
 ## Key Files
 
 | File                    | Description                                                                                                                                                            |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `model.py`              | Factory function `create_model_from_config` that creates rate-limited AI models from `AIModelConfig`.                                                                  |
-| `agent_factory.py`      | `PipelineAgentSpec` and `create_pipeline_agent`: build pipeline agents with web search/fetch, optional Perplexity, and optional financial MCP toolsets.                |
+| `agent_factory.py`      | `AgentSpec` and `create_agent`: build agents from a shared spec with optional web-search/fetch, Perplexity, and financial MCP toolsets (or no-tools mode).              |
 | `streamed_agent_run.py` | `run_streamed_agent` and `StreamedAgentRunOutcome`: drain `stream_with_retries`, optional stream callback and debounce, return output/usage/messages and elapsed time. |
 
 ## Subdirectories

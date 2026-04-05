@@ -5,27 +5,28 @@
 
 ## Purpose
 
-Contains AI agent packages used by the project workflows. This directory groups the Surveyor, Researcher, and Appraiser implementations under a shared namespace.
+Contains AI agent packages used by the project workflows. This directory groups the Surveyor, Researcher, Strategist, and Appraiser implementations under a shared namespace.
 
 ## Key Files
 
-| File | Description |
-| ---- | ----------- |
+| File          | Description                                                |
+| ------------- | ---------------------------------------------------------- |
 | `__init__.py` | Package initialization file for `discount_analyst.agents`. |
 
 ## Subdirectories
 
-| Directory | Purpose |
-| --------- | ------- |
-| `surveyor/` | Surveyor agent implementation and prompts for candidate discovery (see `surveyor/AGENTS.md`) |
+| Directory     | Purpose                                                                                                               |
+| ------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `surveyor/`   | Surveyor agent implementation and prompts for candidate discovery (see `surveyor/AGENTS.md`)                          |
 | `researcher/` | Researcher agent implementation and prompts for structured deep-research evidence output (see `researcher/AGENTS.md`) |
-| `appraiser/` | Appraiser agent implementation and prompts for DCF workflows (see `appraiser/AGENTS.md`) |
+| `strategist/` | Strategist agent implementation and prompts for `MispricingThesis` output (see `strategist/AGENTS.md`)                |
+| `appraiser/`  | Appraiser agent implementation and prompts for DCF workflows (see `appraiser/AGENTS.md`)                              |
 
 ## For AI Agents
 
 ### Working In This Directory
 
-- Keep surveyor, researcher, and appraiser code in separate subpackages to avoid cross-coupling.
+- Keep surveyor, researcher, strategist, and appraiser code in separate subpackages to avoid cross-coupling.
 - Use fully qualified imports from `discount_analyst.agents.*` in callers.
 
 ### Testing Requirements
