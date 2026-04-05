@@ -58,11 +58,11 @@ Step 1: Find the current financial data for {ticker} (StockData).
 Step 2: Determine appropriate future assumptions (StockAssumptions).
 
 Use the JSON blocks alongside each other to:
-- Align with the suggested value vs growth category and sector/industry framing from the candidate
+- Use **sector and industry** from the candidate to ground **peers, competitive context, and structural economics** — do **not** label the stock “value” or “growth” or choose assumptions from a style bucket; derive projections from **evidence and the mispricing story**, not from market-style categories
 - Weigh the stated rationale and key metrics (where present) against your own StockData and assumptions
 - Treat red_flags and data_gaps in the candidate as hypotheses to validate or refine — not as ground truth
 - Incorporate thesis conviction, falsifiable claims, and Sentinel caveats when judging projection risk — without treating prose as audited numbers
-- Prefer the deep research report and live data for numbers; use the candidate block for **consistent framing** with how the name was first characterised
+- Prefer the deep research report and live data for numbers; use the candidate block for **consistent framing** with how the name was first characterised (signals and concerns from screening, not a category label)
 
 The DeepResearchReport contains comprehensive analysis of the company including:
 - Revenue growth trends and quality metrics
@@ -100,5 +100,5 @@ Remember to:
 
 Cross-reference the research findings with the StockData to ensure consistency. If there are any discrepancies between the research and StockData (e.g., different revenue figures), prioritize the StockData as it represents the most current snapshot.
 
-Return the StockAssumptions JSON now.
+Return the full `AppraiserOutput` JSON (`stock_data` and `stock_assumptions`) now.
 """.strip()
