@@ -35,8 +35,8 @@ None.
 
 ### Common Patterns
 
-- Use `discount_analyst.shared.ai.streamed_agent_run.run_streamed_agent` for every agent run.
-- Persist outputs via `scripts.shared.outputs.write_agent_json` with clear agent-specific suffixes.
+- Use `discount_analyst.agents.common.streamed_agent_run.run_streamed_agent` for every agent run.
+- Persist outputs via `scripts.common.artifacts.write_agent_json` with clear agent-specific suffixes.
 - Compatibility wrappers under `discount_analyst/workflows/` should import `main` from `scripts.workflows.*` and call `asyncio.run(main())`.
 
 ## Dependencies
@@ -46,7 +46,7 @@ None.
 - `discount_analyst.agents.surveyor`: Surveyor factory and prompt.
 - `discount_analyst.agents.researcher`: Researcher factory and prompt builder.
 - `discount_analyst.agents.strategist`: Strategist factory and prompt builder.
-- `scripts.shared.cli`, `scripts.shared.outputs`, `scripts.shared.schemas.run_outputs`, `scripts.shared.usage`: CLI helpers, JSON writer, run-output models, usage extraction.
+- `scripts.common.cli`, `scripts.common.artifacts`, `scripts.common.run_outputs`, `scripts.common.usage`: CLI helpers, JSON writer, run-output models, usage extraction.
 
 ### External
 

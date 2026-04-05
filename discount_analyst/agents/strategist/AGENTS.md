@@ -25,7 +25,7 @@ None.
 ### Working In This Directory
 
 - **No tools**: The Strategist agent is interpretation-only; do not add `WebSearchTool`, `WebFetchTool`, Perplexity, or MCP toolsets without an explicit product decision.
-- **Output contract**: Keep output constrained to `MispricingThesis` in `shared/schemas/strategist.py`.
+- **Output contract**: Keep output constrained to `MispricingThesis` in `schema.py`.
 
 ### Testing Requirements
 
@@ -40,9 +40,9 @@ None.
 
 ### Internal
 
-- `discount_analyst.shared.schemas.strategist`: Output contract (`MispricingThesis`).
-- `discount_analyst.shared.schemas.researcher`: `DeepResearchReport` input.
-- `discount_analyst.shared.schemas.surveyor`: `SurveyorCandidate` input.
+- `discount_analyst.agents.strategist.schema`: Output contract (`MispricingThesis`).
+- `discount_analyst.agents.researcher.schema`: `DeepResearchReport` input.
+- `discount_analyst.agents.surveyor.schema`: `SurveyorCandidate` input.
 
 ### External
 

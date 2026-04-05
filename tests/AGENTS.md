@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-23 | Updated: 2026-03-28 -->
+<!-- Generated: 2026-02-23 | Updated: 2026-04-05 -->
 
 # tests
 
@@ -9,17 +9,19 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 
 ## Key Files
 
-| File | Description |
-| --------- | ---------------------------- |
-| `tests/dcf_analysis/test_dcf_analysis.py` | Comprehensive unit tests for the DCF calculation engine using real-world stock data scenarios. |
-| `tests/shared/http/test_rate_limit_client.py` | Unit tests for streaming retry helpers (`should_retry_streaming_error`, sleep parsing). |
+| File                                                              | Description                                                                                    |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `tests/dcf_analysis/test_dcf_analysis.py`                         | Comprehensive unit tests for the DCF calculation engine using real-world stock data scenarios. |
+| `tests/discount_analyst/http/test_streaming_retries.py`           | Unit tests for agent streaming retry helpers (`stream_with_retries`, sleep parsing).           |
+| `tests/discount_analyst/agents/common/test_streamed_agent_run.py` | Tests for `run_streamed_agent`.                                                                |
 
 ## Subdirectories
 
-| Directory | Purpose |
-| --------- | ----------------------------------------- |
-| `dcf_analysis/` | Contains tests specifically targeting the Discounted Cash Flow analysis module. |
-| `shared/http/` | Tests for `discount_analyst.shared.http` (rate limit / streaming retries). |
+| Directory                         | Purpose                                                                                   |
+| --------------------------------- | ----------------------------------------------------------------------------------------- |
+| `dcf_analysis/`                   | Tests for the DCF engine (`discount_analyst.valuation`).                                  |
+| `discount_analyst/http/`          | Tests for streaming retry behaviour (`discount_analyst.agents.common.streaming_retries`). |
+| `discount_analyst/agents/common/` | Tests for streamed agent orchestration.                                                   |
 
 ## For AI Agents
 
@@ -45,9 +47,9 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 
 ### Internal
 
-- `discount_analyst.dcf_analysis`: The core DCF calculation logic being tested.
-- `discount_analyst.shared.schemas.stock`: Shared Pydantic models for financial data and assumptions.
-- `discount_analyst.shared.http.rate_limit_client`: HTTP and streaming retry behaviour.
+- `discount_analyst.valuation`: DCF calculation logic under test.
+- `discount_analyst.valuation.schema`: Stock data and assumptions models.
+- `discount_analyst.agents.common.streaming_retries`, `discount_analyst.agents.common.streamed_agent_run`: Streaming behaviour.
 
 ### External
 

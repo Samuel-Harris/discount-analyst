@@ -1,4 +1,4 @@
-from discount_analyst.shared.schemas.surveyor import SurveyorCandidate
+from discount_analyst.agents.surveyor.schema import SurveyorCandidate
 
 
 def create_user_prompt(*, surveyor_candidate: SurveyorCandidate) -> str:

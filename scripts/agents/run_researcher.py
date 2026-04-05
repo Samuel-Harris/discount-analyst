@@ -14,22 +14,22 @@ from rich.table import Table
 
 from discount_analyst.agents.researcher.researcher import create_researcher_agent
 from discount_analyst.agents.researcher.user_prompt import create_user_prompt
-from discount_analyst.shared.config.ai_models_config import AIModelsConfig, ModelName
-from discount_analyst.shared.constants.agents import AgentName
-from discount_analyst.shared.ai.streamed_agent_run import run_streamed_agent
-from discount_analyst.shared.schemas.researcher import DeepResearchReport
-from discount_analyst.shared.schemas.surveyor import SurveyorCandidate
-from scripts.shared.cli import (
+from discount_analyst.config.ai_models_config import AIModelsConfig, ModelName
+from discount_analyst.agents.common.agent_names import AgentName
+from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
+from discount_analyst.agents.researcher.schema import DeepResearchReport
+from discount_analyst.agents.surveyor.schema import SurveyorCandidate
+from scripts.common.cli import (
     add_agent_cli_model_argument,
     add_agent_cli_web_search_arguments,
 )
-from scripts.shared.outputs import write_agent_json
-from scripts.shared.schemas.run_outputs import (
+from scripts.common.artifacts import write_agent_json
+from scripts.common.run_outputs import (
     ResearcherRunOutput,
     SurveyorRunOutput,
     TurnUsage,
 )
-from scripts.shared.usage import extract_turn_usage
+from scripts.common.usage import extract_turn_usage
 from scripts.utils.setup_logfire import setup_logfire
 
 setup_logfire()
