@@ -25,7 +25,7 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 | `agents/researcher/schema.py`         | Researcher report schemas: `DeepResearchReport` plus nested neutral-evidence sections and data-gap progression.    |
 | `agents/strategist/schema.py`         | Strategist output schema: `MispricingThesis`.                                                                      |
 | `agents/sentinel/schema.py`           | Sentinel output schema: `EvaluationReport` and nested assessment models.                                           |
-| `agents/appraiser/schema.py`          | Appraiser output schema: `AppraiserOutput` (`StockData` + `StockAssumptions`).                                     |
+| `agents/appraiser/schema.py`          | Appraiser I/O: `AppraiserInput` (pipeline inputs) and `AppraiserOutput` (`StockData` + `StockAssumptions`).        |
 | `config/settings.py`                  | Application configuration using `pydantic-settings` for API keys and environment variables.                        |
 | `config/ai_models_config.py`          | Configuration for LLM models, including token budgets and thinking parameters.                                     |
 | `http/retrying_client.py`             | Tenacity-backed async HTTP client for provider APIs.                                                               |

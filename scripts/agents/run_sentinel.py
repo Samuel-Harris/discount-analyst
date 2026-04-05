@@ -12,7 +12,10 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from discount_analyst.agents.sentinel.schema import EvaluationReport
+from discount_analyst.agents.sentinel.schema import (
+    EvaluationReport,
+    sentinel_proceeds_to_valuation,
+)
 from discount_analyst.agents.sentinel.sentinel import create_sentinel_agent
 from discount_analyst.agents.sentinel.user_prompt import create_user_prompt
 from discount_analyst.agents.common.agent_names import AgentName
@@ -233,7 +236,14 @@ def display_output(output: EvaluationReport) -> None:
     table.add_column("Value", style="white")
     table.add_row("Company", output.company_name)
     table.add_row("Thesis verdict", output.thesis_verdict)
-    table.add_row("Recommendation", output.recommendation)
+    table.add_row(
+        "Valuation gate (derived)",
+        (
+            "Proceed to valuation"
+            if sentinel_proceeds_to_valuation(output.thesis_verdict)
+            else "Do not proceed"
+        ),
+    )
     console.print(
         Panel.fit(
             "[bold green]Sentinel Agent Output[/bold green]",

@@ -1,20 +1,21 @@
-"""Run the Appraiser agent and DCF valuation for stock research folders."""
+"""Run the Appraiser agent and DCF from Sentinel run output JSON selectors."""
 
 import argparse
 import asyncio
-import sys
 import time
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NewType
+from typing import NamedTuple
 
+from pydantic import BaseModel, ValidationError
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
 from discount_analyst.agents.appraiser.appraiser import create_appraiser_agent
+from discount_analyst.agents.appraiser.schema import AppraiserInput, AppraiserOutput
 from discount_analyst.agents.appraiser.user_prompt import create_user_prompt
-from discount_analyst.agents.appraiser.schema import AppraiserOutput
 from discount_analyst.valuation.data_types import (
     DCFAnalysisParameters,
     DCFAnalysisResult,
@@ -31,7 +32,14 @@ from scripts.common.cli import (
     add_agent_cli_web_search_arguments,
 )
 from scripts.common.artifacts import write_agent_json
-from scripts.common.run_outputs import AppraiserRunOutput, TurnUsage
+from scripts.common.run_outputs import (
+    AppraiserRunOutput,
+    ResearcherRunOutput,
+    SentinelRunOutput,
+    StrategistRunOutput,
+    SurveyorRunOutput,
+    TurnUsage,
+)
 from scripts.common.usage import extract_turn_usage
 from scripts.utils.setup_logfire import setup_logfire
 
@@ -39,17 +47,18 @@ setup_logfire()
 
 console = Console()
 
-ResearchReport = NewType("ResearchReport", str)
-
-DEEP_RESEARCH_FILENAME = "deep-research.md"
-SURVEYOR_REPORT_FILENAME = "surveyor-report.json"
-
 
 @dataclass(frozen=True)
-class StockResearchDir:
-    """A directory containing deep-research.md and surveyor-report.json."""
+class Selector:
+    sentinel_report_path: Path
+    ticker: str | None
+    raw: str
 
-    dir_path: Path
+
+class AppraiserTarget(NamedTuple):
+    sentinel_report_path: Path
+    sentinel_run: SentinelRunOutput
+    appraiser_input: AppraiserInput
 
 
 @dataclass
@@ -60,44 +69,90 @@ class SharedArgs:
     use_mcp_financial_data: bool
 
 
-def _validate_stock_dir(raw: str, parser: argparse.ArgumentParser) -> StockResearchDir:
-    """Resolve a stock folder and ensure required files exist."""
-    path = Path(raw).expanduser().resolve()
-    if not path.is_dir():
-        parser.error(f"Invalid --dir '{raw}': not a directory (resolved: {path}).")
+class AppraiserCliArgs(BaseModel):
+    model: ModelName
+    selectors: list[Selector]
+    risk_free_rate: float
+    use_perplexity: bool
+    use_mcp_financial_data: bool
 
-    md = path / DEEP_RESEARCH_FILENAME
-    sj = path / SURVEYOR_REPORT_FILENAME
-    if not md.is_file():
+
+@dataclass
+class AgentRunResult:
+    output: AppraiserOutput
+    elapsed_s: float
+    input_tokens: int
+    output_tokens: int
+    cache_write_tokens: int
+    cache_read_tokens: int
+    tool_calls: int
+    turn_usage: list[TurnUsage]
+
+
+@dataclass
+class StockRunArgs:
+    surveyor_candidate: SurveyorCandidate
+    risk_free_rate: float
+    model: ModelName
+
+
+def _parse_selector(raw: str, parser: argparse.ArgumentParser) -> Selector:
+    stripped = raw.strip()
+    if not stripped:
         parser.error(
-            f"Invalid --dir '{raw}': missing {DEEP_RESEARCH_FILENAME!r} "
-            f"(expected at {md})."
+            "Invalid --sentinel-report-and-ticker value: empty selector. "
+            "Expected '<sentinel_run_output.json>' or "
+            "'<sentinel_run_output.json>:<TICKER>'."
         )
-    if md.suffix.lower() != ".md":
+
+    report_part: str
+    ticker_part: str | None
+    if ":" in stripped:
+        report_part, ticker_part = stripped.rsplit(":", maxsplit=1)
+        report_part = report_part.strip()
+        ticker_part = ticker_part.strip()
+        if not report_part or not ticker_part:
+            parser.error(
+                f"Invalid selector '{raw}'. Expected "
+                "'<sentinel_run_output.json>' or "
+                "'<sentinel_run_output.json>:<TICKER>'."
+            )
+    else:
+        report_part = stripped
+        ticker_part = None
+
+    path = Path(report_part).expanduser().resolve()
+    if path.suffix.lower() != ".json":
         parser.error(
-            f"Invalid --dir '{raw}': research file must be markdown (.md). Got {md}."
+            f"Invalid selector '{raw}': expected a .json Sentinel run artifact path. "
+            f"Got: {path}."
         )
-    if not sj.is_file():
+    if not path.is_file():
         parser.error(
-            f"Invalid --dir '{raw}': missing {SURVEYOR_REPORT_FILENAME!r} "
-            f"(expected at {sj})."
+            f"Invalid selector '{raw}': Sentinel output file not found at {path}. "
+            "Expected '<sentinel_run_output.json>' or "
+            "'<sentinel_run_output.json>:<TICKER>'."
         )
 
-    return StockResearchDir(dir_path=path)
+    return Selector(sentinel_report_path=path, ticker=ticker_part, raw=raw)
 
 
-def parse_args() -> tuple[list[StockResearchDir], SharedArgs]:
-    parser = argparse.ArgumentParser(description="Run Appraiser agent and DCF analysis")
+def parse_args() -> AppraiserCliArgs:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run Appraiser agent and DCF for one or more Sentinel run output JSON files."
+        )
+    )
     parser.add_argument(
-        "--dir",
+        "--sentinel-report-and-ticker",
         action="append",
-        dest="stock_dirs",
-        metavar="PATH",
         required=True,
+        dest="selectors",
+        metavar="SELECTOR",
         help=(
-            "Stock research folder (repeatable). Each directory must contain "
-            f"{DEEP_RESEARCH_FILENAME!r} and {SURVEYOR_REPORT_FILENAME!r}. "
-            "Ticker is taken from the surveyor JSON."
+            "Sentinel artifact selector (repeatable): either "
+            "'<sentinel_run_output.json>' for that run "
+            "or '<sentinel_run_output.json>:<TICKER>' to require a ticker match."
         ),
     )
     parser.add_argument(
@@ -117,105 +172,137 @@ def parse_args() -> tuple[list[StockResearchDir], SharedArgs]:
         ),
     )
 
-    args = parser.parse_args()
+    raw = parser.parse_args()
 
-    if not (0 < args.risk_free_rate <= 0.15):
+    if not (0 < raw.risk_free_rate <= 0.15):
         parser.error(
-            f"--risk-free-rate must be a decimal between 0 and 0.15 (e.g. 0.045 for 4.5%). "
-            f"Got {args.risk_free_rate}. Did you pass a percentage? Use 0.0373 for 3.73%."
+            f"--risk-free-rate must be a decimal between 0 and 0.15 (e.g. 0.045 for 4.5%%). "
+            f"Got {raw.risk_free_rate}."
         )
 
-    stock_dirs = [_validate_stock_dir(d, parser) for d in args.stock_dirs]
-    shared = SharedArgs(
-        risk_free_rate=args.risk_free_rate,
-        model=args.model,
-        use_perplexity=args.use_perplexity,
-        use_mcp_financial_data=not args.no_mcp,
+    selectors = [_parse_selector(value, parser) for value in raw.selectors]
+    return AppraiserCliArgs(
+        model=raw.model,
+        selectors=selectors,
+        risk_free_rate=raw.risk_free_rate,
+        use_perplexity=raw.use_perplexity,
+        use_mcp_financial_data=not raw.no_mcp,
     )
-    return stock_dirs, shared
 
 
-def load_research_report(path: Path) -> ResearchReport:
-    """Load and validate a research report from path."""
-    if not path.exists():
-        raise ValueError(f"Research report file not found at {path}")
-    if path.suffix != ".md":
-        raise ValueError(f"Research report must be a markdown file. Got {path.suffix}")
-    content = ResearchReport(path.read_text())
-    console.log(f"Loaded research report from {path} ({len(content)} chars)")
-    return content
+def _load_sentinel_run_output(path: Path) -> SentinelRunOutput:
+    try:
+        return SentinelRunOutput.model_validate_json(path.read_text())
+    except ValidationError as exc:
+        raise ValueError(
+            f"Invalid Sentinel run output JSON shape at {path}: {exc}"
+        ) from exc
 
 
-def load_surveyor_candidate(path: Path) -> SurveyorCandidate:
-    """Parse ``surveyor-report.json`` as a single ``SurveyorCandidate``."""
-    return SurveyorCandidate.model_validate_json(path.read_text())
+def _load_surveyor_run_output(path: Path) -> SurveyorRunOutput:
+    try:
+        return SurveyorRunOutput.model_validate_json(path.read_text())
+    except ValidationError as exc:
+        raise ValueError(
+            f"Invalid Surveyor run output JSON shape at {path}: {exc}"
+        ) from exc
 
 
-def _ticker_appears_in_research_report(*, ticker: str, report: str) -> bool:
-    """True if ``ticker`` appears case-insensitively in ``report``."""
-    stripped = ticker.strip()
-    if not stripped:
-        return False
-    return stripped.casefold() in report.casefold()
+def _load_researcher_run_output(path: Path) -> ResearcherRunOutput:
+    try:
+        return ResearcherRunOutput.model_validate_json(path.read_text())
+    except ValidationError as exc:
+        raise ValueError(
+            f"Invalid Researcher run output JSON shape at {path}: {exc}"
+        ) from exc
 
 
-def _confirm_if_ticker_missing_from_report(
-    *,
-    ticker: str,
-    report: str,
-    dir_path: Path,
-) -> None:
-    """Prompt or exit when the surveyor ticker is absent from the deep-research body."""
-    if _ticker_appears_in_research_report(ticker=ticker, report=report):
-        return
+def _load_strategist_run_output(path: Path) -> StrategistRunOutput:
+    try:
+        return StrategistRunOutput.model_validate_json(path.read_text())
+    except ValidationError as exc:
+        raise ValueError(
+            f"Invalid Strategist run output JSON shape at {path}: {exc}"
+        ) from exc
 
-    console.print(
-        f"[yellow]Warning:[/yellow] Ticker [bold]{ticker}[/bold] from "
-        f"{SURVEYOR_REPORT_FILENAME} does not appear in {DEEP_RESEARCH_FILENAME} "
-        f"under {dir_path}."
-    )
-    if not sys.stdin.isatty():
-        console.print(
-            "[red]Non-interactive terminal: cannot confirm. Ensure the ticker appears in "
-            f"{DEEP_RESEARCH_FILENAME}, or run from an interactive terminal.[/red]"
+
+def _resolve_target(selector: Selector, *, risk_free_rate: float) -> AppraiserTarget:
+    sent = _load_sentinel_run_output(selector.sentinel_report_path)
+    if selector.ticker is not None:
+        ticker_folded = selector.ticker.casefold()
+        if sent.ticker.casefold() != ticker_folded:
+            raise ValueError(
+                f"Ticker '{selector.ticker}' does not match Sentinel artifact "
+                f"{selector.sentinel_report_path} (ticker={sent.ticker})."
+            )
+
+    surveyor_path = Path(sent.source_surveyor_report).expanduser().resolve()
+    researcher_path = Path(sent.source_researcher_report).expanduser().resolve()
+    strategist_path = Path(sent.source_strategist_report).expanduser().resolve()
+    for label, p in (
+        ("Surveyor", surveyor_path),
+        ("Researcher", researcher_path),
+        ("Strategist", strategist_path),
+    ):
+        if not p.is_file():
+            raise ValueError(
+                f"Sentinel artifact {selector.sentinel_report_path} references "
+                f"{label} report that is not a file: {p}"
+            )
+
+    surveyor = _load_surveyor_run_output(surveyor_path)
+    idx = sent.source_candidate_index
+    if idx < 0 or idx >= len(surveyor.output.candidates):
+        raise ValueError(
+            f"Sentinel artifact {selector.sentinel_report_path} references "
+            f"candidate_index={idx} but Surveyor report has "
+            f"{len(surveyor.output.candidates)} candidates ({surveyor_path})."
         )
-        raise SystemExit(1)
-    answer = input("Continue anyway? [y/N]: ").strip().lower()
-    if answer not in ("y", "yes"):
-        console.print("[red]Aborted.[/red]")
-        raise SystemExit(1)
+    surveyor_candidate = surveyor.output.candidates[idx]
+
+    researcher = _load_researcher_run_output(researcher_path)
+    strategist = _load_strategist_run_output(strategist_path)
+
+    appraiser_input = AppraiserInput(
+        stock_candidate=surveyor_candidate,
+        deep_research=researcher.output,
+        thesis=strategist.output,
+        evaluation=sent.output,
+        risk_free_rate=risk_free_rate,
+    )
+
+    return AppraiserTarget(
+        sentinel_report_path=selector.sentinel_report_path,
+        sentinel_run=sent,
+        appraiser_input=appraiser_input,
+    )
 
 
-@dataclass
-class AgentRunResult:
-    output: AppraiserOutput
-    elapsed_s: float
-    input_tokens: int
-    output_tokens: int
-    cache_write_tokens: int
-    cache_read_tokens: int
-    tool_calls: int
-    turn_usage: list[TurnUsage]
+def resolve_targets(
+    selectors: list[Selector], *, risk_free_rate: float
+) -> list[AppraiserTarget]:
+    return [_resolve_target(s, risk_free_rate=risk_free_rate) for s in selectors]
 
 
-@dataclass
-class StockRunArgs:
-    """Args for running analysis on a single stock research directory."""
+def _build_suffixes(targets: list[AppraiserTarget]) -> list[str]:
+    ticker_counts = Counter(t.sentinel_run.ticker.casefold() for t in targets)
+    ticker_seen: Counter[str] = Counter()
+    suffixes: list[str] = []
 
-    stock_dir: Path
-    surveyor_candidate: SurveyorCandidate
-    risk_free_rate: float
-    model: ModelName
+    for target in targets:
+        folded = target.sentinel_run.ticker.casefold()
+        ticker_seen[folded] += 1
+        if ticker_counts[folded] > 1:
+            suffixes.append(
+                f"{target.sentinel_run.ticker.upper()}-{ticker_seen[folded]}"
+            )
+        else:
+            suffixes.append(target.sentinel_run.ticker.upper())
+    return suffixes
 
 
-def _stock_run_args(
-    stock: StockResearchDir,
-    candidate: SurveyorCandidate,
-    shared: SharedArgs,
-) -> StockRunArgs:
-    """Build run args for one stock folder (run_agent, DCF, save_run_output)."""
+def _stock_run_args(candidate: SurveyorCandidate, shared: SharedArgs) -> StockRunArgs:
     return StockRunArgs(
-        stock_dir=stock.dir_path,
         surveyor_candidate=candidate,
         risk_free_rate=shared.risk_free_rate,
         model=shared.model,
@@ -224,7 +311,7 @@ def _stock_run_args(
 
 async def run_agent(
     args: StockRunArgs,
-    research_report_content: ResearchReport,
+    appraiser_input: AppraiserInput,
     *,
     use_perplexity: bool = DEFAULT_AGENT_CLI_DEFAULTS.use_perplexity,
     use_mcp_financial_data: bool = True,
@@ -236,11 +323,7 @@ async def run_agent(
         use_perplexity=use_perplexity,
         use_mcp_financial_data=use_mcp_financial_data,
     )
-    user_prompt = create_user_prompt(
-        ticker=args.surveyor_candidate.ticker,
-        research_report=research_report_content,
-        surveyor_candidate=args.surveyor_candidate,
-    )
+    user_prompt = create_user_prompt(appraiser_input=appraiser_input)
 
     start = time.perf_counter()
     outcome = await run_streamed_agent(
@@ -421,8 +504,16 @@ def save_run_output(
     agent_result: AgentRunResult,
     dcf_result: DCFAnalysisResult | None,
     dcf_error: str | None,
+    *,
+    source_surveyor_report: str,
+    source_candidate_index: int,
+    source_researcher_report: str,
+    source_strategist_report: str,
+    source_sentinel_report: str,
+    filename_suffix: str | None = None,
 ) -> Path:
     """Build ``AppraiserRunOutput``, write JSON via ``write_agent_json``, return path."""
+    suffix = filename_suffix or args.surveyor_candidate.ticker.upper()
     run_output = AppraiserRunOutput(
         ticker=args.surveyor_candidate.ticker,
         model_name=args.model.value,
@@ -437,56 +528,77 @@ def save_run_output(
         cache_read_tokens=agent_result.cache_read_tokens,
         tool_calls=agent_result.tool_calls,
         turn_usage=agent_result.turn_usage,
+        source_surveyor_report=source_surveyor_report,
+        source_candidate_index=source_candidate_index,
+        source_researcher_report=source_researcher_report,
+        source_strategist_report=source_strategist_report,
+        source_sentinel_report=source_sentinel_report,
     )
     return write_agent_json(
         payload=run_output,
         model_name=args.model,
         agent_name=AgentName.APPRAISER,
-        filename_suffix=args.surveyor_candidate.ticker.upper(),
+        filename_suffix=suffix,
     )
 
 
-async def run_one_stock(stock: StockResearchDir, shared: SharedArgs) -> None:
-    """Run analysis for a single stock research directory."""
-    deep_research_path = stock.dir_path / DEEP_RESEARCH_FILENAME
-    surveyor_report_path = stock.dir_path / SURVEYOR_REPORT_FILENAME
-    candidate = load_surveyor_candidate(surveyor_report_path)
-    args = _stock_run_args(stock, candidate, shared)
-    research_report_content = load_research_report(deep_research_path)
-    _confirm_if_ticker_missing_from_report(
-        ticker=candidate.ticker,
-        report=str(research_report_content),
-        dir_path=stock.dir_path,
+async def main() -> None:
+    cli = parse_args()
+    shared = SharedArgs(
+        risk_free_rate=cli.risk_free_rate,
+        model=cli.model,
+        use_perplexity=cli.use_perplexity,
+        use_mcp_financial_data=cli.use_mcp_financial_data,
     )
+    targets = resolve_targets(cli.selectors, risk_free_rate=cli.risk_free_rate)
+    if not targets:
+        raise SystemExit("No Sentinel artifacts selected to run Appraiser.")
 
-    console.log(
-        f"Initializing Appraiser Agent for {args.surveyor_candidate.ticker} "
-        f"(using {args.model} model)..."
-    )
-    console.log("Running agent...")
-    agent_result = await run_agent(
-        args,
-        research_report_content,
-        use_perplexity=shared.use_perplexity,
-        use_mcp_financial_data=shared.use_mcp_financial_data,
-    )
+    suffixes = _build_suffixes(targets)
 
-    display_agent_output(agent_result.output)
-    dcf_result, dcf_error = run_dcf_and_display(args, agent_result.output)
+    for i, target in enumerate(targets):
+        if i > 0:
+            console.print("\n[bold]─── Next target ───[/bold]\n")
 
-    out_path = save_run_output(
-        args, agent_result.output, agent_result, dcf_result, dcf_error
-    )
-    console.print(f"\nSaved [dim]{out_path}[/dim]")
+        sent = target.sentinel_run
+        if suffixes[i] != sent.ticker.upper():
+            console.print(
+                f"[yellow]Duplicate ticker '{sent.ticker}' detected; "
+                f"using output suffix '{suffixes[i]}'.[/yellow]"
+            )
 
+        candidate = target.appraiser_input.stock_candidate
+        stock_args = _stock_run_args(candidate, shared)
 
-async def main():
-    stock_dirs, shared = parse_args()
+        console.log(
+            f"Initializing Appraiser Agent for {candidate.ticker} "
+            f"(source={target.sentinel_report_path}, using {shared.model} model)..."
+        )
+        console.log("Running agent...")
+        agent_result = await run_agent(
+            stock_args,
+            target.appraiser_input,
+            use_perplexity=shared.use_perplexity,
+            use_mcp_financial_data=shared.use_mcp_financial_data,
+        )
 
-    for i, stock in enumerate(stock_dirs):
-        if len(stock_dirs) > 1 and i > 0:
-            console.print("\n[bold]─── Next stock ───[/bold]\n")
-        await run_one_stock(stock, shared)
+        display_agent_output(agent_result.output)
+        dcf_result, dcf_error = run_dcf_and_display(stock_args, agent_result.output)
+
+        out_path = save_run_output(
+            stock_args,
+            agent_result.output,
+            agent_result,
+            dcf_result,
+            dcf_error,
+            source_surveyor_report=sent.source_surveyor_report,
+            source_candidate_index=sent.source_candidate_index,
+            source_researcher_report=sent.source_researcher_report,
+            source_strategist_report=sent.source_strategist_report,
+            source_sentinel_report=str(target.sentinel_report_path.resolve()),
+            filename_suffix=suffixes[i],
+        )
+        console.print(f"\nSaved [dim]{out_path}[/dim]")
 
 
 if __name__ == "__main__":

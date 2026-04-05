@@ -1,6 +1,32 @@
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import BaseModel, Field
+
+
+class ThesisVerdict(StrEnum):
+    """Canonical thesis verdict strings (single source for schema, prompts, and gate logic)."""
+
+    INTACT_PROCEED_TO_VALUATION = "Thesis intact — proceed to valuation"
+    INTACT_WITH_RESERVATIONS = (
+        "Thesis intact with reservations — proceed with noted caveats"
+    )
+    WEAKENED_DO_NOT_PROCEED = "Thesis weakened — do not proceed"
+    BROKEN_DO_NOT_PROCEED = "Thesis broken — do not proceed"
+
+
+_THESIS_VERDICTS_PROCEED: frozenset[ThesisVerdict] = frozenset(
+    {
+        ThesisVerdict.INTACT_PROCEED_TO_VALUATION,
+        ThesisVerdict.INTACT_WITH_RESERVATIONS,
+    }
+)
+
+
+def sentinel_proceeds_to_valuation(thesis_verdict: ThesisVerdict) -> bool:
+    """True iff ``thesis_verdict`` authorises the Appraiser / DCF stage."""
+
+    return thesis_verdict in _THESIS_VERDICTS_PROCEED
 
 
 class QuestionAssessment(BaseModel):
@@ -29,7 +55,7 @@ class RedFlagScreen(BaseModel):
 
 
 class EvaluationReport(BaseModel):
-    """Sentinel output: thesis evaluation, red flags, and proceed/stop recommendation."""
+    """Sentinel output: thesis evaluation, red flags, and thesis verdict (gate is derived)."""
 
     ticker: str
     company_name: str
@@ -39,12 +65,7 @@ class EvaluationReport(BaseModel):
     )
     red_flag_screen: RedFlagScreen
 
-    thesis_verdict: Literal[
-        "Thesis intact — proceed to valuation",
-        "Thesis intact with reservations — proceed with noted caveats",
-        "Thesis weakened — further research required",
-        "Thesis broken — do not proceed",
-    ]
+    thesis_verdict: ThesisVerdict
     verdict_rationale: str = Field(
         description=(
             "The reasoning behind the thesis_verdict. Should directly reference "
@@ -64,6 +85,3 @@ class EvaluationReport(BaseModel):
             "decision agent should be aware of."
         )
     )
-    recommendation: Literal[
-        "Proceed to valuation", "Do not proceed", "Requires further research"
-    ]

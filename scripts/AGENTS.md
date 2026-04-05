@@ -9,17 +9,18 @@ The `scripts/` directory contains utility and entry-point scripts for the Discou
 
 ## Key Files
 
-| File                                              | Description                                                                                                                      |
-| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `md_docs_parser.py`                               | Splits a large markdown document into a hierarchical folder/file structure of smaller markdown files.                            |
-| `agents/run_appraiser.py`                         | Runs Appraiser + DCF workflows from research folders and writes `AppraiserRunOutput` JSON (`--no-mcp` supported).                |
-| `agents/run_surveyor.py`                          | Runs Surveyor stock discovery and writes `SurveyorRunOutput` JSON (`--no-mcp` supported).                                        |
-| `agents/run_researcher.py`                        | Runs Researcher from Surveyor JSON selectors and writes one `ResearcherRunOutput` artifact per candidate (`--no-mcp` supported). |
-| `agents/run_strategist.py`                        | Runs Strategist from Researcher JSON selectors and writes one `StrategistRunOutput` artifact per target (model-only CLI).        |
-| `agents/run_sentinel.py`                          | Runs Sentinel from Strategist JSON selectors and writes one `SentinelRunOutput` artifact per target (model-only CLI).            |
-| `workflows/run_surveyor_then_researcher.py`       | Runs Surveyor once, then sequential Researcher per candidate (no Strategist stage).                                              |
-| `workflows/run_surveyor_researcher_strategist.py` | Runs Surveyor once, then sequential Researcher and Strategist per candidate.                                                     |
-| `workflows/run_surveyor_to_sentinel.py`           | Runs Surveyor once, then sequential Researcher, Strategist, and Sentinel per candidate.                                          |
+| File                                              | Description                                                                                                                                         |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `md_docs_parser.py`                               | Splits a large markdown document into a hierarchical folder/file structure of smaller markdown files.                                               |
+| `agents/run_appraiser.py`                         | Runs Appraiser + DCF from Sentinel run JSON selectors (same pattern as `run_sentinel.py`); writes `AppraiserRunOutput` JSON (`--no-mcp` supported). |
+| `agents/run_surveyor.py`                          | Runs Surveyor stock discovery and writes `SurveyorRunOutput` JSON (`--no-mcp` supported).                                                           |
+| `agents/run_researcher.py`                        | Runs Researcher from Surveyor JSON selectors and writes one `ResearcherRunOutput` artifact per candidate (`--no-mcp` supported).                    |
+| `agents/run_strategist.py`                        | Runs Strategist from Researcher JSON selectors and writes one `StrategistRunOutput` artifact per target (model-only CLI).                           |
+| `agents/run_sentinel.py`                          | Runs Sentinel from Strategist JSON selectors and writes one `SentinelRunOutput` artifact per target (model-only CLI).                               |
+| `workflows/run_surveyor_then_researcher.py`       | Runs Surveyor once, then sequential Researcher per candidate (no Strategist stage).                                                                 |
+| `workflows/run_surveyor_researcher_strategist.py` | Runs Surveyor once, then sequential Researcher and Strategist per candidate.                                                                        |
+| `workflows/run_surveyor_to_sentinel.py`           | Runs Surveyor once, then sequential Researcher, Strategist, and Sentinel per candidate.                                                             |
+| `workflows/run_surveyor_to_appraiser.py`          | Runs Surveyor once, then sequential Researcher, Strategist, and Sentinel per candidate; Appraiser + DCF when Sentinel authorises valuation.         |
 
 ## Subdirectories
 
@@ -45,7 +46,7 @@ The `scripts/` directory contains utility and entry-point scripts for the Discou
 - Example execution (Researcher all tickers): `uv run python scripts/agents/run_researcher.py --surveyor-report-and-ticker scripts/outputs/<surveyor>.json`.
 - Example execution (Strategist): `uv run python scripts/agents/run_strategist.py --researcher-report-and-ticker scripts/outputs/<researcher>.json`.
 - Example execution (Sentinel): `uv run python scripts/agents/run_sentinel.py --strategist-report-and-ticker scripts/outputs/<strategist>.json`.
-- Example execution (Appraiser): `uv run python scripts/agents/run_appraiser.py --dir path/to/stock_folder --risk-free-rate 0.045`. Each `--dir` must contain `deep-research.md` and `surveyor-report.json` (a single `SurveyorCandidate`). Repeat `--dir` for batch runs. Default model and web-search mode come from `scripts.common.cli.DEFAULT_AGENT_CLI_DEFAULTS` (GPT 5.1, model-native search); pass `--perplexity` to use Perplexity-backed tools. Pass `--no-mcp` to omit EODHD/FMP MCP toolsets (required for Google models). If the surveyor ticker is missing from `deep-research.md`, the script prompts in an interactive terminal; non-interactive runs need the ticker present in the report.
+- Example execution (Appraiser): `uv run python scripts/agents/run_appraiser.py --sentinel-report-and-ticker scripts/outputs/<sentinel>.json --risk-free-rate 0.045`. Repeat `--sentinel-report-and-ticker` for multiple Sentinel artifacts; optional `:TICKER` suffix matches `run_sentinel.py`. Default model and web-search mode come from `scripts.common.cli.DEFAULT_AGENT_CLI_DEFAULTS` (GPT 5.1, model-native search); pass `--perplexity` to use Perplexity-backed tools. Pass `--no-mcp` to omit EODHD/FMP MCP toolsets (required for Google models).
 - Verify `md_docs_parser.py` by checking the generated directory and file structure.
 
 ### Common Patterns
@@ -62,7 +63,7 @@ The `scripts/` directory contains utility and entry-point scripts for the Discou
 - `discount_analyst.agents.appraiser`: AI agent logic and prompt creation.
 - `discount_analyst.agents.surveyor`: Surveyor agent for stock candidate discovery.
 - `discount_analyst.valuation`: DCF calculation engine.
-- `scripts.common.cli`, `scripts.common.constants`, `scripts.common.cost`, `scripts.common.artifacts`, `scripts.common.usage`, `scripts.common.run_outputs`: CLI defaults, output paths, cost helpers, JSON writers, usage extraction, run-output models (used by `agents/`, `workflows/`, and `cost_comparison/`).
+- `scripts.common.cli`, `scripts.common.constants`, `scripts.common.artifacts`, `scripts.common.usage`, `scripts.common.run_outputs`: CLI defaults, output paths, JSON writers, usage extraction, run-output models (used by `agents/` and `workflows/`).
 
 ### External
 
