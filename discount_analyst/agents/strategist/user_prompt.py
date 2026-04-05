@@ -11,11 +11,15 @@ def create_user_prompt(
     deep_research_json = deep_research.model_dump_json(indent=2)
 
     return f"""
-You are receiving two inputs: a Surveyor candidate that originally flagged this stock for investigation, and a completed deep research report assembled by the Researcher agent. Your task is to synthesise these into a `MispricingThesis`.
+You are receiving two inputs: **screening context** for the name (structured candidate JSON), and a **completed deep research report** (neutral evidence assembly). Your task is to synthesise these into a `MispricingThesis`.
+
+**Upstream contract:** The research is **not** arguing for a trade — it may include **tensions and contradictions**. The screening block means **“worth investigating”**, not “already validated.”
+
+**Downstream contract:** Your thesis must be **attackable in good faith** — traceable claims, bespoke `evaluation_questions`, and clear “this would break me” conditions.
 
 ---
 
-## Surveyor Candidate
+## Screening context (candidate)
 
 <surveyor_candidate>
 {candidate_json}
@@ -23,7 +27,7 @@ You are receiving two inputs: a Surveyor candidate that originally flagged this 
 
 ---
 
-## Deep Research Report
+## Deep research report
 
 <deep_research_report>
 {deep_research_json}
@@ -45,7 +49,7 @@ As you construct the thesis, hold the following questions in mind:
 - What is the strongest argument a skeptical analyst could make against this thesis, using the same research?
 - Under what scenarios does this investment result in permanent, unrecoverable loss?
 
-Your output is the foundation on which the Arbiter and Appraiser will build. Be rigorous, be honest, and be specific.
+Be rigorous, be honest, and be specific. **Clarity and falsifiability matter more than completeness.**
 
 Return a completed `MispricingThesis` object.
 """.strip()

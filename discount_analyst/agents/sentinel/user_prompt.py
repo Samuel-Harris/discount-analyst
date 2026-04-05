@@ -16,11 +16,13 @@ def create_user_prompt(
     return f"""
 Evaluate the following investment candidate.
 
-You have been provided with the full outputs of the Surveyor, Researcher, and Strategist agents. Your task is to evaluate whether the Strategist's thesis holds up against the evidence — and to deliver a clear, defensible verdict.
+**Upstream contract:** You receive **screening context**, **neutral deep research**, and a **mispricing thesis** (with bespoke questions). The research does not endorse the thesis; the thesis does not excuse gaps in the research.
+
+**Your task:** Stress-test the thesis against the evidence and deliver a **clear, defensible verdict**. You are **the adversary, not a validator** — earn the conclusion.
 
 ---
 
-## Surveyor Candidate
+## Screening context
 
 <SurveyorCandidate>
 {candidate_json}
@@ -28,7 +30,7 @@ You have been provided with the full outputs of the Surveyor, Researcher, and St
 
 ---
 
-## Deep Research Report
+## Deep research report
 
 <DeepResearchReport>
 {deep_research_json}
@@ -36,7 +38,7 @@ You have been provided with the full outputs of the Surveyor, Researcher, and St
 
 ---
 
-## Mispricing Thesis
+## Mispricing thesis
 
 <MispricingThesis>
 {thesis_json}
@@ -44,16 +46,16 @@ You have been provided with the full outputs of the Surveyor, Researcher, and St
 
 ---
 
-## Your Task
+## Your task
 
 Work through the evaluation in the sequence defined in your instructions:
 
-1. Answer each of the Strategist's evaluation_questions in turn, assessing the quality and weight of evidence — not merely the direction of the answer.
+1. Answer each **evaluation_question** from the thesis in turn, assessing the quality and weight of evidence — not merely the direction of the answer.
 2. Apply the universal red flag screen across all six dimensions. The screen is thesis-agnostic. Run it regardless of how strong the thesis appears.
-3. Identify any material data gaps that are load-bearing for the thesis and have not been resolved by the Researcher.
+3. Identify any material data gaps that are load-bearing for the thesis and remain unresolved in the research.
 4. Deliver your thesis_verdict, verdict_rationale, caveats, and recommendation.
 
-Your verdict must be earned by your analysis — not assumed from the Strategist's conviction level. If the thesis is "High" conviction and your assessment breaks it, say so. If the thesis is "Low" conviction and your assessment supports it, say so.
+Your verdict must be **earned by your analysis** — not assumed from the thesis's stated conviction. If conviction is "High" and your assessment breaks the thesis, say so. If conviction is "Low" and your assessment supports the thesis, say so.
 
 Return your output as a populated EvaluationReport JSON object.
 """.strip()
