@@ -73,6 +73,32 @@ Args:
 Returns:
     The answer to the question based on SEC filings.""",
     ),
+    AgentName.PROFILER: PerplexityToolDescriptions(
+        web_search="""Search the general web for single-ticker context, news, and gaps MCP cannot fill.
+
+Use this tool to find:
+- Recent developments, controversies, and qualitative business context for the given ticker
+- UK-listed names: RNS and market announcements where filings search is weak
+- Sell-side or media framing, liquidity colour, and ownership/coverage hints
+- Cross-checks when EODHD/FMP disagree or omit fields
+
+Prefer MCP financial tools for repeatable fundamentals; use this to deepen one name, not to screen a universe.
+
+Args:
+    question: Natural-language question naming the company or ticker and the evidence you need.
+
+Returns:
+    Answers and synthesis based on web sources.""",
+        sec_filings_search="""Search official SEC filings for the given US-listed ticker only.
+
+Use this tool to verify or enrich US names with 10-K/10-Q/8-K/Form 4 and other regulatory text.
+
+Args:
+    question: Include ticker or company and the filing angle (metric, period, or disclosure).
+
+Returns:
+    The answer based on SEC filings.""",
+    ),
     AgentName.SURVEYOR: PerplexityToolDescriptions(
         web_search="""Search the general web to discover and qualify small-cap equity candidates (UK and US).
 
