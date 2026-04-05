@@ -7,6 +7,7 @@ from discount_analyst.agents.arbiter.schema import ArbiterDecision
 from discount_analyst.agents.sentinel.schema import EvaluationReport
 from discount_analyst.agents.researcher.schema import DeepResearchReport
 from discount_analyst.agents.strategist.schema import MispricingThesis
+from discount_analyst.agents.profiler.schema import ProfilerOutput
 from discount_analyst.agents.surveyor.schema import SurveyorOutput
 from discount_analyst.valuation.data_types import DCFAnalysisResult
 
@@ -65,6 +66,21 @@ class SurveyorRunOutput(BaseModel):
     output_tokens: int
     turn_usage: list[TurnUsage] = Field(default_factory=default_turn_usage_list)
     output: SurveyorOutput
+
+
+class ProfilerRunOutput(BaseModel):
+    """Complete serialisable record for one Profiler run written to outputs/."""
+
+    model_name: str
+    elapsed_s: float
+    input_tokens: int
+    output_tokens: int
+    turn_usage: list[TurnUsage] = Field(default_factory=default_turn_usage_list)
+    output: ProfilerOutput
+    ticker: str | None = Field(
+        default=None,
+        description="Requested ticker for this run (optional convenience for traceability).",
+    )
 
 
 class ResearcherRunOutput(BaseModel):

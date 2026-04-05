@@ -1,4 +1,4 @@
-"""Run Surveyor once, then Researcher through Sentinel, gated Appraiser + DCF, Arbiter, Verdicts."""
+"""Run Surveyor or Profiler entry, then Researcher through Sentinel, gated Appraiser + DCF, Arbiter, Verdicts."""
 
 import argparse
 import asyncio
@@ -38,11 +38,13 @@ from discount_analyst.agents.strategist.strategist import create_strategist_agen
 from discount_analyst.agents.strategist.user_prompt import (
     create_user_prompt as create_strategist_user_prompt,
 )
+from discount_analyst.agents.profiler.profiler import create_profiler_agent
+from discount_analyst.agents.profiler.user_prompt import create_profiler_user_prompt
 from discount_analyst.agents.surveyor.surveyor import create_surveyor_agent
 from discount_analyst.agents.surveyor.user_prompt import USER_PROMPT
 from discount_analyst.agents.researcher.schema import DeepResearchReport
 from discount_analyst.agents.strategist.schema import MispricingThesis
-from discount_analyst.agents.surveyor.schema import SurveyorCandidate, SurveyorOutput
+from discount_analyst.agents.surveyor.schema import SurveyorCandidate
 from discount_analyst.agents.appraiser.schema import AppraiserInput
 from discount_analyst.config.ai_models_config import AIModelsConfig, ModelName
 from discount_analyst.pipeline.builders import (
@@ -64,6 +66,7 @@ from scripts.common.cli import (
 from scripts.common.artefacts import write_agent_json, write_verdicts_json
 from scripts.common.run_outputs import (
     ArbiterRunOutput,
+    ProfilerRunOutput,
     SentinelRunOutput,
     ResearcherRunOutput,
     StrategistRunOutput,
@@ -150,6 +153,13 @@ class FailedArbiterRun:
 
 
 @dataclass
+class FailedProfilerRun:
+    ticker: str
+    candidate_index: int
+    error: str
+
+
+@dataclass
 class ArbiterAgentRunResult:
     output: ArbiterDecision
     elapsed_s: float
@@ -167,12 +177,14 @@ class WorkflowArgs(BaseModel):
     use_mcp_financial_data: bool
     risk_free_rate: float
     is_existing_position: bool
+    profiler_tickers: list[str] | None = None
 
 
 def parse_args() -> WorkflowArgs:
     parser = argparse.ArgumentParser(
         description=(
-            "Run Surveyor once, then Researcher sequentially for each candidate, "
+            "Run Surveyor once (default) or Profiler per ticker (--profiler-tickers), "
+            "then Researcher sequentially for each candidate, "
             "then Strategist and Sentinel for each successful Researcher and Strategist run, "
             "then Appraiser and DCF when the Sentinel valuation gate passes, "
             "then Arbiter; writes Verdict rows and a verdicts JSON artefact."
@@ -202,18 +214,34 @@ def parse_args() -> WorkflowArgs:
             "optional for Anthropic/OpenAI)."
         ),
     )
+    parser.add_argument(
+        "--profiler-tickers",
+        nargs="+",
+        metavar="TICKER",
+        default=None,
+        help=(
+            "When set, skip Surveyor and run Profiler once per ticker; "
+            "each run produces one pipeline candidate."
+        ),
+    )
     raw = parser.parse_args()
     if not (0 < raw.risk_free_rate <= 0.15):
         parser.error(
             f"--risk-free-rate must be a decimal between 0 and 0.15 (e.g. 0.045 for 4.5%). "
             f"Got {raw.risk_free_rate}."
         )
+    profiler_tickers = (
+        [t.strip() for t in raw.profiler_tickers if t.strip()]
+        if raw.profiler_tickers is not None
+        else None
+    )
     return WorkflowArgs(
         model=raw.model,
         use_perplexity=raw.use_perplexity,
         use_mcp_financial_data=not raw.no_mcp,
         risk_free_rate=raw.risk_free_rate,
         is_existing_position=raw.is_existing_position,
+        profiler_tickers=profiler_tickers,
     )
 
 
@@ -234,9 +262,13 @@ def _build_researcher_suffixes(
     return suffixes
 
 
-def display_surveyor_output(output: SurveyorOutput) -> None:
+def display_candidate_table(
+    candidates: list[SurveyorCandidate],
+    *,
+    title: str,
+) -> None:
     table = Table(
-        title="Surveyor Candidates",
+        title=title,
         show_header=True,
         header_style="bold magenta",
     )
@@ -244,7 +276,7 @@ def display_surveyor_output(output: SurveyorOutput) -> None:
     table.add_column("Name", style="green")
     table.add_column("Exchange", style="yellow")
     table.add_column("Market Cap", style="blue", justify="right")
-    for candidate in output.candidates:
+    for candidate in candidates:
         table.add_row(
             candidate.ticker,
             candidate.company_name,
@@ -369,6 +401,20 @@ def display_arbiter_failure_summary(failures: list[FailedArbiterRun]) -> None:
     console.print(table)
 
 
+def display_profiler_failure_summary(failures: list[FailedProfilerRun]) -> None:
+    table = Table(
+        title="Profiler Failures",
+        show_header=True,
+        header_style="bold red",
+    )
+    table.add_column("Ticker", style="cyan", no_wrap=True)
+    table.add_column("Request Index", style="yellow")
+    table.add_column("Error", style="white")
+    for failed in failures:
+        table.add_row(failed.ticker, str(failed.candidate_index), failed.error)
+    console.print(table)
+
+
 def display_verdicts_table(verdicts: list[Verdict]) -> None:
     """Portfolio-style summary: one row per Verdict."""
     if not verdicts:
@@ -484,6 +530,51 @@ def save_arbiter_output(
         filename_suffix=filename_suffix,
     )
     return str(out_path)
+
+
+async def run_profiler_once(
+    *,
+    model_name: ModelName,
+    ticker: str,
+    use_perplexity: bool,
+    use_mcp_financial_data: bool,
+    filename_suffix: str,
+) -> tuple[ProfilerRunOutput, str]:
+    ai_models_config = AIModelsConfig(model_name=model_name)
+    agent = create_profiler_agent(
+        ai_models_config=ai_models_config,
+        use_perplexity=use_perplexity,
+        use_mcp_financial_data=use_mcp_financial_data,
+    )
+    user_prompt = create_profiler_user_prompt(ticker)
+    console.log(f"Running Profiler agent for {ticker!r} (model: {model_name})...")
+    outcome = await run_streamed_agent(
+        agent=agent,
+        user_prompt=user_prompt,
+        usage_limits=ai_models_config.model.usage_limits,
+        on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
+    )
+    output = outcome.output
+    usage = outcome.usage
+    turn_usage = extract_turn_usage(outcome.all_messages)
+    elapsed_s = outcome.elapsed_s
+    run_output = ProfilerRunOutput(
+        model_name=model_name.value,
+        elapsed_s=elapsed_s,
+        input_tokens=usage.input_tokens,
+        output_tokens=usage.output_tokens,
+        turn_usage=turn_usage,
+        output=output,
+        ticker=ticker,
+    )
+    out_path = write_agent_json(
+        payload=run_output,
+        model_name=model_name,
+        agent_name=AgentName.PROFILER,
+        filename_suffix=filename_suffix,
+    )
+    console.log(f"Profiler completed for {ticker!r}; saved to {out_path}.")
+    return run_output, str(out_path)
 
 
 async def run_surveyor_once(
@@ -750,7 +841,7 @@ async def _run_appraiser_dcf_arbiter_for_candidate(
     args: WorkflowArgs,
     candidate: SurveyorCandidate,
     index: int,
-    surveyor_path: str,
+    source_entry_report_path: str,
     researcher_out_path: str,
     strat_path: str,
     sentinel_path: str,
@@ -787,7 +878,7 @@ async def _run_appraiser_dcf_arbiter_for_candidate(
         agent_result,
         dcf_result,
         dcf_error,
-        source_surveyor_report=surveyor_path,
+        source_surveyor_report=source_entry_report_path,
         source_candidate_index=index,
         source_researcher_report=researcher_out_path,
         source_strategist_report=strat_path,
@@ -835,7 +926,7 @@ async def _run_appraiser_dcf_arbiter_for_candidate(
             risk_free_rate=args.risk_free_rate,
             is_existing_position=args.is_existing_position,
             run_result=arb_run_saved,
-            source_surveyor_report=surveyor_path,
+            source_surveyor_report=source_entry_report_path,
             source_candidate_index=index,
             source_researcher_report=researcher_out_path,
             source_strategist_report=strat_path,
@@ -861,15 +952,63 @@ async def _run_appraiser_dcf_arbiter_for_candidate(
 
 async def main() -> None:
     args = parse_args()
-    surveyor_run_output, surveyor_path = await run_surveyor_once(
-        model_name=args.model,
-        use_perplexity=args.use_perplexity,
-        use_mcp_financial_data=args.use_mcp_financial_data,
-    )
-    candidates = surveyor_run_output.output.candidates
-    display_surveyor_output(surveyor_run_output.output)
+    profiler_failures: list[FailedProfilerRun] = []
 
-    console.print(f"\nSaved Surveyor output: [dim]{surveyor_path}[/dim]\n")
+    if args.profiler_tickers:
+        if args.is_existing_position:
+            console.log(
+                "[yellow]Profiler mode: --is-existing-position is not passed into "
+                "Profiler prompts; it still affects Arbiter and programmatic gates.[/yellow]"
+            )
+        candidates: list[SurveyorCandidate] = []
+        entry_report_paths: list[str] = []
+        for req_index, raw_ticker in enumerate(args.profiler_tickers):
+            try:
+                profiler_run, profiler_path = await run_profiler_once(
+                    model_name=args.model,
+                    ticker=raw_ticker,
+                    use_perplexity=args.use_perplexity,
+                    use_mcp_financial_data=args.use_mcp_financial_data,
+                    filename_suffix=raw_ticker,
+                )
+            except Exception as exc:
+                profiler_failures.append(
+                    FailedProfilerRun(
+                        ticker=raw_ticker,
+                        candidate_index=req_index,
+                        error=str(exc),
+                    )
+                )
+                console.print(
+                    f"[red]Profiler failed for {raw_ticker!r} "
+                    f"(request_index={req_index}). Continuing...[/red]"
+                )
+                console.print(f"[dim]{exc}[/dim]")
+                continue
+            candidates.append(profiler_run.output.candidate)
+            entry_report_paths.append(profiler_path)
+
+        display_candidate_table(
+            candidates,
+            title="Profiler candidates",
+        )
+        console.print()
+        entry_mode = "Profiler"
+    else:
+        surveyor_run_output, surveyor_path = await run_surveyor_once(
+            model_name=args.model,
+            use_perplexity=args.use_perplexity,
+            use_mcp_financial_data=args.use_mcp_financial_data,
+        )
+        candidates = surveyor_run_output.output.candidates
+        display_candidate_table(
+            surveyor_run_output.output.candidates,
+            title="Surveyor candidates",
+        )
+        console.print(f"\nSaved Surveyor output: [dim]{surveyor_path}[/dim]\n")
+        entry_report_paths = [surveyor_path] * len(candidates)
+        entry_mode = "Surveyor"
+
     console.log(
         f"Starting sequential Researcher runs for {len(candidates)} candidates..."
     )
@@ -896,10 +1035,11 @@ async def main() -> None:
                 f"using output suffix '{suffixes[index]}'.[/yellow]"
             )
 
+        entry_path = entry_report_paths[index]
         try:
             run_result = await run_researcher_once(
                 model_name=args.model,
-                surveyor_report_path=surveyor_path,
+                surveyor_report_path=entry_path,
                 candidate_index=index,
                 candidate=candidate,
                 use_perplexity=args.use_perplexity,
@@ -923,7 +1063,7 @@ async def main() -> None:
         display_researcher_output(run_result.output)
         researcher_out_path = save_researcher_output(
             model_name=args.model,
-            surveyor_report_path=surveyor_path,
+            surveyor_report_path=entry_path,
             candidate_index=index,
             candidate=candidate,
             run_result=run_result,
@@ -956,7 +1096,7 @@ async def main() -> None:
         display_strategist_output(strat_result.output)
         strat_path = save_strategist_output(
             model_name=args.model,
-            source_surveyor_report=surveyor_path,
+            source_surveyor_report=entry_path,
             source_candidate_index=index,
             source_researcher_report=researcher_out_path,
             ticker=candidate.ticker,
@@ -991,7 +1131,7 @@ async def main() -> None:
         display_sentinel_output(sent_result.output)
         sentinel_path = save_sentinel_output(
             model_name=args.model,
-            source_surveyor_report=surveyor_path,
+            source_surveyor_report=entry_path,
             source_candidate_index=index,
             source_researcher_report=researcher_out_path,
             source_strategist_report=strat_path,
@@ -1030,7 +1170,7 @@ async def main() -> None:
                 args=args,
                 candidate=candidate,
                 index=index,
-                surveyor_path=surveyor_path,
+                source_entry_report_path=entry_path,
                 researcher_out_path=researcher_out_path,
                 strat_path=strat_path,
                 sentinel_path=sentinel_path,
@@ -1062,24 +1202,30 @@ async def main() -> None:
         console.print(f"\nSaved verdicts JSON: [dim]{verdicts_path}[/dim]\n")
         display_verdicts_table(verdicts)
 
-    console.print(
-        Panel.fit(
-            f"Workflow complete: Surveyor through Arbiter (gated)\n"
-            f"Candidates: {len(candidates)}\n"
-            f"Researcher successes: {researcher_successes}\n"
-            f"Researcher failures: {len(failures)}\n"
-            f"Strategist successes: {strategist_successes}\n"
-            f"Strategist failures: {len(strategist_failures)}\n"
-            f"Sentinel successes: {sentinel_successes}\n"
-            f"Sentinel failures: {len(sentinel_failures)}\n"
-            f"Appraiser successes: {appraiser_successes}\n"
-            f"Appraiser failures: {len(appraiser_failures)}\n"
-            f"Appraiser skipped (valuation gate): {appraiser_skipped_sentinel}\n"
-            f"Verdicts recorded: {len(verdicts)}\n"
+    summary_lines = [
+        f"Workflow complete: {entry_mode} entry through Arbiter (gated)",
+        f"Candidates: {len(candidates)}",
+    ]
+    if args.profiler_tickers is not None:
+        summary_lines.append(f"Profiler failures: {len(profiler_failures)}")
+    summary_lines.extend(
+        [
+            f"Researcher successes: {researcher_successes}",
+            f"Researcher failures: {len(failures)}",
+            f"Strategist successes: {strategist_successes}",
+            f"Strategist failures: {len(strategist_failures)}",
+            f"Sentinel successes: {sentinel_successes}",
+            f"Sentinel failures: {len(sentinel_failures)}",
+            f"Appraiser successes: {appraiser_successes}",
+            f"Appraiser failures: {len(appraiser_failures)}",
+            f"Appraiser skipped (valuation gate): {appraiser_skipped_sentinel}",
+            f"Verdicts recorded: {len(verdicts)}",
             f"Arbiter failures: {len(arbiter_failures)}",
-            border_style="cyan",
-        )
+        ]
     )
+    console.print(Panel.fit("\n".join(summary_lines), border_style="cyan"))
+    if profiler_failures:
+        display_profiler_failure_summary(profiler_failures)
     if failures:
         display_failure_summary(failures)
     if strategist_failures:
