@@ -1,21 +1,21 @@
 <!-- Parent: ../AGENTS.md -->
 <!-- Generated: 2026-04-05 -->
 
-# arbiter
+# sentinel
 
 ## Purpose
 
-The `arbiter` directory contains the Arbiter AI agent. It consumes a `SurveyorCandidate`, `DeepResearchReport`, and `MispricingThesis` and produces an `EvaluationReport` (question assessments, red-flag screen, verdict, recommendation).
+The `sentinel` directory contains the Sentinel AI agent. It consumes a `SurveyorCandidate`, `DeepResearchReport`, and `MispricingThesis` and produces an `EvaluationReport` (question assessments, red-flag screen, verdict, recommendation).
 
 ## Key Files
 
 | File               | Description                                                                           |
 | ------------------ | ------------------------------------------------------------------------------------- |
-| `arbiter.py`       | Factory for the Arbiter agent (`create_arbiter_agent`).                               |
+| `sentinel.py`      | Factory for the Sentinel agent (`create_sentinel_agent`).                             |
 | `schema.py`        | Output contract: `EvaluationReport`, `QuestionAssessment`, `RedFlagScreen`.           |
-| `system_prompt.py` | System prompt and Arbiter role instructions.                                          |
+| `system_prompt.py` | System prompt and Sentinel role instructions.                                         |
 | `user_prompt.py`   | `create_user_prompt`: injects candidate, deep research, and thesis as tagged context. |
-| `__init__.py`      | Package initialization for the arbiter module.                                        |
+| `__init__.py`      | Package initialization for the sentinel module.                                       |
 
 ## Subdirectories
 
@@ -25,12 +25,12 @@ None.
 
 ### Working In This Directory
 
-- **No tools**: The Arbiter agent is evaluation-only; do not add web search, fetch, Perplexity, or MCP without an explicit product decision.
+- **No tools**: The Sentinel agent is evaluation-only; do not add web search, fetch, Perplexity, or MCP without an explicit product decision.
 - **Output contract**: Keep output constrained to `EvaluationReport` in `schema.py`.
 
 ### Testing Requirements
 
-- Run `uv run ruff check discount_analyst/agents/arbiter`.
+- Run `uv run ruff check discount_analyst/agents/sentinel`.
 - Run `uv run pytest` for full-suite validation.
 
 ### Common Patterns
@@ -41,7 +41,7 @@ None.
 
 ### Internal
 
-- `discount_analyst.agents.arbiter.schema`: Output contract (`EvaluationReport`).
+- `discount_analyst.agents.sentinel.schema`: Output contract (`EvaluationReport`).
 - `discount_analyst.agents.researcher.schema`: `DeepResearchReport` input.
 - `discount_analyst.agents.strategist.schema`: `MispricingThesis` input.
 - `discount_analyst.agents.surveyor.schema`: `SurveyorCandidate` input.

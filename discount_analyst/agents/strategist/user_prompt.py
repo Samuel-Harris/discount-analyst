@@ -45,7 +45,7 @@ As you construct the thesis, hold the following questions in mind:
 - What is the strongest argument a skeptical analyst could make against this thesis, using the same research?
 - Under what scenarios does this investment result in permanent, unrecoverable loss?
 
-Your output is the foundation on which the Arbiter and Appraiser will build. Be rigorous, be honest, and be specific.
+Your output is the foundation on which the Sentinel and Appraiser will build. Be rigorous, be honest, and be specific.
 
 Return a completed `MispricingThesis` object.
 """.strip()

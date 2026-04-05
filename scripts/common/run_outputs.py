@@ -3,7 +3,7 @@
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from discount_analyst.agents.appraiser.schema import AppraiserOutput
-from discount_analyst.agents.arbiter.schema import EvaluationReport
+from discount_analyst.agents.sentinel.schema import EvaluationReport
 from discount_analyst.agents.researcher.schema import DeepResearchReport
 from discount_analyst.agents.strategist.schema import MispricingThesis
 from discount_analyst.agents.surveyor.schema import SurveyorOutput
@@ -96,8 +96,8 @@ class StrategistRunOutput(BaseModel):
     output: MispricingThesis
 
 
-class ArbiterRunOutput(BaseModel):
-    """Complete serialisable record for one Arbiter run written to outputs/."""
+class SentinelRunOutput(BaseModel):
+    """Complete serialisable record for one Sentinel run written to outputs/."""
 
     ticker: str
     model_name: str

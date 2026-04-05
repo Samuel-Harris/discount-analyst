@@ -29,7 +29,7 @@ class RedFlagScreen(BaseModel):
 
 
 class EvaluationReport(BaseModel):
-    """Arbiter output: thesis evaluation, red flags, and proceed/stop recommendation."""
+    """Sentinel output: thesis evaluation, red flags, and proceed/stop recommendation."""
 
     ticker: str
     company_name: str

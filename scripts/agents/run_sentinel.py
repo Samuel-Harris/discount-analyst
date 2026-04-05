@@ -1,4 +1,4 @@
-"""Run the Arbiter agent from Strategist run output JSON selectors."""
+"""Run the Sentinel agent from Strategist run output JSON selectors."""
 
 import argparse
 import asyncio
@@ -12,9 +12,9 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from discount_analyst.agents.arbiter.arbiter import create_arbiter_agent
-from discount_analyst.agents.arbiter.schema import EvaluationReport
-from discount_analyst.agents.arbiter.user_prompt import create_user_prompt
+from discount_analyst.agents.sentinel.schema import EvaluationReport
+from discount_analyst.agents.sentinel.sentinel import create_sentinel_agent
+from discount_analyst.agents.sentinel.user_prompt import create_user_prompt
 from discount_analyst.agents.common.agent_names import AgentName
 from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
 from discount_analyst.agents.researcher.schema import DeepResearchReport
@@ -24,7 +24,7 @@ from discount_analyst.config.ai_models_config import AIModelsConfig, ModelName
 from scripts.common.artifacts import write_agent_json
 from scripts.common.cli import add_agent_cli_model_argument
 from scripts.common.run_outputs import (
-    ArbiterRunOutput,
+    SentinelRunOutput,
     ResearcherRunOutput,
     StrategistRunOutput,
     SurveyorRunOutput,
@@ -45,7 +45,7 @@ class Selector:
     raw: str
 
 
-class ArbiterTarget(NamedTuple):
+class SentinelTarget(NamedTuple):
     strategist_report_path: Path
     run_output: StrategistRunOutput
     surveyor_candidate: SurveyorCandidate
@@ -65,13 +65,13 @@ class AgentRunResult:
 
 
 @dataclass
-class FailedArbiterRun:
+class FailedSentinelRun:
     ticker: str
     source_path: Path
     error: str
 
 
-class ArbiterArgs(BaseModel):
+class SentinelArgs(BaseModel):
     model: ModelName
     selectors: list[Selector]
 
@@ -117,10 +117,10 @@ def _parse_selector(raw: str, parser: argparse.ArgumentParser) -> Selector:
     return Selector(strategist_report_path=path, ticker=ticker_part, raw=raw)
 
 
-def parse_args() -> ArbiterArgs:
+def parse_args() -> SentinelArgs:
     parser = argparse.ArgumentParser(
         description=(
-            "Run the Arbiter agent for one or more Strategist run output JSON files."
+            "Run the Sentinel agent for one or more Strategist run output JSON files."
         )
     )
     parser.add_argument(
@@ -138,7 +138,7 @@ def parse_args() -> ArbiterArgs:
     add_agent_cli_model_argument(parser)
     raw = parser.parse_args()
     selectors = [_parse_selector(value, parser) for value in raw.selectors]
-    return ArbiterArgs(model=raw.model, selectors=selectors)
+    return SentinelArgs(model=raw.model, selectors=selectors)
 
 
 def load_strategist_run_output(path: Path) -> StrategistRunOutput:
@@ -169,7 +169,7 @@ def load_researcher_run_output(path: Path) -> ResearcherRunOutput:
         ) from exc
 
 
-def _resolve_targets_for_selector(selector: Selector) -> list[ArbiterTarget]:
+def _resolve_targets_for_selector(selector: Selector) -> list[SentinelTarget]:
     so = load_strategist_run_output(selector.strategist_report_path)
     if selector.ticker is not None:
         ticker_folded = selector.ticker.casefold()
@@ -194,7 +194,7 @@ def _resolve_targets_for_selector(selector: Selector) -> list[ArbiterTarget]:
     deep_research = researcher.output
 
     return [
-        ArbiterTarget(
+        SentinelTarget(
             strategist_report_path=selector.strategist_report_path,
             run_output=so,
             surveyor_candidate=surveyor_candidate,
@@ -203,15 +203,15 @@ def _resolve_targets_for_selector(selector: Selector) -> list[ArbiterTarget]:
     ]
 
 
-def resolve_targets(selectors: list[Selector]) -> list[ArbiterTarget]:
+def resolve_targets(selectors: list[Selector]) -> list[SentinelTarget]:
     """Resolve all selectors into an ordered target list."""
-    targets: list[ArbiterTarget] = []
+    targets: list[SentinelTarget] = []
     for selector in selectors:
         targets.extend(_resolve_targets_for_selector(selector))
     return targets
 
 
-def _build_suffixes(targets: list[ArbiterTarget]) -> list[str]:
+def _build_suffixes(targets: list[SentinelTarget]) -> list[str]:
     ticker_counts = Counter(target.run_output.ticker.casefold() for target in targets)
     ticker_seen: Counter[str] = Counter()
     suffixes: list[str] = []
@@ -227,8 +227,8 @@ def _build_suffixes(targets: list[ArbiterTarget]) -> list[str]:
 
 
 def display_output(output: EvaluationReport) -> None:
-    """Print a concise Arbiter summary table."""
-    table = Table(title=f"Arbiter Output - {output.ticker}", show_header=True)
+    """Print a concise Sentinel summary table."""
+    table = Table(title=f"Sentinel Output - {output.ticker}", show_header=True)
     table.add_column("Field", style="cyan", no_wrap=True)
     table.add_column("Value", style="white")
     table.add_row("Company", output.company_name)
@@ -236,7 +236,7 @@ def display_output(output: EvaluationReport) -> None:
     table.add_row("Recommendation", output.recommendation)
     console.print(
         Panel.fit(
-            "[bold green]Arbiter Agent Output[/bold green]",
+            "[bold green]Sentinel Agent Output[/bold green]",
             border_style="green",
             padding=(1, 2),
         )
@@ -251,9 +251,9 @@ async def run_agent(
     deep_research: DeepResearchReport,
     thesis: MispricingThesis,
 ) -> AgentRunResult:
-    """Run the Arbiter agent and return output with usage stats."""
+    """Run the Sentinel agent and return output with usage stats."""
     ai_models_config = AIModelsConfig(model_name=model_name)
-    agent = create_arbiter_agent(ai_models_config)
+    agent = create_sentinel_agent(ai_models_config)
     user_prompt = create_user_prompt(
         surveyor_candidate=surveyor_candidate,
         deep_research=deep_research,
@@ -294,11 +294,11 @@ def save_run_output(
     *,
     run_result: AgentRunResult,
     model_name: ModelName,
-    target: ArbiterTarget,
+    target: SentinelTarget,
     filename_suffix: str,
 ) -> Path:
     so = target.run_output
-    run_output = ArbiterRunOutput(
+    run_output = SentinelRunOutput(
         ticker=so.ticker,
         model_name=model_name.value,
         source_surveyor_report=so.source_surveyor_report,
@@ -317,14 +317,14 @@ def save_run_output(
     return write_agent_json(
         payload=run_output,
         model_name=model_name,
-        agent_name=AgentName.ARBITER,
+        agent_name=AgentName.SENTINEL,
         filename_suffix=filename_suffix,
     )
 
 
-def display_failure_summary(failures: list[FailedArbiterRun]) -> None:
+def display_failure_summary(failures: list[FailedSentinelRun]) -> None:
     table = Table(
-        title="Arbiter Failures",
+        title="Sentinel Failures",
         show_header=True,
         header_style="bold red",
     )
@@ -340,10 +340,10 @@ async def main() -> None:
     args = parse_args()
     targets = resolve_targets(args.selectors)
     if not targets:
-        raise SystemExit("No Strategist artifacts selected to run Arbiter.")
+        raise SystemExit("No Strategist artifacts selected to run Sentinel.")
 
     suffixes = _build_suffixes(targets)
-    failures: list[FailedArbiterRun] = []
+    failures: list[FailedSentinelRun] = []
     successes = 0
 
     for i, target in enumerate(targets):
@@ -358,7 +358,7 @@ async def main() -> None:
             )
 
         console.log(
-            f"Running Arbiter for {so.ticker} "
+            f"Running Sentinel for {so.ticker} "
             f"(source={target.strategist_report_path})..."
         )
         try:
@@ -379,18 +379,18 @@ async def main() -> None:
             console.print(f"Saved [dim]{out_path}[/dim]")
         except Exception as exc:
             failures.append(
-                FailedArbiterRun(
+                FailedSentinelRun(
                     ticker=so.ticker,
                     source_path=target.strategist_report_path,
                     error=str(exc),
                 )
             )
-            console.print(f"[red]Arbiter failed for {so.ticker}. Continuing...[/red]")
+            console.print(f"[red]Sentinel failed for {so.ticker}. Continuing...[/red]")
             console.print(f"[dim]{exc}[/dim]")
 
     console.print(
         Panel.fit(
-            f"Completed Arbiter batch\n"
+            f"Completed Sentinel batch\n"
             f"Successes: {successes}\n"
             f"Failures: {len(failures)}\n"
             f"Total targets: {len(targets)}",

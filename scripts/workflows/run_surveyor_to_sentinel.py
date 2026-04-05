@@ -1,4 +1,4 @@
-"""Run Surveyor once, then Researcher, Strategist, and Arbiter per successful prior stage."""
+"""Run Surveyor once, then Researcher, Strategist, and Sentinel per successful prior stage."""
 
 import argparse
 import asyncio
@@ -10,10 +10,10 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from discount_analyst.agents.arbiter.arbiter import create_arbiter_agent
-from discount_analyst.agents.arbiter.schema import EvaluationReport
-from discount_analyst.agents.arbiter.user_prompt import (
-    create_user_prompt as create_arbiter_user_prompt,
+from discount_analyst.agents.sentinel.schema import EvaluationReport
+from discount_analyst.agents.sentinel.sentinel import create_sentinel_agent
+from discount_analyst.agents.sentinel.user_prompt import (
+    create_user_prompt as create_sentinel_user_prompt,
 )
 from discount_analyst.agents.common.agent_names import AgentName
 from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
@@ -37,7 +37,7 @@ from scripts.common.cli import (
 )
 from scripts.common.artifacts import write_agent_json
 from scripts.common.run_outputs import (
-    ArbiterRunOutput,
+    SentinelRunOutput,
     ResearcherRunOutput,
     StrategistRunOutput,
     SurveyorRunOutput,
@@ -76,7 +76,7 @@ class StrategistAgentRunResult:
 
 
 @dataclass
-class ArbiterAgentRunResult:
+class SentinelAgentRunResult:
     output: EvaluationReport
     elapsed_s: float
     input_tokens: int
@@ -102,7 +102,7 @@ class FailedStrategistRun:
 
 
 @dataclass
-class FailedArbiterRun:
+class FailedSentinelRun:
     ticker: str
     candidate_index: int
     error: str
@@ -118,7 +118,7 @@ def parse_args() -> WorkflowArgs:
     parser = argparse.ArgumentParser(
         description=(
             "Run Surveyor once, then Researcher sequentially for each candidate, "
-            "then Strategist and Arbiter for each successful Researcher and Strategist run."
+            "then Strategist and Sentinel for each successful Researcher and Strategist run."
         )
     )
     add_agent_cli_model_argument(parser)
@@ -204,8 +204,8 @@ def display_strategist_output(output: MispricingThesis) -> None:
     console.print(table)
 
 
-def display_arbiter_output(output: EvaluationReport) -> None:
-    table = Table(title=f"Arbiter - {output.ticker}", show_header=True)
+def display_sentinel_output(output: EvaluationReport) -> None:
+    table = Table(title=f"Sentinel - {output.ticker}", show_header=True)
     table.add_column("Field", style="cyan", no_wrap=True)
     table.add_column("Value", style="white")
     table.add_row("Company", output.company_name)
@@ -242,9 +242,9 @@ def display_strategist_failure_summary(failures: list[FailedStrategistRun]) -> N
     console.print(table)
 
 
-def display_arbiter_failure_summary(failures: list[FailedArbiterRun]) -> None:
+def display_sentinel_failure_summary(failures: list[FailedSentinelRun]) -> None:
     table = Table(
-        title="Arbiter Failures",
+        title="Sentinel Failures",
         show_header=True,
         header_style="bold red",
     )
@@ -375,16 +375,16 @@ async def run_strategist_once(
     )
 
 
-async def run_arbiter_once(
+async def run_sentinel_once(
     *,
     model_name: ModelName,
     surveyor_candidate: SurveyorCandidate,
     deep_research: DeepResearchReport,
     thesis: MispricingThesis,
-) -> ArbiterAgentRunResult:
+) -> SentinelAgentRunResult:
     ai_models_config = AIModelsConfig(model_name=model_name)
-    agent = create_arbiter_agent(ai_models_config)
-    user_prompt = create_arbiter_user_prompt(
+    agent = create_sentinel_agent(ai_models_config)
+    user_prompt = create_sentinel_user_prompt(
         surveyor_candidate=surveyor_candidate,
         deep_research=deep_research,
         thesis=thesis,
@@ -400,8 +400,8 @@ async def run_arbiter_once(
     usage = outcome.usage
     turn_usage = extract_turn_usage(outcome.all_messages)
     elapsed_s = outcome.elapsed_s
-    console.log(f"Arbiter completed for {surveyor_candidate.ticker}.")
-    return ArbiterAgentRunResult(
+    console.log(f"Sentinel completed for {surveyor_candidate.ticker}.")
+    return SentinelAgentRunResult(
         output=output,
         elapsed_s=elapsed_s,
         input_tokens=usage.input_tokens,
@@ -479,7 +479,7 @@ def save_strategist_output(
     return str(out_path)
 
 
-def save_arbiter_output(
+def save_sentinel_output(
     *,
     model_name: ModelName,
     source_surveyor_report: str,
@@ -487,10 +487,10 @@ def save_arbiter_output(
     source_researcher_report: str,
     source_strategist_report: str,
     ticker: str,
-    run_result: ArbiterAgentRunResult,
+    run_result: SentinelAgentRunResult,
     filename_suffix: str,
 ) -> str:
-    run_output = ArbiterRunOutput(
+    run_output = SentinelRunOutput(
         ticker=ticker,
         model_name=model_name.value,
         source_surveyor_report=source_surveyor_report,
@@ -509,7 +509,7 @@ def save_arbiter_output(
     out_path = write_agent_json(
         payload=run_output,
         model_name=model_name,
-        agent_name=AgentName.ARBITER,
+        agent_name=AgentName.SENTINEL,
         filename_suffix=filename_suffix,
     )
     return str(out_path)
@@ -533,10 +533,10 @@ async def main() -> None:
     suffixes = _build_researcher_suffixes(candidates)
     failures: list[FailedCandidateRun] = []
     strategist_failures: list[FailedStrategistRun] = []
-    arbiter_failures: list[FailedArbiterRun] = []
+    sentinel_failures: list[FailedSentinelRun] = []
     researcher_successes = 0
     strategist_successes = 0
-    arbiter_successes = 0
+    sentinel_successes = 0
 
     for index, candidate in enumerate(candidates):
         if index > 0:
@@ -588,35 +588,35 @@ async def main() -> None:
                 console.print(f"Saved Strategist output: [dim]{strat_path}[/dim]")
 
                 try:
-                    arb_result = await run_arbiter_once(
+                    sent_result = await run_sentinel_once(
                         model_name=args.model,
                         surveyor_candidate=candidate,
                         deep_research=run_result.output,
                         thesis=strat_result.output,
                     )
-                    display_arbiter_output(arb_result.output)
-                    arb_path = save_arbiter_output(
+                    display_sentinel_output(sent_result.output)
+                    sentinel_path = save_sentinel_output(
                         model_name=args.model,
                         source_surveyor_report=surveyor_path,
                         source_candidate_index=index,
                         source_researcher_report=researcher_out_path,
                         source_strategist_report=strat_path,
                         ticker=candidate.ticker,
-                        run_result=arb_result,
+                        run_result=sent_result,
                         filename_suffix=suffixes[index],
                     )
-                    arbiter_successes += 1
-                    console.print(f"Saved Arbiter output: [dim]{arb_path}[/dim]")
+                    sentinel_successes += 1
+                    console.print(f"Saved Sentinel output: [dim]{sentinel_path}[/dim]")
                 except Exception as exc:
-                    arbiter_failures.append(
-                        FailedArbiterRun(
+                    sentinel_failures.append(
+                        FailedSentinelRun(
                             ticker=candidate.ticker,
                             candidate_index=index,
                             error=str(exc),
                         )
                     )
                     console.print(
-                        f"[red]Arbiter failed for {candidate.ticker} "
+                        f"[red]Sentinel failed for {candidate.ticker} "
                         f"(candidate_index={index}). Continuing...[/red]"
                     )
                     console.print(f"[dim]{exc}[/dim]")
@@ -651,14 +651,14 @@ async def main() -> None:
 
     console.print(
         Panel.fit(
-            f"Workflow complete: Surveyor, Researcher, Strategist, Arbiter\n"
+            f"Workflow complete: Surveyor, Researcher, Strategist, Sentinel\n"
             f"Candidates: {len(candidates)}\n"
             f"Researcher successes: {researcher_successes}\n"
             f"Researcher failures: {len(failures)}\n"
             f"Strategist successes: {strategist_successes}\n"
             f"Strategist failures: {len(strategist_failures)}\n"
-            f"Arbiter successes: {arbiter_successes}\n"
-            f"Arbiter failures: {len(arbiter_failures)}",
+            f"Sentinel successes: {sentinel_successes}\n"
+            f"Sentinel failures: {len(sentinel_failures)}",
             border_style="cyan",
         )
     )
@@ -666,8 +666,8 @@ async def main() -> None:
         display_failure_summary(failures)
     if strategist_failures:
         display_strategist_failure_summary(strategist_failures)
-    if arbiter_failures:
-        display_arbiter_failure_summary(arbiter_failures)
+    if sentinel_failures:
+        display_sentinel_failure_summary(sentinel_failures)
 
 
 if __name__ == "__main__":
