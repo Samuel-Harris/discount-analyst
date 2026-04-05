@@ -23,7 +23,7 @@ from scripts.common.cli import (
     add_agent_cli_model_argument,
     add_agent_cli_web_search_arguments,
 )
-from scripts.common.artifacts import write_agent_json
+from scripts.common.artefacts import write_agent_json
 from scripts.common.run_outputs import (
     ResearcherRunOutput,
     SurveyorRunOutput,
@@ -105,7 +105,7 @@ def _parse_selector(raw: str, parser: argparse.ArgumentParser) -> Selector:
     path = Path(report_part).expanduser().resolve()
     if path.suffix.lower() != ".json":
         parser.error(
-            f"Invalid selector '{raw}': expected a .json Surveyor run artifact path. "
+            f"Invalid selector '{raw}': expected a .json Surveyor run artefact path. "
             f"Got: {path}."
         )
     if not path.is_file():
@@ -158,7 +158,7 @@ def parse_args() -> ResearcherArgs:
 
 
 def load_surveyor_run_output(path: Path) -> SurveyorRunOutput:
-    """Parse a Surveyor run output JSON artifact."""
+    """Parse a Surveyor run output JSON artefact."""
     try:
         return SurveyorRunOutput.model_validate_json(path.read_text())
     except ValidationError as exc:

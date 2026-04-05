@@ -44,7 +44,7 @@ Scripts and assets for comparing cost and speed across AI models when running th
 
 ### Internal
 
-- `scripts.common.constants`, `scripts.common.cost`, `scripts.common.artifacts`, `scripts.common.run_outputs`, `scripts.common.usage`: run schemas, cost types and calculators, output paths/filenames, usage extraction, `AUTO_CACHE_MODELS` (`model_cost_comparison` passes `output_dir` as `Path(__file__).parent / "outputs"`).
+- `scripts.common.constants`, `scripts.common.cost`, `scripts.common.artefacts`, `scripts.common.run_outputs`, `scripts.common.usage`: run schemas, cost types and calculators, output paths/filenames, usage extraction, `AUTO_CACHE_MODELS` (`model_cost_comparison` passes `output_dir` as `Path(__file__).parent / "outputs"`).
 - `discount_analyst.config.ai_models_config`: `ModelName`, `AIModelsConfig` (`view_ticker_results` imports `ModelName` here directly).
 - `discount_analyst.agents.appraiser.schema`: `AppraiserOutput` (for typing the `RunResult.output` field).
 - `scripts.common.appraiser_input_loader`: builds `AppraiserInput` from paths or directory.

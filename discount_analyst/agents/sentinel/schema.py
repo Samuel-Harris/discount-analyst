@@ -15,18 +15,20 @@ class ThesisVerdict(StrEnum):
     BROKEN_DO_NOT_PROCEED = "Thesis broken — do not proceed"
 
 
+class OverallRedFlagVerdict(StrEnum):
+    """Canonical red-flag screen verdicts (schema, prompts, and valuation gate)."""
+
+    CLEAR = "Clear"
+    MONITOR = "Monitor"
+    SERIOUS_CONCERN = "Serious concern"
+
+
 _THESIS_VERDICTS_PROCEED: frozenset[ThesisVerdict] = frozenset(
     {
         ThesisVerdict.INTACT_PROCEED_TO_VALUATION,
         ThesisVerdict.INTACT_WITH_RESERVATIONS,
     }
 )
-
-
-def sentinel_proceeds_to_valuation(thesis_verdict: ThesisVerdict) -> bool:
-    """True iff ``thesis_verdict`` authorises the Appraiser / DCF stage."""
-
-    return thesis_verdict in _THESIS_VERDICTS_PROCEED
 
 
 class QuestionAssessment(BaseModel):
@@ -51,7 +53,7 @@ class RedFlagScreen(BaseModel):
     accounting_quality: str
     related_party_transactions: str
     litigation_or_regulatory_risk: str
-    overall_red_flag_verdict: Literal["Clear", "Monitor", "Serious concern"]
+    overall_red_flag_verdict: OverallRedFlagVerdict
 
 
 class EvaluationReport(BaseModel):
@@ -85,3 +87,19 @@ class EvaluationReport(BaseModel):
             "decision agent should be aware of."
         )
     )
+
+
+def sentinel_proceeds_to_valuation(evaluation: EvaluationReport) -> bool:
+    """True if Sentinel output authorises the Appraiser / DCF stage.
+
+    Blocks valuation when the red-flag screen is ``Serious concern`` or when
+    ``thesis_verdict`` is outside the proceed set.
+    """
+
+    if (
+        evaluation.red_flag_screen.overall_red_flag_verdict
+        == OverallRedFlagVerdict.SERIOUS_CONCERN
+    ):
+        return False
+
+    return evaluation.thesis_verdict in _THESIS_VERDICTS_PROCEED

@@ -1,13 +1,14 @@
-"""Write script run JSON artifacts and build output filenames."""
+"""Write script run JSON artefacts and build output filenames."""
 
 import re
 from datetime import datetime
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 
 from discount_analyst.agents.common.agent_names import AgentName
 from discount_analyst.config.ai_models_config import ModelName
+from discount_analyst.pipeline.schema import Verdict
 
 from scripts.common.constants import SCRIPTS_OUTPUTS_DIR
 
@@ -50,4 +51,16 @@ def write_agent_json(
     SCRIPTS_OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
     path = SCRIPTS_OUTPUTS_DIR / filename
     path.write_text(payload.model_dump_json(indent=2))
+    return path.resolve()
+
+
+def write_verdicts_json(*, verdicts: list[Verdict], model_name: ModelName) -> Path:
+    """Serialise ``list[Verdict]`` to ``scripts/outputs``; stem includes ``VERDICTS``."""
+    ts = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    safe_model = model_name.value.replace(".", "-")
+    filename = f"{ts}-{safe_model}-VERDICTS.json"
+    SCRIPTS_OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+    path = SCRIPTS_OUTPUTS_DIR / filename
+    adapter = TypeAdapter(list[Verdict])
+    path.write_text(adapter.dump_json(verdicts, indent=2, exclude_none=False).decode())
     return path.resolve()

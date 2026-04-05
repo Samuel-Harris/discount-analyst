@@ -1,1 +1,1 @@
-"""Script helpers (CLI, artifacts, cost, run output models). Import from submodules."""
+"""Script helpers (CLI, artefacts, cost, run output models). Import from submodules."""

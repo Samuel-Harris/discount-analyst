@@ -31,7 +31,7 @@ from scripts.common.cli import (
     add_agent_cli_model_argument,
     add_agent_cli_web_search_arguments,
 )
-from scripts.common.artifacts import write_agent_json
+from scripts.common.artefacts import write_agent_json
 from scripts.common.run_outputs import (
     AppraiserRunOutput,
     ResearcherRunOutput,
@@ -124,7 +124,7 @@ def _parse_selector(raw: str, parser: argparse.ArgumentParser) -> Selector:
     path = Path(report_part).expanduser().resolve()
     if path.suffix.lower() != ".json":
         parser.error(
-            f"Invalid selector '{raw}': expected a .json Sentinel run artifact path. "
+            f"Invalid selector '{raw}': expected a .json Sentinel run artefact path. "
             f"Got: {path}."
         )
     if not path.is_file():
@@ -150,7 +150,7 @@ def parse_args() -> AppraiserCliArgs:
         dest="selectors",
         metavar="SELECTOR",
         help=(
-            "Sentinel artifact selector (repeatable): either "
+            "Sentinel artefact selector (repeatable): either "
             "'<sentinel_run_output.json>' for that run "
             "or '<sentinel_run_output.json>:<TICKER>' to require a ticker match."
         ),
@@ -232,7 +232,7 @@ def _resolve_target(selector: Selector, *, risk_free_rate: float) -> AppraiserTa
         ticker_folded = selector.ticker.casefold()
         if sent.ticker.casefold() != ticker_folded:
             raise ValueError(
-                f"Ticker '{selector.ticker}' does not match Sentinel artifact "
+                f"Ticker '{selector.ticker}' does not match Sentinel artefact "
                 f"{selector.sentinel_report_path} (ticker={sent.ticker})."
             )
 
@@ -246,7 +246,7 @@ def _resolve_target(selector: Selector, *, risk_free_rate: float) -> AppraiserTa
     ):
         if not p.is_file():
             raise ValueError(
-                f"Sentinel artifact {selector.sentinel_report_path} references "
+                f"Sentinel artefact {selector.sentinel_report_path} references "
                 f"{label} report that is not a file: {p}"
             )
 
@@ -254,7 +254,7 @@ def _resolve_target(selector: Selector, *, risk_free_rate: float) -> AppraiserTa
     idx = sent.source_candidate_index
     if idx < 0 or idx >= len(surveyor.output.candidates):
         raise ValueError(
-            f"Sentinel artifact {selector.sentinel_report_path} references "
+            f"Sentinel artefact {selector.sentinel_report_path} references "
             f"candidate_index={idx} but Surveyor report has "
             f"{len(surveyor.output.candidates)} candidates ({surveyor_path})."
         )
@@ -552,7 +552,7 @@ async def main() -> None:
     )
     targets = resolve_targets(cli.selectors, risk_free_rate=cli.risk_free_rate)
     if not targets:
-        raise SystemExit("No Sentinel artifacts selected to run Appraiser.")
+        raise SystemExit("No Sentinel artefacts selected to run Appraiser.")
 
     suffixes = _build_suffixes(targets)
 

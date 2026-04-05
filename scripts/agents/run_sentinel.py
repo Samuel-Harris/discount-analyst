@@ -24,7 +24,7 @@ from discount_analyst.agents.researcher.schema import DeepResearchReport
 from discount_analyst.agents.strategist.schema import MispricingThesis
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
 from discount_analyst.config.ai_models_config import AIModelsConfig, ModelName
-from scripts.common.artifacts import write_agent_json
+from scripts.common.artefacts import write_agent_json
 from scripts.common.cli import add_agent_cli_model_argument
 from scripts.common.run_outputs import (
     SentinelRunOutput,
@@ -107,7 +107,7 @@ def _parse_selector(raw: str, parser: argparse.ArgumentParser) -> Selector:
     path = Path(report_part).expanduser().resolve()
     if path.suffix.lower() != ".json":
         parser.error(
-            f"Invalid selector '{raw}': expected a .json Strategist run artifact path. "
+            f"Invalid selector '{raw}': expected a .json Strategist run artefact path. "
             f"Got: {path}."
         )
     if not path.is_file():
@@ -133,7 +133,7 @@ def parse_args() -> SentinelArgs:
         dest="selectors",
         metavar="SELECTOR",
         help=(
-            "Strategist artifact selector (repeatable): either "
+            "Strategist artefact selector (repeatable): either "
             "'<strategist_run_output.json>' for that run "
             "or '<strategist_run_output.json>:<TICKER>' to require a ticker match."
         ),
@@ -145,7 +145,7 @@ def parse_args() -> SentinelArgs:
 
 
 def load_strategist_run_output(path: Path) -> StrategistRunOutput:
-    """Parse a Strategist run output JSON artifact."""
+    """Parse a Strategist run output JSON artefact."""
     try:
         return StrategistRunOutput.model_validate_json(path.read_text())
     except ValidationError as exc:
@@ -178,7 +178,7 @@ def _resolve_targets_for_selector(selector: Selector) -> list[SentinelTarget]:
         ticker_folded = selector.ticker.casefold()
         if so.ticker.casefold() != ticker_folded:
             raise ValueError(
-                f"Ticker '{selector.ticker}' does not match Strategist artifact "
+                f"Ticker '{selector.ticker}' does not match Strategist artefact "
                 f"{selector.strategist_report_path} (ticker={so.ticker})."
             )
 
@@ -188,7 +188,7 @@ def _resolve_targets_for_selector(selector: Selector) -> list[SentinelTarget]:
     idx = so.source_candidate_index
     if idx < 0 or idx >= len(surveyor.output.candidates):
         raise ValueError(
-            f"Strategist artifact {selector.strategist_report_path} references "
+            f"Strategist artefact {selector.strategist_report_path} references "
             f"candidate_index={idx} but Surveyor report has "
             f"{len(surveyor.output.candidates)} candidates ({surveyor_path})."
         )
@@ -240,7 +240,7 @@ def display_output(output: EvaluationReport) -> None:
         "Valuation gate (derived)",
         (
             "Proceed to valuation"
-            if sentinel_proceeds_to_valuation(output.thesis_verdict)
+            if sentinel_proceeds_to_valuation(output)
             else "Do not proceed"
         ),
     )
@@ -350,7 +350,7 @@ async def main() -> None:
     args = parse_args()
     targets = resolve_targets(args.selectors)
     if not targets:
-        raise SystemExit("No Strategist artifacts selected to run Sentinel.")
+        raise SystemExit("No Strategist artefacts selected to run Sentinel.")
 
     suffixes = _build_suffixes(targets)
     failures: list[FailedSentinelRun] = []
