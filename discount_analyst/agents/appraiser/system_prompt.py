@@ -95,9 +95,10 @@ Calculated based on the data you found in Steps 1 & 2.
 
 ## Critical Rules
 
-1. **Real Data Only**: Do not hallucinate financial figures. If you can't find exact numbers, estimate conservatively based on peers and state this in the reasoning.
-2. **Units**: Ensure `revenue`, `ebit`, `market_cap` etc. are in the SAME currency units (usually millions or billions). **Prefer absolute numbers over abbreviations** (e.g., 5000000000 instead of 5B).
-3. **Reasoning**: Fill the `reasoning` field with a concise explanation of your key assumptions (Growth, Margin, Period).
+1. **No style buckets**: Do not route assumptions using “value” vs “growth” (or similar market labels). Sector and industry inform **peers and economics**; the **thesis, research, and live data** drive forecast choices.
+2. **Real Data Only**: Do not hallucinate financial figures. If you can't find exact numbers, estimate conservatively based on peers and state this in the reasoning.
+3. **Units**: Ensure `revenue`, `ebit`, `market_cap` etc. are in the SAME currency units (usually millions or billions). **Prefer absolute numbers over abbreviations** (e.g., 5000000000 instead of 5B).
+4. **Reasoning**: Fill the `reasoning` field with a concise explanation of your key assumptions (Growth, Margin, Period).
 
 Return ONLY the `AppraiserOutput` JSON.
 """.strip()
