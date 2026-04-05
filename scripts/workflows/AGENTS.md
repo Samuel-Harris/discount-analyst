@@ -5,14 +5,16 @@
 
 ## Purpose
 
-Contains orchestration scripts that run multiple agents in sequence: Surveyor once, then Researcher per candidate, then Strategist and Arbiter per successful prior stage, with JSON artifacts per stage. Canonical entry points live in this package under `scripts/workflows/` (there is no `discount_analyst/workflows/` wrapper in the repo).
+Contains orchestration scripts that run multiple agents in sequence with JSON artifacts per stage. Canonical implementations live in this package under `scripts/workflows/`.
 
 ## Key Files
 
-| File                         | Description                                                                                                                                               |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `run_surveyor_to_arbiter.py` | Surveyor discovery, sequential Researcher per candidate, then Strategist and Arbiter per successful Researcher and Strategist (artifacts for each stage). |
-| `__init__.py`                | Package initialization for workflow scripts.                                                                                                              |
+| File                                    | Description                                                                                                                                               |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `run_surveyor_then_researcher.py`       | Surveyor discovery, then sequential Researcher per candidate (no Strategist).                                                                             |
+| `run_surveyor_researcher_strategist.py` | Surveyor discovery, sequential Researcher per candidate, then Strategist per successful Researcher.                                                       |
+| `run_surveyor_to_arbiter.py`            | Surveyor discovery, sequential Researcher per candidate, then Strategist and Arbiter per successful Researcher and Strategist (artifacts for each stage). |
+| `__init__.py`                           | Package initialization for workflow scripts.                                                                                                              |
 
 ## Subdirectories
 
@@ -30,12 +32,13 @@ None.
 
 - Run `uv run ruff check scripts/workflows`.
 - Run `uv run pytest`.
-- For manual verification: `uv run python scripts/workflows/run_surveyor_to_arbiter.py --help`.
+- For manual verification: `uv run python scripts/workflows/run_surveyor_then_researcher.py --help`, `uv run python scripts/workflows/run_surveyor_researcher_strategist.py --help`, and/or `uv run python scripts/workflows/run_surveyor_to_arbiter.py --help`.
 
 ### Common Patterns
 
-- Use `discount_analyst.shared.ai.streamed_agent_run.run_streamed_agent` for every agent run.
-- Persist outputs via `scripts.shared.outputs.write_agent_json` with clear agent-specific suffixes.
+- Use `discount_analyst.agents.common.streamed_agent_run.run_streamed_agent` for every agent run.
+- Persist outputs via `scripts.common.artifacts.write_agent_json` with clear agent-specific suffixes.
+
 ## Dependencies
 
 ### Internal
@@ -44,7 +47,7 @@ None.
 - `discount_analyst.agents.researcher`: Researcher factory and prompt builder.
 - `discount_analyst.agents.strategist`: Strategist factory and prompt builder.
 - `discount_analyst.agents.arbiter`: Arbiter factory and prompt builder.
-- `scripts.shared.cli`, `scripts.shared.outputs`, `scripts.shared.schemas.run_outputs`, `scripts.shared.usage`: CLI helpers, JSON writer, run-output models, usage extraction.
+- `scripts.common.cli`, `scripts.common.artifacts`, `scripts.common.run_outputs`, `scripts.common.usage`: CLI helpers, JSON writer, run-output models, usage extraction.
 
 ### External
 

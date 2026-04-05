@@ -9,12 +9,13 @@ The `arbiter` directory contains the Arbiter AI agent. It consumes a `SurveyorCa
 
 ## Key Files
 
-| File             | Description                                                                                         |
-| ---------------- | --------------------------------------------------------------------------------------------------- |
-| `arbiter.py`     | Factory for the Arbiter agent (`create_arbiter_agent`).                                            |
-| `system_prompt.py` | System prompt (placeholder until filled in).                                                     |
-| `user_prompt.py` | `create_user_prompt`: injects candidate, deep research, and thesis as tagged JSON.                 |
-| `__init__.py`    | Package initialization for the arbiter module.                                                     |
+| File               | Description                                                                           |
+| ------------------ | ------------------------------------------------------------------------------------- |
+| `arbiter.py`       | Factory for the Arbiter agent (`create_arbiter_agent`).                               |
+| `schema.py`        | Output contract: `EvaluationReport`, `QuestionAssessment`, `RedFlagScreen`.           |
+| `system_prompt.py` | System prompt and Arbiter role instructions.                                          |
+| `user_prompt.py`   | `create_user_prompt`: injects candidate, deep research, and thesis as tagged context. |
+| `__init__.py`      | Package initialization for the arbiter module.                                        |
 
 ## Subdirectories
 
@@ -25,7 +26,7 @@ None.
 ### Working In This Directory
 
 - **No tools**: The Arbiter agent is evaluation-only; do not add web search, fetch, Perplexity, or MCP without an explicit product decision.
-- **Output contract**: Keep output constrained to `EvaluationReport` in `shared/schemas/arbiter.py`.
+- **Output contract**: Keep output constrained to `EvaluationReport` in `schema.py`.
 
 ### Testing Requirements
 
@@ -40,10 +41,10 @@ None.
 
 ### Internal
 
-- `discount_analyst.shared.schemas.arbiter`: Output contract (`EvaluationReport`).
-- `discount_analyst.shared.schemas.researcher`: `DeepResearchReport` input.
-- `discount_analyst.shared.schemas.strategist`: `MispricingThesis` input.
-- `discount_analyst.shared.schemas.surveyor`: `SurveyorCandidate` input.
+- `discount_analyst.agents.arbiter.schema`: Output contract (`EvaluationReport`).
+- `discount_analyst.agents.researcher.schema`: `DeepResearchReport` input.
+- `discount_analyst.agents.strategist.schema`: `MispricingThesis` input.
+- `discount_analyst.agents.surveyor.schema`: `SurveyorCandidate` input.
 
 ### External
 

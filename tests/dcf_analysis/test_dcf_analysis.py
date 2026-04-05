@@ -1,10 +1,10 @@
 from pydantic import BaseModel
-from discount_analyst.dcf_analysis.dcf_analysis import DCFAnalysis
-from discount_analyst.dcf_analysis.data_types import DCFAnalysisParameters
-from discount_analyst.shared.schemas.stock import StockAssumptions, StockData
+from discount_analyst.valuation.dcf_analysis import DCFAnalysis
+from discount_analyst.valuation.data_types import DCFAnalysisParameters
+from discount_analyst.valuation.schema import StockAssumptions, StockData
 import pytest
 
-from discount_analyst.dcf_analysis.data_types import DCFAnalysisResult
+from discount_analyst.valuation.data_types import DCFAnalysisResult
 
 
 class TestCase(BaseModel):

@@ -1,47 +1,52 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-23 | Updated: 2026-04-03 -->
+<!-- Generated: 2026-02-23 | Updated: 2026-04-05 -->
 
 # discount_analyst
 
 ## Purpose
 
-The core source code for the "Discount Analyst" stock analysis engine. This directory contains the implementation of the financial modeling logic (DCF), the AI agents for automated research, and the shared utilities required to perform comprehensive, low-cost stock valuations.
+The core source code for the "Discount Analyst" stock analysis engine. This directory contains the implementation of the financial modeling logic (DCF), the AI agents for automated research, and explicit packages for configuration, HTTP transport, integrations, valuation types, and shared agent runtime.
 
 ## Key Files
 
-| File                                              | Description                                                                                                           |
-| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `dcf_analysis/dcf_analysis.py`                    | Implementation of the Discounted Cash Flow calculation engine.                                                        |
-| `agents/appraiser/appraiser.py`                   | Factory for the Appraiser agent with model-native or optional Perplexity-backed search tools.                         |
-| `agents/surveyor/surveyor.py`                     | Factory for the Surveyor agent for discovering cheap small-cap stock candidates.                                      |
-| `agents/researcher/researcher.py`                 | Factory for the Researcher agent that produces structured `DeepResearchReport` output from `SurveyorCandidate`.       |
-| `agents/strategist/strategist.py`                 | Factory for the Strategist agent that produces `MispricingThesis` from `SurveyorCandidate` + `DeepResearchReport`.    |
-| `agents/arbiter/arbiter.py`                       | Factory for the Arbiter agent that produces `EvaluationReport` from candidate + deep research + thesis.               |
-| `shared/ai/agent_factory.py`                      | Shared `AgentSpec` + `create_agent` factory used by pipeline agents (Strategist/Arbiter use no-tools mode).           |
-| `shared/ai/streamed_agent_run.py`                 | Shared streaming helper wrapping `stream_with_retries` and returning output, usage, and elapsed time.                 |
-| `shared/schemas/stock.py`                         | Core financial schemas: `StockData` and `StockAssumptions` used by DCF and Appraiser output typing.                   |
-| `shared/schemas/surveyor.py`                      | Surveyor enums and schemas: `SurveyorCandidate`, `SurveyorOutput`, and `KeyMetrics`.                                  |
-| `shared/schemas/researcher.py`                    | Researcher report schemas: `DeepResearchReport` plus nested neutral-evidence sections and data-gap progression.       |
-| `shared/schemas/strategist.py`                    | Strategist output schema: `MispricingThesis`.                                                                         |
-| `shared/schemas/arbiter.py`                       | Arbiter output schema: `EvaluationReport`.                                                                            |
-| `shared/schemas/appraiser.py`                     | Appraiser output schema: `AppraiserOutput` (`StockData` + `StockAssumptions`).                                        |
-| `shared/config/settings.py`                       | Application configuration using `pydantic-settings` for API keys and environment variables.                           |
-| `shared/config/ai_models_config.py`               | Configuration for LLM models, including token budgets and thinking parameters.                                        |
-| `../scripts/workflows/run_surveyor_to_arbiter.py` | Surveyor once, then sequential Researcher, Strategist, and Arbiter per candidate (see `scripts/workflows/AGENTS.md`). |
+| File                                  | Description                                                                                                        |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `valuation/dcf_analysis.py`           | Implementation of the Discounted Cash Flow calculation engine.                                                     |
+| `agents/appraiser/appraiser.py`       | Factory for the Appraiser agent with model-native or optional Perplexity-backed search tools.                      |
+| `agents/surveyor/surveyor.py`         | Factory for the Surveyor agent for discovering cheap small-cap stock candidates.                                   |
+| `agents/researcher/researcher.py`     | Factory for the Researcher agent that produces structured `DeepResearchReport` output from `SurveyorCandidate`.    |
+| `agents/strategist/strategist.py`     | Factory for the Strategist agent that produces `MispricingThesis` from `SurveyorCandidate` + `DeepResearchReport`. |
+| `agents/arbiter/arbiter.py`           | Factory for the Arbiter agent that produces `EvaluationReport` from candidate + deep research + thesis.            |
+| `agents/common/agent_factory.py`      | Shared `AgentSpec` + `create_agent` factory used by pipeline agents (Strategist and Arbiter use no-tools mode).    |
+| `agents/common/streamed_agent_run.py` | Streaming helper wrapping `stream_with_retries` and returning output, usage, and elapsed time.                     |
+| `agents/common/streaming_retries.py`  | Retry/resume logic for `AbstractAgent.run_stream()` / `stream_output()`.                                           |
+| `valuation/schema.py`                 | Core financial schemas: `StockData` and `StockAssumptions` used by DCF and Appraiser output typing.                |
+| `agents/surveyor/schema.py`           | Surveyor enums and schemas: `SurveyorCandidate`, `SurveyorOutput`, and `KeyMetrics`.                               |
+| `agents/researcher/schema.py`         | Researcher report schemas: `DeepResearchReport` plus nested neutral-evidence sections and data-gap progression.    |
+| `agents/strategist/schema.py`         | Strategist output schema: `MispricingThesis`.                                                                      |
+| `agents/arbiter/schema.py`            | Arbiter output schema: `EvaluationReport` and nested assessment models.                                            |
+| `agents/appraiser/schema.py`          | Appraiser output schema: `AppraiserOutput` (`StockData` + `StockAssumptions`).                                     |
+| `config/settings.py`                  | Application configuration using `pydantic-settings` for API keys and environment variables.                        |
+| `config/ai_models_config.py`          | Configuration for LLM models, including token budgets and thinking parameters.                                     |
+| `http/retrying_client.py`             | Tenacity-backed async HTTP client for provider APIs.                                                               |
+| `integrations/perplexity.py`          | Perplexity-backed toolset factory for agents.                                                                      |
 
 ## Subdirectories
 
-| Directory       | Purpose                                                                                                            |
-| --------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `dcf_analysis/` | Core logic for financial calculations and DCF modeling. (see `dcf_analysis/AGENTS.md`)                             |
-| `agents/`       | AI agent packages for surveyor, researcher, strategist, arbiter, and appraiser workflows. (see `agents/AGENTS.md`) |
-| `shared/`       | Common data structures, configuration, and utility modules used across the package. (see `shared/AGENTS.md`)       |
+| Directory        | Purpose                                                                                                    |
+| ---------------- | ---------------------------------------------------------------------------------------------------------- |
+| `valuation/`     | DCF engine, `StockData` / `StockAssumptions`, and DCF parameter/result models (see `valuation/AGENTS.md`). |
+| `agents/`        | AI agent packages and stage-local schemas (see `agents/AGENTS.md`).                                        |
+| `agents/common/` | Agent runtime: model factory, streaming, tool wiring, creed, agent names (see `agents/common/AGENTS.md`).  |
+| `config/`        | Settings, model config, provider capability flags (see `config/AGENTS.md`).                                |
+| `http/`          | HTTP transport retries (see `http/AGENTS.md`).                                                             |
+| `integrations/`  | External adapters: Perplexity, financial MCP (see `integrations/AGENTS.md`).                               |
 
 ## For AI Agents
 
 ### Working In This Directory
 
-- **Structured Output**: Always use the Pydantic schemas in `shared/schemas/stock.py` and `shared/schemas/surveyor.py` for agent outputs and internal data passing.
+- **Structured Output**: Use `valuation/schema.py` for financial inputs/outputs; use each stage's `schema.py` for agent contracts (`agents/surveyor/schema.py`, etc.).
 - **Async Execution**: Ensure all network calls (AI agents, search tools) are asynchronous.
 - **Type Safety**: Maintain strict typing for all financial metrics (typically `float`).
 
@@ -53,15 +58,15 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 
 ### Common Patterns
 
-- **Agent-Tool Binding**: AI agents use the `@agent.tool_plain` decorator with detailed Google-style docstrings for tool discovery.
+- **Agent-Tool Binding**: AI agents use pydantic-ai tool registration with detailed docstrings for tool discovery.
 - **Financial Modeling**: Follow the "Bottom-Up/Line-Item" approach for Free Cash Flow (FCF) projections as seen in `DCFAnalysis`.
-- **Rate Limiting**: Use the `aiolimiter` in `agents/appraiser/appraiser.py` when making calls to external search or LLM APIs.
+- **Dependency direction**: `agents/common` does not import stage packages; stages may import earlier-stage schemas only.
 
 ## Dependencies
 
 ### Internal
 
-- This is the root source directory; submodules depend on `discount_analyst.shared`.
+- Packages under `discount_analyst/` compose as: `config` → runtime (`http`, `integrations`, `agents/common`) → stage agents → `valuation` for DCF (isolated from research-stage prompts).
 
 ### External
 

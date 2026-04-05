@@ -1,6 +1,6 @@
 import logfire
 
-from discount_analyst.shared.config.settings import settings
+from discount_analyst.config.settings import settings
 
 
 def setup_logfire() -> None:

@@ -1,6 +1,6 @@
-from discount_analyst.shared.schemas.researcher import DeepResearchReport
-from discount_analyst.shared.schemas.strategist import MispricingThesis
-from discount_analyst.shared.schemas.surveyor import SurveyorCandidate
+from discount_analyst.agents.researcher.schema import DeepResearchReport
+from discount_analyst.agents.strategist.schema import MispricingThesis
+from discount_analyst.agents.surveyor.schema import SurveyorCandidate
 
 
 def create_user_prompt(

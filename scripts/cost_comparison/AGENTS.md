@@ -26,7 +26,7 @@ Scripts and assets for comparing cost and speed across AI models when running th
 
 ### Working In This Directory
 
-- **Pricing**: Cost is computed with **genai-prices** when the model is in its snapshot; otherwise the script uses `scripts.shared.cost.MODEL_PRICING_FALLBACK`. Update that dict only for models not yet in genai-prices.
+- **Pricing**: Cost is computed with **genai-prices** when the model is in its snapshot; otherwise the script uses `scripts.common.cost.MODEL_PRICING_FALLBACK`. Update that dict only for models not yet in genai-prices.
 - **Rich**: Use the `rich` library for all terminal output (tables, console) per project rules.
 - **CLI**: Keep `argparse` for CLI; `--ticker` is required. `--research-report-path` is optional; when omitted, defaults to `inputs/{lowercase_ticker}.md` (relative to script). `--surveyor-report-path` is optional; when omitted, defaults to `inputs/{lowercase_ticker}-surveyor-report.json` (one `SurveyorCandidate`, same shape as DCF `surveyor-report.json`). Both files must exist for a real run (dry-run skips loading them). Default risk-free rate `0.037276`. `--caching` (`enabled` | `disabled` | `both`, default `both`) controls prompt caching: Anthropic's `anthropic_cache_messages` is toggled; OpenAI and Gemini auto-cache and are skipped when `disabled`. `--dry-run` prints a table of configs that would run (model, cache mode, web search, MCP, output filename) and exits without making API calls. `--no-mcp` omits EODHD/FMP MCP toolsets (use with Google models).
 - **Outputs**: After each successful model run the script (1) runs `DCFAnalysis` on the agent output and (2) serialises an `AppraiserRunOutput` (ticker, model_name, risk_free_rate, appraiser output, dcf_result, dcf_error, turn_usage, …) to `outputs/{timestamp}-{model}-{cache|no-cache}-{web-search|perplexity}-{ticker}.json` under this directory. DCF errors are caught and stored in `dcf_error` without failing the whole run. A shared timestamp is generated once before the run loop so all files from one invocation share the same prefix.
@@ -44,11 +44,11 @@ Scripts and assets for comparing cost and speed across AI models when running th
 
 ### Internal
 
-- `scripts.shared.constants`, `scripts.shared.cost`, `scripts.shared.outputs`, `scripts.shared.schemas.run_outputs`, `scripts.shared.usage`: run schemas, cost types and calculators, output paths/filenames, usage extraction, `AUTO_CACHE_MODELS` (`model_cost_comparison` passes `output_dir` as `Path(__file__).parent / "outputs"`).
-- `discount_analyst.shared.config.ai_models_config`: `ModelName`, `AIModelsConfig` (`view_ticker_results` imports `ModelName` here directly).
-- `discount_analyst.shared.schemas.appraiser`: `AppraiserOutput` (for typing the `RunResult.output` field).
-- `discount_analyst.shared.schemas.surveyor`: `SurveyorCandidate` for loading `surveyor-report.json` context.
-- `discount_analyst.dcf_analysis`: `DCFAnalysis`, `DCFAnalysisParameters`, `DCFAnalysisResult`.
+- `scripts.common.constants`, `scripts.common.cost`, `scripts.common.artifacts`, `scripts.common.run_outputs`, `scripts.common.usage`: run schemas, cost types and calculators, output paths/filenames, usage extraction, `AUTO_CACHE_MODELS` (`model_cost_comparison` passes `output_dir` as `Path(__file__).parent / "outputs"`).
+- `discount_analyst.config.ai_models_config`: `ModelName`, `AIModelsConfig` (`view_ticker_results` imports `ModelName` here directly).
+- `discount_analyst.agents.appraiser.schema`: `AppraiserOutput` (for typing the `RunResult.output` field).
+- `discount_analyst.agents.surveyor.schema`: `SurveyorCandidate` for loading `surveyor-report.json` context.
+- `discount_analyst.valuation`: `DCFAnalysis`, `DCFAnalysisParameters`, `DCFAnalysisResult`.
 - `discount_analyst.agents.appraiser`: `create_appraiser_agent`; `user_prompt.create_user_prompt` for the prompt string.
 
 ### External

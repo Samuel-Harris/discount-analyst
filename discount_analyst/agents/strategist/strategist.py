@@ -1,13 +1,13 @@
 from pydantic_ai import Agent
 
 from discount_analyst.agents.strategist.system_prompt import SYSTEM_PROMPT
-from discount_analyst.shared.ai.agent_factory import (
+from discount_analyst.agents.common.agent_factory import (
     AgentSpec,
     create_agent,
 )
-from discount_analyst.shared.config.ai_models_config import AIModelsConfig
-from discount_analyst.shared.constants.agents import AgentName
-from discount_analyst.shared.schemas.strategist import MispricingThesis
+from discount_analyst.agents.common.agent_names import AgentName
+from discount_analyst.agents.strategist.schema import MispricingThesis
+from discount_analyst.config.ai_models_config import AIModelsConfig
 
 STRATEGIST_AGENT_SPEC = AgentSpec(
     name=AgentName.STRATEGIST,

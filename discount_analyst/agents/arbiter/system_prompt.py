@@ -1,5 +1,5 @@
 # System prompt for the Arbiter agent (filled in later).
-from discount_analyst.shared.constants.creed import INVESTING_CREED
+from discount_analyst.agents.common.creed import INVESTING_CREED
 
 
 SYSTEM_PROMPT = f"""
