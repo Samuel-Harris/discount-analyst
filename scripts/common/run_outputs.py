@@ -3,6 +3,7 @@
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from discount_analyst.agents.appraiser.schema import AppraiserOutput
+from discount_analyst.agents.arbiter.schema import EvaluationReport
 from discount_analyst.agents.researcher.schema import DeepResearchReport
 from discount_analyst.agents.strategist.schema import MispricingThesis
 from discount_analyst.agents.surveyor.schema import SurveyorOutput
@@ -93,3 +94,22 @@ class StrategistRunOutput(BaseModel):
     tool_calls: int
     turn_usage: list[TurnUsage] = Field(default_factory=default_turn_usage_list)
     output: MispricingThesis
+
+
+class ArbiterRunOutput(BaseModel):
+    """Complete serialisable record for one Arbiter run written to outputs/."""
+
+    ticker: str
+    model_name: str
+    source_surveyor_report: str
+    source_candidate_index: int = Field(ge=0)
+    source_researcher_report: str
+    source_strategist_report: str
+    elapsed_s: float
+    input_tokens: int
+    output_tokens: int
+    cache_write_tokens: int
+    cache_read_tokens: int
+    tool_calls: int
+    turn_usage: list[TurnUsage] = Field(default_factory=default_turn_usage_list)
+    output: EvaluationReport

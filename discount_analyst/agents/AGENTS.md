@@ -5,7 +5,7 @@
 
 ## Purpose
 
-Contains AI agent packages used by the project workflows. This directory groups the Surveyor, Researcher, Strategist, and Appraiser implementations under a shared namespace.
+Contains AI agent packages used by the project workflows. This directory groups the Surveyor, Researcher, Strategist, Arbiter, and Appraiser implementations under a shared namespace.
 
 ## Key Files
 
@@ -21,13 +21,14 @@ Contains AI agent packages used by the project workflows. This directory groups 
 | `surveyor/`   | Surveyor agent implementation and prompts for candidate discovery (see `surveyor/AGENTS.md`)                          |
 | `researcher/` | Researcher agent implementation and prompts for structured deep-research evidence output (see `researcher/AGENTS.md`) |
 | `strategist/` | Strategist agent implementation and prompts for `MispricingThesis` output (see `strategist/AGENTS.md`)                |
+| `arbiter/`    | Arbiter agent implementation and prompts for `EvaluationReport` output (see `arbiter/AGENTS.md`)                      |
 | `appraiser/`  | Appraiser agent implementation and prompts for DCF workflows (see `appraiser/AGENTS.md`)                              |
 
 ## For AI Agents
 
 ### Working In This Directory
 
-- Keep surveyor, researcher, strategist, and appraiser code in separate subpackages to avoid cross-coupling.
+- Keep surveyor, researcher, strategist, arbiter, and appraiser code in separate subpackages to avoid cross-coupling.
 - Use fully qualified imports from `discount_analyst.agents.*` in callers.
 
 ### Testing Requirements

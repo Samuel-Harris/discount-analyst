@@ -37,7 +37,7 @@ def create_agent[OutT](
     By default, the factory enables model-native web search (+ optional fetch),
     optional Perplexity search, and optional financial MCP toolsets.
     Set ``enable_web_research_tools=False`` for interpretation-only agents
-    (for example, Strategist).
+    (for example, Strategist and Arbiter).
     """
     builtin_tools: list[AbstractBuiltinTool] = []
     toolsets: list[AbstractToolset[None]] = []
