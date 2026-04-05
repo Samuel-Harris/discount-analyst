@@ -19,15 +19,17 @@ The `scripts/` directory contains utility and entry-point scripts for the Discou
 | `agents/run_sentinel.py`                          | Runs Sentinel from Strategist JSON selectors and writes one `SentinelRunOutput` artifact per target (model-only CLI).                               |
 | `workflows/run_surveyor_then_researcher.py`       | Runs Surveyor once, then sequential Researcher per candidate (no Strategist stage).                                                                 |
 | `workflows/run_surveyor_researcher_strategist.py` | Runs Surveyor once, then sequential Researcher and Strategist per candidate.                                                                        |
-| `workflows/run_surveyor_to_appraiser.py`          | Runs Surveyor once, then sequential Researcher, Strategist, and Sentinel per candidate; Appraiser + DCF when Sentinel recommends proceed.           |
+| `workflows/run_surveyor_to_sentinel.py`           | Runs Surveyor once, then sequential Researcher, Strategist, and Sentinel per candidate.                                                             |
+| `workflows/run_surveyor_to_appraiser.py`          | Runs Surveyor once, then sequential Researcher, Strategist, and Sentinel per candidate; Appraiser + DCF when Sentinel authorises valuation.         |
 
 ## Subdirectories
 
-| Directory    | Purpose                                                                                                                                                                                        |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agents/`    | Entry points for Surveyor, Researcher, Strategist, Sentinel, and DCF/Appraiser workflows (`run_surveyor.py`, `run_researcher.py`, `run_strategist.py`, `run_sentinel.py`, `run_appraiser.py`). |
-| `workflows/` | Multi-agent workflow entry points combining Surveyor through Strategist or Sentinel orchestration.                                                                                             |
-| `common/`    | Shared CLI, JSON writers, run-output models, and usage helpers (see `common/AGENTS.md`).                                                                                                       |
+| Directory          | Purpose                                                                                                                                                                                        |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agents/`          | Entry points for Surveyor, Researcher, Strategist, Sentinel, and DCF/Appraiser workflows (`run_surveyor.py`, `run_researcher.py`, `run_strategist.py`, `run_sentinel.py`, `run_appraiser.py`). |
+| `workflows/`       | Multi-agent workflow entry points combining Surveyor through Strategist or Sentinel orchestration.                                                                                             |
+| `common/`          | Shared CLI, JSON writers, run-output models, usage and cost helpers (see `common/AGENTS.md`).                                                                                                  |
+| `cost_comparison/` | Model cost/speed comparison script (see `cost_comparison/AGENTS.md`).                                                                                                                          |
 
 ## For AI Agents
 

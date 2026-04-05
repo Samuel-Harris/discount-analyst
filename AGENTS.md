@@ -24,7 +24,7 @@ Each shortlisted stock is manually categorised as either a **value** stock (matu
 
 ### Stage 4 — Deep research and checklist scoring (in-repo Researcher or external AI tools)
 
-Deep research can be produced either by the in-repo `Researcher` agent (`scripts/agents/run_researcher.py`, or the `scripts/workflows/run_surveyor_then_researcher.py`, `scripts/workflows/run_surveyor_researcher_strategist.py`, or `scripts/workflows/run_surveyor_to_appraiser.py` pipelines) or by an external AI model (ChatGPT/Gemini run interactively). The checklist-scoring step can still be done externally. Prompts differ by category:
+Deep research can be produced either by the in-repo `Researcher` agent (`scripts/agents/run_researcher.py`, or the `scripts/workflows/run_surveyor_then_researcher.py`, `scripts/workflows/run_surveyor_researcher_strategist.py`, `scripts/workflows/run_surveyor_to_sentinel.py`, or `scripts/workflows/run_surveyor_to_appraiser.py` pipelines) or by an external AI model (ChatGPT/Gemini run interactively). The checklist-scoring step can still be done externally. Prompts differ by category:
 
 - **Value stocks**: assessed on financial health, valuation multiples, competitive moats, balance sheet strength, and red flags.
 - **Growth stocks**: assessed on revenue growth quality, unit economics, market opportunity, product differentiation, customer metrics, and catalysts.
@@ -60,6 +60,7 @@ The analyst reviews the DCF outputs and AI buy recommendations across all stocks
 | `scripts/agents/run_sentinel.py`                          | Runs Sentinel from Strategist output selectors (`<json>` or `<json>:<TICKER>`) and writes one JSON per target.                                     |
 | `scripts/workflows/run_surveyor_then_researcher.py`       | Runs Surveyor once, then Researcher per candidate (no Strategist).                                                                                 |
 | `scripts/workflows/run_surveyor_researcher_strategist.py` | Runs Surveyor once, Researcher per candidate, then Strategist per successful Researcher.                                                           |
+| `scripts/workflows/run_surveyor_to_sentinel.py`           | Runs Surveyor once, Researcher per candidate, then Strategist and Sentinel per successful prior stage.                                             |
 | `scripts/workflows/run_surveyor_to_appraiser.py`          | Runs Surveyor once, Researcher per candidate, then Strategist and Sentinel; Appraiser + DCF gated on derived valuation gate from `thesis_verdict`. |
 
 ## Subdirectories

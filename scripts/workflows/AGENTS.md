@@ -13,8 +13,9 @@ Contains orchestration scripts that run multiple agents in sequence with JSON ar
 | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `run_surveyor_then_researcher.py`       | Surveyor discovery, then sequential Researcher per candidate (no Strategist).                                                                                               |
 | `run_surveyor_researcher_strategist.py` | Surveyor discovery, sequential Researcher per candidate, then Strategist per successful Researcher.                                                                         |
-| `run_surveyor_to_appraiser.py`          | Surveyor discovery, sequential Researcher per candidate, Strategist and Sentinel per successful prior stage; Appraiser + DCF when Sentinel recommends Proceed to valuation. |
-| `__init__.py`                           | Package initialization for workflow scripts.                                                                                                                                |
+| `run_surveyor_to_sentinel.py`           | Surveyor discovery, sequential Researcher per candidate, then Strategist and Sentinel per successful prior stage.                                                           |
+| `run_surveyor_to_appraiser.py`          | Surveyor discovery, sequential Researcher per candidate, Strategist and Sentinel per successful prior stage; Appraiser + DCF when Sentinel authorises valuation.              |
+| `__init__.py`                           | Package initialization for workflow scripts.                                                                                                                              |
 
 ## Subdirectories
 
@@ -32,7 +33,7 @@ None.
 
 - Run `uv run ruff check scripts/workflows`.
 - Run `uv run pytest`.
-- For manual verification: `uv run python scripts/workflows/run_surveyor_then_researcher.py --help`, `uv run python scripts/workflows/run_surveyor_researcher_strategist.py --help`, and/or `uv run python scripts/workflows/run_surveyor_to_appraiser.py --help`.
+- For manual verification: `uv run python scripts/workflows/run_surveyor_then_researcher.py --help`, `uv run python scripts/workflows/run_surveyor_researcher_strategist.py --help`, `uv run python scripts/workflows/run_surveyor_to_sentinel.py --help`, and/or `uv run python scripts/workflows/run_surveyor_to_appraiser.py --help`.
 
 ### Common Patterns
 
