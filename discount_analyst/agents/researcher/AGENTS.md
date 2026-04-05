@@ -24,9 +24,9 @@ None.
 
 ### Working In This Directory
 
-- **Agent tools**: By default (`use_perplexity=False`), the agent uses pydantic-ai built-in `WebSearchTool` and, for providers that support it, `WebFetchTool`. With `use_perplexity=True`, Perplexity-backed tools (`web_search`, `sec_filings_search`) are provided by `discount_analyst.shared.tools.perplexity` via `create_perplexity_toolset(AgentName.RESEARCHER)`.
+- **Agent tools**: By default (`use_perplexity=False`), the agent uses pydantic-ai built-in `WebSearchTool` and, for providers that support it, `WebFetchTool`. With `use_perplexity=True`, Perplexity-backed tools (`web_search`, `sec_filings_search`) are provided by `discount_analyst.integrations.perplexity` via `create_perplexity_toolset(AgentName.RESEARCHER)`.
 - **MCP support**: When `use_mcp_financial_data=True` (default), EODHD and FMP MCP toolsets are added for Anthropic and OpenAI via `add_required_feature_to_builtin_tools` (`ProviderFeature.MCP`). Google does not support MCP - use `use_mcp_financial_data=False` or pass `--no-mcp` in scripts.
-- **Output contract**: Keep output constrained to `DeepResearchReport` in `shared/schemas/researcher.py`; do not add recommendation or valuation semantics to this agent.
+- **Output contract**: Keep output constrained to `DeepResearchReport` in `schema.py`; do not add recommendation or valuation semantics to this agent.
 
 ### Testing Requirements
 
@@ -42,10 +42,10 @@ None.
 
 ### Internal
 
-- `discount_analyst.shared.schemas.researcher`: Structured output contract (`DeepResearchReport` and nested models).
-- `discount_analyst.shared.schemas.surveyor`: Input contract (`SurveyorCandidate`).
-- `discount_analyst.shared.tools.perplexity`: Perplexity toolset factory keyed by `AgentName.RESEARCHER`.
-- `discount_analyst.shared.utils.agent_tools`: MCP toolset wiring utility.
+- `discount_analyst.agents.researcher.schema`: Structured output contract (`DeepResearchReport` and nested models).
+- `discount_analyst.agents.surveyor.schema`: Input contract (`SurveyorCandidate`).
+- `discount_analyst.integrations.perplexity`: Perplexity toolset factory keyed by `AgentName.RESEARCHER`.
+- `discount_analyst.agents.common.tool_support`: MCP toolset wiring utility.
 
 ### External
 

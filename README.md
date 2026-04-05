@@ -6,7 +6,7 @@ An AI-powered stock analysis tool for identifying and valuing promising small-ca
 
 ## Investment Workflow
 
-The tool supports a seven-stage pipeline that blends automated AI agents with a lightweight manual review step:
+The tool supports a five-stage pipeline: Surveyor, Researcher, and Strategist run in-repo; you still use an external AI model to weigh the buy case after DCF, then decide trades yourself.
 
 **1. Survey — discover candidates**
 Run the Surveyor agent to screen for promising small-cap stocks across UK and US markets:
@@ -17,35 +17,37 @@ uv run python scripts/agents/run_surveyor.py
 
 The agent uses AI-powered web research to surface a ranked list of candidates with market caps, exchange listings, and a rationale for each.
 
-**2. Shortlist — human review**
-Manually review the Surveyor output and select the top ~10 most promising candidates.
+**2. Research & strategy — in-repo agents**
+The **Researcher** agent takes each `SurveyorCandidate` (value vs growth is part of the surveyor context) and produces a structured, neutral **deep research** report (`DeepResearchReport`). The **Strategist** agent then reads that report plus the same candidate and outputs a structured **mispricing thesis** (`MispricingThesis`) — interpretation only, no extra web research.
 
-**3. Categorise — value or growth**
-For each shortlisted stock, decide whether it is a **value** stock (trading below intrinsic value, mature business) or a **growth** stock (high-growth, often pre-profit).
+Run the full chain (Surveyor → Researcher → Strategist) in one go:
 
-**4. Deep research — qualitative analysis**
-Use an AI model (ChatGPT or Gemini) with a structured deep-research prompt to produce a comprehensive research report for each stock. The prompts differ by category:
+```bash
+uv run python scripts/workflows/run_surveyor_researcher_strategist.py
+```
 
-- Value stocks: assessed on financial health, valuation multiples, competitive moats, balance sheet strength, and red flags.
-- Growth stocks: assessed on revenue growth quality, unit economics, market opportunity, product differentiation, customer metrics, and catalysts.
+Or run agents separately after Surveyor, using selectors of the form `path/to/surveyor.json` (all candidates) or `path/to/surveyor.json:TICKER` (one ticker):
 
-**5. Review the deep research report**
+```bash
+uv run python scripts/agents/run_researcher.py --surveyor-report-and-ticker <selector>
+uv run python scripts/agents/run_strategist.py --researcher-report-and-ticker <selector>
+```
 
-An AI agent then scores the resulting report against a detailed checklist for the appropriate category and produces a pass/fail summary per section.
+You can still narrow scope by passing a single-ticker selector instead of treating “shortlist” and “categorise” as separate manual stages.
 
-**6. Value — DCF analysis**
-Stocks that pass enough checklist criteria are passed to the Appraiser agent for a full Discounted Cash Flow valuation:
+**3. Value — DCF analysis**
+Pass names that are ready for valuation to the Appraiser agent for a full Discounted Cash Flow analysis:
 
 ```bash
 uv run python scripts/agents/run_appraiser.py --dir <path/to/stock_folder> --risk-free-rate <RATE>
 ```
 
-The folder must contain `deep-research.md` (stage-4 report) and `surveyor-report.json` (one `SurveyorCandidate`; ticker is read from the JSON).
+The folder must contain `deep-research.md` (the research write-up for that stock) and `surveyor-report.json` (one `SurveyorCandidate`; ticker is read from the JSON).
 
-**7. Evaluate — AI buy recommendation**
-Use an AI model (Claude, Gemini, or ChatGPT) to evaluate whether to buy each stock based on the research report and the DCF analysis output.
+**4. Evaluate — AI buy recommendation**
+Use an AI model (Claude, Gemini, or ChatGPT) to evaluate whether to buy each stock based on the research report, Strategist thesis, and the DCF analysis output.
 
-**8. Buy — act on the margin of safety**
+**5. Buy — act on the margin of safety**
 Review the DCF outputs across all analysed stocks. Buy the stocks with the greatest margin of safety — i.e. where the current market price is furthest below the intrinsic value estimated by the Appraiser.
 
 ## Quick Start
@@ -53,5 +55,5 @@ Review the DCF outputs across all analysed stocks. Buy the stocks with the great
 1. [Install uv](https://docs.astral.sh/uv/getting-started/installation/) if needed
 2. Set up your environment variables (see [scripts/README.md](scripts/README.md))
 3. Install dependencies: `uv sync`
-4. Run the Surveyor to find candidates: `uv run python scripts/agents/run_surveyor.py`
-5. After shortlisting and research (steps 2–4 above), run DCF analysis: `uv run python scripts/agents/run_appraiser.py --dir <folder with deep-research.md and surveyor-report.json> --risk-free-rate <decimal e.g. 0.045>`
+4. Run the Surveyor to find candidates: `uv run python scripts/agents/run_surveyor.py`, or run survey → research → strategy in one command: `uv run python scripts/workflows/run_surveyor_researcher_strategist.py`
+5. After Researcher/Strategist (step 2 above — or the combined workflow script), prepare per-stock folders and run DCF analysis: `uv run python scripts/agents/run_appraiser.py --dir <folder with deep-research.md and surveyor-report.json> --risk-free-rate <decimal e.g. 0.045>`

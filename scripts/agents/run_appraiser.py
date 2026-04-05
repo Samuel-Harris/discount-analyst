@@ -14,25 +14,25 @@ from rich.table import Table
 
 from discount_analyst.agents.appraiser.appraiser import create_appraiser_agent
 from discount_analyst.agents.appraiser.user_prompt import create_user_prompt
-from discount_analyst.shared.schemas.appraiser import AppraiserOutput
-from discount_analyst.dcf_analysis.data_types import (
+from discount_analyst.agents.appraiser.schema import AppraiserOutput
+from discount_analyst.valuation.data_types import (
     DCFAnalysisParameters,
     DCFAnalysisResult,
 )
-from discount_analyst.dcf_analysis.dcf_analysis import DCFAnalysis
-from discount_analyst.shared.config.ai_models_config import AIModelsConfig, ModelName
-from discount_analyst.shared.constants.agents import AgentName
-from discount_analyst.shared.ai.streamed_agent_run import run_streamed_agent
-from discount_analyst.shared.schemas.surveyor import SurveyorCandidate
+from discount_analyst.valuation.dcf_analysis import DCFAnalysis
+from discount_analyst.config.ai_models_config import AIModelsConfig, ModelName
+from discount_analyst.agents.common.agent_names import AgentName
+from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
+from discount_analyst.agents.surveyor.schema import SurveyorCandidate
 
-from scripts.shared.cli import (
+from scripts.common.cli import (
     DEFAULT_AGENT_CLI_DEFAULTS,
     add_agent_cli_model_argument,
     add_agent_cli_web_search_arguments,
 )
-from scripts.shared.outputs import write_agent_json
-from scripts.shared.schemas.run_outputs import AppraiserRunOutput, TurnUsage
-from scripts.shared.usage import extract_turn_usage
+from scripts.common.artifacts import write_agent_json
+from scripts.common.run_outputs import AppraiserRunOutput, TurnUsage
+from scripts.common.usage import extract_turn_usage
 from scripts.utils.setup_logfire import setup_logfire
 
 setup_logfire()
