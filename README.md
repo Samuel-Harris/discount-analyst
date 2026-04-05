@@ -39,10 +39,12 @@ You can still narrow scope by passing a single-ticker selector instead of treati
 Pass names that are ready for valuation to the Appraiser agent for a full Discounted Cash Flow analysis:
 
 ```bash
-uv run python scripts/agents/run_appraiser.py --dir <path/to/stock_folder> --risk-free-rate <RATE>
+uv run python scripts/agents/run_appraiser.py \
+  --sentinel-report-and-ticker scripts/outputs/<sentinel-run>.json \
+  --risk-free-rate <RATE>
 ```
 
-The folder must contain `deep-research.md` (the research write-up for that stock) and `surveyor-report.json` (one `SurveyorCandidate`; ticker is read from the JSON).
+Use the Sentinel artifact written under `scripts/outputs/` after `run_sentinel.py` (or the full pipeline). The script follows the same `path.json` / `path.json:TICKER` selector pattern as Sentinel; it loads Surveyor, Researcher, and Strategist JSON paths from fields inside the Sentinel run record.
 
 **4. Evaluate — AI buy recommendation**
 Use an AI model (Claude, Gemini, or ChatGPT) to evaluate whether to buy each stock based on the research report, Strategist thesis, and the DCF analysis output.
@@ -56,4 +58,4 @@ Review the DCF outputs across all analysed stocks. Buy the stocks with the great
 2. Set up your environment variables (see [scripts/README.md](scripts/README.md))
 3. Install dependencies: `uv sync`
 4. Run the Surveyor to find candidates: `uv run python scripts/agents/run_surveyor.py`, or run survey → research → strategy in one command: `uv run python scripts/workflows/run_surveyor_researcher_strategist.py`
-5. After Researcher/Strategist (step 2 above — or the combined workflow script), prepare per-stock folders and run DCF analysis: `uv run python scripts/agents/run_appraiser.py --dir <folder with deep-research.md and surveyor-report.json> --risk-free-rate <decimal e.g. 0.045>`
+5. After Researcher/Strategist/Sentinel (step 2 above — or `scripts/workflows/run_surveyor_to_appraiser.py` for the full gated pipeline), run DCF analysis: `uv run python scripts/agents/run_appraiser.py --sentinel-report-and-ticker scripts/outputs/<sentinel>.json --risk-free-rate <decimal e.g. 0.045>`

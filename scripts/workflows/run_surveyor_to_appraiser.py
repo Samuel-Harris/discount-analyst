@@ -1,4 +1,4 @@
-"""Run Surveyor once, then Researcher, Strategist, and Sentinel per successful prior stage."""
+"""Run Surveyor once, then Researcher, Strategist, Sentinel, and gated Appraiser + DCF."""
 
 import argparse
 import asyncio
@@ -10,7 +10,10 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from discount_analyst.agents.sentinel.schema import EvaluationReport
+from discount_analyst.agents.sentinel.schema import (
+    EvaluationReport,
+    sentinel_proceeds_to_valuation,
+)
 from discount_analyst.agents.sentinel.sentinel import create_sentinel_agent
 from discount_analyst.agents.sentinel.user_prompt import (
     create_user_prompt as create_sentinel_user_prompt,
@@ -30,7 +33,15 @@ from discount_analyst.agents.surveyor.user_prompt import USER_PROMPT
 from discount_analyst.agents.researcher.schema import DeepResearchReport
 from discount_analyst.agents.strategist.schema import MispricingThesis
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate, SurveyorOutput
+from discount_analyst.agents.appraiser.schema import AppraiserInput
 from discount_analyst.config.ai_models_config import AIModelsConfig, ModelName
+from scripts.agents.run_appraiser import (
+    StockRunArgs,
+    display_agent_output,
+    run_agent,
+    run_dcf_and_display,
+    save_run_output,
+)
 from scripts.common.cli import (
     add_agent_cli_model_argument,
     add_agent_cli_web_search_arguments,
@@ -108,21 +119,36 @@ class FailedSentinelRun:
     error: str
 
 
+@dataclass
+class FailedAppraiserRun:
+    ticker: str
+    candidate_index: int
+    error: str
+
+
 class WorkflowArgs(BaseModel):
     model: ModelName
     use_perplexity: bool
     use_mcp_financial_data: bool
+    risk_free_rate: float
 
 
 def parse_args() -> WorkflowArgs:
     parser = argparse.ArgumentParser(
         description=(
             "Run Surveyor once, then Researcher sequentially for each candidate, "
-            "then Strategist and Sentinel for each successful Researcher and Strategist run."
+            "then Strategist and Sentinel for each successful Researcher and Strategist run, "
+            "then Appraiser and DCF when Sentinel recommends Proceed to valuation."
         )
     )
     add_agent_cli_model_argument(parser)
     add_agent_cli_web_search_arguments(parser)
+    parser.add_argument(
+        "--risk-free-rate",
+        type=float,
+        required=True,
+        help="Risk-free rate as a decimal for DCF (e.g. 0.045 for 4.5%%).",
+    )
     parser.add_argument(
         "--no-mcp",
         action="store_true",
@@ -132,10 +158,16 @@ def parse_args() -> WorkflowArgs:
         ),
     )
     raw = parser.parse_args()
+    if not (0 < raw.risk_free_rate <= 0.15):
+        parser.error(
+            f"--risk-free-rate must be a decimal between 0 and 0.15 (e.g. 0.045 for 4.5%). "
+            f"Got {raw.risk_free_rate}."
+        )
     return WorkflowArgs(
         model=raw.model,
         use_perplexity=raw.use_perplexity,
         use_mcp_financial_data=not raw.no_mcp,
+        risk_free_rate=raw.risk_free_rate,
     )
 
 
@@ -210,7 +242,14 @@ def display_sentinel_output(output: EvaluationReport) -> None:
     table.add_column("Value", style="white")
     table.add_row("Company", output.company_name)
     table.add_row("Thesis verdict", output.thesis_verdict)
-    table.add_row("Recommendation", output.recommendation)
+    table.add_row(
+        "Valuation gate (derived)",
+        (
+            "Proceed to valuation"
+            if sentinel_proceeds_to_valuation(output.thesis_verdict)
+            else "Do not proceed"
+        ),
+    )
     console.print(table)
 
 
@@ -245,6 +284,20 @@ def display_strategist_failure_summary(failures: list[FailedStrategistRun]) -> N
 def display_sentinel_failure_summary(failures: list[FailedSentinelRun]) -> None:
     table = Table(
         title="Sentinel Failures",
+        show_header=True,
+        header_style="bold red",
+    )
+    table.add_column("Ticker", style="cyan", no_wrap=True)
+    table.add_column("Candidate Index", style="yellow")
+    table.add_column("Error", style="white")
+    for failed in failures:
+        table.add_row(failed.ticker, str(failed.candidate_index), failed.error)
+    console.print(table)
+
+
+def display_appraiser_failure_summary(failures: list[FailedAppraiserRun]) -> None:
+    table = Table(
+        title="Appraiser Failures",
         show_header=True,
         header_style="bold red",
     )
@@ -534,9 +587,12 @@ async def main() -> None:
     failures: list[FailedCandidateRun] = []
     strategist_failures: list[FailedStrategistRun] = []
     sentinel_failures: list[FailedSentinelRun] = []
+    appraiser_failures: list[FailedAppraiserRun] = []
     researcher_successes = 0
     strategist_successes = 0
     sentinel_successes = 0
+    appraiser_successes = 0
+    appraiser_skipped_sentinel = 0
 
     for index, candidate in enumerate(candidates):
         if index > 0:
@@ -607,6 +663,74 @@ async def main() -> None:
                     )
                     sentinel_successes += 1
                     console.print(f"Saved Sentinel output: [dim]{sentinel_path}[/dim]")
+
+                    if sentinel_proceeds_to_valuation(
+                        sent_result.output.thesis_verdict
+                    ):
+                        try:
+                            appraiser_input = AppraiserInput(
+                                stock_candidate=candidate,
+                                deep_research=run_result.output,
+                                thesis=strat_result.output,
+                                evaluation=sent_result.output,
+                                risk_free_rate=args.risk_free_rate,
+                            )
+                            stock_args = StockRunArgs(
+                                surveyor_candidate=candidate,
+                                risk_free_rate=args.risk_free_rate,
+                                model=args.model,
+                            )
+                            console.log(
+                                f"Sentinel recommended Proceed to valuation; "
+                                f"running Appraiser + DCF for {candidate.ticker}..."
+                            )
+                            agent_result = await run_agent(
+                                stock_args,
+                                appraiser_input,
+                                use_perplexity=args.use_perplexity,
+                                use_mcp_financial_data=args.use_mcp_financial_data,
+                            )
+                            display_agent_output(agent_result.output)
+                            dcf_result, dcf_error = run_dcf_and_display(
+                                stock_args, agent_result.output
+                            )
+                            appraiser_out_path = save_run_output(
+                                stock_args,
+                                agent_result.output,
+                                agent_result,
+                                dcf_result,
+                                dcf_error,
+                                source_surveyor_report=surveyor_path,
+                                source_candidate_index=index,
+                                source_researcher_report=researcher_out_path,
+                                source_strategist_report=strat_path,
+                                source_sentinel_report=sentinel_path,
+                                filename_suffix=suffixes[index],
+                            )
+                            appraiser_successes += 1
+                            console.print(
+                                f"Saved Appraiser output: [dim]{appraiser_out_path}[/dim]"
+                            )
+                        except Exception as appr_exc:
+                            appraiser_failures.append(
+                                FailedAppraiserRun(
+                                    ticker=candidate.ticker,
+                                    candidate_index=index,
+                                    error=str(appr_exc),
+                                )
+                            )
+                            console.print(
+                                f"[red]Appraiser failed for {candidate.ticker} "
+                                f"(candidate_index={index}). Continuing...[/red]"
+                            )
+                            console.print(f"[dim]{appr_exc}[/dim]")
+                    else:
+                        appraiser_skipped_sentinel += 1
+                        console.log(
+                            f"Skipping Appraiser for {candidate.ticker}: "
+                            f"thesis_verdict is {sent_result.output.thesis_verdict!r} "
+                            "(valuation gate: Do not proceed)."
+                        )
                 except Exception as exc:
                     sentinel_failures.append(
                         FailedSentinelRun(
@@ -651,14 +775,17 @@ async def main() -> None:
 
     console.print(
         Panel.fit(
-            f"Workflow complete: Surveyor, Researcher, Strategist, Sentinel\n"
+            f"Workflow complete: Surveyor through Appraiser (gated)\n"
             f"Candidates: {len(candidates)}\n"
             f"Researcher successes: {researcher_successes}\n"
             f"Researcher failures: {len(failures)}\n"
             f"Strategist successes: {strategist_successes}\n"
             f"Strategist failures: {len(strategist_failures)}\n"
             f"Sentinel successes: {sentinel_successes}\n"
-            f"Sentinel failures: {len(sentinel_failures)}",
+            f"Sentinel failures: {len(sentinel_failures)}\n"
+            f"Appraiser successes: {appraiser_successes}\n"
+            f"Appraiser failures: {len(appraiser_failures)}\n"
+            f"Appraiser skipped (Sentinel not proceed): {appraiser_skipped_sentinel}",
             border_style="cyan",
         )
     )
@@ -668,6 +795,8 @@ async def main() -> None:
         display_strategist_failure_summary(strategist_failures)
     if sentinel_failures:
         display_sentinel_failure_summary(sentinel_failures)
+    if appraiser_failures:
+        display_appraiser_failure_summary(appraiser_failures)
 
 
 if __name__ == "__main__":

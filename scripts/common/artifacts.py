@@ -3,7 +3,6 @@
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
 
 from pydantic import BaseModel
 
@@ -11,7 +10,6 @@ from discount_analyst.agents.common.agent_names import AgentName
 from discount_analyst.config.ai_models_config import ModelName
 
 from scripts.common.constants import SCRIPTS_OUTPUTS_DIR
-from scripts.common.run_outputs import AppraiserRunOutput
 
 
 def _sanitize_filename_suffix_body(s: str) -> str:
@@ -53,44 +51,3 @@ def write_agent_json(
     path = SCRIPTS_OUTPUTS_DIR / filename
     path.write_text(payload.model_dump_json(indent=2))
     return path.resolve()
-
-
-def output_filename(
-    timestamp: str,
-    model_name: str,
-    ticker: str,
-    cache_enabled: bool,
-    use_web_search: bool = False,
-) -> str:
-    """Return output filename for a run (same pattern as write_model_output)."""
-    safe_model = model_name.replace(".", "-")
-    cache_part = "cache" if cache_enabled else "no-cache"
-    search_part = "web-search" if use_web_search else "perplexity"
-    return f"{timestamp}-{safe_model}-{cache_part}-{search_part}-{ticker}.json"
-
-
-def write_model_output(
-    *,
-    run_output: AppraiserRunOutput,
-    timestamp: str,
-    output_dir: Path,
-    cache_suffix: Literal["cache", "no-cache"] | None = None,
-    search_suffix: Literal["web-search", "perplexity"] | None = None,
-) -> Path:
-    """Serialise the full run output (agent + DCF) to JSON and return the path written.
-
-    When cache_suffix and search_suffix are omitted, the filename is
-    {timestamp}-{model}-{ticker}.json. When set, they are included before the ticker.
-    """
-    safe_model = run_output.model_name.replace(".", "-")
-    parts: list[str] = [timestamp, safe_model]
-    if cache_suffix is not None:
-        parts.append(cache_suffix)
-    if search_suffix is not None:
-        parts.append(search_suffix)
-    parts.append(run_output.ticker)
-    filename = "-".join(parts) + ".json"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    path = output_dir / filename
-    path.write_text(run_output.model_dump_json(indent=2))
-    return path

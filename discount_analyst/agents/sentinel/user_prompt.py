@@ -53,7 +53,7 @@ Work through the evaluation in the sequence defined in your instructions:
 1. Answer each **evaluation_question** from the thesis in turn, assessing the quality and weight of evidence — not merely the direction of the answer.
 2. Apply the universal red flag screen across all six dimensions. The screen is thesis-agnostic. Run it regardless of how strong the thesis appears.
 3. Identify any material data gaps that are load-bearing for the thesis and remain unresolved in the research.
-4. Deliver your thesis_verdict, verdict_rationale, caveats, and recommendation.
+4. Deliver your thesis_verdict, verdict_rationale, caveats, and material_data_gaps (see schema — no separate recommendation field).
 
 Your verdict must be **earned by your analysis** — not assumed from the thesis's stated conviction. If conviction is "High" and your assessment breaks the thesis, say so. If conviction is "Low" and your assessment supports the thesis, say so.
 

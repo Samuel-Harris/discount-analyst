@@ -24,7 +24,7 @@ Each shortlisted stock is manually categorised as either a **value** stock (matu
 
 ### Stage 4 — Deep research and checklist scoring (in-repo Researcher or external AI tools)
 
-Deep research can be produced either by the in-repo `Researcher` agent (`scripts/agents/run_researcher.py`, or the `scripts/workflows/run_surveyor_then_researcher.py`, `scripts/workflows/run_surveyor_researcher_strategist.py`, or `scripts/workflows/run_surveyor_to_sentinel.py` pipelines) or by an external AI model (ChatGPT/Gemini run interactively). The checklist-scoring step can still be done externally. Prompts differ by category:
+Deep research can be produced either by the in-repo `Researcher` agent (`scripts/agents/run_researcher.py`, or the `scripts/workflows/run_surveyor_then_researcher.py`, `scripts/workflows/run_surveyor_researcher_strategist.py`, or `scripts/workflows/run_surveyor_to_appraiser.py` pipelines) or by an external AI model (ChatGPT/Gemini run interactively). The checklist-scoring step can still be done externally. Prompts differ by category:
 
 - **Value stocks**: assessed on financial health, valuation multiples, competitive moats, balance sheet strength, and red flags.
 - **Growth stocks**: assessed on revenue growth quality, unit economics, market opportunity, product differentiation, customer metrics, and catalysts.
@@ -35,7 +35,7 @@ A separate AI agent then scores the resulting report against a detailed checklis
 
 ### Stage 5 — DCF valuation (automated)
 
-Stocks that pass the checklist are processed by `scripts/agents/run_appraiser.py` (per-stock `--dir` folders containing `deep-research.md` and `surveyor-report.json`), which runs the `discount_analyst/agents/appraiser/appraiser.py` agent to perform a full Discounted Cash Flow valuation. The agent consumes the deep-research report plus structured Surveyor candidate context and writes output (agent analysis + DCF figures) to `outputs/`.
+Stocks that pass the checklist are processed by `scripts/agents/run_appraiser.py`, which takes Sentinel run JSON paths (same selector style as `run_sentinel.py`: `--sentinel-report-and-ticker`), resolves upstream Surveyor / Researcher / Strategist artifacts from the Sentinel record, runs the Appraiser agent, and writes output (agent analysis + DCF figures) to `outputs/`.
 
 ### Stage 6 — Evaluate (external AI)
 
@@ -47,20 +47,20 @@ The analyst reviews the DCF outputs and AI buy recommendations across all stocks
 
 ## Key Files
 
-| File                                                      | Description                                                                                                            |
-| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `pyproject.toml`                                          | Project metadata, uv configuration, and dependencies.                                                                  |
-| `uv.lock`                                                 | Locked versions of all project dependencies.                                                                           |
-| `README.md`                                               | Overview, quick start instructions, and high-level documentation.                                                      |
-| `LICENSE`                                                 | MIT License terms for the repository.                                                                                  |
-| `pytest.ini`                                              | Configuration for the `pytest` test suite, including coverage settings.                                                |
-| `.cursor/hooks.json`                                      | Cursor hooks: `sessionStart` (injects branch + uv env context) and `afterFileEdit` (auto-runs `ruff` on Python files). |
-| `scripts/agents/run_researcher.py`                        | Runs Researcher from Surveyor output selectors (`<json>` or `<json>:<TICKER>`) and writes one JSON per candidate.      |
-| `scripts/agents/run_strategist.py`                        | Runs Strategist from Researcher output selectors (`<json>` or `<json>:<TICKER>`) and writes one JSON per target.       |
-| `scripts/agents/run_sentinel.py`                          | Runs Sentinel from Strategist output selectors (`<json>` or `<json>:<TICKER>`) and writes one JSON per target.         |
-| `scripts/workflows/run_surveyor_then_researcher.py`       | Runs Surveyor once, then Researcher per candidate (no Strategist).                                                     |
-| `scripts/workflows/run_surveyor_researcher_strategist.py` | Runs Surveyor once, Researcher per candidate, then Strategist per successful Researcher.                               |
-| `scripts/workflows/run_surveyor_to_sentinel.py`           | Runs Surveyor once, Researcher per candidate, then Strategist and Sentinel per successful prior stage.                 |
+| File                                                      | Description                                                                                                                                        |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pyproject.toml`                                          | Project metadata, uv configuration, and dependencies.                                                                                              |
+| `uv.lock`                                                 | Locked versions of all project dependencies.                                                                                                       |
+| `README.md`                                               | Overview, quick start instructions, and high-level documentation.                                                                                  |
+| `LICENSE`                                                 | MIT License terms for the repository.                                                                                                              |
+| `pytest.ini`                                              | Configuration for the `pytest` test suite, including coverage settings.                                                                            |
+| `.cursor/hooks.json`                                      | Cursor hooks: `sessionStart` (injects branch + uv env context) and `afterFileEdit` (auto-runs `ruff` on Python files).                             |
+| `scripts/agents/run_researcher.py`                        | Runs Researcher from Surveyor output selectors (`<json>` or `<json>:<TICKER>`) and writes one JSON per candidate.                                  |
+| `scripts/agents/run_strategist.py`                        | Runs Strategist from Researcher output selectors (`<json>` or `<json>:<TICKER>`) and writes one JSON per target.                                   |
+| `scripts/agents/run_sentinel.py`                          | Runs Sentinel from Strategist output selectors (`<json>` or `<json>:<TICKER>`) and writes one JSON per target.                                     |
+| `scripts/workflows/run_surveyor_then_researcher.py`       | Runs Surveyor once, then Researcher per candidate (no Strategist).                                                                                 |
+| `scripts/workflows/run_surveyor_researcher_strategist.py` | Runs Surveyor once, Researcher per candidate, then Strategist per successful Researcher.                                                           |
+| `scripts/workflows/run_surveyor_to_appraiser.py`          | Runs Surveyor once, Researcher per candidate, then Strategist and Sentinel; Appraiser + DCF gated on derived valuation gate from `thesis_verdict`. |
 
 ## Subdirectories
 

@@ -1,4 +1,4 @@
-"""Serialisable run records written under scripts/outputs or cost_comparison outputs."""
+"""Serialisable run records written under scripts/outputs."""
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
@@ -48,6 +48,11 @@ class AppraiserRunOutput(BaseModel):
     cache_read_tokens: int
     tool_calls: int
     turn_usage: list[TurnUsage] = Field(default_factory=default_turn_usage_list)
+    source_surveyor_report: str
+    source_candidate_index: int = Field(ge=0)
+    source_researcher_report: str
+    source_strategist_report: str
+    source_sentinel_report: str
 
 
 class SurveyorRunOutput(BaseModel):

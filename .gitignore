@@ -35,7 +35,6 @@ experiment_data/
 
 # Outputs
 outputs/
-scripts/cost_comparison/outputs/
 
 # Cursor artefacts
 .cursor/artefacts/

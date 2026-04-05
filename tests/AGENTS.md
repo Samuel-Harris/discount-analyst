@@ -14,14 +14,16 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | `tests/dcf_analysis/test_dcf_analysis.py`                         | Comprehensive unit tests for the DCF calculation engine using real-world stock data scenarios. |
 | `tests/discount_analyst/http/test_streaming_retries.py`           | Unit tests for agent streaming retry helpers (`stream_with_retries`, sleep parsing).           |
 | `tests/discount_analyst/agents/common/test_streamed_agent_run.py` | Tests for `run_streamed_agent`.                                                                |
+| `tests/discount_analyst/agents/sentinel/test_sentinel_gate.py`    | Tests for `sentinel_proceeds_to_valuation`.                                                    |
 
 ## Subdirectories
 
-| Directory                         | Purpose                                                                                   |
-| --------------------------------- | ----------------------------------------------------------------------------------------- |
-| `dcf_analysis/`                   | Tests for the DCF engine (`discount_analyst.valuation`).                                  |
-| `discount_analyst/http/`          | Tests for streaming retry behaviour (`discount_analyst.agents.common.streaming_retries`). |
-| `discount_analyst/agents/common/` | Tests for streamed agent orchestration.                                                   |
+| Directory                           | Purpose                                                                                   |
+| ----------------------------------- | ----------------------------------------------------------------------------------------- |
+| `dcf_analysis/`                     | Tests for the DCF engine (`discount_analyst.valuation`).                                  |
+| `discount_analyst/http/`            | Tests for streaming retry behaviour (`discount_analyst.agents.common.streaming_retries`). |
+| `discount_analyst/agents/common/`   | Tests for streamed agent orchestration.                                                   |
+| `discount_analyst/agents/sentinel/` | Tests for Sentinel schema helpers.                                                        |
 
 ## For AI Agents
 

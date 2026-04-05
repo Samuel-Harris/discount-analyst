@@ -16,6 +16,7 @@ Treat this as relevant when you are about to introduce **any** of the following:
 - A **second** public or semi-public entry point for the same behavior (duplicate CLIs, workflow scripts, factories, or prompt builders).
 - **Optional parameters** or branches whose only purpose is “keep old callers working” without an explicit product decision.
 - **Parallel schemas** or serialization aliases for the same concept (e.g. extra `Literal` values, `AliasChoices`, or “v1 / v2” shapes) not mandated by an external consumer.
+- **Loosening a persisted contract** — e.g. optional fields with `None` defaults on Pydantic models or JSON shapes so **older on-disk artifacts** keep validating without migration. That is a compatibility surface, not a neutral typing choice.
 - **Adapters or wrappers** whose role is only to preserve an old type or file layout next to a new canonical one.
 
 If you are only **deduplicating** logic inside the canonical path (private helpers, shared validation), this rule does **not** require a compatibility decision.
@@ -30,7 +31,7 @@ You do **not** need to ask the user before **choosing not to add** compatibility
 
 1. **Verify necessity** — not convenience, imagined callers, or fear of churn. Compat is for obligations you cannot move in the same change.
 
-2. If there is **any** doubt, **ask the user** whether they want that surface **before** implementing it. Be specific: what stays supported, who depends on it, and for how long.
+2. If there is **any** doubt, **ask the user** whether they want that surface **before** implementing it. Be specific: what stays supported, who depends on it, and for how long. **Do not infer** “we should keep old JSON/callers working” from silence — that is exactly when this step applies.
 
 3. If the user has **not** asked for compatibility and you are not certain it is mandatory, **do not add it**. Prefer updating callers, docs, and on-disk contracts to the canonical path.
 
