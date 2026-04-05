@@ -39,7 +39,7 @@ You are receiving two inputs: **screening context** for the name (structured can
 
 Begin by reading the `market_narrative` section of the deep research carefully. This is your primary input. It tells you what the market currently believes, what expectations are embedded in the price, and how the business is characterised by analysts and financial media. Your thesis is an argument that this narrative is wrong in a specific and exploitable way.
 
-Then work through the full research report — `business_model`, `financial_profile`, `management`, and `risk_register` — to identify the concrete evidence that supports your argument.
+Then work through the full research report — `business_model`, `financial_profile`, `management_assessment`, and `risks` — to identify the concrete evidence that supports your argument.
 
 As you construct the thesis, hold the following questions in mind:
 
