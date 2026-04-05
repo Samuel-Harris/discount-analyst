@@ -9,33 +9,33 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 
 ## Key Files
 
-| File                                              | Description                                                                                                        |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `dcf_analysis/dcf_analysis.py`                    | Implementation of the Discounted Cash Flow calculation engine.                                                     |
-| `agents/appraiser/appraiser.py`                   | Factory for the Appraiser agent with model-native or optional Perplexity-backed search tools.                      |
-| `agents/surveyor/surveyor.py`                     | Factory for the Surveyor agent for discovering cheap small-cap stock candidates.                                   |
-| `agents/researcher/researcher.py`                 | Factory for the Researcher agent that produces structured `DeepResearchReport` output from `SurveyorCandidate`.    |
-| `agents/strategist/strategist.py`                 | Factory for the Strategist agent that produces `MispricingThesis` from `SurveyorCandidate` + `DeepResearchReport`. |
-| `shared/ai/agent_factory.py`                      | Shared `AgentSpec` + `create_agent` factory used by pipeline agents (and Strategist in no-tools mode).               |
-| `shared/ai/streamed_agent_run.py`                 | Shared streaming helper wrapping `stream_with_retries` and returning output, usage, and elapsed time.              |
-| `shared/schemas/stock.py`                         | Core financial schemas: `StockData` and `StockAssumptions` used by DCF and Appraiser output typing.                |
-| `shared/schemas/surveyor.py`                      | Surveyor enums and schemas: `SurveyorCandidate`, `SurveyorOutput`, and `KeyMetrics`.                               |
-| `shared/schemas/researcher.py`                    | Researcher report schemas: `DeepResearchReport` plus nested neutral-evidence sections and data-gap progression.    |
-| `shared/schemas/strategist.py`                    | Strategist output schema: `MispricingThesis`.                                                                      |
-| `shared/schemas/appraiser.py`                     | Appraiser output schema: `AppraiserOutput` (`StockData` + `StockAssumptions`).                                     |
-| `shared/config/settings.py`                       | Application configuration using `pydantic-settings` for API keys and environment variables.                        |
-| `shared/config/ai_models_config.py`               | Configuration for LLM models, including token budgets and thinking parameters.                                     |
-| `workflows/run_surveyor_researcher_strategist.py` | Compatibility wrapper to run Surveyor→Researcher→Strategist via `scripts/workflows/run_surveyor_researcher_strategist.py`. |
-| `../scripts/workflows/run_surveyor_then_researcher.py` | Surveyor once, then sequential Researcher per candidate (no Strategist stage).                                |
+| File                                              | Description                                                                                                           |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `dcf_analysis/dcf_analysis.py`                    | Implementation of the Discounted Cash Flow calculation engine.                                                        |
+| `agents/appraiser/appraiser.py`                   | Factory for the Appraiser agent with model-native or optional Perplexity-backed search tools.                         |
+| `agents/surveyor/surveyor.py`                     | Factory for the Surveyor agent for discovering cheap small-cap stock candidates.                                      |
+| `agents/researcher/researcher.py`                 | Factory for the Researcher agent that produces structured `DeepResearchReport` output from `SurveyorCandidate`.       |
+| `agents/strategist/strategist.py`                 | Factory for the Strategist agent that produces `MispricingThesis` from `SurveyorCandidate` + `DeepResearchReport`.    |
+| `agents/arbiter/arbiter.py`                       | Factory for the Arbiter agent that produces `EvaluationReport` from candidate + deep research + thesis.               |
+| `shared/ai/agent_factory.py`                      | Shared `AgentSpec` + `create_agent` factory used by pipeline agents (Strategist/Arbiter use no-tools mode).           |
+| `shared/ai/streamed_agent_run.py`                 | Shared streaming helper wrapping `stream_with_retries` and returning output, usage, and elapsed time.                 |
+| `shared/schemas/stock.py`                         | Core financial schemas: `StockData` and `StockAssumptions` used by DCF and Appraiser output typing.                   |
+| `shared/schemas/surveyor.py`                      | Surveyor enums and schemas: `SurveyorCandidate`, `SurveyorOutput`, and `KeyMetrics`.                                  |
+| `shared/schemas/researcher.py`                    | Researcher report schemas: `DeepResearchReport` plus nested neutral-evidence sections and data-gap progression.       |
+| `shared/schemas/strategist.py`                    | Strategist output schema: `MispricingThesis`.                                                                         |
+| `shared/schemas/arbiter.py`                       | Arbiter output schema: `EvaluationReport`.                                                                            |
+| `shared/schemas/appraiser.py`                     | Appraiser output schema: `AppraiserOutput` (`StockData` + `StockAssumptions`).                                        |
+| `shared/config/settings.py`                       | Application configuration using `pydantic-settings` for API keys and environment variables.                           |
+| `shared/config/ai_models_config.py`               | Configuration for LLM models, including token budgets and thinking parameters.                                        |
+| `../scripts/workflows/run_surveyor_to_arbiter.py` | Surveyor once, then sequential Researcher, Strategist, and Arbiter per candidate (see `scripts/workflows/AGENTS.md`). |
 
 ## Subdirectories
 
-| Directory       | Purpose                                                                                                      |
-| --------------- | ------------------------------------------------------------------------------------------------------------ |
-| `dcf_analysis/` | Core logic for financial calculations and DCF modeling. (see `dcf_analysis/AGENTS.md`)                       |
-| `agents/`       | AI agent packages for surveyor, researcher, and appraiser workflows. (see `agents/AGENTS.md`)                |
-| `shared/`       | Common data structures, configuration, and utility modules used across the package. (see `shared/AGENTS.md`) |
-| `workflows/`    | Compatibility workflow entry point; canonical orchestration lives in `scripts/workflows/` (see `scripts/workflows/AGENTS.md`). |
+| Directory       | Purpose                                                                                                            |
+| --------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `dcf_analysis/` | Core logic for financial calculations and DCF modeling. (see `dcf_analysis/AGENTS.md`)                             |
+| `agents/`       | AI agent packages for surveyor, researcher, strategist, arbiter, and appraiser workflows. (see `agents/AGENTS.md`) |
+| `shared/`       | Common data structures, configuration, and utility modules used across the package. (see `shared/AGENTS.md`)       |
 
 ## For AI Agents
 

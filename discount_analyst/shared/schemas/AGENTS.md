@@ -15,6 +15,7 @@ Central Pydantic schemas for financial data and agent outputs. This directory de
 | `surveyor.py`   | Surveyor enums (`Exchange`, `Currency`, `StockCategory`) and models (`KeyMetrics`, `SurveyorCandidate`, `SurveyorOutput`).      |
 | `researcher.py` | Researcher output schemas (`DeepResearchReport`, `MarketNarrative`, and nested report sections) built from `SurveyorCandidate`. |
 | `strategist.py` | Strategist output schema (`MispricingThesis`): interpretation-only thesis from `SurveyorCandidate` + `DeepResearchReport`.      |
+| `arbiter.py`    | Arbiter output schema (`EvaluationReport`): thesis assessment, red-flag screen, and recommendation for downstream Appraiser.    |
 | `appraiser.py`  | Appraiser output schema (`AppraiserOutput`): `StockData` + `StockAssumptions` for DCF workflows.                                |
 | `__init__.py`   | Package initialization file for `discount_analyst.shared.schemas`.                                                              |
 
@@ -26,7 +27,7 @@ None.
 
 ### Working In This Directory
 
-- **Source of truth**: Use `stock.py` for DCF/Appraiser financial line items, `appraiser.py` for Appraiser agent output typing, `surveyor.py` for Surveyor candidate/output schemas, `researcher.py` for structured deep-research outputs, and `strategist.py` for mispricing thesis output.
+- **Source of truth**: Use `stock.py` for DCF/Appraiser financial line items, `appraiser.py` for Appraiser agent output typing, `surveyor.py` for Surveyor candidate/output schemas, `researcher.py` for structured deep-research outputs, `strategist.py` for mispricing thesis output, and `arbiter.py` for evaluation report output.
 - **Metric Definitions**: When adding new financial metrics to `StockData`, include detailed `Field` descriptions for tool and prompt clarity.
 
 ### Testing Requirements
