@@ -1,0 +1,780 @@
+{
+  "components": {
+    "schemas": {
+      "AgentExecutionSummary": {
+        "properties": {
+          "agent_name": {
+            "$ref": "#/components/schemas/AgentNameSlug"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ExecutionStatusApi"
+          }
+        },
+        "required": [
+          "id",
+          "agent_name",
+          "status",
+          "started_at",
+          "completed_at"
+        ],
+        "title": "AgentExecutionSummary",
+        "type": "object"
+      },
+      "AgentNameSlug": {
+        "description": "Lowercase path/JSON values for every ``AgentName`` (workflow- and ticker-scoped).",
+        "enum": [
+          "surveyor",
+          "profiler",
+          "researcher",
+          "strategist",
+          "sentinel",
+          "appraiser",
+          "arbiter"
+        ],
+        "title": "AgentNameSlug",
+        "type": "string"
+      },
+      "ConversationResponse": {
+        "properties": {
+          "assistant_response": {
+            "title": "Assistant Response",
+            "type": "string"
+          },
+          "messages_json": {
+            "title": "Messages Json",
+            "type": "string"
+          },
+          "system_prompt": {
+            "title": "System Prompt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "system_prompt",
+          "messages_json",
+          "assistant_response"
+        ],
+        "title": "ConversationResponse",
+        "type": "object"
+      },
+      "CreateWorkflowRunRequest": {
+        "properties": {
+          "is_mock": {
+            "default": false,
+            "title": "Is Mock",
+            "type": "boolean"
+          },
+          "portfolio_tickers": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 0,
+            "title": "Portfolio Tickers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "portfolio_tickers"
+        ],
+        "title": "CreateWorkflowRunRequest",
+        "type": "object"
+      },
+      "CreateWorkflowRunResponse": {
+        "properties": {
+          "profiler_runs": {
+            "items": {
+              "$ref": "#/components/schemas/ProfilerRunCreated"
+            },
+            "title": "Profiler Runs",
+            "type": "array"
+          },
+          "surveyor_started": {
+            "default": true,
+            "title": "Surveyor Started",
+            "type": "boolean"
+          },
+          "workflow_run_id": {
+            "title": "Workflow Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workflow_run_id",
+          "profiler_runs"
+        ],
+        "title": "CreateWorkflowRunResponse",
+        "type": "object"
+      },
+      "DecisionTypeApi": {
+        "enum": [
+          "arbiter",
+          "sentinel_rejection"
+        ],
+        "title": "DecisionTypeApi",
+        "type": "string"
+      },
+      "EntryPathApi": {
+        "enum": [
+          "surveyor",
+          "profiler"
+        ],
+        "title": "EntryPathApi",
+        "type": "string"
+      },
+      "ExecutionStatusApi": {
+        "enum": [
+          "pending",
+          "running",
+          "completed",
+          "skipped",
+          "rejected",
+          "failed"
+        ],
+        "title": "ExecutionStatusApi",
+        "type": "string"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "PortfolioResponse": {
+        "properties": {
+          "portfolio_tickers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Portfolio Tickers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "portfolio_tickers"
+        ],
+        "title": "PortfolioResponse",
+        "type": "object"
+      },
+      "ProfilerRunCreated": {
+        "properties": {
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "ticker": {
+            "title": "Ticker",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "ticker"
+        ],
+        "title": "ProfilerRunCreated",
+        "type": "object"
+      },
+      "SurveyorExecutionSummary": {
+        "properties": {
+          "agent_name": {
+            "$ref": "#/components/schemas/AgentNameSlug"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ExecutionStatusApi"
+          }
+        },
+        "required": [
+          "id",
+          "agent_name",
+          "status",
+          "started_at",
+          "completed_at"
+        ],
+        "title": "SurveyorExecutionSummary",
+        "type": "object"
+      },
+      "TickerRunDetail": {
+        "properties": {
+          "agent_executions": {
+            "items": {
+              "$ref": "#/components/schemas/AgentExecutionSummary"
+            },
+            "title": "Agent Executions",
+            "type": "array"
+          },
+          "company_name": {
+            "title": "Company Name",
+            "type": "string"
+          },
+          "decision_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DecisionTypeApi"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "entry_path": {
+            "$ref": "#/components/schemas/EntryPathApi"
+          },
+          "final_rating": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Final Rating"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TickerRunStatusApi"
+          },
+          "ticker": {
+            "title": "Ticker",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ticker",
+          "company_name",
+          "entry_path",
+          "status",
+          "final_rating",
+          "decision_type",
+          "agent_executions"
+        ],
+        "title": "TickerRunDetail",
+        "type": "object"
+      },
+      "TickerRunStatusApi": {
+        "enum": [
+          "running",
+          "completed",
+          "failed"
+        ],
+        "title": "TickerRunStatusApi",
+        "type": "string"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "WorkflowRunDetailResponse": {
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_mock": {
+            "title": "Is Mock",
+            "type": "boolean"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/TickerRunDetail"
+            },
+            "title": "Runs",
+            "type": "array"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkflowRunStatusApi"
+          },
+          "surveyor_execution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SurveyorExecutionSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "started_at",
+          "completed_at",
+          "status",
+          "is_mock",
+          "error_message",
+          "surveyor_execution",
+          "runs"
+        ],
+        "title": "WorkflowRunDetailResponse",
+        "type": "object"
+      },
+      "WorkflowRunListItem": {
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "completed_ticker_run_count": {
+            "title": "Completed Ticker Run Count",
+            "type": "integer"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "failed_ticker_run_count": {
+            "title": "Failed Ticker Run Count",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_mock": {
+            "title": "Is Mock",
+            "type": "boolean"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkflowRunStatusApi"
+          },
+          "ticker_run_count": {
+            "title": "Ticker Run Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "started_at",
+          "completed_at",
+          "status",
+          "is_mock",
+          "error_message",
+          "ticker_run_count",
+          "completed_ticker_run_count",
+          "failed_ticker_run_count"
+        ],
+        "title": "WorkflowRunListItem",
+        "type": "object"
+      },
+      "WorkflowRunStatusApi": {
+        "enum": [
+          "running",
+          "completed",
+          "failed"
+        ],
+        "title": "WorkflowRunStatusApi",
+        "type": "string"
+      }
+    }
+  },
+  "info": {
+    "title": "Discount Analyst Dashboard",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/portfolio": {
+      "get": {
+        "operationId": "get_portfolio_api_portfolio_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Portfolio",
+        "tags": [
+          "portfolio"
+        ]
+      }
+    },
+    "/api/runs/{run_id}/agents/{agent_name}/conversation": {
+      "get": {
+        "operationId": "get_run_agent_conversation_api_runs__run_id__agents__agent_name__conversation_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "agent_name",
+            "required": true,
+            "schema": {
+              "title": "Agent Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Run Agent Conversation",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
+    "/api/workflow_runs": {
+      "get": {
+        "operationId": "list_workflow_runs_api_workflow_runs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorkflowRunListItem"
+                  },
+                  "title": "Response List Workflow Runs Api Workflow Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Workflow Runs",
+        "tags": [
+          "workflow_runs"
+        ]
+      },
+      "post": {
+        "operationId": "create_workflow_run_api_workflow_runs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkflowRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateWorkflowRunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Workflow Run",
+        "tags": [
+          "workflow_runs"
+        ]
+      }
+    },
+    "/api/workflow_runs/{workflow_run_id}": {
+      "delete": {
+        "operationId": "delete_workflow_run_api_workflow_runs__workflow_run_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflow_run_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Workflow Run",
+        "tags": [
+          "workflow_runs"
+        ]
+      },
+      "get": {
+        "operationId": "get_workflow_run_api_workflow_runs__workflow_run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflow_run_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRunDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Workflow Run",
+        "tags": [
+          "workflow_runs"
+        ]
+      }
+    },
+    "/api/workflow_runs/{workflow_run_id}/agents/surveyor/conversation": {
+      "get": {
+        "operationId": "get_surveyor_conversation_api_workflow_runs__workflow_run_id__agents_surveyor_conversation_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflow_run_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Surveyor Conversation",
+        "tags": [
+          "agents"
+        ]
+      }
+    }
+  }
+}
