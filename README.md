@@ -130,7 +130,7 @@ There is no first-party CLI wrapper: tests and local experiments call `seed` fro
 ```bash
 uv run python -c "
 from sqlmodel import Session
-from backend.settings import DashboardSettings
+from backend.settings.config import DashboardSettings
 from backend.db.seed import seed
 from backend.db.session import create_dashboard_engine, create_session_factory
 
