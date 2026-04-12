@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from sqlalchemy import text
 
 from backend.app.main import create_app
 from backend.settings.config import DashboardSettings
 
 
-def test_startup_applies_alembic_head_and_is_idempotent(tmp_path) -> None:
+def test_startup_applies_alembic_head_and_is_idempotent(tmp_path: Path) -> None:
     db_path = tmp_path / "startup.sqlite"
     settings = DashboardSettings(database_path=db_path)
 

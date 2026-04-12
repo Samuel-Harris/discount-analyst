@@ -6,7 +6,6 @@ import asyncio
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlmodel import Session
 
 from backend.contracts.api import (
     CreateWorkflowRunRequest,
@@ -15,6 +14,7 @@ from backend.contracts.api import (
     WorkflowRunDetailResponse,
     WorkflowRunListItem,
 )
+from backend.deps import DbSession
 from backend.crud.db_utils import new_id
 from backend.crud.run_executions import (
     PROFILER_ENTRY_AGENT_NAMES,
@@ -32,13 +32,7 @@ from backend.pipeline.sqlmodel_runner import DashboardPipelineRunner
 from backend.serialisation.workflows import workflow_detail, workflow_list_item
 from backend.settings.config import DashboardSettings
 
-router = APIRouter(prefix="/workflow_runs", tags=["workflow_runs"])
-
-
-def get_session(request: Request):
-    session_factory = request.app.state.db_session_factory
-    with session_factory() as session:
-        yield session
+router = APIRouter(tags=["workflow_runs"])
 
 
 def get_runner(request: Request) -> DashboardPipelineRunner:
@@ -49,7 +43,6 @@ def get_settings(request: Request) -> DashboardSettings:
     return request.app.state.settings
 
 
-DbSession = Annotated[Session, Depends(get_session)]
 Runner = Annotated[DashboardPipelineRunner, Depends(get_runner)]
 Settings = Annotated[DashboardSettings, Depends(get_settings)]
 

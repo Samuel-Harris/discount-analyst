@@ -10,29 +10,12 @@ export type AgentExecutionSummaryCompletedAt = string | null;
 export type AgentExecutionSummaryStartedAt = string | null;
 
 export interface AgentExecutionSummary {
-  agent_name: AgentNameSlug;
+  agent_name: string;
   completed_at: AgentExecutionSummaryCompletedAt;
   id: string;
   started_at: AgentExecutionSummaryStartedAt;
   status: ExecutionStatusApi;
 }
-
-/**
- * Lowercase path/JSON values for every ``AgentName`` (workflow- and ticker-scoped).
- */
-export type AgentNameSlug = typeof AgentNameSlug[keyof typeof AgentNameSlug];
-
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const AgentNameSlug = {
-  surveyor: 'surveyor',
-  profiler: 'profiler',
-  researcher: 'researcher',
-  strategist: 'strategist',
-  sentinel: 'sentinel',
-  appraiser: 'appraiser',
-  arbiter: 'arbiter',
-} as const;
 
 export interface ConversationResponse {
   assistant_response: string;
@@ -101,7 +84,7 @@ export type SurveyorExecutionSummaryCompletedAt = string | null;
 export type SurveyorExecutionSummaryStartedAt = string | null;
 
 export interface SurveyorExecutionSummary {
-  agent_name: AgentNameSlug;
+  agent_name: string;
   completed_at: SurveyorExecutionSummaryCompletedAt;
   id: string;
   started_at: SurveyorExecutionSummaryStartedAt;
@@ -189,6 +172,56 @@ export const WorkflowRunStatusApi = {
 } as const;
 
 /**
+ * @summary Get Run Agent Conversation
+ */
+export const getGetRunAgentConversationApiAgentsRunsRunIdAgentsAgentNameConversationGetUrl = (runId: string,
+    agentName: string,) => {
+
+
+
+
+  return `/api/agents/runs/${runId}/agents/${agentName}/conversation`
+}
+
+export const getRunAgentConversationApiAgentsRunsRunIdAgentsAgentNameConversationGet = async (runId: string,
+    agentName: string, options?: RequestInit): Promise<ConversationResponse> => {
+
+  return dashboardMutator<ConversationResponse>(getGetRunAgentConversationApiAgentsRunsRunIdAgentsAgentNameConversationGetUrl(runId,agentName),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary Get Surveyor Conversation
+ */
+export const getGetSurveyorConversationApiAgentsWorkflowRunsWorkflowRunIdAgentsSurveyorConversationGetUrl = (workflowRunId: string,) => {
+
+
+
+
+  return `/api/agents/workflow_runs/${workflowRunId}/agents/surveyor/conversation`
+}
+
+export const getSurveyorConversationApiAgentsWorkflowRunsWorkflowRunIdAgentsSurveyorConversationGet = async (workflowRunId: string, options?: RequestInit): Promise<ConversationResponse> => {
+
+  return dashboardMutator<ConversationResponse>(getGetSurveyorConversationApiAgentsWorkflowRunsWorkflowRunIdAgentsSurveyorConversationGetUrl(workflowRunId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
  * @summary Get Portfolio
  */
 export const getGetPortfolioApiPortfolioGetUrl = () => {
@@ -202,32 +235,6 @@ export const getGetPortfolioApiPortfolioGetUrl = () => {
 export const getPortfolioApiPortfolioGet = async ( options?: RequestInit): Promise<PortfolioResponse> => {
 
   return dashboardMutator<PortfolioResponse>(getGetPortfolioApiPortfolioGetUrl(),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-
-/**
- * @summary Get Run Agent Conversation
- */
-export const getGetRunAgentConversationApiRunsRunIdAgentsAgentNameConversationGetUrl = (runId: string,
-    agentName: string,) => {
-
-
-
-
-  return `/api/runs/${runId}/agents/${agentName}/conversation`
-}
-
-export const getRunAgentConversationApiRunsRunIdAgentsAgentNameConversationGet = async (runId: string,
-    agentName: string, options?: RequestInit): Promise<ConversationResponse> => {
-
-  return dashboardMutator<ConversationResponse>(getGetRunAgentConversationApiRunsRunIdAgentsAgentNameConversationGetUrl(runId,agentName),
   {
     ...options,
     method: 'GET'
@@ -325,30 +332,6 @@ export const getGetWorkflowRunApiWorkflowRunsWorkflowRunIdGetUrl = (workflowRunI
 export const getWorkflowRunApiWorkflowRunsWorkflowRunIdGet = async (workflowRunId: string, options?: RequestInit): Promise<WorkflowRunDetailResponse> => {
 
   return dashboardMutator<WorkflowRunDetailResponse>(getGetWorkflowRunApiWorkflowRunsWorkflowRunIdGetUrl(workflowRunId),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-
-/**
- * @summary Get Surveyor Conversation
- */
-export const getGetSurveyorConversationApiWorkflowRunsWorkflowRunIdAgentsSurveyorConversationGetUrl = (workflowRunId: string,) => {
-
-
-
-
-  return `/api/workflow_runs/${workflowRunId}/agents/surveyor/conversation`
-}
-
-export const getSurveyorConversationApiWorkflowRunsWorkflowRunIdAgentsSurveyorConversationGet = async (workflowRunId: string, options?: RequestInit): Promise<ConversationResponse> => {
-
-  return dashboardMutator<ConversationResponse>(getGetSurveyorConversationApiWorkflowRunsWorkflowRunIdAgentsSurveyorConversationGetUrl(workflowRunId),
   {
     ...options,
     method: 'GET'

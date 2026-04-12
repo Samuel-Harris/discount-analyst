@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import time
+from typing import cast
 from uuid import UUID
 
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from backend.contracts.api import (
@@ -82,7 +84,8 @@ def test_workflow_run_detail_matches_contract_after_post(client: TestClient) -> 
 def test_workflow_run_detail_seed_profiler_and_surveyor_lanes(
     client: TestClient,
 ) -> None:
-    with client.app.state.db_session_factory() as session:
+    app = cast(FastAPI, client.app)
+    with app.state.db_session_factory() as session:
         seed(session)
     listed = client.get("/api/workflow_runs").json()
     wf_id = listed[0]["id"]
@@ -123,11 +126,14 @@ def test_delete_workflow_run_not_found(client: TestClient) -> None:
 
 
 def test_conversation_endpoints_validate(client: TestClient) -> None:
-    with client.app.state.db_session_factory() as session:
+    app = cast(FastAPI, client.app)
+    with app.state.db_session_factory() as session:
         seed(session)
     wf_id = client.get("/api/workflow_runs").json()[0]["id"]
     surv = ConversationResponse.model_validate(
-        client.get(f"/api/workflow_runs/{wf_id}/agents/surveyor/conversation").json()
+        client.get(
+            f"/api/agents/workflow_runs/{wf_id}/agents/surveyor/conversation"
+        ).json()
     )
     assert surv.system_prompt
     assert surv.assistant_response
@@ -135,7 +141,7 @@ def test_conversation_endpoints_validate(client: TestClient) -> None:
     runs = client.get(f"/api/workflow_runs/{wf_id}").json()["runs"]
     run_id = next(r["id"] for r in runs if r["entry_path"] == "profiler")
     prof = ConversationResponse.model_validate(
-        client.get(f"/api/runs/{run_id}/agents/profiler/conversation").json()
+        client.get(f"/api/agents/runs/{run_id}/agents/profiler/conversation").json()
     )
     assert prof.messages_json
 
@@ -144,7 +150,7 @@ def test_surveyor_conversation_not_found(client: TestClient) -> None:
     missing = "00000000-0000-4000-8000-000000000003"
     assert (
         client.get(
-            f"/api/workflow_runs/{missing}/agents/surveyor/conversation"
+            f"/api/agents/workflow_runs/{missing}/agents/surveyor/conversation"
         ).status_code
         == 404
     )
@@ -153,7 +159,7 @@ def test_surveyor_conversation_not_found(client: TestClient) -> None:
 def test_run_agent_conversation_not_found(client: TestClient) -> None:
     assert (
         client.get(
-            "/api/runs/00000000-0000-4000-8000-000000000004/agents/profiler/conversation"
+            "/api/agents/runs/00000000-0000-4000-8000-000000000004/agents/profiler/conversation"
         ).status_code
         == 404
     )
@@ -162,7 +168,7 @@ def test_run_agent_conversation_not_found(client: TestClient) -> None:
 def test_run_agent_conversation_invalid_agent_name(client: TestClient) -> None:
     assert (
         client.get(
-            "/api/runs/00000000-0000-4000-8000-000000000005/agents/not-an-agent/conversation"
+            "/api/agents/runs/00000000-0000-4000-8000-000000000005/agents/not-an-agent/conversation"
         ).status_code
         == 400
     )

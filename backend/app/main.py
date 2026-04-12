@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
 from backend.db.migrate import migrate_to_head
@@ -18,19 +21,20 @@ def create_app(settings: DashboardSettings | None = None) -> FastAPI:
     migrate_to_head(str(engine.url))
     session_factory = create_session_factory(engine)
 
-    app = FastAPI(title="Discount Analyst Dashboard")
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        yield
+        app.state.db_engine.dispose()
+
+    app = FastAPI(title="Discount Analyst Dashboard", lifespan=lifespan)
     app.state.db_engine = engine
     app.state.db_session_factory = session_factory
     app.state.settings = settings
     app.state.pipeline_runner = DashboardPipelineRunner(session_factory, settings)
 
-    @app.on_event("shutdown")
-    def _dispose_engine() -> None:
-        app.state.db_engine.dispose()
-
-    app.include_router(workflow_runs.router, prefix="/api")
-    app.include_router(agents.router, prefix="/api")
-    app.include_router(portfolio.router, prefix="/api")
+    app.include_router(workflow_runs.router, prefix="/api/workflow_runs")
+    app.include_router(agents.router, prefix="/api/agents")
+    app.include_router(portfolio.router, prefix="/api/portfolio")
 
     return app
 

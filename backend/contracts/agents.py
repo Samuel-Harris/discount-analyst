@@ -25,14 +25,10 @@ agent_configs: Final[list[AgentConfig]] = [
     AgentConfig(name=AgentName.ARBITER, agent_name_slug=AgentNameSlug("arbiter")),
 ]
 
-_SLUG_TO_AGENT_NAME: Final[dict[str, AgentName]] = {
-    cfg.agent_name_slug.casefold(): cfg.name for cfg in agent_configs
-}
+_KNOWN_AGENT_SLUGS: Final[frozenset[AgentNameSlug]] = frozenset(
+    agent_config.agent_name_slug for agent_config in agent_configs
+)
 
 
-def slug_to_agent_name(slug: str) -> AgentName:
-    key = slug.casefold()
-    if key not in _SLUG_TO_AGENT_NAME:
-        msg = f"Unknown agent name: {slug!r}"
-        raise ValueError(msg)
-    return _SLUG_TO_AGENT_NAME[key]
+def is_known_agent_slug(slug: AgentNameSlug) -> bool:
+    return slug in _KNOWN_AGENT_SLUGS

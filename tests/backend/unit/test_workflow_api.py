@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
-from fastapi.testclient import TestClient
+from collections.abc import Iterator
+from pathlib import Path
+from typing import cast
+
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 from backend.app.main import create_app
 from backend.db.seed import seed
@@ -11,7 +16,9 @@ from backend.settings.config import DashboardSettings
 
 
 @pytest.fixture
-def client_dev_env(tmp_path, monkeypatch) -> TestClient:
+def client_dev_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[TestClient]:
     monkeypatch.setenv("ENV", "DEV")
     settings = DashboardSettings(database_path=tmp_path / "dashboard_dev.sqlite")
     with TestClient(create_app(settings)) as test_client:
@@ -92,7 +99,8 @@ def test_portfolio_latest(client: TestClient) -> None:
 
 
 def test_seed_and_detail_shape(client: TestClient) -> None:
-    with client.app.state.db_session_factory() as session:
+    app = cast(FastAPI, client.app)
+    with app.state.db_session_factory() as session:
         seed(session)
     listed = client.get("/api/workflow_runs").json()
     assert len(listed) == 1
@@ -104,20 +112,24 @@ def test_seed_and_detail_shape(client: TestClient) -> None:
 
 
 def test_surveyor_conversation_after_seed(client: TestClient) -> None:
-    with client.app.state.db_session_factory() as session:
+    app = cast(FastAPI, client.app)
+    with app.state.db_session_factory() as session:
         seed(session)
     wf_id = client.get("/api/workflow_runs").json()[0]["id"]
-    r = client.get(f"/api/workflow_runs/{wf_id}/agents/surveyor/conversation")
+    r = client.get(f"/api/agents/workflow_runs/{wf_id}/agents/surveyor/conversation")
     assert r.status_code == 200
     assert "assistant_response" in r.json()
 
 
 def test_run_agent_conversation_after_seed(client: TestClient) -> None:
-    with client.app.state.db_session_factory() as session:
+    app = cast(FastAPI, client.app)
+    with app.state.db_session_factory() as session:
         seed(session)
     detail = client.get("/api/workflow_runs").json()
     wf_id = detail[0]["id"]
     runs = client.get(f"/api/workflow_runs/{wf_id}").json()["runs"]
     run_profiler = next(r for r in runs if r["entry_path"] == "profiler")
-    r = client.get(f"/api/runs/{run_profiler['id']}/agents/profiler/conversation")
+    r = client.get(
+        f"/api/agents/runs/{run_profiler['id']}/agents/profiler/conversation"
+    )
     assert r.status_code == 200

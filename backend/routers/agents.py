@@ -2,28 +2,18 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from fastapi import APIRouter, HTTPException, status
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlmodel import Session
-
+from backend.common.primitive_types import AgentNameSlug
+from backend.deps import DbSession
 from backend.contracts.api import ConversationResponse
-from backend.contracts.agents import slug_to_agent_name
+from backend.contracts.agents import is_known_agent_slug
 from backend.crud.conversations import (
     get_conversation_for_run_agent,
     get_conversation_for_workflow_surveyor,
 )
 
 router = APIRouter(tags=["agents"])
-
-
-def get_session(request: Request):
-    session_factory = request.app.state.db_session_factory
-    with session_factory() as session:
-        yield session
-
-
-DbSession = Annotated[Session, Depends(get_session)]
 
 
 @router.get("/workflow_runs/{workflow_run_id}/agents/surveyor/conversation")
@@ -40,14 +30,13 @@ def get_surveyor_conversation(
 
 @router.get("/runs/{run_id}/agents/{agent_name}/conversation")
 def get_run_agent_conversation(
-    run_id: str, agent_name: str, session: DbSession
+    run_id: str, agent_name: AgentNameSlug, session: DbSession
 ) -> ConversationResponse:
-    try:
-        slug_to_agent_name(agent_name)
-    except ValueError as exc:
+    if not is_known_agent_slug(agent_name):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown agent name: {agent_name!r}",
+        )
     row = get_conversation_for_run_agent(
         session, run_id=run_id, agent_name=agent_name.casefold()
     )

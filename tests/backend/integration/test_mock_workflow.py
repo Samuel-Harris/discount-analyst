@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -18,7 +19,9 @@ from backend.pipeline.sqlmodel_runner import DashboardPipelineRunner
 
 
 @pytest.mark.asyncio
-async def test_mock_workflow_completes_profiler_and_surveyor(tmp_path) -> None:
+async def test_mock_workflow_completes_profiler_and_surveyor(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "w.sqlite"
     settings = DashboardSettings(database_path=db_path)
     engine = create_dashboard_engine(settings)

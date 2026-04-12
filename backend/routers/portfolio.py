@@ -2,24 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, Request
-from sqlmodel import Session
+from fastapi import APIRouter
 
 from backend.contracts.api import PortfolioResponse
+from backend.deps import DbSession
 from backend.crud.workflow_runs import get_latest_portfolio_tickers
 
-router = APIRouter(prefix="/portfolio", tags=["portfolio"])
-
-
-def get_session(request: Request):
-    session_factory = request.app.state.db_session_factory
-    with session_factory() as session:
-        yield session
-
-
-DbSession = Annotated[Session, Depends(get_session)]
+router = APIRouter(tags=["portfolio"])
 
 
 @router.get("")
