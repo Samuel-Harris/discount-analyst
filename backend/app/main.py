@@ -8,7 +8,7 @@ from backend.db.migrate import migrate_to_head
 from backend.db.session import create_dashboard_engine, create_session_factory
 from backend.pipeline.sqlmodel_runner import DashboardPipelineRunner
 from backend.routers import agents, portfolio, workflow_runs
-from backend.settings import DashboardSettings
+from backend.settings.config import DashboardSettings
 
 
 def create_app(settings: DashboardSettings | None = None) -> FastAPI:

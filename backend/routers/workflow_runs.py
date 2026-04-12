@@ -15,14 +15,22 @@ from backend.contracts.api import (
     WorkflowRunDetailResponse,
     WorkflowRunListItem,
 )
-from backend.crud import repository as repo
-from backend.crud.repository import (
+from backend.crud.db_utils import new_id
+from backend.crud.run_executions import (
     PROFILER_ENTRY_AGENT_NAMES,
-    new_id,
+    insert_ticker_run_with_agents,
+)
+from backend.crud.workflow_runs import (
+    delete_workflow_run_if_mock,
+    fetch_workflow_detail,
+    insert_surveyor_workflow_execution,
+    insert_workflow_run,
+    list_workflow_runs as list_workflow_runs_from_db,
+    workflow_run_exists,
 )
 from backend.pipeline.sqlmodel_runner import DashboardPipelineRunner
 from backend.serialisation.workflows import workflow_detail, workflow_list_item
-from backend.settings import DashboardSettings
+from backend.settings.config import DashboardSettings
 
 router = APIRouter(prefix="/workflow_runs", tags=["workflow_runs"])
 
@@ -48,7 +56,7 @@ Settings = Annotated[DashboardSettings, Depends(get_settings)]
 
 @router.get("")
 def list_workflow_runs(session: DbSession) -> list[WorkflowRunListItem]:
-    rows = repo.list_workflow_runs(session)
+    rows = list_workflow_runs_from_db(session)
     return [workflow_list_item(r) for r in rows]
 
 
@@ -56,7 +64,7 @@ def list_workflow_runs(session: DbSession) -> list[WorkflowRunListItem]:
 def get_workflow_run(
     workflow_run_id: str, session: DbSession
 ) -> WorkflowRunDetailResponse:
-    d = repo.fetch_workflow_detail(session, workflow_run_id)
+    d = fetch_workflow_detail(session, workflow_run_id)
     if d is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Workflow run not found"
@@ -73,13 +81,14 @@ async def create_workflow_run(
 ) -> CreateWorkflowRunResponse:
     workflow_run_id = new_id()
     surveyor_exec_id = new_id()
-    repo.insert_workflow_run(
+    is_mock = True if settings.deploy_env == "DEV" else body.is_mock
+    insert_workflow_run(
         session,
         workflow_run_id=workflow_run_id,
         portfolio_tickers=body.portfolio_tickers,
-        is_mock=body.is_mock,
+        is_mock=is_mock,
     )
-    repo.insert_surveyor_workflow_execution(
+    insert_surveyor_workflow_execution(
         session,
         execution_id=surveyor_exec_id,
         workflow_run_id=workflow_run_id,
@@ -90,7 +99,7 @@ async def create_workflow_run(
         if not ticker:
             continue
         run_id = new_id()
-        repo.insert_ticker_run_with_agents(
+        insert_ticker_run_with_agents(
             session,
             run_id=run_id,
             workflow_run_id=workflow_run_id,
@@ -98,7 +107,7 @@ async def create_workflow_run(
             company_name=ticker,
             entry_path="profiler",
             is_existing_position=settings.is_existing_position,
-            is_mock=body.is_mock,
+            is_mock=is_mock,
             agent_names=PROFILER_ENTRY_AGENT_NAMES,
         )
         profiler_created.append(ProfilerRunCreated(run_id=run_id, ticker=ticker))
@@ -114,9 +123,9 @@ async def create_workflow_run(
 
 @router.delete("/{workflow_run_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_workflow_run(workflow_run_id: str, session: DbSession) -> None:
-    ok = repo.delete_workflow_run_if_mock(session, workflow_run_id)
+    ok = delete_workflow_run_if_mock(session, workflow_run_id)
     if not ok:
-        if not repo.workflow_run_exists(session, workflow_run_id):
+        if not workflow_run_exists(session, workflow_run_id):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Workflow run not found"
             )

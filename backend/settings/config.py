@@ -1,6 +1,7 @@
 from pathlib import Path
+from typing import Literal
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from discount_analyst.config.ai_models_config import ModelName
@@ -17,3 +18,8 @@ class DashboardSettings(BaseSettings):
     use_perplexity: bool = False
     use_mcp_financial_data: bool = True
     is_existing_position: bool = False
+    deploy_env: Literal["DEV", "PROD"] = Field(
+        default="DEV",
+        validation_alias=AliasChoices("ENV"),
+        description="Build/runtime ENV (matches frontend / Compose web build args).",
+    )

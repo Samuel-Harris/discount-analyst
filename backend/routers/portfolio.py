@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlmodel import Session
 
 from backend.contracts.api import PortfolioResponse
-from backend.crud import repository as repo
+from backend.crud.workflow_runs import get_latest_portfolio_tickers
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
@@ -24,5 +24,5 @@ DbSession = Annotated[Session, Depends(get_session)]
 
 @router.get("")
 def get_portfolio(session: DbSession) -> PortfolioResponse:
-    tickers = repo.get_latest_portfolio_tickers(session)
+    tickers = get_latest_portfolio_tickers(session)
     return PortfolioResponse(portfolio_tickers=tickers or [])

@@ -6,10 +6,31 @@ import asyncio
 from datetime import date
 from typing import Any
 
-from backend.dev import mock_outputs
-from backend.settings import DashboardSettings
-from backend.crud import repository as repo
-from backend.crud.repository import SURVEYOR_ENTRY_AGENT_NAMES, new_id
+from backend.crud.agent_output_persistence import insert_dcf_valuation
+from backend.crud.conversations import (
+    insert_conversation_for_agent_execution,
+    insert_conversation_for_workflow_agent,
+)
+from backend.crud.db_utils import new_id, utc_now_iso
+from backend.crud.run_executions import (
+    SURVEYOR_ENTRY_AGENT_NAMES,
+    get_agent_execution_id_by_run_and_agent,
+    get_workflow_candidate_snapshot_id,
+    get_workflow_surveyor_execution_id,
+    insert_ticker_run_with_agents,
+    update_agent_execution,
+    update_ticker_run_company_name,
+    update_ticker_run_completion,
+    update_workflow_agent_execution,
+)
+from backend.crud.workflow_runs import (
+    get_workflow_run_inputs,
+    list_profiler_runs_for_workflow,
+    recompute_workflow_status,
+    set_workflow_error,
+)
+from backend.dev import mock_conversation_messages, mock_outputs
+from backend.settings.config import DashboardSettings
 from backend.db.session import SessionFactory
 from discount_analyst.agents.appraiser.appraiser import create_appraiser_agent
 from discount_analyst.agents.appraiser.schema import AppraiserInput
@@ -90,11 +111,11 @@ class DashboardPipelineRunner:
             return await asyncio.to_thread(_run)
 
     async def _recompute(self, workflow_run_id: str) -> None:
-        await self._db(repo.recompute_workflow_status, workflow_run_id)
+        await self._db(recompute_workflow_status, workflow_run_id)
 
     async def _get_exec_id(self, run_id: str, agent_name: str) -> str | None:
         return await self._db(
-            repo.get_agent_execution_id_by_run_and_agent,
+            get_agent_execution_id_by_run_and_agent,
             run_id=run_id,
             agent_name=agent_name,
         )
@@ -110,12 +131,12 @@ class DashboardPipelineRunner:
         error_message: str | None = None,
     ) -> None:
         await self._db(
-            repo.update_agent_execution,
+            update_agent_execution,
             execution_id=execution_id,
             status=status,
             output_json=output_json,
-            started_at=repo.utc_now_iso() if started else None,
-            completed_at=repo.utc_now_iso() if completed else None,
+            started_at=utc_now_iso() if started else None,
+            completed_at=utc_now_iso() if completed else None,
             error_message=error_message,
         )
 
@@ -125,48 +146,42 @@ class DashboardPipelineRunner:
         run_id: str,
         agent_name: str,
         system_prompt: str,
-        messages: list[Any],
+        messages: list[Any] | None = None,
+        messages_json: str | None = None,
     ) -> None:
         execution_id = await self._get_exec_id(run_id, agent_name)
         if execution_id is None:
             return
         await self._db(
-            repo.insert_conversation_for_agent_execution,
+            insert_conversation_for_agent_execution,
             conversation_id=new_id(),
             agent_execution_id=execution_id,
             system_prompt=system_prompt,
             messages=messages,
+            messages_json=messages_json,
         )
 
     async def execute_workflow(self, workflow_run_id: str) -> None:
         try:
-            inputs = await self._db(repo.get_workflow_run_inputs, workflow_run_id)
+            inputs = await self._db(get_workflow_run_inputs, workflow_run_id)
             if inputs is None:
                 return
             portfolio_tickers, is_mock = inputs
             portfolio_fold = {t.casefold() for t in portfolio_tickers}
             profiler_runs = await self._db(
-                repo.list_profiler_runs_for_workflow, workflow_run_id
+                list_profiler_runs_for_workflow, workflow_run_id
             )
-            tasks: list[asyncio.Task[Any]] = [
-                asyncio.create_task(
-                    self._surveyor_branch(workflow_run_id, portfolio_fold, is_mock)
-                )
-            ]
+            # Run strictly one branch at a time (low provider rate limits).
+            await self._surveyor_branch(workflow_run_id, portfolio_fold, is_mock)
             for run_id, ticker in profiler_runs:
-                tasks.append(
-                    asyncio.create_task(
-                        self._profiler_entry_pipeline(
-                            workflow_run_id=workflow_run_id,
-                            run_id=run_id,
-                            ticker=ticker,
-                            is_mock=is_mock,
-                        )
-                    )
+                await self._profiler_entry_pipeline(
+                    workflow_run_id=workflow_run_id,
+                    run_id=run_id,
+                    ticker=ticker,
+                    is_mock=is_mock,
                 )
-            await asyncio.gather(*tasks, return_exceptions=True)
         except Exception as exc:  # noqa: BLE001
-            await self._db(repo.set_workflow_error, workflow_run_id, str(exc))
+            await self._db(set_workflow_error, workflow_run_id, str(exc))
         finally:
             await self._recompute(workflow_run_id)
 
@@ -174,24 +189,28 @@ class DashboardPipelineRunner:
         self, workflow_run_id: str, portfolio_fold: set[str], is_mock: bool
     ) -> None:
         surveyor_exec_id = await self._db(
-            repo.get_workflow_surveyor_execution_id, workflow_run_id
+            get_workflow_surveyor_execution_id, workflow_run_id
         )
         if surveyor_exec_id is None:
             return
         try:
             await self._db(
-                repo.update_workflow_agent_execution,
+                update_workflow_agent_execution,
                 execution_id=surveyor_exec_id,
                 status="running",
-                started_at=repo.utc_now_iso(),
+                started_at=utc_now_iso(),
             )
             await self._recompute(workflow_run_id)
+            surveyor_messages_json: str | None = None
             if is_mock:
                 await asyncio.sleep(5)
                 surveyor_output = mock_outputs.mock_surveyor_dashboard_discoveries(
                     portfolio_fold, limit=3
                 )
-                messages: list[Any] = []
+                messages: list[Any] | None = None
+                surveyor_messages_json = (
+                    mock_conversation_messages.surveyor_messages_json()
+                )
             else:
                 ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
                 agent = create_surveyor_agent(
@@ -206,26 +225,28 @@ class DashboardPipelineRunner:
                 )
                 surveyor_output = outcome.output
                 messages = list(outcome.all_messages)
+                surveyor_messages_json = None
             await self._db(
-                repo.update_workflow_agent_execution,
+                update_workflow_agent_execution,
                 execution_id=surveyor_exec_id,
                 status="completed",
                 output_json=surveyor_output.model_dump_json(),
-                completed_at=repo.utc_now_iso(),
+                completed_at=utc_now_iso(),
             )
             await self._db(
-                repo.insert_conversation_for_workflow_agent,
+                insert_conversation_for_workflow_agent,
                 conversation_id=new_id(),
                 workflow_agent_execution_id=surveyor_exec_id,
                 system_prompt=SURVEYOR_SYSTEM_PROMPT,
                 messages=messages,
+                messages_json=surveyor_messages_json,
             )
             for candidate in surveyor_output.candidates:
                 # Portfolio names already have Profiler ticker runs; skip duplicates.
                 if candidate.ticker.casefold() in portfolio_fold:
                     continue
                 snapshot_id = await self._db(
-                    repo.get_workflow_candidate_snapshot_id,
+                    get_workflow_candidate_snapshot_id,
                     workflow_execution_id=surveyor_exec_id,
                     ticker=candidate.ticker,
                 )
@@ -237,11 +258,11 @@ class DashboardPipelineRunner:
                 )
         except Exception as exc:  # noqa: BLE001
             await self._db(
-                repo.update_workflow_agent_execution,
+                update_workflow_agent_execution,
                 execution_id=surveyor_exec_id,
                 status="failed",
                 error_message=str(exc),
-                completed_at=repo.utc_now_iso(),
+                completed_at=utc_now_iso(),
             )
         finally:
             await self._recompute(workflow_run_id)
@@ -256,7 +277,7 @@ class DashboardPipelineRunner:
     ) -> None:
         run_id = new_id()
         await self._db(
-            repo.insert_ticker_run_with_agents,
+            insert_ticker_run_with_agents,
             run_id=run_id,
             workflow_run_id=workflow_run_id,
             ticker=candidate.ticker,
@@ -293,7 +314,7 @@ class DashboardPipelineRunner:
             )
         except Exception as exc:  # noqa: BLE001
             await self._db(
-                repo.update_ticker_run_completion,
+                update_ticker_run_completion,
                 run_id=run_id,
                 status="failed",
                 final_rating=None,
@@ -315,10 +336,14 @@ class DashboardPipelineRunner:
             execution_id=profiler_exec_id, status="running", started=True
         )
         await self._recompute(workflow_run_id)
+        mock_msgs_json: str | None = None
         if is_mock:
             await asyncio.sleep(5)
             profiler_output = mock_outputs.mock_profiler_output(ticker=ticker)
-            messages: list[Any] = []
+            messages = None
+            mock_msgs_json = mock_conversation_messages.profiler_messages_json(
+                ticker=ticker
+            )
         else:
             ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
             agent = create_profiler_agent(
@@ -333,6 +358,7 @@ class DashboardPipelineRunner:
             )
             profiler_output = outcome.output
             messages = list(outcome.all_messages)
+            mock_msgs_json = None
         await self._mark_exec(
             execution_id=profiler_exec_id,
             status="completed",
@@ -344,9 +370,10 @@ class DashboardPipelineRunner:
             agent_name="profiler",
             system_prompt=PROFILER_SYSTEM_PROMPT,
             messages=messages,
+            messages_json=mock_msgs_json,
         )
         await self._db(
-            repo.update_ticker_run_company_name,
+            update_ticker_run_company_name,
             run_id=run_id,
             company_name=profiler_output.candidate.company_name,
         )
@@ -369,7 +396,7 @@ class DashboardPipelineRunner:
             )
         except Exception as exc:  # noqa: BLE001
             await self._db(
-                repo.update_ticker_run_completion,
+                update_ticker_run_completion,
                 run_id=run_id,
                 status="failed",
                 final_rating=None,
@@ -428,10 +455,14 @@ class DashboardPipelineRunner:
             execution_id=research_exec_id, status="running", started=True
         )
         await self._recompute(workflow_run_id)
+        r_mock_json: str | None = None
         if is_mock:
             await asyncio.sleep(5)
             research_out = mock_outputs.mock_deep_research(candidate)
-            r_messages: list[Any] = []
+            r_messages = None
+            r_mock_json = mock_conversation_messages.researcher_messages_json(
+                ticker=candidate.ticker
+            )
         else:
             ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
             agent = create_researcher_agent(
@@ -446,6 +477,7 @@ class DashboardPipelineRunner:
             )
             research_out = outcome.output
             r_messages = list(outcome.all_messages)
+            r_mock_json = None
         await self._mark_exec(
             execution_id=research_exec_id,
             status="completed",
@@ -457,6 +489,7 @@ class DashboardPipelineRunner:
             agent_name="researcher",
             system_prompt=RESEARCHER_SYSTEM_PROMPT,
             messages=r_messages,
+            messages_json=r_mock_json,
         )
 
         strategist_exec_id = await self._get_exec_id(run_id, "strategist")
@@ -466,10 +499,14 @@ class DashboardPipelineRunner:
             execution_id=strategist_exec_id, status="running", started=True
         )
         await self._recompute(workflow_run_id)
+        s_mock_json: str | None = None
         if is_mock:
             await asyncio.sleep(5)
             thesis = mock_outputs.mock_thesis(candidate)
-            s_messages: list[Any] = []
+            s_messages = None
+            s_mock_json = mock_conversation_messages.strategist_messages_json(
+                ticker=candidate.ticker
+            )
         else:
             ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
             agent = create_strategist_agent(ai_cfg)
@@ -482,6 +519,7 @@ class DashboardPipelineRunner:
             )
             thesis = outcome.output
             s_messages = list(outcome.all_messages)
+            s_mock_json = None
         await self._mark_exec(
             execution_id=strategist_exec_id,
             status="completed",
@@ -493,6 +531,7 @@ class DashboardPipelineRunner:
             agent_name="strategist",
             system_prompt=STRATEGIST_SYSTEM_PROMPT,
             messages=s_messages,
+            messages_json=s_mock_json,
         )
 
         sentinel_exec_id = await self._get_exec_id(run_id, "sentinel")
@@ -502,12 +541,16 @@ class DashboardPipelineRunner:
             execution_id=sentinel_exec_id, status="running", started=True
         )
         await self._recompute(workflow_run_id)
+        n_mock_json: str | None = None
         if is_mock:
             await asyncio.sleep(5)
             evaluation = mock_outputs.mock_sentinel_evaluation(
                 candidate=candidate, proceed=True
             )
-            n_messages: list[Any] = []
+            n_messages = None
+            n_mock_json = mock_conversation_messages.sentinel_messages_json(
+                ticker=candidate.ticker
+            )
         else:
             ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
             agent = create_sentinel_agent(ai_cfg)
@@ -522,6 +565,7 @@ class DashboardPipelineRunner:
             )
             evaluation = outcome.output
             n_messages = list(outcome.all_messages)
+            n_mock_json = None
         await self._mark_exec(
             execution_id=sentinel_exec_id,
             status="completed",
@@ -533,6 +577,7 @@ class DashboardPipelineRunner:
             agent_name="sentinel",
             system_prompt=SENTINEL_SYSTEM_PROMPT,
             messages=n_messages,
+            messages_json=n_mock_json,
         )
         return research_out, thesis, evaluation
 
@@ -553,7 +598,7 @@ class DashboardPipelineRunner:
         )
         verdict = verdict_from_decision(rejection)
         await self._db(
-            repo.update_ticker_run_completion,
+            update_ticker_run_completion,
             run_id=run_id,
             status="completed",
             final_rating=str(verdict.rating.value),
@@ -594,10 +639,14 @@ class DashboardPipelineRunner:
             risk_free_rate=self._settings.risk_free_rate,
             model=self._settings.default_model,
         )
+        a_mock_json: str | None = None
         if is_mock:
             await asyncio.sleep(5)
             appraiser_out = mock_outputs.mock_appraiser_output(candidate)
-            a_messages: list[Any] = []
+            a_messages = None
+            a_mock_json = mock_conversation_messages.appraiser_messages_json(
+                ticker=candidate.ticker
+            )
         else:
             ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
             agent = create_appraiser_agent(
@@ -614,6 +663,7 @@ class DashboardPipelineRunner:
             )
             appraiser_out = outcome.output
             a_messages = list(outcome.all_messages)
+            a_mock_json = None
         await self._mark_exec(
             execution_id=appraiser_exec_id,
             status="completed",
@@ -625,11 +675,12 @@ class DashboardPipelineRunner:
             agent_name="appraiser",
             system_prompt=APPRAISER_SYSTEM_PROMPT,
             messages=a_messages,
+            messages_json=a_mock_json,
         )
         dcf_result, dcf_error = await self._run_dcf(stock_args, appraiser_out)
         if dcf_result is None:
             await self._db(
-                repo.update_ticker_run_completion,
+                update_ticker_run_completion,
                 run_id=run_id,
                 status="failed",
                 final_rating=None,
@@ -646,7 +697,7 @@ class DashboardPipelineRunner:
             await self._recompute(workflow_run_id)
             return
         await self._db(
-            repo.insert_dcf_valuation,
+            insert_dcf_valuation,
             run_id=run_id,
             appraiser_agent_execution_id=appraiser_exec_id,
             dcf_result=dcf_result,
@@ -658,12 +709,16 @@ class DashboardPipelineRunner:
             execution_id=arbiter_exec_id, status="running", started=True
         )
         await self._recompute(workflow_run_id)
+        b_mock_json: str | None = None
         if is_mock:
             await asyncio.sleep(5)
             arbiter_decision = mock_outputs.mock_arbiter_decision(
                 candidate, is_existing_position=self._settings.is_existing_position
             )
-            b_messages: list[Any] = []
+            b_messages = None
+            b_mock_json = mock_conversation_messages.arbiter_messages_json(
+                ticker=candidate.ticker
+            )
         else:
             ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
             agent = create_arbiter_agent(ai_cfg)
@@ -687,6 +742,7 @@ class DashboardPipelineRunner:
                 update={"decision_date": date.today().isoformat()}
             )
             b_messages = list(outcome.all_messages)
+            b_mock_json = None
         await self._mark_exec(
             execution_id=arbiter_exec_id,
             status="completed",
@@ -698,10 +754,11 @@ class DashboardPipelineRunner:
             agent_name="arbiter",
             system_prompt=ARBITER_SYSTEM_PROMPT,
             messages=b_messages,
+            messages_json=b_mock_json,
         )
         verdict = verdict_from_decision(arbiter_decision)
         await self._db(
-            repo.update_ticker_run_completion,
+            update_ticker_run_completion,
             run_id=run_id,
             status="completed",
             final_rating=str(verdict.rating.value),
