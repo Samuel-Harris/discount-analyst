@@ -4,13 +4,16 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from backend.settings import DashboardSettings
+from backend.settings.config import DashboardSettings
 from backend.db.migrate import migrate_to_head
 from backend.app.main import create_app
 
 
 @pytest.fixture
-def dashboard_settings(tmp_path) -> DashboardSettings:
+def dashboard_settings(tmp_path, monkeypatch) -> DashboardSettings:
+    # pydantic-settings reads ``ENV`` from the process; pin it so tests do not
+    # inherit launch / shell ``ENV=DEV`` (which would force mock-only behaviour).
+    monkeypatch.setenv("ENV", "PROD")
     return DashboardSettings(database_path=tmp_path / "dashboard.sqlite")
 
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from sqlalchemy import text
 
 from backend.app.main import create_app
-from backend.settings import DashboardSettings
+from backend.settings.config import DashboardSettings
 
 
 def test_startup_applies_alembic_head_and_is_idempotent(tmp_path) -> None:

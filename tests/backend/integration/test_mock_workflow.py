@@ -6,12 +6,15 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from backend.settings import DashboardSettings
-from backend.crud import repository as repo
-from backend.crud.repository import PROFILER_ENTRY_AGENT_NAMES, new_id
+from backend.crud import conversations as conv
+from backend.crud import run_executions as runs
+from backend.crud import workflow_runs as workflow_crud
+from backend.crud.db_utils import new_id
+from backend.crud.run_executions import PROFILER_ENTRY_AGENT_NAMES
+from backend.settings.config import DashboardSettings
 from backend.db.session import create_dashboard_engine, create_session_factory
 from backend.db.migrate import migrate_to_head
-from backend.pipeline import DashboardPipelineRunner
+from backend.pipeline.sqlmodel_runner import DashboardPipelineRunner
 
 
 @pytest.mark.asyncio
@@ -22,22 +25,25 @@ async def test_mock_workflow_completes_profiler_and_surveyor(tmp_path) -> None:
     migrate_to_head(str(engine.url))
     session_factory = create_session_factory(engine)
 
-    wf = new_id()
+    workflow_run_id = new_id()
     survey = new_id()
     portfolio = ["M1.L"]
     with session_factory() as session:
-        repo.insert_workflow_run(
-            session, workflow_run_id=wf, portfolio_tickers=portfolio, is_mock=True
+        workflow_crud.insert_workflow_run(
+            session,
+            workflow_run_id=workflow_run_id,
+            portfolio_tickers=portfolio,
+            is_mock=True,
         )
-        repo.insert_surveyor_workflow_execution(
-            session, execution_id=survey, workflow_run_id=wf
+        workflow_crud.insert_surveyor_workflow_execution(
+            session, execution_id=survey, workflow_run_id=workflow_run_id
         )
     run_id = new_id()
     with session_factory() as session:
-        repo.insert_ticker_run_with_agents(
+        runs.insert_ticker_run_with_agents(
             session,
             run_id=run_id,
-            workflow_run_id=wf,
+            workflow_run_id=workflow_run_id,
             ticker="M1.L",
             company_name="M1.L",
             entry_path="profiler",
@@ -48,10 +54,10 @@ async def test_mock_workflow_completes_profiler_and_surveyor(tmp_path) -> None:
 
     runner = DashboardPipelineRunner(session_factory, settings)
     with patch("asyncio.sleep", new=AsyncMock()):
-        await runner.execute_workflow(wf)
+        await runner.execute_workflow(workflow_run_id)
 
     with session_factory() as session:
-        detail = repo.fetch_workflow_detail(session, wf)
+        detail = workflow_crud.fetch_workflow_detail(session, workflow_run_id)
     assert detail is not None
     assert detail["surveyor_execution"]["status"] == "completed"
     surveyor_lanes = [r for r in detail["runs"] if r["entry_path"] == "surveyor"]
@@ -65,5 +71,7 @@ async def test_mock_workflow_completes_profiler_and_surveyor(tmp_path) -> None:
         assert a["status"] in ("completed", "skipped")
 
     with session_factory() as session:
-        conv = repo.get_conversation_for_workflow_surveyor(session, wf)
-    assert conv is not None
+        surveyor_conv = conv.get_conversation_for_workflow_surveyor(
+            session, workflow_run_id
+        )
+    assert surveyor_conv is not None

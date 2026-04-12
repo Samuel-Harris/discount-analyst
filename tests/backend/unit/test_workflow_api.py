@@ -3,14 +3,38 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+import pytest
 
+from backend.app.main import create_app
 from backend.db.seed import seed
+from backend.settings.config import DashboardSettings
+
+
+@pytest.fixture
+def client_dev_env(tmp_path, monkeypatch) -> TestClient:
+    monkeypatch.setenv("ENV", "DEV")
+    settings = DashboardSettings(database_path=tmp_path / "dashboard_dev.sqlite")
+    with TestClient(create_app(settings)) as test_client:
+        yield test_client
 
 
 def test_list_workflow_runs_empty(client: TestClient) -> None:
     r = client.get("/api/workflow_runs")
     assert r.status_code == 200
     assert r.json() == []
+
+
+def test_dev_deploy_env_forces_mock_even_when_client_requests_live(
+    client_dev_env: TestClient,
+) -> None:
+    r = client_dev_env.post(
+        "/api/workflow_runs",
+        json={"portfolio_tickers": ["X.L"], "is_mock": False},
+    )
+    assert r.status_code == 201
+    listed = client_dev_env.get("/api/workflow_runs").json()
+    assert len(listed) == 1
+    assert listed[0]["is_mock"] is True
 
 
 def test_post_and_list_workflow_run(client: TestClient) -> None:
