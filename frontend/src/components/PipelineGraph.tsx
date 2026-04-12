@@ -1,6 +1,12 @@
 import "@xyflow/react/dist/style.css";
 
-import { memo, type KeyboardEvent, useMemo } from "react";
+import {
+  memo,
+  type KeyboardEvent,
+  type MouseEvent,
+  useCallback,
+  useMemo,
+} from "react";
 import {
   Background,
   BackgroundVariant,
@@ -41,41 +47,42 @@ function conversationClickable(node: LayoutNode): boolean {
   return CONVERSATION_AGENTS.has(node.agentName);
 }
 
+/** Opens the conversation panel when the node is a valid transcript target. */
+function emitConversationOpen(data: PipelineNodeData): void {
+  const { node, onOpen } = data;
+  if (!conversationClickable(node)) return;
+  const title =
+    node.kind === "workflow_surveyor"
+      ? "surveyor · workflow"
+      : `${node.agentName} · ${node.ticker ?? ""}`;
+  if (node.kind === "workflow_surveyor") {
+    onOpen({ kind: "surveyor", workflowRunId: node.workflowRunId }, title);
+  } else if (node.runId) {
+    onOpen(
+      { kind: "run_agent", runId: node.runId, agentName: node.agentName },
+      title,
+    );
+  }
+}
+
 const PipelineNode = memo(function PipelineNodeInner({
   data,
 }: NodeProps<PipelineFlowNode>) {
-  const { node, onOpen } = data;
+  const { node } = data;
   const clickable = conversationClickable(node);
   const stClass = `status-${node.status}`;
-
-  const handleClick = () => {
-    if (!clickable) return;
-    const title =
-      node.kind === "workflow_surveyor"
-        ? "surveyor · workflow"
-        : `${node.agentName} · ${node.ticker ?? ""}`;
-    if (node.kind === "workflow_surveyor") {
-      onOpen({ kind: "surveyor", workflowRunId: node.workflowRunId }, title);
-    } else if (node.runId) {
-      onOpen(
-        { kind: "run_agent", runId: node.runId, agentName: node.agentName },
-        title,
-      );
-    }
-  };
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (!clickable) return;
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      handleClick();
+      emitConversationOpen(data);
     }
   };
 
   return (
     <div
-      className={`pipeline-node ${stClass}${clickable ? " clickable" : ""}`}
-      onClick={handleClick}
+      className={`pipeline-node nopan ${stClass}${clickable ? " clickable" : ""}`}
       onKeyDown={onKeyDown}
       role={clickable ? "button" : undefined}
       tabIndex={clickable ? 0 : undefined}
@@ -101,21 +108,12 @@ const PipelineNode = memo(function PipelineNodeInner({
         <div className="ticker-tag">{node.ticker}</div>
       ) : null}
       <div className="st">{node.status}</div>
-      {node.kind === "workflow_surveyor" && node.surveyorHubLayout ? (
-        <Handle
-          type="source"
-          position={Position.Bottom}
-          id="b"
-          style={{ background: "var(--accent-dim)" }}
-        />
-      ) : (
-        <Handle
-          type="source"
-          position={Position.Right}
-          id="r"
-          style={{ background: "var(--accent-dim)" }}
-        />
-      )}
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="r"
+        style={{ background: "var(--accent-dim)" }}
+      />
     </div>
   );
 });
@@ -169,6 +167,11 @@ function PipelineGraphInner({
     [layoutEdges],
   );
 
+  const onNodeClick = useCallback((_: MouseEvent, node: PipelineFlowNode) => {
+    if (node.type !== "pipeline") return;
+    emitConversationOpen(node.data);
+  }, []);
+
   const h = graphHeight(detail);
   const w = graphWidth();
 
@@ -181,6 +184,8 @@ function PipelineGraphInner({
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={false}
+        onNodeClick={onNodeClick}
+        panOnDrag={[1, 2]}
         panOnScroll
         zoomOnScroll
         fitView

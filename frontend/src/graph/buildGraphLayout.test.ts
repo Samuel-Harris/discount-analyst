@@ -31,6 +31,7 @@ describe("buildGraphLayout", () => {
     const wf = nodes.find((n) => n.id === surveyorNodeId);
     expect(wf?.kind).toBe("workflow_surveyor");
     expect(wf?.agentName).toBe("surveyor");
+    expect(wf?.label).toBe("SURVEYOR");
   });
 
   it("links Surveyor workflow node to the first lane agent for surveyor entry paths", () => {
@@ -146,14 +147,70 @@ describe("buildGraphLayout", () => {
     const { nodes, edges, surveyorNodeId } = buildGraphLayout(detail);
     const wf = nodes.find((n) => n.id === surveyorNodeId);
     expect(wf?.surveyorHubLayout).toBe(true);
-    expect(wf?.position.y).toBe(24);
+    const researcherColX = 32 + 150; /* LEFT_MARGIN + 1 * COL */
+    expect(wf?.position.x ?? 999).toBeLessThan(researcherColX);
+    /* laneY(0)=112, laneY(1)=224, NODE_H=52 */
+    expect(wf?.position.y).toBe(142);
     const fan = edges.filter(
       (e) =>
         e.source === surveyorNodeId &&
-        e.sourceHandle === "b" &&
-        e.targetHandle === "t",
+        e.sourceHandle === "r" &&
+        e.targetHandle === "l",
     );
     expect(fan).toHaveLength(2);
+  });
+
+  it("places surveyor-discovery lanes before profiler portfolio lanes", () => {
+    const detail = baseDetail({
+      runs: [
+        {
+          id: "run-meta",
+          ticker: "META",
+          company_name: "M",
+          entry_path: "profiler",
+          status: "running",
+          final_rating: null,
+          decision_type: null,
+          agent_executions: [
+            {
+              id: "m1",
+              agent_name: "profiler",
+              status: "pending",
+              started_at: null,
+              completed_at: null,
+            },
+          ],
+        },
+        {
+          id: "run-disc",
+          ticker: "DISC.L",
+          company_name: "D",
+          entry_path: "surveyor",
+          status: "running",
+          final_rating: null,
+          decision_type: null,
+          agent_executions: [
+            {
+              id: "d1",
+              agent_name: "researcher",
+              status: "running",
+              started_at: null,
+              completed_at: null,
+            },
+          ],
+        },
+      ],
+    });
+    const { nodes } = buildGraphLayout(detail);
+    const discY = nodes.find(
+      (n) => n.kind === "lane_agent" && n.ticker === "DISC.L",
+    )?.position.y;
+    const metaY = nodes.find(
+      (n) => n.kind === "lane_agent" && n.ticker === "META",
+    )?.position.y;
+    expect(discY).toBeDefined();
+    expect(metaY).toBeDefined();
+    expect(discY!).toBeLessThan(metaY!);
   });
 
   it("lays out multiple ticker lanes with distinct y positions", () => {

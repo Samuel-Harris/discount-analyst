@@ -20,6 +20,9 @@ export interface RunPipelineFormProps {
   onRefreshList: () => void;
 }
 
+const deployEnv = import.meta.env.VITE_DEPLOY_ENV;
+const mockModeLocked = deployEnv !== "PROD";
+
 export function RunPipelineForm({
   onLaunched,
   onRefreshList,
@@ -50,6 +53,10 @@ export function RunPipelineForm({
     };
   }, []);
 
+  useEffect(() => {
+    if (mockModeLocked) setIsMock(true);
+  }, [mockModeLocked]);
+
   const commitDraft = useCallback(() => {
     const parsed = parseTickers(draft);
     if (parsed.length === 0) return;
@@ -64,7 +71,7 @@ export function RunPipelineForm({
     try {
       const res = await createWorkflowRun({
         portfolio_tickers: list,
-        is_mock: isMock,
+        is_mock: mockModeLocked || isMock,
       });
       onLaunched(res.workflow_run_id);
       onRefreshList();
@@ -83,9 +90,7 @@ export function RunPipelineForm({
         an immediate Profiler pipeline. Press Enter after a ticker to add it as
         a pill (draft text is still included when you start).
       </p>
-      <div
-        className={`ticker-input-wrap${submitting ? " is-disabled" : ""}`}
-      >
+      <div className={`ticker-input-wrap${submitting ? " is-disabled" : ""}`}>
         {tickers.map((t) => (
           <span key={t} className="ticker-pill">
             {t}
@@ -94,9 +99,7 @@ export function RunPipelineForm({
               className="ticker-pill-remove"
               aria-label={`Remove ${t}`}
               disabled={submitting}
-              onClick={() =>
-                setTickers((prev) => prev.filter((x) => x !== t))
-              }
+              onClick={() => setTickers((prev) => prev.filter((x) => x !== t))}
             >
               ×
             </button>
@@ -128,11 +131,13 @@ export function RunPipelineForm({
         <label className="mock">
           <input
             type="checkbox"
-            checked={isMock}
+            checked={mockModeLocked || isMock}
             onChange={(e) => setIsMock(e.target.checked)}
-            disabled={submitting}
+            disabled={submitting || mockModeLocked}
           />
-          Mock mode (no live LLM; slower simulated steps)
+          {mockModeLocked
+            ? "Mock mode (required in DEV; no live LLM; slower simulated steps)"
+            : "Mock mode (no live LLM; slower simulated steps)"}
         </label>
         <button
           type="button"

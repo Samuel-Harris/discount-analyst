@@ -508,6 +508,38 @@ button {
   font-size: 12px;
 }
 
+.agent-panel .json-syntax-block {
+  white-space: pre;
+  word-break: normal;
+  overflow-x: auto;
+}
+
+.agent-panel .json-syntax .json-key {
+  color: #7ec8e8;
+}
+
+.agent-panel .json-syntax .json-str {
+  color: #b8e7b0;
+}
+
+.agent-panel .json-syntax .json-num {
+  color: #f5d76e;
+}
+
+.agent-panel .json-syntax .json-bool {
+  color: #d4a8ff;
+}
+
+.agent-panel .json-syntax .json-null {
+  color: #7a8a7a;
+  font-style: italic;
+}
+
+.agent-panel .agent-json-fallback {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .pipeline-node {
   min-width: 108px;
   max-width: 140px;
@@ -516,7 +548,6 @@ button {
   border-radius: 2px;
   background: var(--bg-elevated);
   font-size: 11px;
-  text-transform: lowercase;
   cursor: default;
 }
 
@@ -536,9 +567,41 @@ button {
   word-break: break-all;
 }
 
-.pipeline-node.status-pending,
+.pipeline-node.status-pending {
+  background: rgba(36, 44, 58, 0.92);
+  border-color: rgba(110, 128, 168, 0.45);
+  color: var(--text-dim);
+}
+
+.pipeline-node.status-pending .st {
+  color: rgba(140, 158, 188, 0.85);
+}
+
 .pipeline-node.status-running {
-  border-color: rgba(232, 197, 71, 0.35);
+  border-color: rgba(232, 197, 71, 0.55);
+  animation: pipeline-node-running-glow 2.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pipeline-node.status-running {
+    animation: none;
+    box-shadow: 0 0 10px rgba(232, 197, 71, 0.4);
+  }
+}
+
+@keyframes pipeline-node-running-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 4px rgba(232, 197, 71, 0.25),
+      0 0 14px rgba(232, 197, 71, 0.14);
+  }
+
+  50% {
+    box-shadow:
+      0 0 10px rgba(232, 197, 71, 0.5),
+      0 0 24px rgba(232, 197, 71, 0.28);
+  }
 }
 
 .pipeline-node.status-completed {

@@ -37,8 +37,11 @@ describe("RunPipelineForm", () => {
     render(<RunPipelineForm onLaunched={vi.fn()} onRefreshList={vi.fn()} />);
     const mockBox = screen.getByRole("checkbox", { name: /mock mode/i });
     expect(mockBox).toBeChecked();
+    expect(mockBox).toBeDisabled();
     expect(
-      screen.getByText(/mock mode \(no live llm; slower simulated steps\)/i),
+      screen.getByText(
+        /mock mode \(required in dev; no live llm; slower simulated steps\)/i,
+      ),
     ).toBeInTheDocument();
   });
 

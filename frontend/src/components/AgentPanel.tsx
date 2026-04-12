@@ -2,14 +2,7 @@ import { useEffect } from "react";
 
 import type { ConversationResponse } from "../api";
 
-function formatMessagesJson(raw: string): string {
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    return JSON.stringify(parsed, null, 2);
-  } catch {
-    return raw;
-  }
-}
+import { JsonPretty } from "./JsonPretty";
 
 export interface AgentPanelProps {
   open: boolean;
@@ -67,11 +60,11 @@ export function AgentPanel({
               </section>
               <section>
                 <h3>Messages</h3>
-                <pre>{formatMessagesJson(data.messages_json)}</pre>
+                <JsonPretty raw={data.messages_json} />
               </section>
               <section>
                 <h3>Assistant response</h3>
-                <pre>{data.assistant_response}</pre>
+                <JsonPretty raw={data.assistant_response} />
               </section>
             </>
           ) : null}
