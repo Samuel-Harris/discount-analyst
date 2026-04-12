@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-23 | Updated: 2026-04-05 -->
+<!-- Generated: 2026-02-23 | Updated: 2026-04-09 -->
 
 # tests
 
@@ -17,17 +17,20 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | `tests/discount_analyst/agents/sentinel/test_sentinel_gate.py`    | Tests for `sentinel_proceeds_to_valuation` (thesis + red-flag gate).                           |
 | `tests/discount_analyst/pipeline/test_builders.py`                | Tests for `build_sentinel_rejection` and `verdict_from_decision`.                              |
 | `tests/scripts/test_run_arbiter_resolve.py`                       | Tests Arbiter CLI resolver (e.g. requires `dcf_result`).                                       |
+| `tests/backend/unit/test_workflow_api.py`                         | HTTP contract tests for the FastAPI dashboard (`backend`) with isolated SQLite.                |
+| `tests/backend/integration/test_mock_workflow.py`                 | Mock pipeline persistence for `DashboardPipelineRunner` (no live LLM calls).                   |
 
 ## Subdirectories
 
-| Directory                           | Purpose                                                                                   |
-| ----------------------------------- | ----------------------------------------------------------------------------------------- |
-| `dcf_analysis/`                     | Tests for the DCF engine (`discount_analyst.valuation`).                                  |
-| `discount_analyst/http/`            | Tests for streaming retry behaviour (`discount_analyst.agents.common.streaming_retries`). |
-| `discount_analyst/agents/common/`   | Tests for streamed agent orchestration.                                                   |
-| `discount_analyst/agents/sentinel/` | Tests for Sentinel schema helpers.                                                        |
-| `discount_analyst/pipeline/`        | Tests for programmatic verdict builders.                                                  |
-| `scripts/`                          | Tests for script helpers (e.g. Arbiter resolver).                                         |
+| Directory                           | Purpose                                                                                              |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `dcf_analysis/`                     | Tests for the DCF engine (`discount_analyst.valuation`).                                             |
+| `discount_analyst/http/`            | Tests for streaming retry behaviour (`discount_analyst.agents.common.streaming_retries`).            |
+| `discount_analyst/agents/common/`   | Tests for streamed agent orchestration.                                                              |
+| `discount_analyst/agents/sentinel/` | Tests for Sentinel schema helpers.                                                                   |
+| `discount_analyst/pipeline/`        | Tests for programmatic verdict builders.                                                             |
+| `scripts/`                          | Tests for script helpers (e.g. Arbiter resolver).                                                    |
+| `backend/`                          | Tests for the FastAPI `backend` package (`unit/`, `integration/`); shared fixtures in `conftest.py`. |
 
 ## For AI Agents
 
@@ -53,6 +56,7 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 
 ### Internal
 
+- `backend`: FastAPI app, DB layer, and pipeline runner (see `tests/backend/`).
 - `discount_analyst.valuation`: DCF calculation logic under test.
 - `discount_analyst.valuation.schema`: Stock data and assumptions models.
 - `discount_analyst.agents.common.streaming_retries`, `discount_analyst.agents.common.streamed_agent_run`: Streaming behaviour.

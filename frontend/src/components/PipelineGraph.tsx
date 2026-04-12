@@ -72,8 +72,6 @@ const PipelineNode = memo(function PipelineNodeInner({
     }
   };
 
-  const isWfSurveyor = node.kind === "workflow_surveyor";
-
   return (
     <div
       className={`pipeline-node ${stClass}${clickable ? " clickable" : ""}`}
@@ -103,7 +101,7 @@ const PipelineNode = memo(function PipelineNodeInner({
         <div className="ticker-tag">{node.ticker}</div>
       ) : null}
       <div className="st">{node.status}</div>
-      {isWfSurveyor ? (
+      {node.kind === "workflow_surveyor" && node.surveyorHubLayout ? (
         <Handle
           type="source"
           position={Position.Bottom}

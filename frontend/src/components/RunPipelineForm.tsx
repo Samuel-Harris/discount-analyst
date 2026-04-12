@@ -10,6 +10,11 @@ function parseTickers(raw: string): string[] {
   return [...new Set(parts)];
 }
 
+function tickersForSubmit(tickers: string[], draft: string): string[] {
+  const fromDraft = draft.trim() ? parseTickers(draft) : [];
+  return [...new Set([...tickers, ...fromDraft])];
+}
+
 export interface RunPipelineFormProps {
   onLaunched: (workflowRunId: string) => void;
   onRefreshList: () => void;
@@ -19,7 +24,8 @@ export function RunPipelineForm({
   onLaunched,
   onRefreshList,
 }: RunPipelineFormProps) {
-  const [text, setText] = useState("");
+  const [tickers, setTickers] = useState<string[]>([]);
+  const [draft, setDraft] = useState("");
   const [isMock, setIsMock] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -31,8 +37,8 @@ export function RunPipelineForm({
         const { portfolio_tickers } = await fetchPortfolio();
         if (cancelled) return;
         if (portfolio_tickers.length > 0) {
-          setText((prev) =>
-            prev.trim() === "" ? portfolio_tickers.join("\n") : prev,
+          setTickers((prev) =>
+            prev.length === 0 ? [...new Set(portfolio_tickers)] : prev,
           );
         }
       } catch {
@@ -44,13 +50,20 @@ export function RunPipelineForm({
     };
   }, []);
 
+  const commitDraft = useCallback(() => {
+    const parsed = parseTickers(draft);
+    if (parsed.length === 0) return;
+    setTickers((prev) => [...new Set([...prev, ...parsed])]);
+    setDraft("");
+  }, [draft]);
+
   const submit = useCallback(async () => {
     setFormError(null);
-    const tickers = parseTickers(text);
+    const list = tickersForSubmit(tickers, draft);
     setSubmitting(true);
     try {
       const res = await createWorkflowRun({
-        portfolio_tickers: tickers,
+        portfolio_tickers: list,
         is_mock: isMock,
       });
       onLaunched(res.workflow_run_id);
@@ -60,22 +73,57 @@ export function RunPipelineForm({
     } finally {
       setSubmitting(false);
     }
-  }, [text, isMock, onLaunched, onRefreshList]);
+  }, [tickers, draft, isMock, onLaunched, onRefreshList]);
 
   return (
     <div className="launch-panel">
       <h2>Launch workflow</h2>
       <p className="meta">
-        Surveyor discovery runs in the background; each line is a portfolio
-        ticker for an immediate Profiler pipeline.
+        Surveyor discovery runs in the background; each portfolio ticker starts
+        an immediate Profiler pipeline. Press Enter after a ticker to add it as
+        a pill (draft text is still included when you start).
       </p>
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="CBOX.L&#10;VTVI"
-        aria-label="Portfolio tickers"
-        disabled={submitting}
-      />
+      <div
+        className={`ticker-input-wrap${submitting ? " is-disabled" : ""}`}
+      >
+        {tickers.map((t) => (
+          <span key={t} className="ticker-pill">
+            {t}
+            <button
+              type="button"
+              className="ticker-pill-remove"
+              aria-label={`Remove ${t}`}
+              disabled={submitting}
+              onClick={() =>
+                setTickers((prev) => prev.filter((x) => x !== t))
+              }
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commitDraft();
+            } else if (
+              e.key === "Backspace" &&
+              draft === "" &&
+              tickers.length > 0
+            ) {
+              e.preventDefault();
+              setTickers((prev) => prev.slice(0, -1));
+            }
+          }}
+          placeholder="CBOX.L — press Enter"
+          aria-label="Portfolio tickers"
+          disabled={submitting}
+        />
+      </div>
       <div className="row">
         <label className="mock">
           <input

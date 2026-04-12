@@ -38,8 +38,13 @@ export interface LayoutNode {
   position: { x: number; y: number };
   /** React Flow handles: left target for intra-lane edges */
   handleTargetLeft: boolean;
-  /** Top target for workflow Surveyor → first Researcher */
+  /**
+   * Top target when Surveyor fans out (hub layout) to the first agent in a
+   * lane; otherwise Surveyor→first uses the left target (inline layout).
+   */
   handleTargetTop: boolean;
+  /** Set on `workflow_surveyor` when multiple stocks each get their own lane. */
+  surveyorHubLayout?: boolean;
 }
 
 export interface LayoutEdge {
@@ -78,11 +83,49 @@ export function buildGraphLayout(detail: WorkflowRunDetailResponse): {
     a.ticker.localeCompare(b.ticker),
   );
 
-  const surveyorX =
+  const surveyorBranchCount = detail.surveyor_execution
+    ? runs.reduce((acc, run) => {
+        if (run.entry_path !== "surveyor") return acc;
+        return sortAgents(run.agent_executions).length > 0 ? acc + 1 : acc;
+      }, 0)
+    : 0;
+
+  /** Several surveyor-discovered stocks → one horizontal lane each, fanning from Surveyor. */
+  const surveyorHubLayout =
+    Boolean(detail.surveyor_execution) && surveyorBranchCount > 1;
+
+  /** Row / column for inline Surveyor (single stock) aligned with that lane. */
+  let surveyorLaneIndex: number | null = null;
+  let surveyorFirstCol: number | null = null;
+  if (detail.surveyor_execution && !surveyorHubLayout) {
+    runs.forEach((run, laneIndex) => {
+      if (run.entry_path !== "surveyor" || surveyorFirstCol !== null) return;
+      const sorted = sortAgents(run.agent_executions);
+      const first = sorted[0];
+      if (!first) return;
+      surveyorLaneIndex = laneIndex;
+      const idx = CANONICAL_ORDER.indexOf(first.agent_name);
+      surveyorFirstCol = idx >= 0 ? idx : 0;
+    });
+  }
+
+  const surveyorOnLane =
+    detail.surveyor_execution &&
+    !surveyorHubLayout &&
+    surveyorLaneIndex !== null &&
+    surveyorFirstCol !== null;
+
+  const surveyorXCentred =
     LEFT_MARGIN +
     Math.max(0, (CANONICAL_ORDER.length * COL - NODE_W) / 2) -
     COL / 2 +
     COL / 2;
+
+  const surveyorX = surveyorOnLane
+    ? Math.max(4, columnX(surveyorFirstCol) - NODE_W - 24)
+    : surveyorXCentred;
+
+  const surveyorY = surveyorOnLane ? laneY(surveyorLaneIndex!) : TOP_Y;
 
   if (detail.surveyor_execution) {
     nodes.push({
@@ -95,9 +138,10 @@ export function buildGraphLayout(detail: WorkflowRunDetailResponse): {
       ticker: null,
       entryPath: null,
       workflowRunId: detail.id,
-      position: { x: surveyorX, y: TOP_Y },
+      position: { x: surveyorX, y: surveyorY },
       handleTargetLeft: false,
       handleTargetTop: false,
+      surveyorHubLayout,
     });
   }
 
@@ -110,11 +154,14 @@ export function buildGraphLayout(detail: WorkflowRunDetailResponse): {
       const colIndex = CANONICAL_ORDER.indexOf(exec.agent_name);
       const col = colIndex >= 0 ? colIndex : 0;
 
-      const handleTargetLeft = prevId !== null;
-      const handleTargetTop =
+      const surveyorIncoming =
         prevId === null &&
         run.entry_path === "surveyor" &&
         Boolean(detail.surveyor_execution);
+
+      const handleTargetTop = surveyorHubLayout && surveyorIncoming;
+      const handleTargetLeft =
+        prevId !== null || (!surveyorHubLayout && surveyorIncoming);
 
       nodes.push({
         id,
@@ -144,8 +191,8 @@ export function buildGraphLayout(detail: WorkflowRunDetailResponse): {
           id: `e-${surveyorNodeId}-${id}`,
           source: surveyorNodeId,
           target: id,
-          sourceHandle: "b",
-          targetHandle: "t",
+          sourceHandle: surveyorHubLayout ? "b" : "r",
+          targetHandle: surveyorHubLayout ? "t" : "l",
         });
       }
       prevId = id;

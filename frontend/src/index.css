@@ -253,19 +253,83 @@ button {
   font-size: 12px;
 }
 
-.launch-panel textarea {
+.launch-panel .ticker-input-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
   width: 100%;
   min-height: 72px;
-  resize: vertical;
-  padding: 8px;
+  padding: 6px 8px;
   border: 1px solid var(--border);
   background: var(--bg);
   border-radius: 2px;
+  box-sizing: border-box;
 }
 
-.launch-panel textarea:focus {
+.launch-panel .ticker-input-wrap:focus-within {
   outline: 1px solid var(--accent-dim);
   outline-offset: 1px;
+}
+
+.launch-panel .ticker-input-wrap.is-disabled {
+  opacity: 0.55;
+}
+
+.launch-panel .ticker-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  padding: 2px 4px 2px 8px;
+  font-size: 11px;
+  border: 1px solid var(--accent-dim);
+  border-radius: 999px;
+  color: var(--accent);
+  background: rgba(57, 255, 122, 0.07);
+}
+
+.launch-panel .ticker-pill-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text-dim);
+  background: transparent;
+  cursor: pointer;
+}
+
+.launch-panel .ticker-pill-remove:hover:not(:disabled) {
+  color: var(--err);
+  background: rgba(255, 80, 80, 0.12);
+}
+
+.launch-panel .ticker-pill-remove:disabled {
+  cursor: not-allowed;
+}
+
+.launch-panel .ticker-input-wrap input {
+  flex: 1 1 96px;
+  min-width: 72px;
+  border: none;
+  margin: 0;
+  padding: 4px 2px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  outline: none;
+}
+
+.launch-panel .ticker-input-wrap input::placeholder {
+  color: var(--text-dim);
+  opacity: 0.85;
 }
 
 .launch-panel .row {

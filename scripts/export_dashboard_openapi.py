@@ -14,7 +14,7 @@ import argparse
 import json
 from pathlib import Path
 
-from backend.main import create_app
+from backend.app.main import create_app
 
 
 def _default_output_path() -> Path:

@@ -1,4 +1,7 @@
-const apiPrefix = (import.meta.env.VITE_API_PREFIX ?? "/api").replace(/\/$/, "");
+const apiPrefix = (import.meta.env.VITE_API_PREFIX ?? "/api").replace(
+  /\/$/,
+  "",
+);
 
 /** Map OpenAPI paths (``/api/...``) onto the configured dashboard API prefix. */
 function resolveDashboardUrl(path: string): string {

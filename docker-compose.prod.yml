@@ -1,0 +1,34 @@
+# Production-like smoke stack: nginx serves the built SPA and proxies /api to the backend.
+# Run: ./scripts/docker/compose-up-prod.sh
+# Open http://localhost:8080
+
+services:
+  # Backend image entrypoint runs `alembic upgrade head` then uvicorn (see backend/docker/entrypoint.sh).
+  backend:
+    build:
+      context: .
+      dockerfile: backend/docker/Dockerfile
+    expose:
+      - "8000"
+    volumes:
+      - dashboard_sqlite_prod:/data
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DASHBOARD_DATABASE_PATH: /data/dashboard.sqlite
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      target: production
+      args:
+        ENV: PROD
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  dashboard_sqlite_prod:

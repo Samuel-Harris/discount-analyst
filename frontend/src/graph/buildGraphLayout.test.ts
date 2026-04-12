@@ -57,11 +57,11 @@ describe("buildGraphLayout", () => {
       ],
     });
     const { edges, surveyorNodeId } = buildGraphLayout(detail);
-    const down = edges.find(
-      (e) => e.source === surveyorNodeId && e.targetHandle === "t",
+    const fromSurveyor = edges.find(
+      (e) => e.source === surveyorNodeId && e.targetHandle === "l",
     );
-    expect(down).toBeDefined();
-    expect(down?.sourceHandle).toBe("b");
+    expect(fromSurveyor).toBeDefined();
+    expect(fromSurveyor?.sourceHandle).toBe("r");
   });
 
   it("chains profiler lanes horizontally without Surveyor→lane edge", () => {
@@ -100,5 +100,109 @@ describe("buildGraphLayout", () => {
       (e) => e.sourceHandle === "r" && e.targetHandle === "l",
     );
     expect(chain).toBeDefined();
+  });
+
+  it("uses hub Surveyor with a fan-out edge per stock when several surveyor lanes exist", () => {
+    const detail = baseDetail({
+      runs: [
+        {
+          id: "run-disc",
+          ticker: "disc.l",
+          company_name: "D",
+          entry_path: "surveyor",
+          status: "completed",
+          final_rating: null,
+          decision_type: null,
+          agent_executions: [
+            {
+              id: "d1",
+              agent_name: "researcher",
+              status: "completed",
+              started_at: null,
+              completed_at: null,
+            },
+          ],
+        },
+        {
+          id: "run-meta",
+          ticker: "meta",
+          company_name: "M",
+          entry_path: "surveyor",
+          status: "completed",
+          final_rating: null,
+          decision_type: null,
+          agent_executions: [
+            {
+              id: "m1",
+              agent_name: "researcher",
+              status: "completed",
+              started_at: null,
+              completed_at: null,
+            },
+          ],
+        },
+      ],
+    });
+    const { nodes, edges, surveyorNodeId } = buildGraphLayout(detail);
+    const wf = nodes.find((n) => n.id === surveyorNodeId);
+    expect(wf?.surveyorHubLayout).toBe(true);
+    expect(wf?.position.y).toBe(24);
+    const fan = edges.filter(
+      (e) =>
+        e.source === surveyorNodeId &&
+        e.sourceHandle === "b" &&
+        e.targetHandle === "t",
+    );
+    expect(fan).toHaveLength(2);
+  });
+
+  it("lays out multiple ticker lanes with distinct y positions", () => {
+    const detail = baseDetail({
+      runs: [
+        {
+          id: "run-1",
+          ticker: "AAA.L",
+          company_name: "A",
+          entry_path: "profiler",
+          status: "running",
+          final_rating: null,
+          decision_type: null,
+          agent_executions: [
+            {
+              id: "a1",
+              agent_name: "profiler",
+              status: "completed",
+              started_at: null,
+              completed_at: null,
+            },
+          ],
+        },
+        {
+          id: "run-2",
+          ticker: "ZZZ.L",
+          company_name: "Z",
+          entry_path: "profiler",
+          status: "running",
+          final_rating: null,
+          decision_type: null,
+          agent_executions: [
+            {
+              id: "z1",
+              agent_name: "profiler",
+              status: "running",
+              started_at: null,
+              completed_at: null,
+            },
+          ],
+        },
+      ],
+    });
+    const { nodes } = buildGraphLayout(detail);
+    const laneAgents = nodes.filter((n) => n.kind === "lane_agent");
+    const yForAaa = laneAgents.find((n) => n.ticker === "AAA.L")?.position.y;
+    const yForZzz = laneAgents.find((n) => n.ticker === "ZZZ.L")?.position.y;
+    expect(yForAaa).toBeDefined();
+    expect(yForZzz).toBeDefined();
+    expect(yForAaa).not.toBe(yForZzz);
   });
 });
