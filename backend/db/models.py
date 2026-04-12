@@ -548,7 +548,16 @@ class AgentConversationMessage(SQLModel, table=True):
     id: str = Field(primary_key=True)
     conversation_id: str = Field(foreign_key="agent_conversations.id", index=True)
     message_index: int
-    message_kind: MessageKindDb
+    message_kind: MessageKindDb = Field(
+        sa_column=Column(
+            SAEnum(
+                MessageKindDb,
+                native_enum=False,
+                values_callable=lambda enum_cls: [m.value for m in enum_cls],
+            ),
+            nullable=False,
+        ),
+    )
 
 
 class AgentConversationMessagePart(SQLModel, table=True):
@@ -584,7 +593,16 @@ class AgentConversationMessagePart(SQLModel, table=True):
         index=True,
     )
     part_index: int
-    part_kind: MessagePartKindDb
+    part_kind: MessagePartKindDb = Field(
+        sa_column=Column(
+            SAEnum(
+                MessagePartKindDb,
+                native_enum=False,
+                values_callable=lambda enum_cls: [m.value for m in enum_cls],
+            ),
+            nullable=False,
+        ),
+    )
     content_text: str | None = None
     tool_name: str | None = None
     tool_call_id: str | None = None

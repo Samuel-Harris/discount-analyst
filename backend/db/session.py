@@ -9,7 +9,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import Session, create_engine
 
-from backend.settings import DashboardSettings
+from backend.settings.config import DashboardSettings
 
 SessionFactory = Callable[[], Session]
 
