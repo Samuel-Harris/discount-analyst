@@ -12,10 +12,11 @@ from backend.crud import run_executions as runs
 from backend.crud import workflow_runs as workflow_crud
 from backend.crud.db_utils import new_id
 from backend.crud.run_executions import PROFILER_ENTRY_AGENT_NAMES
-from backend.settings.config import DashboardSettings
-from backend.db.session import create_dashboard_engine, create_session_factory
 from backend.db.migrate import migrate_to_head
+from backend.db.session import create_dashboard_engine, create_session_factory
+from backend.observability.logging import configure_dashboard_observability
 from backend.pipeline.sqlmodel_runner import DashboardPipelineRunner
+from backend.settings.config import DashboardSettings
 
 
 @pytest.mark.asyncio
@@ -24,6 +25,7 @@ async def test_mock_workflow_completes_profiler_and_surveyor(
 ) -> None:
     db_path = tmp_path / "w.sqlite"
     settings = DashboardSettings(database_path=db_path)
+    configure_dashboard_observability(settings)
     engine = create_dashboard_engine(settings)
     migrate_to_head(str(engine.url))
     session_factory = create_session_factory(engine)
@@ -50,7 +52,7 @@ async def test_mock_workflow_completes_profiler_and_surveyor(
             ticker="M1.L",
             company_name="M1.L",
             entry_path="profiler",
-            is_existing_position=False,
+            is_existing_position=True,
             is_mock=True,
             agent_names=PROFILER_ENTRY_AGENT_NAMES,
         )

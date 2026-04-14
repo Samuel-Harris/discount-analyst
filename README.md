@@ -86,14 +86,15 @@ Optional provider blocks can be omitted when unused; consult the settings model 
 
 [`backend/settings/config.py`](backend/settings/config.py) exposes `DashboardSettings` with the `DASHBOARD_` prefix and optional **repository root** `.env` (Pydantic loads `env_file=".env"` relative to the process working directory — use the repo root when you start uvicorn).
 
-| Variable                           | Default                   | Purpose                                                      |
-| ---------------------------------- | ------------------------- | ------------------------------------------------------------ |
-| `DASHBOARD_DATABASE_PATH`          | `data/dashboard.sqlite`   | SQLite file for workflow runs, executions, and conversations |
-| `DASHBOARD_DEFAULT_MODEL`          | (see `ModelName` in code) | Default LLM for dashboard-driven runs                        |
-| `DASHBOARD_RISK_FREE_RATE`         | `0.037`                   | Risk-free rate passed into valuation stages                  |
-| `DASHBOARD_USE_PERPLEXITY`         | `false`                   | Toggle Perplexity-backed behaviour where wired               |
-| `DASHBOARD_USE_MCP_FINANCIAL_DATA` | `true`                    | Toggle MCP financial data integration                        |
-| `DASHBOARD_IS_EXISTING_POSITION`   | `false`                   | Default “existing position” flag for new runs                |
+| Variable                           | Default                   | Purpose                                                                   |
+| ---------------------------------- | ------------------------- | ------------------------------------------------------------------------- |
+| `DASHBOARD_DATABASE_PATH`          | `data/dashboard.sqlite`   | SQLite file for workflow runs, executions, and conversations              |
+| `DASHBOARD_DEFAULT_MODEL`          | (see `ModelName` in code) | Default LLM for dashboard-driven runs                                     |
+| `DASHBOARD_RISK_FREE_RATE`         | `0.037`                   | Risk-free rate passed into valuation stages                               |
+| `DASHBOARD_USE_PERPLEXITY`         | `false`                   | Toggle Perplexity-backed behaviour where wired                            |
+| `DASHBOARD_USE_MCP_FINANCIAL_DATA` | `true`                    | Toggle MCP financial data integration                                     |
+| `DASHBOARD_LOG_LEVEL`              | `INFO`                    | Minimum Logfire level for dashboard process logs (`DEBUG`–`CRITICAL`)     |
+| `DASHBOARD_LOGFIRE_TOKEN`          | _(unset)_                 | Optional Logfire token; when set, spans and logs are also sent to Logfire |
 
 ### Frontend (Vite)
 

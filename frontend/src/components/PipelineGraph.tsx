@@ -21,10 +21,7 @@ import {
   ReactFlowProvider,
 } from "@xyflow/react";
 
-import {
-  AgentNameSlug,
-  type WorkflowRunDetailResponse,
-} from "../api";
+import { AgentNameSlug, type WorkflowRunDetailResponse } from "../api";
 import { buildGraphLayout, type LayoutNode } from "../graph/buildGraphLayout";
 import type { ConversationTarget } from "../hooks/useConversation";
 
@@ -35,9 +32,7 @@ type PipelineNodeData = {
 
 type PipelineFlowNode = Node<PipelineNodeData, "pipeline">;
 
-const CONVERSATION_AGENTS = new Set<string>(
-  Object.values(AgentNameSlug),
-);
+const CONVERSATION_AGENTS = new Set<string>(Object.values(AgentNameSlug));
 
 function conversationClickable(node: LayoutNode): boolean {
   if (node.status !== "completed") return false;

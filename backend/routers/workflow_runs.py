@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Annotated
 
+import logfire
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from backend.contracts.api import (
@@ -50,6 +51,7 @@ Settings = Annotated[DashboardSettings, Depends(get_settings)]
 @router.get("")
 def list_workflow_runs(session: DbSession) -> list[WorkflowRunListItem]:
     rows = list_workflow_runs_from_db(session)
+    logfire.debug("Listed workflow runs", count=len(rows))
     return [workflow_list_item(r) for r in rows]
 
 
@@ -62,6 +64,7 @@ def get_workflow_run(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Workflow run not found"
         )
+    logfire.debug("Fetched workflow run detail", workflow_run_id=workflow_run_id)
     return workflow_detail(d)
 
 
@@ -75,6 +78,12 @@ async def create_workflow_run(
     workflow_run_id = new_id()
     surveyor_exec_id = new_id()
     is_mock = True if settings.deploy_env == "DEV" else body.is_mock
+    logfire.info(
+        "Creating workflow run",
+        workflow_run_id=workflow_run_id,
+        portfolio_ticker_count=len(body.portfolio_tickers),
+        is_mock=is_mock,
+    )
     insert_workflow_run(
         session,
         workflow_run_id=workflow_run_id,
@@ -99,7 +108,7 @@ async def create_workflow_run(
             ticker=ticker,
             company_name=ticker,
             entry_path="profiler",
-            is_existing_position=settings.is_existing_position,
+            is_existing_position=True,
             is_mock=is_mock,
             agent_names=PROFILER_ENTRY_AGENT_NAMES,
         )
@@ -111,6 +120,10 @@ async def create_workflow_run(
         surveyor_started=True,
     )
     asyncio.create_task(runner.execute_workflow(workflow_run_id))
+    logfire.info(
+        "Background workflow execution task scheduled",
+        workflow_run_id=workflow_run_id,
+    )
     return resp
 
 
@@ -122,6 +135,10 @@ def delete_workflow_run(workflow_run_id: str, session: DbSession) -> None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Workflow run not found"
             )
+        logfire.warning(
+            "Delete workflow run forbidden (non-mock run)",
+            workflow_run_id=workflow_run_id,
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only mock workflow runs can be deleted",

@@ -31,7 +31,6 @@ export interface LayoutNode {
   id: string;
   kind: GraphNodeKind;
   label: string;
-  /** Agent slug from the API (`agent_executions[].agent_name`). */
   agentName: AgentNameSlug;
   status: AgentExecutionSummary["status"];
   runId: string | null;

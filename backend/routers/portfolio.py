@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logfire
 from fastapi import APIRouter
 
 from backend.contracts.api import PortfolioResponse
@@ -14,4 +15,6 @@ router = APIRouter(tags=["portfolio"])
 @router.get("")
 def get_portfolio(session: DbSession) -> PortfolioResponse:
     tickers = get_latest_portfolio_tickers(session)
-    return PortfolioResponse(portfolio_tickers=tickers or [])
+    out = tickers or []
+    logfire.debug("Returned latest portfolio tickers", ticker_count=len(out))
+    return PortfolioResponse(portfolio_tickers=out)

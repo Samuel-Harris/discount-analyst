@@ -78,7 +78,7 @@ def seed(session: Session) -> None:
         ticker="SEED1.L",
         company_name="SEED1.L",
         entry_path="profiler",
-        is_existing_position=False,
+        is_existing_position=True,
         is_mock=True,
         agent_names=PROFILER_ENTRY_AGENT_NAMES,
     )
@@ -124,7 +124,7 @@ def seed(session: Session) -> None:
         ticker="SEED1.L", company_name="Seed One plc"
     )
     arbiter_decision = mock_outputs.mock_arbiter_decision(
-        candidate_a, is_existing_position=False
+        candidate_a, is_existing_position=True
     )
     arbiter_verdict = verdict_from_decision(arbiter_decision)
     update_ticker_run_completion(

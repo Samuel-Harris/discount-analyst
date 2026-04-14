@@ -6,6 +6,8 @@ import asyncio
 from datetime import date
 from typing import Any
 
+import logfire
+
 from backend.crud.agent_output_persistence import insert_dcf_valuation
 from backend.crud.conversations import (
     insert_conversation_for_agent_execution,
@@ -162,14 +164,26 @@ class DashboardPipelineRunner:
         )
 
     async def execute_workflow(self, workflow_run_id: str) -> None:
+        logfire.info("Workflow execution started", workflow_run_id=workflow_run_id)
         try:
             inputs = await self._db(get_workflow_run_inputs, workflow_run_id)
             if inputs is None:
+                logfire.debug(
+                    "Workflow run inputs missing; skipping execution",
+                    workflow_run_id=workflow_run_id,
+                )
                 return
             portfolio_tickers, is_mock = inputs
             portfolio_fold = {t.casefold() for t in portfolio_tickers}
             profiler_runs = await self._db(
                 list_profiler_runs_for_workflow, workflow_run_id
+            )
+            logfire.info(
+                "Workflow branches prepared",
+                workflow_run_id=workflow_run_id,
+                portfolio_ticker_count=len(portfolio_tickers),
+                profiler_run_count=len(profiler_runs),
+                is_mock=is_mock,
             )
             # Run strictly one branch at a time (low provider rate limits).
             await self._surveyor_branch(workflow_run_id, portfolio_fold, is_mock)
@@ -180,7 +194,15 @@ class DashboardPipelineRunner:
                     ticker=ticker,
                     is_mock=is_mock,
                 )
+            logfire.info(
+                "Workflow execution finished",
+                workflow_run_id=workflow_run_id,
+            )
         except Exception as exc:  # noqa: BLE001
+            logfire.exception(
+                "Workflow execution failed",
+                workflow_run_id=workflow_run_id,
+            )
             await self._db(set_workflow_error, workflow_run_id, str(exc))
         finally:
             await self._recompute(workflow_run_id)
@@ -192,8 +214,17 @@ class DashboardPipelineRunner:
             get_workflow_surveyor_execution_id, workflow_run_id
         )
         if surveyor_exec_id is None:
+            logfire.debug(
+                "No surveyor execution for workflow; skipping surveyor branch",
+                workflow_run_id=workflow_run_id,
+            )
             return
         try:
+            logfire.info(
+                "Surveyor branch started",
+                workflow_run_id=workflow_run_id,
+                is_mock=is_mock,
+            )
             await self._db(
                 update_workflow_agent_execution,
                 execution_id=surveyor_exec_id,
@@ -256,7 +287,17 @@ class DashboardPipelineRunner:
                     is_mock=is_mock,
                     candidate_snapshot_id=snapshot_id,
                 )
+            logfire.info(
+                "Surveyor branch completed",
+                workflow_run_id=workflow_run_id,
+                discovered_candidates=len(surveyor_output.candidates),
+            )
         except Exception as exc:  # noqa: BLE001
+            logfire.exception(
+                "Surveyor branch failed",
+                workflow_run_id=workflow_run_id,
+                surveyor_execution_id=surveyor_exec_id,
+            )
             await self._db(
                 update_workflow_agent_execution,
                 execution_id=surveyor_exec_id,
@@ -283,7 +324,7 @@ class DashboardPipelineRunner:
             ticker=candidate.ticker,
             company_name=candidate.company_name,
             entry_path="surveyor",
-            is_existing_position=self._settings.is_existing_position,
+            is_existing_position=False,
             is_mock=is_mock,
             agent_names=SURVEYOR_ENTRY_AGENT_NAMES,
             candidate_snapshot_id=candidate_snapshot_id,
@@ -299,6 +340,13 @@ class DashboardPipelineRunner:
     async def _profiler_entry_pipeline(
         self, *, workflow_run_id: str, run_id: str, ticker: str, is_mock: bool
     ) -> None:
+        logfire.info(
+            "Profiler entry pipeline started",
+            workflow_run_id=workflow_run_id,
+            run_id=run_id,
+            ticker=ticker,
+            is_mock=is_mock,
+        )
         try:
             candidate = await self._run_profiler_stage(
                 workflow_run_id=workflow_run_id,
@@ -311,8 +359,21 @@ class DashboardPipelineRunner:
                 run_id=run_id,
                 candidate=candidate,
                 is_mock=is_mock,
+                is_existing_position=True,
+            )
+            logfire.info(
+                "Profiler entry pipeline completed",
+                workflow_run_id=workflow_run_id,
+                run_id=run_id,
+                ticker=ticker,
             )
         except Exception as exc:  # noqa: BLE001
+            logfire.exception(
+                "Profiler entry pipeline failed",
+                workflow_run_id=workflow_run_id,
+                run_id=run_id,
+                ticker=ticker,
+            )
             await self._db(
                 update_ticker_run_completion,
                 run_id=run_id,
@@ -336,6 +397,13 @@ class DashboardPipelineRunner:
             execution_id=profiler_exec_id, status="running", started=True
         )
         await self._recompute(workflow_run_id)
+        logfire.info(
+            "Profiler stage started",
+            workflow_run_id=workflow_run_id,
+            run_id=run_id,
+            ticker=ticker,
+            is_mock=is_mock,
+        )
         mock_msgs_json: str | None = None
         if is_mock:
             await asyncio.sleep(5)
@@ -377,6 +445,12 @@ class DashboardPipelineRunner:
             run_id=run_id,
             company_name=profiler_output.candidate.company_name,
         )
+        logfire.info(
+            "Profiler stage completed",
+            workflow_run_id=workflow_run_id,
+            run_id=run_id,
+            ticker=ticker,
+        )
         return profiler_output.candidate
 
     async def _surveyor_entry_pipeline(
@@ -387,14 +461,34 @@ class DashboardPipelineRunner:
         candidate: SurveyorCandidate,
         is_mock: bool,
     ) -> None:
+        logfire.info(
+            "Surveyor entry pipeline started",
+            workflow_run_id=workflow_run_id,
+            run_id=run_id,
+            ticker=candidate.ticker,
+            is_mock=is_mock,
+        )
         try:
             await self._run_downstream_from_researcher(
                 workflow_run_id=workflow_run_id,
                 run_id=run_id,
                 candidate=candidate,
                 is_mock=is_mock,
+                is_existing_position=False,
+            )
+            logfire.info(
+                "Surveyor entry pipeline completed",
+                workflow_run_id=workflow_run_id,
+                run_id=run_id,
+                ticker=candidate.ticker,
             )
         except Exception as exc:  # noqa: BLE001
+            logfire.exception(
+                "Surveyor entry pipeline failed",
+                workflow_run_id=workflow_run_id,
+                run_id=run_id,
+                ticker=candidate.ticker,
+            )
             await self._db(
                 update_ticker_run_completion,
                 run_id=run_id,
@@ -415,6 +509,7 @@ class DashboardPipelineRunner:
         run_id: str,
         candidate: SurveyorCandidate,
         is_mock: bool,
+        is_existing_position: bool,
     ) -> None:
         research_out, thesis, evaluation = await self._run_research_strategist_sentinel(
             workflow_run_id=workflow_run_id,
@@ -423,13 +518,26 @@ class DashboardPipelineRunner:
             is_mock=is_mock,
         )
         if not sentinel_proceeds_to_valuation(evaluation):
+            logfire.info(
+                "Sentinel gate did not pass; skipping valuation stages",
+                workflow_run_id=workflow_run_id,
+                run_id=run_id,
+                ticker=candidate.ticker,
+            )
             await self._apply_sentinel_rejection(
                 workflow_run_id=workflow_run_id,
                 run_id=run_id,
                 thesis=thesis,
                 evaluation=evaluation,
+                is_existing_position=is_existing_position,
             )
             return
+        logfire.info(
+            "Sentinel gate passed; continuing to appraiser and DCF",
+            workflow_run_id=workflow_run_id,
+            run_id=run_id,
+            ticker=candidate.ticker,
+        )
         await self._run_appraiser_arbiter(
             workflow_run_id=workflow_run_id,
             run_id=run_id,
@@ -438,6 +546,7 @@ class DashboardPipelineRunner:
             thesis=thesis,
             evaluation=evaluation,
             is_mock=is_mock,
+            is_existing_position=is_existing_position,
         )
 
     async def _run_research_strategist_sentinel(
@@ -455,6 +564,13 @@ class DashboardPipelineRunner:
             execution_id=research_exec_id, status="running", started=True
         )
         await self._recompute(workflow_run_id)
+        logfire.info(
+            "Researcher stage started",
+            workflow_run_id=workflow_run_id,
+            run_id=run_id,
+            ticker=candidate.ticker,
+            is_mock=is_mock,
+        )
         r_mock_json: str | None = None
         if is_mock:
             await asyncio.sleep(5)
@@ -491,6 +607,12 @@ class DashboardPipelineRunner:
             messages=r_messages,
             messages_json=r_mock_json,
         )
+        logfire.info(
+            "Researcher stage completed",
+            workflow_run_id=workflow_run_id,
+            run_id=run_id,
+            ticker=candidate.ticker,
+        )
 
         strategist_exec_id = await self._get_exec_id(run_id, "strategist")
         if strategist_exec_id is None:
@@ -499,6 +621,13 @@ class DashboardPipelineRunner:
             execution_id=strategist_exec_id, status="running", started=True
         )
         await self._recompute(workflow_run_id)
+        logfire.info(
+            "Strategist stage started",
+            workflow_run_id=workflow_run_id,
+            run_id=run_id,
+            ticker=candidate.ticker,
+            is_mock=is_mock,
+        )
         s_mock_json: str | None = None
         if is_mock:
             await asyncio.sleep(5)
@@ -533,6 +662,12 @@ class DashboardPipelineRunner:
             messages=s_messages,
             messages_json=s_mock_json,
         )
+        logfire.info(
+            "Strategist stage completed",
+            workflow_run_id=workflow_run_id,
+            run_id=run_id,
+            ticker=candidate.ticker,
+        )
 
         sentinel_exec_id = await self._get_exec_id(run_id, "sentinel")
         if sentinel_exec_id is None:
@@ -541,6 +676,13 @@ class DashboardPipelineRunner:
             execution_id=sentinel_exec_id, status="running", started=True
         )
         await self._recompute(workflow_run_id)
+        logfire.info(
+            "Sentinel stage started",
+            workflow_run_id=workflow_run_id,
+            run_id=run_id,
+            ticker=candidate.ticker,
+            is_mock=is_mock,
+        )
         n_mock_json: str | None = None
         if is_mock:
             await asyncio.sleep(5)
@@ -579,11 +721,28 @@ class DashboardPipelineRunner:
             messages=n_messages,
             messages_json=n_mock_json,
         )
+        logfire.info(
+            "Sentinel stage completed",
+            workflow_run_id=workflow_run_id,
+            run_id=run_id,
+            ticker=candidate.ticker,
+        )
         return research_out, thesis, evaluation
 
     async def _apply_sentinel_rejection(
-        self, *, workflow_run_id: str, run_id: str, thesis: Any, evaluation: Any
+        self,
+        *,
+        workflow_run_id: str,
+        run_id: str,
+        thesis: Any,
+        evaluation: Any,
+        is_existing_position: bool,
     ) -> None:
+        logfire.info(
+            "Applying sentinel rejection verdict",
+            workflow_run_id=workflow_run_id,
+            run_id=run_id,
+        )
         for agent_name in ("appraiser", "arbiter"):
             execution_id = await self._get_exec_id(run_id, agent_name)
             if execution_id is not None:
@@ -593,7 +752,7 @@ class DashboardPipelineRunner:
         rejection = build_sentinel_rejection(
             evaluation,
             thesis,
-            is_existing_position=self._settings.is_existing_position,
+            is_existing_position=is_existing_position,
             decision_date=date.today().isoformat(),
         )
         verdict = verdict_from_decision(rejection)
@@ -619,6 +778,7 @@ class DashboardPipelineRunner:
         thesis: Any,
         evaluation: Any,
         is_mock: bool,
+        is_existing_position: bool,
     ) -> None:
         appraiser_exec_id = await self._get_exec_id(run_id, "appraiser")
         if appraiser_exec_id is None:
@@ -627,6 +787,13 @@ class DashboardPipelineRunner:
             execution_id=appraiser_exec_id, status="running", started=True
         )
         await self._recompute(workflow_run_id)
+        logfire.info(
+            "Appraiser stage started",
+            workflow_run_id=workflow_run_id,
+            run_id=run_id,
+            ticker=candidate.ticker,
+            is_mock=is_mock,
+        )
         appraiser_input = AppraiserInput(
             stock_candidate=candidate,
             deep_research=research_out,
@@ -677,8 +844,27 @@ class DashboardPipelineRunner:
             messages=a_messages,
             messages_json=a_mock_json,
         )
-        dcf_result, dcf_error = await self._run_dcf(stock_args, appraiser_out)
+        logfire.info(
+            "Appraiser stage completed; running DCF",
+            workflow_run_id=workflow_run_id,
+            run_id=run_id,
+            ticker=candidate.ticker,
+        )
+        dcf_result, dcf_error = await self._run_dcf(
+            stock_args,
+            appraiser_out,
+            workflow_run_id=workflow_run_id,
+            run_id=run_id,
+            ticker=candidate.ticker,
+        )
         if dcf_result is None:
+            logfire.warning(
+                "DCF valuation failed or produced no result; skipping arbiter",
+                workflow_run_id=workflow_run_id,
+                run_id=run_id,
+                ticker=candidate.ticker,
+                error=dcf_error,
+            )
             await self._db(
                 update_ticker_run_completion,
                 run_id=run_id,
@@ -709,11 +895,18 @@ class DashboardPipelineRunner:
             execution_id=arbiter_exec_id, status="running", started=True
         )
         await self._recompute(workflow_run_id)
+        logfire.info(
+            "Arbiter stage started",
+            workflow_run_id=workflow_run_id,
+            run_id=run_id,
+            ticker=candidate.ticker,
+            is_mock=is_mock,
+        )
         b_mock_json: str | None = None
         if is_mock:
             await asyncio.sleep(5)
             arbiter_decision = mock_outputs.mock_arbiter_decision(
-                candidate, is_existing_position=self._settings.is_existing_position
+                candidate, is_existing_position=is_existing_position
             )
             b_messages = None
             b_mock_json = mock_conversation_messages.arbiter_messages_json(
@@ -731,7 +924,7 @@ class DashboardPipelineRunner:
                     appraiser_output=appraiser_out, dcf_result=dcf_result
                 ),
                 risk_free_rate=self._settings.risk_free_rate,
-                is_existing_position=self._settings.is_existing_position,
+                is_existing_position=is_existing_position,
             )
             outcome = await run_streamed_agent(
                 agent=agent,
@@ -768,9 +961,21 @@ class DashboardPipelineRunner:
             error_message=None,
         )
         await self._recompute(workflow_run_id)
+        logfire.info(
+            "Arbiter stage completed; ticker run finished",
+            workflow_run_id=workflow_run_id,
+            run_id=run_id,
+            ticker=candidate.ticker,
+        )
 
     async def _run_dcf(
-        self, stock_args: StockRunArgs, appraiser_out: Any
+        self,
+        stock_args: StockRunArgs,
+        appraiser_out: Any,
+        *,
+        workflow_run_id: str,
+        run_id: str,
+        ticker: str,
     ) -> tuple[Any, str | None]:
         def _sync_dcf() -> tuple[Any, str | None]:
             params = DCFAnalysisParameters(
@@ -781,6 +986,12 @@ class DashboardPipelineRunner:
             try:
                 return DCFAnalysis(params).dcf_analysis(), None
             except Exception as exc:  # noqa: BLE001
+                logfire.exception(
+                    "DCF analysis raised",
+                    workflow_run_id=workflow_run_id,
+                    run_id=run_id,
+                    ticker=ticker,
+                )
                 return None, str(exc)
 
         return await asyncio.to_thread(_sync_dcf)

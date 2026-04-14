@@ -11,6 +11,7 @@ from sqlmodel import Session
 from backend.app.main import create_app
 from backend.db.migrate import migrate_to_head
 from backend.db.session import SessionFactory
+from backend.observability.logging import configure_dashboard_observability
 from backend.settings.config import DashboardSettings
 
 
@@ -48,6 +49,9 @@ def db_session(db_session_factory: SessionFactory) -> Iterator[Session]:
 
 @pytest.fixture
 def migrated_temp_db_url(tmp_path: Path) -> str:
+    configure_dashboard_observability(
+        DashboardSettings(database_path=tmp_path / "migration_smoke.sqlite")
+    )
     db_path = tmp_path / "migration_smoke.sqlite"
     db_url = f"sqlite:///{db_path}"
     migrate_to_head(db_url)
