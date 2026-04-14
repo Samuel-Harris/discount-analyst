@@ -4,8 +4,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from backend.common.primitive_types import AgentNameSlug
 from backend.contracts.enums import (
+    AgentNameSlug,
     DecisionTypeApi,
     EntryPathApi,
     ExecutionStatusApi,

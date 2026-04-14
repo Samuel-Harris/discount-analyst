@@ -166,12 +166,10 @@ def test_run_agent_conversation_not_found(client: TestClient) -> None:
 
 
 def test_run_agent_conversation_invalid_agent_name(client: TestClient) -> None:
-    assert (
-        client.get(
-            "/api/agents/runs/00000000-0000-4000-8000-000000000005/agents/not-an-agent/conversation"
-        ).status_code
-        == 400
+    r = client.get(
+        "/api/agents/runs/00000000-0000-4000-8000-000000000005/agents/not-an-agent/conversation"
     )
+    assert r.status_code == 422
 
 
 def test_portfolio_response_contract(client: TestClient) -> None:

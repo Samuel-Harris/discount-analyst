@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+import logfire
 from fastapi import APIRouter, HTTPException, status
 
-from backend.common.primitive_types import AgentNameSlug
 from backend.deps import DbSession
 from backend.contracts.api import ConversationResponse
-from backend.contracts.agents import is_known_agent_slug
+from backend.contracts.enums import AgentNameSlug
 from backend.crud.conversations import (
     get_conversation_for_run_agent,
     get_conversation_for_workflow_surveyor,
@@ -25,6 +25,11 @@ def get_surveyor_conversation(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found"
         )
+    logfire.debug(
+        "Fetched surveyor conversation",
+        workflow_run_id=workflow_run_id,
+        agent="surveyor",
+    )
     return ConversationResponse(**row)
 
 
@@ -32,11 +37,7 @@ def get_surveyor_conversation(
 def get_run_agent_conversation(
     run_id: str, agent_name: AgentNameSlug, session: DbSession
 ) -> ConversationResponse:
-    if not is_known_agent_slug(agent_name):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unknown agent name: {agent_name!r}",
-        )
+    # Invalid slugs are rejected by FastAPI as 422 before this handler runs.
     row = get_conversation_for_run_agent(
         session, run_id=run_id, agent_name=agent_name.casefold()
     )
@@ -44,4 +45,9 @@ def get_run_agent_conversation(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found"
         )
+    logfire.debug(
+        "Fetched run agent conversation",
+        run_id=run_id,
+        agent_name=agent_name,
+    )
     return ConversationResponse(**row)

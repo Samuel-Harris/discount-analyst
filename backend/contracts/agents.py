@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Final
 
-from backend.common.primitive_types import AgentNameSlug
+from backend.contracts.enums import AgentNameSlug
 from discount_analyst.agents.common.agent_names import AgentName
 
 
@@ -16,19 +16,11 @@ class AgentConfig:
 
 
 agent_configs: Final[list[AgentConfig]] = [
-    AgentConfig(name=AgentName.SURVEYOR, agent_name_slug=AgentNameSlug("surveyor")),
-    AgentConfig(name=AgentName.PROFILER, agent_name_slug=AgentNameSlug("profiler")),
-    AgentConfig(name=AgentName.RESEARCHER, agent_name_slug=AgentNameSlug("researcher")),
-    AgentConfig(name=AgentName.STRATEGIST, agent_name_slug=AgentNameSlug("strategist")),
-    AgentConfig(name=AgentName.SENTINEL, agent_name_slug=AgentNameSlug("sentinel")),
-    AgentConfig(name=AgentName.APPRAISER, agent_name_slug=AgentNameSlug("appraiser")),
-    AgentConfig(name=AgentName.ARBITER, agent_name_slug=AgentNameSlug("arbiter")),
+    AgentConfig(name=AgentName.SURVEYOR, agent_name_slug=AgentNameSlug.SURVEYOR),
+    AgentConfig(name=AgentName.PROFILER, agent_name_slug=AgentNameSlug.PROFILER),
+    AgentConfig(name=AgentName.RESEARCHER, agent_name_slug=AgentNameSlug.RESEARCHER),
+    AgentConfig(name=AgentName.STRATEGIST, agent_name_slug=AgentNameSlug.STRATEGIST),
+    AgentConfig(name=AgentName.SENTINEL, agent_name_slug=AgentNameSlug.SENTINEL),
+    AgentConfig(name=AgentName.APPRAISER, agent_name_slug=AgentNameSlug.APPRAISER),
+    AgentConfig(name=AgentName.ARBITER, agent_name_slug=AgentNameSlug.ARBITER),
 ]
-
-_KNOWN_AGENT_SLUGS: Final[frozenset[AgentNameSlug]] = frozenset(
-    agent_config.agent_name_slug for agent_config in agent_configs
-)
-
-
-def is_known_agent_slug(slug: AgentNameSlug) -> bool:
-    return slug in _KNOWN_AGENT_SLUGS

@@ -32,3 +32,13 @@ class EntryPathApi(StrEnum):
 class DecisionTypeApi(StrEnum):
     ARBITER = "arbiter"
     SENTINEL_REJECTION = "sentinel_rejection"
+
+
+class AgentNameSlug(StrEnum):
+    SURVEYOR = "surveyor"
+    PROFILER = "profiler"
+    RESEARCHER = "researcher"
+    STRATEGIST = "strategist"
+    SENTINEL = "sentinel"
+    APPRAISER = "appraiser"
+    ARBITER = "arbiter"

@@ -7,8 +7,8 @@ from backend.contracts.api import (
     WorkflowRunDetailResponse,
     WorkflowRunListItem,
 )
-from backend.common.primitive_types import AgentNameSlug
 from backend.contracts.enums import (
+    AgentNameSlug,
     DecisionTypeApi,
     EntryPathApi,
     ExecutionStatusApi,

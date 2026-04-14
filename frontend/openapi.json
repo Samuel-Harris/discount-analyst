@@ -4,8 +4,7 @@
       "AgentExecutionSummary": {
         "properties": {
           "agent_name": {
-            "title": "Agent Name",
-            "type": "string"
+            "$ref": "#/components/schemas/AgentNameSlug"
           },
           "completed_at": {
             "anyOf": [
@@ -48,6 +47,19 @@
         ],
         "title": "AgentExecutionSummary",
         "type": "object"
+      },
+      "AgentNameSlug": {
+        "enum": [
+          "surveyor",
+          "profiler",
+          "researcher",
+          "strategist",
+          "sentinel",
+          "appraiser",
+          "arbiter"
+        ],
+        "title": "AgentNameSlug",
+        "type": "string"
       },
       "ConversationResponse": {
         "properties": {
@@ -198,8 +210,7 @@
       "SurveyorExecutionSummary": {
         "properties": {
           "agent_name": {
-            "title": "Agent Name",
-            "type": "string"
+            "$ref": "#/components/schemas/AgentNameSlug"
           },
           "completed_at": {
             "anyOf": [
@@ -529,8 +540,7 @@
             "name": "agent_name",
             "required": true,
             "schema": {
-              "title": "Agent Name",
-              "type": "string"
+              "$ref": "#/components/schemas/AgentNameSlug"
             }
           }
         ],

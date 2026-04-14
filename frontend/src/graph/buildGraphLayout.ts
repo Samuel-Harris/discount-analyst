@@ -5,7 +5,7 @@ import type {
   WorkflowRunDetailResponse,
 } from "../api";
 
-const CANONICAL_ORDER: AgentNameSlug[] = [
+const CANONICAL_ORDER: readonly AgentNameSlug[] = [
   "profiler",
   "researcher",
   "strategist",
@@ -17,7 +17,9 @@ const CANONICAL_ORDER: AgentNameSlug[] = [
 function sortAgents(
   executions: AgentExecutionSummary[],
 ): AgentExecutionSummary[] {
-  const rank = new Map(CANONICAL_ORDER.map((a, i) => [a, i]));
+  const rank = new Map<AgentNameSlug, number>(
+    CANONICAL_ORDER.map((a, i) => [a, i]),
+  );
   return [...executions].sort(
     (a, b) => (rank.get(a.agent_name) ?? 99) - (rank.get(b.agent_name) ?? 99),
   );
@@ -29,6 +31,7 @@ export interface LayoutNode {
   id: string;
   kind: GraphNodeKind;
   label: string;
+  /** Agent slug from the API (`agent_executions[].agent_name`). */
   agentName: AgentNameSlug;
   status: AgentExecutionSummary["status"];
   runId: string | null;
@@ -80,7 +83,7 @@ function runLayoutSort(
 }
 
 /** Display label for pipeline nodes (API slugs stay lowercase on `agentName`). */
-function agentDisplayLabel(slug: string): string {
+function agentDisplayLabel(slug: AgentNameSlug): string {
   return slug.toUpperCase();
 }
 

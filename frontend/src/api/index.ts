@@ -1,6 +1,5 @@
 export type {
   AgentExecutionSummary,
-  AgentNameSlug,
   ConversationResponse,
   CreateWorkflowRunRequest,
   CreateWorkflowRunResponse,
@@ -12,11 +11,12 @@ export type {
 } from "./generated";
 
 export {
+  AgentNameSlug,
   createWorkflowRunApiWorkflowRunsPost as createWorkflowRun,
   deleteWorkflowRunApiWorkflowRunsWorkflowRunIdDelete as deleteWorkflowRun,
   getPortfolioApiPortfolioGet as fetchPortfolio,
-  getRunAgentConversationApiRunsRunIdAgentsAgentNameConversationGet as fetchRunAgentConversation,
-  getSurveyorConversationApiWorkflowRunsWorkflowRunIdAgentsSurveyorConversationGet as fetchSurveyorConversation,
+  getRunAgentConversationApiAgentsRunsRunIdAgentsAgentNameConversationGet as fetchRunAgentConversation,
+  getSurveyorConversationApiAgentsWorkflowRunsWorkflowRunIdAgentsSurveyorConversationGet as fetchSurveyorConversation,
   getWorkflowRunApiWorkflowRunsWorkflowRunIdGet as fetchWorkflowRunDetail,
   listWorkflowRunsApiWorkflowRunsGet as fetchWorkflowRuns,
 } from "./generated";

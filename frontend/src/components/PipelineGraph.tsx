@@ -21,9 +21,12 @@ import {
   ReactFlowProvider,
 } from "@xyflow/react";
 
+import {
+  AgentNameSlug,
+  type WorkflowRunDetailResponse,
+} from "../api";
 import { buildGraphLayout, type LayoutNode } from "../graph/buildGraphLayout";
 import type { ConversationTarget } from "../hooks/useConversation";
-import type { WorkflowRunDetailResponse } from "../api";
 
 type PipelineNodeData = {
   node: LayoutNode;
@@ -32,15 +35,9 @@ type PipelineNodeData = {
 
 type PipelineFlowNode = Node<PipelineNodeData, "pipeline">;
 
-const CONVERSATION_AGENTS = new Set([
-  "surveyor",
-  "profiler",
-  "researcher",
-  "strategist",
-  "sentinel",
-  "appraiser",
-  "arbiter",
-]);
+const CONVERSATION_AGENTS = new Set<string>(
+  Object.values(AgentNameSlug),
+);
 
 function conversationClickable(node: LayoutNode): boolean {
   if (node.status !== "completed") return false;
@@ -59,7 +56,11 @@ function emitConversationOpen(data: PipelineNodeData): void {
     onOpen({ kind: "surveyor", workflowRunId: node.workflowRunId }, title);
   } else if (node.runId) {
     onOpen(
-      { kind: "run_agent", runId: node.runId, agentName: node.agentName },
+      {
+        kind: "run_agent",
+        runId: node.runId,
+        agentName: node.agentName,
+      },
       title,
     );
   }

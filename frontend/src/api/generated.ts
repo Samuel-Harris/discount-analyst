@@ -10,12 +10,26 @@ export type AgentExecutionSummaryCompletedAt = string | null;
 export type AgentExecutionSummaryStartedAt = string | null;
 
 export interface AgentExecutionSummary {
-  agent_name: string;
+  agent_name: AgentNameSlug;
   completed_at: AgentExecutionSummaryCompletedAt;
   id: string;
   started_at: AgentExecutionSummaryStartedAt;
   status: ExecutionStatusApi;
 }
+
+export type AgentNameSlug = typeof AgentNameSlug[keyof typeof AgentNameSlug];
+
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const AgentNameSlug = {
+  surveyor: 'surveyor',
+  profiler: 'profiler',
+  researcher: 'researcher',
+  strategist: 'strategist',
+  sentinel: 'sentinel',
+  appraiser: 'appraiser',
+  arbiter: 'arbiter',
+} as const;
 
 export interface ConversationResponse {
   assistant_response: string;
@@ -84,7 +98,7 @@ export type SurveyorExecutionSummaryCompletedAt = string | null;
 export type SurveyorExecutionSummaryStartedAt = string | null;
 
 export interface SurveyorExecutionSummary {
-  agent_name: string;
+  agent_name: AgentNameSlug;
   completed_at: SurveyorExecutionSummaryCompletedAt;
   id: string;
   started_at: SurveyorExecutionSummaryStartedAt;
@@ -175,7 +189,7 @@ export const WorkflowRunStatusApi = {
  * @summary Get Run Agent Conversation
  */
 export const getGetRunAgentConversationApiAgentsRunsRunIdAgentsAgentNameConversationGetUrl = (runId: string,
-    agentName: string,) => {
+    agentName: AgentNameSlug,) => {
 
 
 
@@ -184,7 +198,7 @@ export const getGetRunAgentConversationApiAgentsRunsRunIdAgentsAgentNameConversa
 }
 
 export const getRunAgentConversationApiAgentsRunsRunIdAgentsAgentNameConversationGet = async (runId: string,
-    agentName: string, options?: RequestInit): Promise<ConversationResponse> => {
+    agentName: AgentNameSlug, options?: RequestInit): Promise<ConversationResponse> => {
 
   return dashboardMutator<ConversationResponse>(getGetRunAgentConversationApiAgentsRunsRunIdAgentsAgentNameConversationGetUrl(runId,agentName),
   {
