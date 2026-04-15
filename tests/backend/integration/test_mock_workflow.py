@@ -73,6 +73,9 @@ async def test_mock_workflow_completes_profiler_and_surveyor(
     assert len(profiler_lanes) == 1
     assert len(surveyor_lanes) == 3
     assert len(detail["runs"]) == 4
+    surveyor_decisions = {r["decision_type"] for r in surveyor_lanes}
+    assert "sentinel_rejection" in surveyor_decisions
+    assert "arbiter" in surveyor_decisions
     profiler_run = profiler_lanes[0]
     assert profiler_run["status"] == "completed"
     for a in profiler_run["agent_executions"]:

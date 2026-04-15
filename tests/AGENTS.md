@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-23 | Updated: 2026-04-15 -->
+<!-- Generated: 2026-02-23 | Updated: 2026-04-16 -->
 
 # tests
 
@@ -20,7 +20,9 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | `tests/backend/unit/test_workflow_api.py`                         | HTTP contract tests for the FastAPI dashboard (`backend`) with isolated SQLite.                    |
 | `tests/backend/unit/test_agent_lane_order_sync.py`                | Keeps `backend/contracts/agent_lane_order.py` aligned with `frontend/src/graph/agentLaneOrder.ts`. |
 | `tests/backend/unit/test_profiler_stage.py`                       | Unit tests for the extracted dashboard `ProfilerStage` and its persistence port.                   |
-| `tests/backend/integration/test_mock_workflow.py`                 | Mock pipeline persistence for `DashboardPipelineRunner` (no live LLM calls).                       |
+| `tests/backend/unit/test_mock_surveyor_discoveries.py`            | Mock Surveyor discovery helpers and deterministic mock Sentinel pass/fail parity for the dashboard. |
+| `tests/backend/unit/test_mock_arbiter_dashboard.py`             | Deterministic mock ``InvestmentRating`` selection for dashboard Arbiter payloads.                  |
+| `tests/backend/integration/test_mock_workflow.py`                 | Mock pipeline persistence for `DashboardPipelineRunner` (no live LLM calls); mixed Sentinel lanes. |
 | `tests/backend/integration/test_dashboard_http_e2e.py`            | Async HTTP path: create mock workflow run, poll until completed, assert detail and conversations.  |
 
 ## Subdirectories

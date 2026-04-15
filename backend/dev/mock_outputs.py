@@ -216,6 +216,16 @@ def mock_thesis(candidate: SurveyorCandidate) -> MispricingThesis:
     )
 
 
+def mock_sentinel_proceed_for_dashboard_lane(ticker: str) -> bool:
+    """Return whether mock Sentinel should authorise valuation for this ticker.
+
+    Deterministic from the ticker string (character-sum parity) so dashboard
+    mock runs show a stable mix of pass and fail lanes without RNG coupling.
+    """
+
+    return sum(ord(ch) for ch in ticker.casefold()) % 2 == 0
+
+
 def mock_sentinel_evaluation(
     *, candidate: SurveyorCandidate, proceed: bool
 ) -> EvaluationReport:
@@ -379,10 +389,29 @@ def mock_dcf_result() -> DCFAnalysisResult:
     )
 
 
+def mock_arbiter_rating_for_dashboard_lane(ticker: str) -> InvestmentRating:
+    """Pick a stable ``InvestmentRating`` per ticker for mock Arbiter output.
+
+    Random ratings made short mock runs look uniformly bearish; this cycles
+    across all five levels using the same case-folded character-sum scheme as
+    :func:`mock_sentinel_proceed_for_dashboard_lane`.
+    """
+
+    order: tuple[InvestmentRating, ...] = (
+        InvestmentRating.STRONG_BUY,
+        InvestmentRating.BUY,
+        InvestmentRating.HOLD,
+        InvestmentRating.SELL,
+        InvestmentRating.STRONG_SELL,
+    )
+    bucket = sum(ord(ch) for ch in ticker.casefold()) % len(order)
+    return order[bucket]
+
+
 def mock_arbiter_decision(
     candidate: SurveyorCandidate, *, is_existing_position: bool
 ) -> ArbiterDecision:
-    rating = random.choice(list(InvestmentRating))
+    rating = mock_arbiter_rating_for_dashboard_lane(candidate.ticker)
     conviction = random.choice(("Low", "Medium", "High"))
 
     action_by_rating = {

@@ -18,3 +18,21 @@ def test_dashboard_discoveries_empty_when_defaults_all_in_portfolio() -> None:
     fold = {c.ticker.casefold() for c in full.candidates}
     out = mock_outputs.mock_surveyor_dashboard_discoveries(fold, limit=3)
     assert out.candidates == []
+
+
+def test_mock_sentinel_lane_gate_is_mixed_for_default_dashboard_discoveries() -> None:
+    """First three default discoveries must not all share the same mock Sentinel fate."""
+    out = mock_outputs.mock_surveyor_dashboard_discoveries(set(), limit=3)
+    flags = [
+        mock_outputs.mock_sentinel_proceed_for_dashboard_lane(c.ticker)
+        for c in out.candidates
+    ]
+    assert len(flags) == 3
+    assert any(flags) and not all(flags)
+
+
+def test_mock_sentinel_lane_gate_is_stable_per_ticker() -> None:
+    t = "BETA.L"
+    a = mock_outputs.mock_sentinel_proceed_for_dashboard_lane(t)
+    b = mock_outputs.mock_sentinel_proceed_for_dashboard_lane(t.casefold())
+    assert a is b is True

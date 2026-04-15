@@ -733,7 +733,10 @@ class DashboardPipelineRunner:
         if is_mock:
             await asyncio.sleep(5)
             evaluation = mock_outputs.mock_sentinel_evaluation(
-                candidate=candidate, proceed=True
+                candidate=candidate,
+                proceed=mock_outputs.mock_sentinel_proceed_for_dashboard_lane(
+                    candidate.ticker
+                ),
             )
             n_messages = None
             n_mock_json = mock_conversation_messages.sentinel_messages_json(
