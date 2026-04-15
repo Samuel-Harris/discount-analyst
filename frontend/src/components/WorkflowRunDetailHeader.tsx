@@ -1,15 +1,22 @@
 import type { WorkflowRunDetailResponse } from "../api";
+import type { WorkflowMainView } from "../hooks/useWorkflowRunNavigation";
 import { formatWhen } from "../utils/formatWhen";
 import { UiStateText } from "./UiStateText";
 
 export interface WorkflowRunDetailHeaderProps {
   detail: WorkflowRunDetailResponse;
   onRequestDelete: () => void;
+  mainView: WorkflowMainView;
+  onOpenRecommendations: () => void;
+  onOpenPipeline: () => void;
 }
 
 export function WorkflowRunDetailHeader({
   detail,
   onRequestDelete,
+  mainView,
+  onOpenRecommendations,
+  onOpenPipeline,
 }: WorkflowRunDetailHeaderProps) {
   return (
     <div className="detail-header">
@@ -36,10 +43,28 @@ export function WorkflowRunDetailHeader({
         ) : null}
         <div className="lane-hint">
           {detail.runs.length} ticker lane(s). Completed nodes with stored
-          transcripts open the conversation panel.
+          transcripts open the conversation panel. Open Recommendations for a
+          sortable verdict table (suited to large runs).
         </div>
       </div>
       <div className="detail-header-actions">
+        {mainView === "pipeline" ? (
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => onOpenRecommendations()}
+          >
+            Recommendations
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => onOpenPipeline()}
+          >
+            Pipeline graph
+          </button>
+        )}
         {detail.is_mock ? (
           <button
             type="button"

@@ -10,13 +10,21 @@ import {
   type ConversationTarget,
 } from "../hooks/useConversation";
 import { useWorkflowRunDetail } from "../hooks/useWorkflowRunDetail";
+import { useWorkflowRunNavigation } from "../hooks/useWorkflowRunNavigation";
 import { useWorkflowRuns } from "../hooks/useWorkflowRuns";
 import { AppHeader } from "./layout/AppHeader";
 import { WorkflowRunMainPanel } from "./WorkflowRunMainPanel";
 
 export function DashboardShell() {
   const { items, loading, error } = useWorkflowRuns();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const {
+    selectedId,
+    mainView,
+    selectRunFromSidebar,
+    openLaunchedRun,
+    openRecommendations,
+    openPipeline,
+  } = useWorkflowRunNavigation();
   const {
     detail,
     loading: detailLoading,
@@ -54,7 +62,7 @@ export function DashboardShell() {
       setDeleteError(null);
       try {
         await deleteWorkflowRun(id);
-        if (selectedId === id) setSelectedId(null);
+        if (selectedId === id) selectRunFromSidebar(null);
         await invalidateWorkflowRunsList();
       } catch (e) {
         setDeleteError(
@@ -62,12 +70,12 @@ export function DashboardShell() {
         );
       }
     },
-    [selectedId],
+    [selectedId, selectRunFromSidebar],
   );
 
   const onLaunched = useCallback((workflowRunId: string) => {
-    setSelectedId(workflowRunId);
-  }, []);
+    openLaunchedRun(workflowRunId);
+  }, [openLaunchedRun]);
 
   const launchForm = <RunPipelineForm onLaunched={onLaunched} />;
 
@@ -78,7 +86,7 @@ export function DashboardShell() {
       <Sidebar
         items={items}
         selectedId={selectedId}
-        onSelect={setSelectedId}
+        onSelect={selectRunFromSidebar}
         onDelete={(id) => void handleDelete(id)}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
@@ -93,6 +101,9 @@ export function DashboardShell() {
         sidebarCollapsed={sidebarCollapsed}
         deleteError={deleteError}
         launchForm={launchForm}
+        mainView={mainView}
+        onOpenRecommendations={openRecommendations}
+        onOpenPipeline={openPipeline}
         onOpenConversation={openConversation}
         onRequestDeleteRun={(id) => void handleDelete(id)}
       />

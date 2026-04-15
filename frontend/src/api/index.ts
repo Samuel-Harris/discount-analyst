@@ -6,6 +6,7 @@ export type {
   EntryPathApi,
   ExecutionStatusApi,
   PortfolioResponse,
+  TickerRunDetail,
   WorkflowRunDetailResponse,
   WorkflowRunListItem,
 } from "./generated";

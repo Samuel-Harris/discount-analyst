@@ -2,9 +2,11 @@ import type { ReactNode } from "react";
 
 import type { WorkflowRunDetailResponse } from "../api";
 import type { ConversationTarget } from "../hooks/useConversation";
+import type { WorkflowMainView } from "../hooks/useWorkflowRunNavigation";
 import { PipelineGraph } from "./PipelineGraph";
 import { UiStateText } from "./UiStateText";
 import { WorkflowRunDetailHeader } from "./WorkflowRunDetailHeader";
+import { WorkflowRecommendationsView } from "./WorkflowRecommendationsView";
 
 export interface WorkflowRunMainPanelProps {
   selectedId: string | null;
@@ -14,6 +16,9 @@ export interface WorkflowRunMainPanelProps {
   sidebarCollapsed: boolean;
   deleteError: string | null;
   launchForm: ReactNode;
+  mainView: WorkflowMainView;
+  onOpenRecommendations: () => void;
+  onOpenPipeline: () => void;
   onOpenConversation: (target: ConversationTarget, title: string) => void;
   onRequestDeleteRun: (id: string) => void;
 }
@@ -26,6 +31,9 @@ export function WorkflowRunMainPanel({
   sidebarCollapsed,
   deleteError,
   launchForm,
+  mainView,
+  onOpenRecommendations,
+  onOpenPipeline,
   onOpenConversation,
   onRequestDeleteRun,
 }: WorkflowRunMainPanelProps) {
@@ -44,11 +52,18 @@ export function WorkflowRunMainPanel({
             <WorkflowRunDetailHeader
               detail={detail}
               onRequestDelete={() => onRequestDeleteRun(detail.id)}
+              mainView={mainView}
+              onOpenRecommendations={onOpenRecommendations}
+              onOpenPipeline={onOpenPipeline}
             />
-            <PipelineGraph
-              detail={detail}
-              onOpenConversation={onOpenConversation}
-            />
+            {mainView === "pipeline" ? (
+              <PipelineGraph
+                detail={detail}
+                onOpenConversation={onOpenConversation}
+              />
+            ) : (
+              <WorkflowRecommendationsView detail={detail} />
+            )}
           </>
         ) : detailLoading && selectedId ? (
           <div className="placeholder-main">

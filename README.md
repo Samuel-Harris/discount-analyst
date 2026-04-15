@@ -105,7 +105,7 @@ Optional provider blocks can be omitted when unused; consult the settings model 
 
 ## Local dashboard (API and UI)
 
-The dashboard is a **local-only** FastAPI app under [`backend/`](backend/) plus a Vite + React UI under [`frontend/`](frontend/).
+The dashboard is a **local-only** FastAPI app under [`backend/`](backend/) plus a Vite + React UI under [`frontend/`](frontend/). With a workflow run open, use **Recommendations** for a full-width sortable verdict table; the URL can include `?run=<workflow_run_id>&view=recommendations` for deep links.
 
 ### Install
 

@@ -22,8 +22,26 @@ import {
 } from "@xyflow/react";
 
 import { AgentNameSlug, type WorkflowRunDetailResponse } from "../api";
-import { buildGraphLayout, type LayoutNode } from "../graph/buildGraphLayout";
+import {
+  buildGraphLayout,
+  type LaneRatingChipLayout,
+  type LayoutNode,
+} from "../graph/buildGraphLayout";
+import { laneRatingChipClassNames } from "../graph/laneRatingChipStyles";
 import type { ConversationTarget } from "../hooks/useConversation";
+
+function laneRatingChipTooltip(chip: LaneRatingChipLayout): string {
+  if (!chip.finalRating) {
+    return `${chip.ticker}: no final verdict yet`;
+  }
+  if (chip.decisionType === "sentinel_rejection") {
+    return `${chip.ticker}: ${chip.finalRating} — Sentinel gate verdict (programmatic)`;
+  }
+  if (chip.decisionType === "arbiter") {
+    return `${chip.ticker}: ${chip.finalRating} — Arbiter verdict`;
+  }
+  return `${chip.ticker}: ${chip.finalRating}`;
+}
 
 type PipelineNodeData = {
   node: LayoutNode;
@@ -122,7 +140,8 @@ function graphHeight(detail: WorkflowRunDetailResponse): number {
 }
 
 function graphWidth(): number {
-  return 32 + 150 * 6 + 140;
+  /* Trailing space for lane rating chips (long labels e.g. STRONG SELL). */
+  return 32 + 150 * 6 + 152;
 }
 
 export interface PipelineGraphProps {
@@ -134,7 +153,7 @@ function PipelineGraphInner({
   detail,
   onOpenConversation,
 }: PipelineGraphProps) {
-  const { nodes: layoutNodes, edges: layoutEdges } = useMemo(
+  const { nodes: layoutNodes, edges: layoutEdges, laneRatingChips } = useMemo(
     () => buildGraphLayout(detail),
     [detail],
   );
@@ -173,6 +192,23 @@ function PipelineGraphInner({
 
   return (
     <div className="graph-wrap" style={{ height: h, minHeight: 280 }}>
+      <div className="lane-rating-chips" role="list" aria-label="Final verdict per ticker lane">
+        {laneRatingChips.map((chip) => (
+          <div
+            key={chip.runId}
+            role="listitem"
+            className={laneRatingChipClassNames(chip)}
+            style={{ top: chip.topPx }}
+            title={laneRatingChipTooltip(chip)}
+            aria-label={laneRatingChipTooltip(chip)}
+          >
+            <span className="lane-rating-chip-ticker">{chip.ticker}</span>
+            <span className="lane-rating-chip-value">
+              {chip.finalRating ?? "Pending"}
+            </span>
+          </div>
+        ))}
+      </div>
       <ReactFlow
         nodes={nodes}
         edges={edges}

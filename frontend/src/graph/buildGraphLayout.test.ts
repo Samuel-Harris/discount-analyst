@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { PROFILER_ENTRY_AGENT_NAMES } from "./agentLaneOrder";
-import { buildGraphLayout } from "./buildGraphLayout";
+import { buildGraphLayout, sortedWorkflowRuns } from "./buildGraphLayout";
 import type { WorkflowRunDetailResponse } from "../api";
 
 function baseDetail(
@@ -25,6 +25,37 @@ function baseDetail(
     ...overrides,
   };
 }
+
+describe("sortedWorkflowRuns", () => {
+  it("orders surveyor lanes before profiler lanes, then by ticker", () => {
+    const runs = [
+      {
+        id: "p",
+        ticker: "META",
+        company_name: "M",
+        entry_path: "profiler" as const,
+        status: "running" as const,
+        final_rating: null,
+        decision_type: null,
+        agent_executions: [],
+      },
+      {
+        id: "s",
+        ticker: "DISC.L",
+        company_name: "D",
+        entry_path: "surveyor" as const,
+        status: "running" as const,
+        final_rating: null,
+        decision_type: null,
+        agent_executions: [],
+      },
+    ];
+    expect(sortedWorkflowRuns(runs).map((r) => r.ticker)).toEqual([
+      "DISC.L",
+      "META",
+    ]);
+  });
+});
 
 describe("buildGraphLayout", () => {
   it("adds a workflow-level Surveyor node when surveyor_execution is present", () => {
@@ -260,6 +291,62 @@ describe("buildGraphLayout", () => {
     expect(discY).toBeDefined();
     expect(metaY).toBeDefined();
     expect(discY!).toBeLessThan(metaY!);
+  });
+
+  it("emits laneRatingChips in runLayoutSort order with verdict fields and top offsets", () => {
+    const detail = baseDetail({
+      runs: [
+        {
+          id: "run-meta",
+          ticker: "META",
+          company_name: "M",
+          entry_path: "profiler",
+          status: "completed",
+          final_rating: "BUY",
+          decision_type: "arbiter",
+          agent_executions: [
+            {
+              id: "m1",
+              agent_name: "profiler",
+              status: "completed",
+              started_at: null,
+              completed_at: null,
+            },
+          ],
+        },
+        {
+          id: "run-disc",
+          ticker: "DISC.L",
+          company_name: "D",
+          entry_path: "surveyor",
+          status: "completed",
+          final_rating: "STRONG SELL",
+          decision_type: "sentinel_rejection",
+          agent_executions: [
+            {
+              id: "d1",
+              agent_name: "researcher",
+              status: "completed",
+              started_at: null,
+              completed_at: null,
+            },
+          ],
+        },
+      ],
+    });
+    const { laneRatingChips } = buildGraphLayout(detail);
+    expect(laneRatingChips).toHaveLength(2);
+    expect(laneRatingChips[0]?.runId).toBe("run-disc");
+    expect(laneRatingChips[0]?.ticker).toBe("DISC.L");
+    expect(laneRatingChips[0]?.finalRating).toBe("STRONG SELL");
+    expect(laneRatingChips[0]?.decisionType).toBe("sentinel_rejection");
+    expect(laneRatingChips[0]?.topPx).toBe(112 + 26);
+
+    expect(laneRatingChips[1]?.runId).toBe("run-meta");
+    expect(laneRatingChips[1]?.ticker).toBe("META");
+    expect(laneRatingChips[1]?.finalRating).toBe("BUY");
+    expect(laneRatingChips[1]?.decisionType).toBe("arbiter");
+    expect(laneRatingChips[1]?.topPx).toBe(224 + 26);
   });
 
   it("lays out multiple ticker lanes with distinct y positions", () => {

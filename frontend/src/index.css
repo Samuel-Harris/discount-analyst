@@ -27,6 +27,18 @@ body,
   margin: 0;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 body {
   font-family:
     ui-monospace, "Cascadia Code", "IBM Plex Mono", Menlo, Monaco, Consolas,
@@ -462,6 +474,310 @@ button {
 
 .graph-wrap .react-flow {
   --xy-background-color: var(--bg);
+}
+
+/* Right strip: verdict per lane (coordinates match buildGraphLayout laneY). */
+.graph-wrap .lane-rating-chips {
+  position: absolute;
+  top: 0;
+  right: 8px;
+  bottom: 0;
+  width: 132px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.graph-wrap .lane-rating-chip {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--border-dim);
+  border-radius: 2px;
+  background: rgba(12, 14, 18, 0.92);
+  font-size: 10px;
+  line-height: 1.15;
+  text-align: right;
+  pointer-events: auto;
+}
+
+.graph-wrap .lane-rating-chip-ticker {
+  font-size: 9px;
+  color: var(--text-dim);
+  word-break: break-all;
+}
+
+.graph-wrap .lane-rating-chip-value {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  word-break: break-word;
+}
+
+/* Tone: pending / no verdict */
+.graph-wrap .lane-rating-chip--pending {
+  border-color: rgba(92, 122, 98, 0.45);
+  background: rgba(10, 12, 14, 0.94);
+}
+
+.graph-wrap .lane-rating-chip--pending .lane-rating-chip-value {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* Tone: buy side (green) */
+.graph-wrap .lane-rating-chip--strong-buy {
+  border-color: rgba(92, 255, 160, 0.55);
+  background: rgba(20, 48, 32, 0.55);
+  box-shadow: 0 0 14px rgba(57, 255, 122, 0.12);
+}
+
+.graph-wrap .lane-rating-chip--strong-buy .lane-rating-chip-value {
+  color: #7dffb3;
+  text-shadow: 0 0 10px rgba(57, 255, 122, 0.35);
+}
+
+.graph-wrap .lane-rating-chip--buy {
+  border-color: rgba(57, 255, 122, 0.4);
+  background: rgba(18, 40, 28, 0.5);
+}
+
+.graph-wrap .lane-rating-chip--buy .lane-rating-chip-value {
+  color: var(--accent);
+}
+
+/* Tone: hold (amber) */
+.graph-wrap .lane-rating-chip--hold {
+  border-color: rgba(232, 197, 71, 0.5);
+  background: rgba(48, 40, 14, 0.45);
+}
+
+.graph-wrap .lane-rating-chip--hold .lane-rating-chip-value {
+  color: var(--warn);
+}
+
+/* Tone: sell side (red / orange) */
+.graph-wrap .lane-rating-chip--sell {
+  border-color: rgba(255, 154, 110, 0.55);
+  background: rgba(48, 24, 18, 0.48);
+}
+
+.graph-wrap .lane-rating-chip--sell .lane-rating-chip-value {
+  color: #ffaa88;
+}
+
+.graph-wrap .lane-rating-chip--strong-sell {
+  border-color: rgba(255, 92, 108, 0.6);
+  background: rgba(52, 14, 18, 0.52);
+  box-shadow: 0 0 12px rgba(255, 92, 108, 0.12);
+}
+
+.graph-wrap .lane-rating-chip--strong-sell .lane-rating-chip-value {
+  color: #ff8a96;
+  text-shadow: 0 0 8px rgba(255, 92, 108, 0.28);
+}
+
+/* Unrecognised rating string */
+.graph-wrap .lane-rating-chip--unknown {
+  border-color: rgba(126, 168, 200, 0.4);
+  background: rgba(18, 22, 30, 0.55);
+}
+
+.graph-wrap .lane-rating-chip--unknown .lane-rating-chip-value {
+  color: #9ec8e0;
+}
+
+/* Programmatic Sentinel verdict: keep rating colour, mark provenance */
+.graph-wrap .lane-rating-chip--sentinel {
+  border-style: dashed;
+}
+
+/* Full-run verdict table (many tickers; URL ?view=recommendations) */
+.recommendations-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.recommendations-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-dim);
+}
+
+.recommendations-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.recommendations-filter-label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.recommendations-filter input {
+  width: min(320px, 100%);
+  padding: 5px 8px;
+  border: 1px solid var(--border-dim);
+  border-radius: 2px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.recommendations-filter input::placeholder {
+  color: var(--muted);
+}
+
+.recommendations-reset-sort:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.recommendations-count {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-left: auto;
+}
+
+.recommendations-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.recommendations-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.recommendations-table th,
+.recommendations-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-dim);
+  vertical-align: top;
+}
+
+.recommendations-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-panel);
+  border-bottom-color: var(--border);
+}
+
+.recommendations-th-btn {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
+.recommendations-th-btn:hover {
+  text-decoration: underline;
+}
+
+.recommendations-mono {
+  font-variant-numeric: tabular-nums;
+  word-break: break-all;
+}
+
+.recommendations-status {
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.recommendations-status--pending {
+  color: var(--muted);
+}
+
+.recommendations-status--running {
+  color: var(--warn);
+}
+
+.recommendations-status--completed {
+  color: var(--accent-dim);
+}
+
+.recommendations-status--failed {
+  color: var(--err);
+}
+
+.recommendations-rating {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.recommendations-rating--pending {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.recommendations-rating--strong-buy {
+  color: #7dffb3;
+  text-shadow: 0 0 8px rgba(57, 255, 122, 0.25);
+}
+
+.recommendations-rating--buy {
+  color: var(--accent);
+}
+
+.recommendations-rating--hold {
+  color: var(--warn);
+}
+
+.recommendations-rating--sell {
+  color: #ffaa88;
+}
+
+.recommendations-rating--strong-sell {
+  color: #ff8a96;
+  text-shadow: 0 0 6px rgba(255, 92, 108, 0.22);
+}
+
+.recommendations-rating--unknown {
+  color: #9ec8e0;
+}
+
+.recommendations-rating--sentinel {
+  text-decoration: underline;
+  text-decoration-style: dashed;
+  text-underline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recommendations-rating--strong-buy,
+  .recommendations-rating--strong-sell {
+    text-shadow: none;
+  }
 }
 
 .placeholder-main {
