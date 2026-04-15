@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-23 | Updated: 2026-02-23 -->
+<!-- Generated: 2026-02-23 | Updated: 2026-04-15 -->
 
 # .github
 
@@ -9,16 +9,16 @@ The `.github/` directory contains GitHub-specific configuration files, automatio
 
 ## Key Files
 
-| File | Description |
-| --------- | ---------------------------- |
+| File                       | Description                                                                        |
+| -------------------------- | ---------------------------------------------------------------------------------- |
 | `pull_request_template.md` | Provides a standardized checklist for contributors when opening new pull requests. |
 
 ## Subdirectories
 
-| Directory | Purpose |
-| --------- | ----------------------------------------- |
-| `workflows/` | Contains GitHub Actions workflow definitions (e.g., CI, deployment). |
-| `actions/` | Contains custom, reusable GitHub Actions developed specifically for this project. |
+| Directory    | Purpose                                                                           |
+| ------------ | --------------------------------------------------------------------------------- |
+| `workflows/` | Contains GitHub Actions workflow definitions (e.g., CI, deployment).              |
+| `actions/`   | Contains custom, reusable GitHub Actions developed specifically for this project. |
 
 ## For AI Agents
 
@@ -43,7 +43,7 @@ The `.github/` directory contains GitHub-specific configuration files, automatio
 ### Internal
 
 - **Root Project**: Workflows depend on `pyproject.toml` and `uv.lock` for environment setup and dependency management.
-- **Core Source**: CI workflows execute tests and linters against the code in `discount_analyst/` and `scripts/`.
+- **Core Source**: CI workflows execute tests and linters against `discount_analyst/`, `backend/`, and `scripts/`.
 
 ### External
 

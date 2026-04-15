@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "../api";
+import * as serverState from "../serverState";
 import { RunPipelineForm } from "./RunPipelineForm";
 
 describe("RunPipelineForm", () => {
@@ -20,10 +21,8 @@ describe("RunPipelineForm", () => {
       surveyor_started: true,
     });
     const onLaunched = vi.fn();
-    const onRefreshList = vi.fn();
-    render(
-      <RunPipelineForm onLaunched={onLaunched} onRefreshList={onRefreshList} />,
-    );
+    vi.spyOn(serverState, "invalidateWorkflowRunsList").mockResolvedValue();
+    render(<RunPipelineForm onLaunched={onLaunched} />);
     await waitFor(() => {
       expect(screen.getByText("CBOX.L")).toBeInTheDocument();
       expect(screen.getByText("VTVI")).toBeInTheDocument();
@@ -34,7 +33,8 @@ describe("RunPipelineForm", () => {
     vi.spyOn(api, "fetchPortfolio").mockResolvedValue({
       portfolio_tickers: [],
     });
-    render(<RunPipelineForm onLaunched={vi.fn()} onRefreshList={vi.fn()} />);
+    vi.spyOn(serverState, "invalidateWorkflowRunsList").mockResolvedValue();
+    render(<RunPipelineForm onLaunched={vi.fn()} />);
     const mockBox = screen.getByRole("checkbox", { name: /mock mode/i });
     expect(mockBox).toBeChecked();
     expect(mockBox).toBeDisabled();
@@ -50,7 +50,8 @@ describe("RunPipelineForm", () => {
     vi.spyOn(api, "fetchPortfolio").mockResolvedValue({
       portfolio_tickers: [],
     });
-    render(<RunPipelineForm onLaunched={vi.fn()} onRefreshList={vi.fn()} />);
+    vi.spyOn(serverState, "invalidateWorkflowRunsList").mockResolvedValue();
+    render(<RunPipelineForm onLaunched={vi.fn()} />);
     const field = screen.getByLabelText("Portfolio tickers");
     await user.type(field, "AAA.L{Enter}");
     expect(screen.getByText("AAA.L")).toBeInTheDocument();
@@ -68,10 +69,10 @@ describe("RunPipelineForm", () => {
       surveyor_started: true,
     });
     const onLaunched = vi.fn();
-    const onRefreshList = vi.fn();
-    render(
-      <RunPipelineForm onLaunched={onLaunched} onRefreshList={onRefreshList} />,
-    );
+    const invalidate = vi
+      .spyOn(serverState, "invalidateWorkflowRunsList")
+      .mockResolvedValue();
+    render(<RunPipelineForm onLaunched={onLaunched} />);
     await screen.findByLabelText("Portfolio tickers");
     await user.type(screen.getByLabelText("Portfolio tickers"), "AAA.L");
     await user.click(screen.getByRole("button", { name: /start workflow/i }));
@@ -82,7 +83,7 @@ describe("RunPipelineForm", () => {
       });
     });
     expect(onLaunched).toHaveBeenCalledWith("wf-new");
-    expect(onRefreshList).toHaveBeenCalled();
+    expect(invalidate).toHaveBeenCalledTimes(1);
   });
 
   it("disables controls while a launch is in flight", async () => {
@@ -102,7 +103,8 @@ describe("RunPipelineForm", () => {
         surveyor_started: true,
       };
     });
-    render(<RunPipelineForm onLaunched={vi.fn()} onRefreshList={vi.fn()} />);
+    vi.spyOn(serverState, "invalidateWorkflowRunsList").mockResolvedValue();
+    render(<RunPipelineForm onLaunched={vi.fn()} />);
     await screen.findByLabelText("Portfolio tickers");
     await user.type(screen.getByLabelText("Portfolio tickers"), "Z.L");
     const submit = screen.getByRole("button", { name: /start workflow/i });

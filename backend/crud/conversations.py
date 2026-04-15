@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Literal, cast
 
 from pydantic_ai import ModelMessagesTypeAdapter
-from sqlmodel import Session, delete, select
+from pydantic_ai.messages import ModelMessage
+from sqlmodel import Session, col, delete, select
 
 from backend.crud.candidate_snapshots import snapshot_to_candidate
 from backend.crud.db_utils import dump_json_string, new_id
@@ -48,6 +49,7 @@ from discount_analyst.agents.arbiter.schema import (
     ArbiterDecision,
     ArbiterRationale,
     MarginOfSafetyAssessment,
+    MarginOfSafetyVerdict,
 )
 from discount_analyst.agents.profiler.schema import ProfilerOutput
 from discount_analyst.agents.researcher.schema import (
@@ -69,7 +71,16 @@ from discount_analyst.agents.strategist.schema import (
     MispricingThesis as MispricingThesisSchema,
 )
 from discount_analyst.agents.surveyor.schema import KeyMetrics, SurveyorOutput
+from discount_analyst.rating import InvestmentRating
 from discount_analyst.valuation.schema import StockAssumptions, StockData
+
+
+def _optional_json_str(value: object | None) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    return str(value)
 
 
 def message_part_kind_from_raw(raw: str) -> MessagePartKindDb:
@@ -102,11 +113,13 @@ def parse_messages_payload(
     messages_json: str | None,
 ) -> list[dict[str, Any]]:
     if messages is not None:
-        return ModelMessagesTypeAdapter.dump_python(messages, mode="json")
+        return ModelMessagesTypeAdapter.dump_python(
+            cast(list[ModelMessage], messages), mode="json"
+        )
     if messages_json:
         loaded = json.loads(messages_json)
         if isinstance(loaded, list):
-            return loaded
+            return cast(list[dict[str, Any]], loaded)
     return []
 
 
@@ -117,21 +130,21 @@ def replace_conversation_messages(
     messages_payload: list[dict[str, Any]],
 ) -> None:
     existing_messages = list(
-        session.exec(
+        session.scalars(
             select(AgentConversationMessage).where(
-                AgentConversationMessage.conversation_id == conversation_id
+                col(AgentConversationMessage.conversation_id) == conversation_id
             )
         )
     )
     for msg in existing_messages:
         session.exec(
             delete(AgentConversationMessagePart).where(
-                AgentConversationMessagePart.conversation_message_id == msg.id
+                col(AgentConversationMessagePart.conversation_message_id) == msg.id
             )
         )
     session.exec(
         delete(AgentConversationMessage).where(
-            AgentConversationMessage.conversation_id == conversation_id
+            col(AgentConversationMessage.conversation_id) == conversation_id
         )
     )
 
@@ -149,19 +162,21 @@ def replace_conversation_messages(
             message_kind=msg_kind,
         )
         session.add(msg_row)
-        parts = message_obj.get("parts", [])
-        if not isinstance(parts, list):
+        parts_any: Any = message_obj.get("parts", [])
+        if not isinstance(parts_any, list):
             continue
-        for part_index, part_obj in enumerate(parts):
+        parts_list = cast(list[Any], parts_any)
+        for part_index, part_obj in enumerate(parts_list):
             if not isinstance(part_obj, dict):
                 continue
-            raw_kind = str(part_obj.get("part_kind", "text"))
+            part_dict = cast(dict[str, Any], part_obj)
+            raw_kind = str(part_dict.get("part_kind", "text"))
             kind = message_part_kind_from_raw(raw_kind)
             content_text: str | None = None
             if kind == MessagePartKindDb.TOOL_CALL:
-                content_text = dump_json_string(part_obj.get("args", ""))
-            elif "content" in part_obj:
-                content_text = dump_json_string(part_obj.get("content"))
+                content_text = dump_json_string(part_dict.get("args", ""))
+            elif "content" in part_dict:
+                content_text = dump_json_string(part_dict.get("content"))
 
             part_row = AgentConversationMessagePart(
                 id=new_id(),
@@ -169,29 +184,30 @@ def replace_conversation_messages(
                 part_index=part_index,
                 part_kind=kind,
                 content_text=content_text,
-                tool_name=part_obj.get("tool_name"),
-                tool_call_id=part_obj.get("tool_call_id"),
+                tool_name=_optional_json_str(part_dict.get("tool_name")),
+                tool_call_id=_optional_json_str(part_dict.get("tool_call_id")),
             )
             session.add(part_row)
 
 
 def build_messages_json(session: Session, conversation_id: str) -> str:
     msg_rows = list(
-        session.exec(
+        session.scalars(
             select(AgentConversationMessage)
-            .where(AgentConversationMessage.conversation_id == conversation_id)
-            .order_by(AgentConversationMessage.message_index)
+            .where(col(AgentConversationMessage.conversation_id) == conversation_id)
+            .order_by(col(AgentConversationMessage.message_index))
         )
     )
     out: list[dict[str, Any]] = []
     for msg_row in msg_rows:
         parts_rows = list(
-            session.exec(
+            session.scalars(
                 select(AgentConversationMessagePart)
                 .where(
-                    AgentConversationMessagePart.conversation_message_id == msg_row.id
+                    col(AgentConversationMessagePart.conversation_message_id)
+                    == msg_row.id
                 )
-                .order_by(AgentConversationMessagePart.part_index)
+                .order_by(col(AgentConversationMessagePart.part_index))
             )
         )
         parts: list[dict[str, Any]] = []
@@ -234,9 +250,10 @@ def insert_conversation_for_workflow_agent(
     messages: list[object] | None = None,
 ) -> None:
     del assistant_response
-    existing = session.exec(
+    existing = session.scalars(
         select(AgentConversation).where(
-            AgentConversation.workflow_agent_execution_id == workflow_agent_execution_id
+            col(AgentConversation.workflow_agent_execution_id)
+            == workflow_agent_execution_id
         )
     ).first()
     if existing is not None:
@@ -256,7 +273,6 @@ def insert_conversation_for_workflow_agent(
     replace_conversation_messages(
         session, conversation_id=conversation_id, messages_payload=payload
     )
-    session.commit()
 
 
 def insert_conversation_for_agent_execution(
@@ -270,9 +286,9 @@ def insert_conversation_for_agent_execution(
     messages: list[object] | None = None,
 ) -> None:
     del assistant_response
-    existing = session.exec(
+    existing = session.scalars(
         select(AgentConversation).where(
-            AgentConversation.agent_execution_id == agent_execution_id
+            col(AgentConversation.agent_execution_id) == agent_execution_id
         )
     ).first()
     if existing is not None:
@@ -292,17 +308,16 @@ def insert_conversation_for_agent_execution(
     replace_conversation_messages(
         session, conversation_id=conversation_id, messages_payload=payload
     )
-    session.commit()
 
 
 def assistant_response_for_workflow_execution(
     session: Session, execution: WorkflowAgentExecution
 ) -> str:
     snapshots = list(
-        session.exec(
+        session.scalars(
             select(CandidateSnapshot)
-            .where(CandidateSnapshot.workflow_agent_execution_id == execution.id)
-            .order_by(CandidateSnapshot.sort_order)
+            .where(col(CandidateSnapshot.workflow_agent_execution_id) == execution.id)
+            .order_by(col(CandidateSnapshot.sort_order))
         )
     )
     output = SurveyorOutput.model_construct(
@@ -315,9 +330,9 @@ def assistant_response_for_run_agent(
     session: Session, execution: AgentExecution
 ) -> str:
     if execution.agent_name == AgentNameDb.PROFILER:
-        snapshot = session.exec(
+        snapshot = session.scalars(
             select(CandidateSnapshot).where(
-                CandidateSnapshot.agent_execution_id == execution.id
+                col(CandidateSnapshot.agent_execution_id) == execution.id
             )
         ).first()
         if snapshot is None:
@@ -327,9 +342,9 @@ def assistant_response_for_run_agent(
         ).model_dump_json()
 
     if execution.agent_name == AgentNameDb.RESEARCHER:
-        report = session.exec(
+        report = session.scalars(
             select(ResearchReport).where(
-                ResearchReport.agent_execution_id == execution.id
+                col(ResearchReport.agent_execution_id) == execution.id
             )
         ).first()
         if report is None:
@@ -339,61 +354,67 @@ def assistant_response_for_run_agent(
             return "{}"
         narrative_signals = [
             r.signal
-            for r in session.exec(
+            for r in session.scalars(
                 select(ResearchReportNarrativeMonitoringSignal)
                 .where(
-                    ResearchReportNarrativeMonitoringSignal.research_report_id
+                    col(ResearchReportNarrativeMonitoringSignal.research_report_id)
                     == report.id
                 )
-                .order_by(ResearchReportNarrativeMonitoringSignal.sort_order)
+                .order_by(col(ResearchReportNarrativeMonitoringSignal.sort_order))
             )
         ]
         risks = [
             r.risk
-            for r in session.exec(
+            for r in session.scalars(
                 select(ResearchReportRisk)
-                .where(ResearchReportRisk.research_report_id == report.id)
-                .order_by(ResearchReportRisk.sort_order)
+                .where(col(ResearchReportRisk.research_report_id) == report.id)
+                .order_by(col(ResearchReportRisk.sort_order))
             )
         ]
         catalysts = [
             r.catalyst
-            for r in session.exec(
+            for r in session.scalars(
                 select(ResearchReportPotentialCatalyst)
-                .where(ResearchReportPotentialCatalyst.research_report_id == report.id)
-                .order_by(ResearchReportPotentialCatalyst.sort_order)
+                .where(
+                    col(ResearchReportPotentialCatalyst.research_report_id) == report.id
+                )
+                .order_by(col(ResearchReportPotentialCatalyst.sort_order))
             )
         ]
         closed_gaps = [
             r.gap_text
-            for r in session.exec(
+            for r in session.scalars(
                 select(ResearchReportClosedGap)
-                .where(ResearchReportClosedGap.research_report_id == report.id)
-                .order_by(ResearchReportClosedGap.sort_order)
+                .where(col(ResearchReportClosedGap.research_report_id) == report.id)
+                .order_by(col(ResearchReportClosedGap.sort_order))
             )
         ]
         remaining_open_gaps = [
             r.gap_text
-            for r in session.exec(
+            for r in session.scalars(
                 select(ResearchReportRemainingOpenGap)
-                .where(ResearchReportRemainingOpenGap.research_report_id == report.id)
-                .order_by(ResearchReportRemainingOpenGap.sort_order)
+                .where(
+                    col(ResearchReportRemainingOpenGap.research_report_id) == report.id
+                )
+                .order_by(col(ResearchReportRemainingOpenGap.sort_order))
             )
         ]
         material_open_gaps = [
             r.gap_text
-            for r in session.exec(
+            for r in session.scalars(
                 select(ResearchReportMaterialOpenGap)
-                .where(ResearchReportMaterialOpenGap.research_report_id == report.id)
-                .order_by(ResearchReportMaterialOpenGap.sort_order)
+                .where(
+                    col(ResearchReportMaterialOpenGap.research_report_id) == report.id
+                )
+                .order_by(col(ResearchReportMaterialOpenGap.sort_order))
             )
         ]
         source_notes = [
             r.source_note
-            for r in session.exec(
+            for r in session.scalars(
                 select(ResearchReportSourceNote)
-                .where(ResearchReportSourceNote.research_report_id == report.id)
-                .order_by(ResearchReportSourceNote.sort_order)
+                .where(col(ResearchReportSourceNote.research_report_id) == report.id)
+                .order_by(col(ResearchReportSourceNote.sort_order))
             )
         ]
         payload = DeepResearchReport(
@@ -451,9 +472,9 @@ def assistant_response_for_run_agent(
         return payload.model_dump_json()
 
     if execution.agent_name == AgentNameDb.STRATEGIST:
-        row = session.exec(
+        row = session.scalars(
             select(MispricingThesis).where(
-                MispricingThesis.agent_execution_id == execution.id
+                col(MispricingThesis.agent_execution_id) == execution.id
             )
         ).first()
         run = session.get(Run, execution.run_id)
@@ -461,43 +482,48 @@ def assistant_response_for_run_agent(
             return "{}"
         conditions = [
             r.condition_text
-            for r in session.exec(
+            for r in session.scalars(
                 select(MispricingThesisFalsificationCondition)
                 .where(
-                    MispricingThesisFalsificationCondition.mispricing_thesis_id
+                    col(MispricingThesisFalsificationCondition.mispricing_thesis_id)
                     == row.id
                 )
-                .order_by(MispricingThesisFalsificationCondition.sort_order)
+                .order_by(col(MispricingThesisFalsificationCondition.sort_order))
             )
         ]
         risks = [
             r.risk_text
-            for r in session.exec(
+            for r in session.scalars(
                 select(MispricingThesisRisk)
-                .where(MispricingThesisRisk.mispricing_thesis_id == row.id)
-                .order_by(MispricingThesisRisk.sort_order)
+                .where(col(MispricingThesisRisk.mispricing_thesis_id) == row.id)
+                .order_by(col(MispricingThesisRisk.sort_order))
             )
         ]
         questions = [
             r.question_text
-            for r in session.exec(
+            for r in session.scalars(
                 select(MispricingThesisEvaluationQuestion)
                 .where(
-                    MispricingThesisEvaluationQuestion.mispricing_thesis_id == row.id
+                    col(MispricingThesisEvaluationQuestion.mispricing_thesis_id)
+                    == row.id
                 )
-                .order_by(MispricingThesisEvaluationQuestion.sort_order)
+                .order_by(col(MispricingThesisEvaluationQuestion.sort_order))
             )
         ]
         scenarios = [
             r.scenario_text
-            for r in session.exec(
+            for r in session.scalars(
                 select(MispricingThesisPermanentLossScenario)
                 .where(
-                    MispricingThesisPermanentLossScenario.mispricing_thesis_id == row.id
+                    col(MispricingThesisPermanentLossScenario.mispricing_thesis_id)
+                    == row.id
                 )
-                .order_by(MispricingThesisPermanentLossScenario.sort_order)
+                .order_by(col(MispricingThesisPermanentLossScenario.sort_order))
             )
         ]
+        conv_level: Literal["Low", "Medium", "High"] = cast(
+            Literal["Low", "Medium", "High"], row.conviction_level
+        )
         payload = MispricingThesisSchema(
             ticker=run.ticker,
             company_name=run.company_name,
@@ -509,14 +535,14 @@ def assistant_response_for_run_agent(
             thesis_risks=risks,
             evaluation_questions=questions,
             permanent_loss_scenarios=scenarios,
-            conviction_level=row.conviction_level,
+            conviction_level=conv_level,
         )
         return payload.model_dump_json()
 
     if execution.agent_name == AgentNameDb.SENTINEL:
-        row = session.exec(
+        row = session.scalars(
             select(EvaluationReport).where(
-                EvaluationReport.agent_execution_id == execution.id
+                col(EvaluationReport.agent_execution_id) == execution.id
             )
         ).first()
         run = session.get(Run, execution.run_id)
@@ -526,21 +552,29 @@ def assistant_response_for_run_agent(
             QuestionAssessment(
                 question=r.question,
                 evidence=r.evidence,
-                verdict=r.verdict,
-                confidence=r.confidence,
+                verdict=cast(
+                    Literal[
+                        "Supports thesis",
+                        "Neutral",
+                        "Weakens thesis",
+                        "Breaks thesis",
+                    ],
+                    r.verdict,
+                ),
+                confidence=cast(Literal["Low", "Medium", "High"], r.confidence),
             )
-            for r in session.exec(
+            for r in session.scalars(
                 select(EvaluationQuestionAssessment)
-                .where(EvaluationQuestionAssessment.evaluation_report_id == row.id)
-                .order_by(EvaluationQuestionAssessment.sort_order)
+                .where(col(EvaluationQuestionAssessment.evaluation_report_id) == row.id)
+                .order_by(col(EvaluationQuestionAssessment.sort_order))
             )
         ]
         caveats = [
             c.caveat
-            for c in session.exec(
+            for c in session.scalars(
                 select(EvaluationCaveat)
-                .where(EvaluationCaveat.evaluation_report_id == row.id)
-                .order_by(EvaluationCaveat.sort_order)
+                .where(col(EvaluationCaveat.evaluation_report_id) == row.id)
+                .order_by(col(EvaluationCaveat.sort_order))
             )
         ]
         payload = EvaluationReportSchema(
@@ -566,9 +600,9 @@ def assistant_response_for_run_agent(
         return payload.model_dump_json()
 
     if execution.agent_name == AgentNameDb.APPRAISER:
-        row = session.exec(
+        row = session.scalars(
             select(AppraiserReport).where(
-                AppraiserReport.agent_execution_id == execution.id
+                col(AppraiserReport.agent_execution_id) == execution.id
             )
         ).first()
         run = session.get(Run, execution.run_id)
@@ -604,10 +638,10 @@ def assistant_response_for_run_agent(
         return payload.model_dump_json()
 
     if execution.agent_name == AgentNameDb.ARBITER:
-        run_final = session.exec(
+        run_final = session.scalars(
             select(RunFinalDecision).where(
-                RunFinalDecision.run_id == execution.run_id,
-                RunFinalDecision.decision_type == DecisionTypeDb.ARBITER,
+                col(RunFinalDecision.run_id) == execution.run_id,
+                col(RunFinalDecision.decision_type) == DecisionTypeDb.ARBITER,
             )
         ).first()
         run = session.get(Run, execution.run_id)
@@ -615,41 +649,50 @@ def assistant_response_for_run_agent(
             return "{}"
         supporting = [
             r.factor_text
-            for r in session.exec(
+            for r in session.scalars(
                 select(RunFinalDecisionSupportingFactor)
                 .where(
-                    RunFinalDecisionSupportingFactor.run_final_decision_id
+                    col(RunFinalDecisionSupportingFactor.run_final_decision_id)
                     == run_final.id
                 )
-                .order_by(RunFinalDecisionSupportingFactor.sort_order)
+                .order_by(col(RunFinalDecisionSupportingFactor.sort_order))
             )
         ]
         mitigating = [
             r.factor_text
-            for r in session.exec(
+            for r in session.scalars(
                 select(RunFinalDecisionMitigatingFactor)
                 .where(
-                    RunFinalDecisionMitigatingFactor.run_final_decision_id
+                    col(RunFinalDecisionMitigatingFactor.run_final_decision_id)
                     == run_final.id
                 )
-                .order_by(RunFinalDecisionMitigatingFactor.sort_order)
+                .order_by(col(RunFinalDecisionMitigatingFactor.sort_order))
             )
         ]
+        mos_verdict: MarginOfSafetyVerdict = cast(
+            MarginOfSafetyVerdict,
+            run_final.margin_of_safety_verdict
+            or "None — stock appears fairly valued or overvalued",
+        )
+        conviction_lit: Literal["Low", "Medium", "High"] = cast(
+            Literal["Low", "Medium", "High"],
+            run_final.conviction or "Medium",
+        )
         payload = ArbiterDecision(
             ticker=run.ticker,
             company_name=run.company_name,
             decision_date=run_final.decision_date.isoformat(),
             is_existing_position=run_final.is_existing_position,
-            rating=run_final.rating,
+            rating=InvestmentRating(run_final.rating),
             recommended_action=run_final.recommended_action,
-            conviction=run_final.conviction or "Medium",
+            conviction=conviction_lit,
             margin_of_safety=MarginOfSafetyAssessment(
                 current_price=run_final.current_price or 0.0,
                 bear_intrinsic_value=run_final.bear_intrinsic_value or 0.0,
                 base_intrinsic_value=run_final.base_intrinsic_value or 0.0,
                 bull_intrinsic_value=run_final.bull_intrinsic_value or 0.0,
                 margin_of_safety_base_pct=run_final.margin_of_safety_base_pct or 0.0,
-                margin_of_safety_verdict=run_final.margin_of_safety_verdict or "",
+                margin_of_safety_verdict=mos_verdict,
             ),
             rationale=ArbiterRationale(
                 primary_driver=run_final.primary_driver or "",
@@ -669,17 +712,17 @@ def get_conversation_for_workflow_surveyor(
     session: Session,
     workflow_run_id: str,
 ) -> dict[str, str] | None:
-    execution = session.exec(
+    execution = session.scalars(
         select(WorkflowAgentExecution).where(
-            WorkflowAgentExecution.workflow_run_id == workflow_run_id,
-            WorkflowAgentExecution.agent_name == AgentNameDb.SURVEYOR,
+            col(WorkflowAgentExecution.workflow_run_id) == workflow_run_id,
+            col(WorkflowAgentExecution.agent_name) == AgentNameDb.SURVEYOR,
         )
     ).first()
     if execution is None:
         return None
-    conversation = session.exec(
+    conversation = session.scalars(
         select(AgentConversation).where(
-            AgentConversation.workflow_agent_execution_id == execution.id
+            col(AgentConversation.workflow_agent_execution_id) == execution.id
         )
     ).first()
     if conversation is None:
@@ -699,17 +742,17 @@ def get_conversation_for_run_agent(
     run_id: str,
     agent_name: str,
 ) -> dict[str, str] | None:
-    execution = session.exec(
+    execution = session.scalars(
         select(AgentExecution).where(
-            AgentExecution.run_id == run_id,
-            AgentExecution.agent_name == AgentNameDb(agent_name),
+            col(AgentExecution.run_id) == run_id,
+            col(AgentExecution.agent_name) == AgentNameDb(agent_name),
         )
     ).first()
     if execution is None:
         return None
-    conversation = session.exec(
+    conversation = session.scalars(
         select(AgentConversation).where(
-            AgentConversation.agent_execution_id == execution.id
+            col(AgentConversation.agent_execution_id) == execution.id
         )
     ).first()
     if conversation is None:

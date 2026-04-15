@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import type { ConversationResponse } from "../api";
 
 import { JsonPretty } from "./JsonPretty";
+import { UiStateText } from "./UiStateText";
 
 export interface AgentPanelProps {
   open: boolean;
@@ -50,8 +51,16 @@ export function AgentPanel({
           </button>
         </header>
         <div className="body">
-          {loading ? <p className="err">Loading…</p> : null}
-          {error ? <p className="err">{error}</p> : null}
+          {loading ? (
+            <UiStateText tone="loading" as="p" className="agent-panel-status">
+              Loading…
+            </UiStateText>
+          ) : null}
+          {error ? (
+            <UiStateText tone="error" as="p" className="agent-panel-status">
+              {error}
+            </UiStateText>
+          ) : null}
           {!loading && !error && data ? (
             <>
               <section>

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import asyncio
 from datetime import date
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
 
 import logfire
 
@@ -13,9 +14,9 @@ from backend.crud.conversations import (
     insert_conversation_for_agent_execution,
     insert_conversation_for_workflow_agent,
 )
+from backend.contracts.agent_lane_order import SURVEYOR_ENTRY_AGENT_NAMES
 from backend.crud.db_utils import new_id, utc_now_iso
 from backend.crud.run_executions import (
-    SURVEYOR_ENTRY_AGENT_NAMES,
     get_agent_execution_id_by_run_and_agent,
     get_workflow_candidate_snapshot_id,
     get_workflow_surveyor_execution_id,
@@ -31,6 +32,8 @@ from backend.crud.workflow_runs import (
     recompute_workflow_status,
     set_workflow_error,
 )
+from backend.pipeline.ports import ProfilerStagePort
+from backend.pipeline.stages.profiler_stage import ProfilerStage
 from backend.dev import mock_conversation_messages, mock_outputs
 from backend.settings.config import DashboardSettings
 from backend.db.session import SessionFactory
@@ -51,11 +54,6 @@ from discount_analyst.agents.arbiter.user_prompt import (
     create_user_prompt as create_arbiter_user_prompt,
 )
 from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
-from discount_analyst.agents.profiler.profiler import create_profiler_agent
-from discount_analyst.agents.profiler.system_prompt import (
-    SYSTEM_PROMPT as PROFILER_SYSTEM_PROMPT,
-)
-from discount_analyst.agents.profiler.user_prompt import create_profiler_user_prompt
 from discount_analyst.agents.researcher.researcher import create_researcher_agent
 from discount_analyst.agents.researcher.system_prompt import (
     SYSTEM_PROMPT as RESEARCHER_SYSTEM_PROMPT,
@@ -93,7 +91,8 @@ from discount_analyst.pipeline.builders import (
 )
 from discount_analyst.valuation.data_types import DCFAnalysisParameters
 from discount_analyst.valuation.dcf_analysis import DCFAnalysis
-from scripts.agents.run_appraiser import StockRunArgs
+
+from backend.contracts.stock_run_args import StockRunArgs
 
 
 class DashboardPipelineRunner:
@@ -103,11 +102,112 @@ class DashboardPipelineRunner:
         self._session_factory = session_factory
         self._settings = settings
         self._lock = asyncio.Lock()
+        self._profiler_stage = ProfilerStage()
+
+        async def _profiler_port_get_agent_execution_id(
+            run_id: str, agent_name: str
+        ) -> str | None:
+            return await self._get_exec_id(run_id, agent_name)
+
+        async def _profiler_port_mark_agent_execution(
+            *,
+            execution_id: str,
+            status: str,
+            output_json: str | None = None,
+            started: bool = False,
+            completed: bool = False,
+            error_message: str | None = None,
+        ) -> None:
+            await self._mark_exec(
+                execution_id=execution_id,
+                status=status,
+                output_json=output_json,
+                started=started,
+                completed=completed,
+                error_message=error_message,
+            )
+
+        async def _profiler_port_recompute(workflow_run_id: str) -> None:
+            await self._recompute(workflow_run_id)
+
+        async def _profiler_port_store_conversation(
+            *,
+            run_id: str,
+            agent_name: str,
+            system_prompt: str,
+            messages: list[Any] | None = None,
+            messages_json: str | None = None,
+        ) -> None:
+            await self._store_conversation(
+                run_id=run_id,
+                agent_name=agent_name,
+                system_prompt=system_prompt,
+                messages=messages,
+                messages_json=messages_json,
+            )
+
+        async def _profiler_port_update_company_name(
+            run_id: str, company_name: str
+        ) -> None:
+            await self._db(
+                update_ticker_run_company_name,
+                run_id=run_id,
+                company_name=company_name,
+            )
+
+        self._profiler_port_adapter = cast(
+            ProfilerStagePort,
+            SimpleNamespace(
+                get_agent_execution_id=_profiler_port_get_agent_execution_id,
+                mark_agent_execution=_profiler_port_mark_agent_execution,
+                recompute_workflow_status=_profiler_port_recompute,
+                store_agent_conversation=_profiler_port_store_conversation,
+                update_ticker_run_company_name=_profiler_port_update_company_name,
+            ),
+        )
+        self._background_tasks: set[asyncio.Task[None]] = set()
+
+    def schedule_workflow_execution(self, workflow_run_id: str) -> asyncio.Task[None]:
+        """Run ``execute_workflow`` in the background; log unexpected task failures."""
+        task = asyncio.create_task(
+            self.execute_workflow(workflow_run_id),
+            name=f"workflow:{workflow_run_id}",
+        )
+        self._background_tasks.add(task)
+
+        def _on_done(t: asyncio.Task[None]) -> None:
+            self._background_tasks.discard(t)
+            if t.cancelled():
+                logfire.warning(
+                    "Background workflow execution cancelled",
+                    workflow_run_id=workflow_run_id,
+                )
+                return
+            exc = t.exception()
+            if exc is not None:
+                logfire.exception(
+                    "Background workflow task raised (unhandled inside coroutine)",
+                    workflow_run_id=workflow_run_id,
+                )
+
+        task.add_done_callback(_on_done)
+        logfire.debug(
+            "Background workflow execution task scheduled",
+            workflow_run_id=workflow_run_id,
+            task_name=task.get_name(),
+        )
+        return task
 
     async def _db(self, fn: Any, *args: Any, **kwargs: Any) -> Any:
         def _run() -> Any:
             with self._session_factory() as session:
-                return fn(session, *args, **kwargs)
+                try:
+                    result = fn(session, *args, **kwargs)
+                    session.commit()
+                    return result
+                except Exception:
+                    session.rollback()
+                    raise
 
         async with self._lock:
             return await asyncio.to_thread(_run)
@@ -390,68 +490,14 @@ class DashboardPipelineRunner:
     async def _run_profiler_stage(
         self, *, workflow_run_id: str, run_id: str, ticker: str, is_mock: bool
     ) -> SurveyorCandidate:
-        profiler_exec_id = await self._get_exec_id(run_id, "profiler")
-        if profiler_exec_id is None:
-            raise RuntimeError(f"Missing profiler execution for run {run_id}")
-        await self._mark_exec(
-            execution_id=profiler_exec_id, status="running", started=True
-        )
-        await self._recompute(workflow_run_id)
-        logfire.info(
-            "Profiler stage started",
+        return await self._profiler_stage.run(
+            self._profiler_port_adapter,
+            self._settings,
             workflow_run_id=workflow_run_id,
             run_id=run_id,
             ticker=ticker,
             is_mock=is_mock,
         )
-        mock_msgs_json: str | None = None
-        if is_mock:
-            await asyncio.sleep(5)
-            profiler_output = mock_outputs.mock_profiler_output(ticker=ticker)
-            messages = None
-            mock_msgs_json = mock_conversation_messages.profiler_messages_json(
-                ticker=ticker
-            )
-        else:
-            ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
-            agent = create_profiler_agent(
-                ai_models_config=ai_cfg,
-                use_perplexity=self._settings.use_perplexity,
-                use_mcp_financial_data=self._settings.use_mcp_financial_data,
-            )
-            outcome = await run_streamed_agent(
-                agent=agent,
-                user_prompt=create_profiler_user_prompt(ticker),
-                usage_limits=ai_cfg.model.usage_limits,
-            )
-            profiler_output = outcome.output
-            messages = list(outcome.all_messages)
-            mock_msgs_json = None
-        await self._mark_exec(
-            execution_id=profiler_exec_id,
-            status="completed",
-            output_json=profiler_output.model_dump_json(),
-            completed=True,
-        )
-        await self._store_conversation(
-            run_id=run_id,
-            agent_name="profiler",
-            system_prompt=PROFILER_SYSTEM_PROMPT,
-            messages=messages,
-            messages_json=mock_msgs_json,
-        )
-        await self._db(
-            update_ticker_run_company_name,
-            run_id=run_id,
-            company_name=profiler_output.candidate.company_name,
-        )
-        logfire.info(
-            "Profiler stage completed",
-            workflow_run_id=workflow_run_id,
-            run_id=run_id,
-            ticker=ticker,
-        )
-        return profiler_output.candidate
 
     async def _surveyor_entry_pipeline(
         self,

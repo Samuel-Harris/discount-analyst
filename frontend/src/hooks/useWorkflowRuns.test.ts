@@ -3,6 +3,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { WorkflowRunListItem } from "../api";
 import * as api from "../api";
+import {
+  invalidateWorkflowRunsList,
+  resetQueryInvalidationRegistryForTests,
+} from "../serverState";
 import { useWorkflowRuns } from "./useWorkflowRuns";
 
 const sampleItem = (id: string): WorkflowRunListItem => ({
@@ -21,6 +25,7 @@ describe("useWorkflowRuns", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.useRealTimers();
+    resetQueryInvalidationRegistryForTests();
   });
 
   it("loads list workflow runs and exposes items", async () => {
@@ -43,10 +48,25 @@ describe("useWorkflowRuns", () => {
     await act(async () => {
       await Promise.resolve();
     });
-    expect(fetch).toHaveBeenCalledTimes(1);
+    const base = fetch.mock.calls.length;
+    expect(base).toBeGreaterThanOrEqual(1);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1000);
     });
-    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch.mock.calls.length).toBe(base + 1);
+  });
+
+  it("refetches when the workflow runs list query is invalidated", async () => {
+    const fetch = vi
+      .spyOn(api, "fetchWorkflowRuns")
+      .mockResolvedValue([sampleItem("wf-a")]);
+    const { unmount } = renderHook(() => useWorkflowRuns(60_000));
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    const base = fetch.mock.calls.length;
+    await act(async () => {
+      await invalidateWorkflowRunsList();
+    });
+    expect(fetch.mock.calls.length).toBe(base + 1);
+    unmount();
   });
 });

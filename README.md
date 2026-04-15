@@ -171,7 +171,7 @@ uv run pyright
 cd frontend && npm test
 ```
 
-Continuous integration runs `uv run pre-commit run --all-files`, `uv run pytest`, and `uv run pyright` (see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
+Continuous integration runs `uv run pre-commit run --all-files`, `uv run pytest` (with coverage for `discount_analyst/` and `backend/`), `uv run pyright`, a Node job that runs `npm run build` and `npm test` in `frontend/`, and a job that regenerates the dashboard OpenAPI spec and Orval client then fails on `git diff` drift (see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
 
 ## Docker Compose
 

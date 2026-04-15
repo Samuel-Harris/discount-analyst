@@ -4,9 +4,17 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import case, func
-from sqlmodel import Session, select
+from sqlalchemy import case, desc, func
+from sqlmodel import Session, col, select
 
+from backend.contracts.workflow_rows import (
+    AgentExecutionRow,
+    SurveyorExecutionRow,
+    TickerRunRow,
+    WorkflowRunDetailRecord,
+    WorkflowRunHeaderRow,
+    WorkflowRunListRow,
+)
 from backend.crud.db_utils import (
     ACTIVE_EXECUTION_STATUSES,
     TERMINAL_EXECUTION_STATUSES,
@@ -33,10 +41,10 @@ def get_workflow_run_inputs(
     if wf is None:
         return None
     tickers = list(
-        session.exec(
+        session.scalars(
             select(WorkflowRunPortfolioTicker)
-            .where(WorkflowRunPortfolioTicker.workflow_run_id == workflow_run_id)
-            .order_by(WorkflowRunPortfolioTicker.sort_order)
+            .where(col(WorkflowRunPortfolioTicker.workflow_run_id) == workflow_run_id)
+            .order_by(col(WorkflowRunPortfolioTicker.sort_order))
         )
     )
     return [t.ticker for t in tickers], wf.is_mock
@@ -46,13 +54,13 @@ def list_profiler_runs_for_workflow(
     session: Session, workflow_run_id: str
 ) -> list[tuple[str, str]]:
     rows = list(
-        session.exec(
+        session.scalars(
             select(Run)
             .where(
-                Run.workflow_run_id == workflow_run_id,
-                Run.entry_path == EntryPathDb.PROFILER,
+                col(Run.workflow_run_id) == workflow_run_id,
+                col(Run.entry_path) == EntryPathDb.PROFILER,
             )
-            .order_by(Run.started_at)
+            .order_by(col(Run.started_at))
         )
     )
     return [(row.id, row.ticker) for row in rows]
@@ -63,14 +71,14 @@ def recompute_workflow_status(session: Session, workflow_run_id: str) -> None:
     if wf is None:
         return
 
-    surveyor = session.exec(
+    surveyor = session.scalars(
         select(WorkflowAgentExecution).where(
-            WorkflowAgentExecution.workflow_run_id == workflow_run_id,
-            WorkflowAgentExecution.agent_name == AgentNameDb.SURVEYOR,
+            col(WorkflowAgentExecution.workflow_run_id) == workflow_run_id,
+            col(WorkflowAgentExecution.agent_name) == AgentNameDb.SURVEYOR,
         )
     ).first()
     runs = list(
-        session.exec(select(Run.status).where(Run.workflow_run_id == workflow_run_id))
+        session.scalars(select(Run).where(col(Run.workflow_run_id) == workflow_run_id))
     )
 
     new_status: WorkflowRunStatusDb | None = None
@@ -84,7 +92,7 @@ def recompute_workflow_status(session: Session, workflow_run_id: str) -> None:
         if surveyor.status.value in TERMINAL_EXECUTION_STATUSES:
             new_status = WorkflowRunStatusDb.COMPLETED
     else:
-        statuses = [status.value for status in runs]
+        statuses = [r.status.value for r in runs]
         if WorkflowRunStatusDb.FAILED.value in statuses:
             new_status = WorkflowRunStatusDb.FAILED
         elif WorkflowRunStatusDb.RUNNING.value in statuses:
@@ -155,57 +163,65 @@ def insert_surveyor_workflow_execution(
     session.commit()
 
 
-def list_workflow_runs(session: Session) -> list[dict[str, Any]]:
-    stmt = (
-        select(
+def list_workflow_runs(session: Session) -> list[WorkflowRunListRow]:
+    stmt: Any = (  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
+        select(  # pyright: ignore[reportCallIssue, reportUnknownMemberType]
             WorkflowRun.id,
             WorkflowRun.started_at,
             WorkflowRun.completed_at,
             WorkflowRun.status,
             WorkflowRun.is_mock,
             WorkflowRun.error_message,
-            func.count(Run.id),
-            func.sum(case((Run.status == WorkflowRunStatusDb.COMPLETED, 1), else_=0)),
-            func.sum(case((Run.status == WorkflowRunStatusDb.FAILED, 1), else_=0)),
+            func.count(col(Run.id)),
+            func.sum(
+                case(
+                    (col(Run.status) == WorkflowRunStatusDb.COMPLETED, 1),
+                    else_=0,
+                )
+            ),
+            func.sum(case((col(Run.status) == WorkflowRunStatusDb.FAILED, 1), else_=0)),
         )
         .select_from(WorkflowRun)
-        .join(Run, Run.workflow_run_id == WorkflowRun.id, isouter=True)
-        .group_by(WorkflowRun.id)
-        .order_by(WorkflowRun.started_at.desc())
-    )
-    rows = list(session.exec(stmt))
-    out: list[dict[str, Any]] = []
-    for r in rows:
-        out.append(
-            {
-                "id": r[0],
-                "started_at": r[1],
-                "completed_at": r[2],
-                "status": r[3].value,
-                "is_mock": bool(r[4]),
-                "error_message": r[5],
-                "ticker_run_count": int(r[6] or 0),
-                "completed_ticker_run_count": int(r[7] or 0),
-                "failed_ticker_run_count": int(r[8] or 0),
-            }
+        .join(
+            Run,
+            col(Run.workflow_run_id) == col(WorkflowRun.id),
+            isouter=True,
         )
+        .group_by(WorkflowRun.id)
+        .order_by(desc(col(WorkflowRun.started_at)))
+    )
+    rows: list[Any] = list(session.exec(stmt))  # pyright: ignore[reportUnknownArgumentType]
+    out: list[WorkflowRunListRow] = []
+    for r in rows:
+        row: WorkflowRunListRow = {
+            "id": r[0],
+            "started_at": r[1],
+            "completed_at": r[2],
+            "status": r[3].value,
+            "is_mock": bool(r[4]),
+            "error_message": r[5],
+            "ticker_run_count": int(r[6] or 0),
+            "completed_ticker_run_count": int(r[7] or 0),
+            "failed_ticker_run_count": int(r[8] or 0),
+        }
+        out.append(row)
     return out
 
 
 def get_workflow_run_row(
     session: Session, workflow_run_id: str
-) -> dict[str, Any] | None:
+) -> WorkflowRunHeaderRow | None:
     wf = session.get(WorkflowRun, workflow_run_id)
     if wf is None:
         return None
     tickers = list(
-        session.exec(
+        session.scalars(
             select(WorkflowRunPortfolioTicker)
-            .where(WorkflowRunPortfolioTicker.workflow_run_id == workflow_run_id)
-            .order_by(WorkflowRunPortfolioTicker.sort_order)
+            .where(col(WorkflowRunPortfolioTicker.workflow_run_id) == workflow_run_id)
+            .order_by(col(WorkflowRunPortfolioTicker.sort_order))
         )
     )
-    return {
+    header: WorkflowRunHeaderRow = {
         "id": wf.id,
         "started_at": wf.started_at,
         "completed_at": wf.completed_at,
@@ -214,22 +230,23 @@ def get_workflow_run_row(
         "error_message": wf.error_message,
         "portfolio_tickers": [t.ticker for t in tickers],
     }
+    return header
 
 
 def fetch_workflow_detail(
     session: Session, workflow_run_id: str
-) -> dict[str, Any] | None:
+) -> WorkflowRunDetailRecord | None:
     wf = get_workflow_run_row(session, workflow_run_id)
     if wf is None:
         return None
 
-    se = session.exec(
+    se = session.scalars(
         select(WorkflowAgentExecution).where(
-            WorkflowAgentExecution.workflow_run_id == workflow_run_id,
-            WorkflowAgentExecution.agent_name == AgentNameDb.SURVEYOR,
+            col(WorkflowAgentExecution.workflow_run_id) == workflow_run_id,
+            col(WorkflowAgentExecution.agent_name) == AgentNameDb.SURVEYOR,
         )
     ).first()
-    surveyor_execution = None
+    surveyor_execution: SurveyorExecutionRow | None = None
     if se is not None:
         surveyor_execution = {
             "id": se.id,
@@ -249,20 +266,32 @@ def fetch_workflow_detail(
     }
 
     runs = list(
-        session.exec(
+        session.scalars(
             select(Run)
-            .where(Run.workflow_run_id == workflow_run_id)
-            .order_by(Run.started_at)
+            .where(col(Run.workflow_run_id) == workflow_run_id)
+            .order_by(col(Run.started_at))
         )
     )
-    runs_out: list[dict[str, Any]] = []
+    runs_out: list[TickerRunRow] = []
     for rr in runs:
         agents = list(
-            session.exec(select(AgentExecution).where(AgentExecution.run_id == rr.id))
+            session.scalars(
+                select(AgentExecution).where(col(AgentExecution.run_id) == rr.id)
+            )
         )
         agents_sorted = sorted(
             agents, key=lambda a: agent_order.get(a.agent_name.value, 99)
         )
+        agent_rows: list[AgentExecutionRow] = [
+            {
+                "id": a.id,
+                "agent_name": a.agent_name.value,
+                "status": a.status.value,
+                "started_at": a.started_at,
+                "completed_at": a.completed_at,
+            }
+            for a in agents_sorted
+        ]
         runs_out.append(
             {
                 "id": rr.id,
@@ -272,22 +301,16 @@ def fetch_workflow_detail(
                 "status": rr.status.value,
                 "final_rating": rr.final_rating,
                 "decision_type": rr.decision_type.value if rr.decision_type else None,
-                "agent_executions": [
-                    {
-                        "id": a.id,
-                        "agent_name": a.agent_name.value,
-                        "status": a.status.value,
-                        "started_at": a.started_at,
-                        "completed_at": a.completed_at,
-                    }
-                    for a in agents_sorted
-                ],
+                "agent_executions": agent_rows,
             }
         )
 
-    wf["surveyor_execution"] = surveyor_execution
-    wf["runs"] = runs_out
-    return wf
+    detail: WorkflowRunDetailRecord = {
+        **wf,
+        "surveyor_execution": surveyor_execution,
+        "runs": runs_out,
+    }
+    return detail
 
 
 def delete_workflow_run_if_mock(session: Session, workflow_run_id: str) -> bool:
@@ -304,16 +327,16 @@ def workflow_run_exists(session: Session, workflow_run_id: str) -> bool:
 
 
 def get_latest_portfolio_tickers(session: Session) -> list[str] | None:
-    workflow = session.exec(
-        select(WorkflowRun).order_by(WorkflowRun.started_at.desc())
+    workflow = session.scalars(
+        select(WorkflowRun).order_by(desc(col(WorkflowRun.started_at)))
     ).first()
     if workflow is None:
         return None
     rows = list(
-        session.exec(
+        session.scalars(
             select(WorkflowRunPortfolioTicker)
-            .where(WorkflowRunPortfolioTicker.workflow_run_id == workflow.id)
-            .order_by(WorkflowRunPortfolioTicker.sort_order)
+            .where(col(WorkflowRunPortfolioTicker.workflow_run_id) == workflow.id)
+            .order_by(col(WorkflowRunPortfolioTicker.sort_order))
         )
     )
     return [r.ticker for r in rows]

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { PROFILER_ENTRY_AGENT_NAMES } from "./agentLaneOrder";
 import { buildGraphLayout } from "./buildGraphLayout";
 import type { WorkflowRunDetailResponse } from "../api";
 
@@ -63,6 +64,54 @@ describe("buildGraphLayout", () => {
     );
     expect(fromSurveyor).toBeDefined();
     expect(fromSurveyor?.sourceHandle).toBe("r");
+  });
+
+  it("sorts profiler lane agents into backend contract column order", () => {
+    const detail = baseDetail({
+      runs: [
+        {
+          id: "run-p",
+          ticker: "ORD.L",
+          company_name: "ORD",
+          entry_path: "profiler",
+          status: "running",
+          final_rating: null,
+          decision_type: null,
+          agent_executions: [
+            {
+              id: "a-arb",
+              agent_name: "arbiter",
+              status: "pending",
+              started_at: null,
+              completed_at: null,
+            },
+            {
+              id: "a-prof",
+              agent_name: "profiler",
+              status: "completed",
+              started_at: null,
+              completed_at: null,
+            },
+            {
+              id: "a-res",
+              agent_name: "researcher",
+              status: "running",
+              started_at: null,
+              completed_at: null,
+            },
+          ],
+        },
+      ],
+    });
+    const executions = detail.runs[0]!.agent_executions;
+    const present = new Set(executions.map((e) => e.agent_name));
+    const expectedLeftToRight = PROFILER_ENTRY_AGENT_NAMES.filter((slug) =>
+      present.has(slug),
+    );
+    const { nodes } = buildGraphLayout(detail);
+    const lane = nodes.filter((n) => n.kind === "lane_agent");
+    const ordered = [...lane].sort((a, b) => a.position.x - b.position.x);
+    expect(ordered.map((n) => n.agentName)).toEqual([...expectedLeftToRight]);
   });
 
   it("chains profiler lanes horizontally without Surveyor→lane edge", () => {

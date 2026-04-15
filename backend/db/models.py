@@ -10,6 +10,10 @@ from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, SQLModel  # pyright: ignore[reportUnknownVariableType]
 
 
+def _str_enum_sql_values(enum_cls: type[StrEnum]) -> list[str]:
+    return [member.value for member in enum_cls.__members__.values()]
+
+
 class WorkflowRunStatusDb(StrEnum):
     RUNNING = "running"
     COMPLETED = "completed"
@@ -474,7 +478,7 @@ class RunFinalDecision(SQLModel, table=True):
             SAEnum(
                 DecisionTypeDb,
                 native_enum=False,
-                values_callable=lambda enum_cls: [m.value for m in enum_cls],
+                values_callable=_str_enum_sql_values,
             ),
             nullable=False,
         ),
@@ -553,7 +557,7 @@ class AgentConversationMessage(SQLModel, table=True):
             SAEnum(
                 MessageKindDb,
                 native_enum=False,
-                values_callable=lambda enum_cls: [m.value for m in enum_cls],
+                values_callable=_str_enum_sql_values,
             ),
             nullable=False,
         ),
@@ -598,7 +602,7 @@ class AgentConversationMessagePart(SQLModel, table=True):
             SAEnum(
                 MessagePartKindDb,
                 native_enum=False,
-                values_callable=lambda enum_cls: [m.value for m in enum_cls],
+                values_callable=_str_enum_sql_values,
             ),
             nullable=False,
         ),

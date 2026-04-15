@@ -10,10 +10,12 @@ from backend.crud.conversations import (
     insert_conversation_for_agent_execution,
     insert_conversation_for_workflow_agent,
 )
-from backend.crud.db_utils import new_id, utc_now_iso
-from backend.crud.run_executions import (
+from backend.contracts.agent_lane_order import (
     PROFILER_ENTRY_AGENT_NAMES,
     SURVEYOR_ENTRY_AGENT_NAMES,
+)
+from backend.crud.db_utils import new_id, utc_now_iso
+from backend.crud.run_executions import (
     get_agent_execution_id_by_run_and_agent,
     get_workflow_candidate_snapshot_id,
     insert_ticker_run_with_agents,
@@ -202,3 +204,4 @@ def seed(session: Session) -> None:
     )
 
     recompute_workflow_status(session, workflow_id)
+    session.commit()

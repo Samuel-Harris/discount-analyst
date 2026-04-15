@@ -1,38 +1,29 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback } from "react";
 
 import { fetchWorkflowRuns, type WorkflowRunListItem } from "../api";
+import { usePollingQuery, WORKFLOW_RUNS_LIST_KEY } from "../serverState";
 
 const DEFAULT_POLL_MS = 3000;
 
 export function useWorkflowRuns(pollMs: number = DEFAULT_POLL_MS) {
-  const [items, setItems] = useState<WorkflowRunListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const mounted = useRef(true);
+  const fetcher = useCallback(
+    (signal: AbortSignal) => fetchWorkflowRuns({ signal }),
+    [],
+  );
 
-  const refresh = useCallback(async () => {
-    try {
-      const data = await fetchWorkflowRuns();
-      if (!mounted.current) return;
-      setItems(data);
-      setError(null);
-    } catch (e) {
-      if (!mounted.current) return;
-      setError(e instanceof Error ? e.message : "Failed to load workflow runs");
-    } finally {
-      if (mounted.current) setLoading(false);
-    }
-  }, []);
+  const discardDataOnError = useCallback(() => false, []);
 
-  useEffect(() => {
-    mounted.current = true;
-    void refresh();
-    const id = window.setInterval(() => void refresh(), pollMs);
-    return () => {
-      mounted.current = false;
-      window.clearInterval(id);
-    };
-  }, [refresh, pollMs]);
+  const { data, loading, error, refresh } = usePollingQuery<
+    WorkflowRunListItem[]
+  >({
+    queryKey: WORKFLOW_RUNS_LIST_KEY,
+    enabled: true,
+    pollMs,
+    fetcher,
+    defaultErrorMessage: "Failed to load workflow runs",
+    loadingStartsTrueWhenEnabled: true,
+    discardDataOnError,
+  });
 
-  return { items, loading, error, refresh };
+  return { items: data ?? [], loading, error, refresh };
 }

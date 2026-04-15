@@ -1,4 +1,4 @@
-<!-- Generated: 2026-02-23 | Updated: 2026-04-03 (researcher workflow added) -->
+<!-- Generated: 2026-02-23 | Updated: 2026-04-15 (pytest coverage includes backend) -->
 
 # Discount Analyst
 
@@ -53,7 +53,7 @@ The analyst reviews the DCF outputs and AI buy recommendations across all stocks
 | `uv.lock`                                                 | Locked versions of all project dependencies.                                                                                                                                                         |
 | `README.md`                                               | Overview, quick start instructions, and high-level documentation.                                                                                                                                    |
 | `LICENSE`                                                 | MIT License terms for the repository.                                                                                                                                                                |
-| `pytest.ini`                                              | Configuration for the `pytest` test suite, including coverage settings.                                                                                                                              |
+| `pytest.ini`                                              | Pytest defaults: branch coverage and terminal missing-line reports for `discount_analyst/` and `backend/`.                                                                                           |
 | `.cursor/hooks.json`                                      | Cursor hooks: `sessionStart` (injects branch + uv env context) and `afterFileEdit` (auto-runs `ruff` on Python files).                                                                               |
 | `scripts/agents/run_researcher.py`                        | Runs Researcher from Surveyor output selectors (`<json>` or `<json>:<TICKER>`) and writes one JSON per candidate.                                                                                    |
 | `scripts/agents/run_strategist.py`                        | Runs Strategist from Researcher output selectors (`<json>` or `<json>:<TICKER>`) and writes one JSON per target.                                                                                     |

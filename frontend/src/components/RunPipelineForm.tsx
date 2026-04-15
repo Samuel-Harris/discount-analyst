@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { createWorkflowRun, fetchPortfolio } from "../api";
+import { invalidateWorkflowRunsList } from "../serverState";
+
+import { UiStateText } from "./UiStateText";
 
 function parseTickers(raw: string): string[] {
   const parts = raw
@@ -17,16 +20,12 @@ function tickersForSubmit(tickers: string[], draft: string): string[] {
 
 export interface RunPipelineFormProps {
   onLaunched: (workflowRunId: string) => void;
-  onRefreshList: () => void;
 }
 
 const deployEnv = import.meta.env.VITE_DEPLOY_ENV;
 const mockModeLocked = deployEnv !== "PROD";
 
-export function RunPipelineForm({
-  onLaunched,
-  onRefreshList,
-}: RunPipelineFormProps) {
+export function RunPipelineForm({ onLaunched }: RunPipelineFormProps) {
   const [tickers, setTickers] = useState<string[]>([]);
   const [draft, setDraft] = useState("");
   const [isMock, setIsMock] = useState(true);
@@ -74,13 +73,13 @@ export function RunPipelineForm({
         is_mock: mockModeLocked || isMock,
       });
       onLaunched(res.workflow_run_id);
-      onRefreshList();
+      await invalidateWorkflowRunsList();
     } catch (e) {
       setFormError(e instanceof Error ? e.message : "Launch failed");
     } finally {
       setSubmitting(false);
     }
-  }, [tickers, draft, isMock, onLaunched, onRefreshList]);
+  }, [tickers, draft, isMock, onLaunched]);
 
   return (
     <div className="launch-panel">
@@ -148,7 +147,11 @@ export function RunPipelineForm({
           {submitting ? "Starting…" : "Start workflow"}
         </button>
       </div>
-      {formError ? <p className="err">{formError}</p> : null}
+      {formError ? (
+        <UiStateText tone="error" as="p" className="launch-panel-form-status">
+          {formError}
+        </UiStateText>
+      ) : null}
     </div>
   );
 }

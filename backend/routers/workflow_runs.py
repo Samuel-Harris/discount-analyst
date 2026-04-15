@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import Annotated
 
 import logfire
@@ -16,11 +15,9 @@ from backend.contracts.api import (
     WorkflowRunListItem,
 )
 from backend.deps import DbSession
+from backend.contracts.agent_lane_order import PROFILER_ENTRY_AGENT_NAMES
 from backend.crud.db_utils import new_id
-from backend.crud.run_executions import (
-    PROFILER_ENTRY_AGENT_NAMES,
-    insert_ticker_run_with_agents,
-)
+from backend.crud.run_executions import insert_ticker_run_with_agents
 from backend.crud.workflow_runs import (
     delete_workflow_run_if_mock,
     fetch_workflow_detail,
@@ -114,12 +111,14 @@ async def create_workflow_run(
         )
         profiler_created.append(ProfilerRunCreated(run_id=run_id, ticker=ticker))
 
+    session.commit()
+
     resp = CreateWorkflowRunResponse(
         workflow_run_id=workflow_run_id,
         profiler_runs=profiler_created,
         surveyor_started=True,
     )
-    asyncio.create_task(runner.execute_workflow(workflow_run_id))
+    runner.schedule_workflow_execution(workflow_run_id)
     logfire.info(
         "Background workflow execution task scheduled",
         workflow_run_id=workflow_run_id,

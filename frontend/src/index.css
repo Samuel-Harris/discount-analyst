@@ -86,6 +86,59 @@ button {
   font-size: 12px;
 }
 
+.app-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.app-header-status {
+  font-size: 12px;
+}
+
+.ui-state-text {
+  margin: 0;
+}
+
+.ui-state-text--loading {
+  color: var(--text-dim);
+}
+
+.ui-state-text--error {
+  color: var(--err);
+}
+
+.ui-state-text--muted {
+  color: var(--text-dim);
+}
+
+.main-panel-alert {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(255, 92, 108, 0.35);
+  background: rgba(255, 92, 108, 0.06);
+}
+
+.main-panel-alert .ui-state-text {
+  font-size: 12px;
+}
+
+.detail-header-title-row {
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.detail-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
 .sidebar {
   display: flex;
   flex-direction: column;
@@ -247,9 +300,8 @@ button {
   color: var(--text-dim);
 }
 
-.launch-panel .err {
+.launch-panel .launch-panel-form-status {
   margin: 8px 0 0;
-  color: var(--err);
   font-size: 12px;
 }
 
@@ -477,6 +529,11 @@ button {
   min-height: 0;
 }
 
+.agent-panel .agent-panel-status {
+  margin: 0 0 10px;
+  font-size: 12px;
+}
+
 .agent-panel section {
   margin-bottom: 16px;
 }
@@ -501,11 +558,6 @@ button {
   font-size: 11px;
   max-height: 220px;
   overflow: auto;
-}
-
-.agent-panel .err {
-  color: var(--err);
-  font-size: 12px;
 }
 
 .agent-panel .json-syntax-block {

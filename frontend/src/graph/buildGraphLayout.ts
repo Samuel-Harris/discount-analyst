@@ -5,14 +5,10 @@ import type {
   WorkflowRunDetailResponse,
 } from "../api";
 
-const CANONICAL_ORDER: readonly AgentNameSlug[] = [
-  "profiler",
-  "researcher",
-  "strategist",
-  "sentinel",
-  "appraiser",
-  "arbiter",
-];
+import { GRAPH_LAYOUT_PROFILER_LANE_ORDER } from "./agentLaneOrder";
+
+const CANONICAL_ORDER: readonly AgentNameSlug[] =
+  GRAPH_LAYOUT_PROFILER_LANE_ORDER;
 
 function sortAgents(
   executions: AgentExecutionSummary[],

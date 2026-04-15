@@ -26,6 +26,8 @@ from discount_analyst.agents.common.agent_names import AgentName
 from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
 
+from backend.contracts.stock_run_args import StockRunArgs
+
 from scripts.common.cli import (
     DEFAULT_AGENT_CLI_DEFAULTS,
     add_agent_cli_model_argument,
@@ -87,13 +89,6 @@ class AgentRunResult:
     cache_read_tokens: int
     tool_calls: int
     turn_usage: list[TurnUsage]
-
-
-@dataclass
-class StockRunArgs:
-    surveyor_candidate: SurveyorCandidate
-    risk_free_rate: float
-    model: ModelName
 
 
 def _parse_selector(raw: str, parser: argparse.ArgumentParser) -> Selector:

@@ -15,12 +15,15 @@ from backend.contracts.enums import (
     TickerRunStatusApi,
     WorkflowRunStatusApi,
 )
+from backend.contracts.workflow_rows import WorkflowRunDetailRecord, WorkflowRunListRow
 
 
-def workflow_list_item(row: dict) -> WorkflowRunListItem:
+def workflow_list_item(row: WorkflowRunListRow) -> WorkflowRunListItem:
+    started_at = row["started_at"]
+    assert started_at is not None
     return WorkflowRunListItem(
         id=row["id"],
-        started_at=row["started_at"],
+        started_at=started_at,
         completed_at=row["completed_at"],
         status=WorkflowRunStatusApi(row["status"]),
         is_mock=row["is_mock"],
@@ -31,7 +34,7 @@ def workflow_list_item(row: dict) -> WorkflowRunListItem:
     )
 
 
-def workflow_detail(d: dict) -> WorkflowRunDetailResponse:
+def workflow_detail(d: WorkflowRunDetailRecord) -> WorkflowRunDetailResponse:
     se = d.get("surveyor_execution")
     surveyor_summary = None
     if se:
@@ -67,9 +70,11 @@ def workflow_detail(d: dict) -> WorkflowRunDetailResponse:
                 agent_executions=agents,
             )
         )
+    detail_started_at = d["started_at"]
+    assert detail_started_at is not None
     return WorkflowRunDetailResponse(
         id=d["id"],
-        started_at=d["started_at"],
+        started_at=detail_started_at,
         completed_at=d["completed_at"],
         status=WorkflowRunStatusApi(d["status"]),
         is_mock=d["is_mock"],

@@ -11,7 +11,7 @@ from backend.crud import conversations as conv
 from backend.crud import run_executions as runs
 from backend.crud import workflow_runs as workflow_crud
 from backend.crud.db_utils import new_id
-from backend.crud.run_executions import PROFILER_ENTRY_AGENT_NAMES
+from backend.contracts.agent_lane_order import PROFILER_ENTRY_AGENT_NAMES
 from backend.db.migrate import migrate_to_head
 from backend.db.session import create_dashboard_engine, create_session_factory
 from backend.observability.logging import configure_dashboard_observability
@@ -56,6 +56,7 @@ async def test_mock_workflow_completes_profiler_and_surveyor(
             is_mock=True,
             agent_names=PROFILER_ENTRY_AGENT_NAMES,
         )
+        session.commit()
 
     runner = DashboardPipelineRunner(session_factory, settings)
     with patch("asyncio.sleep", new=AsyncMock()):
@@ -64,7 +65,9 @@ async def test_mock_workflow_completes_profiler_and_surveyor(
     with session_factory() as session:
         detail = workflow_crud.fetch_workflow_detail(session, workflow_run_id)
     assert detail is not None
-    assert detail["surveyor_execution"]["status"] == "completed"
+    surveyor_execution = detail["surveyor_execution"]
+    assert surveyor_execution is not None
+    assert surveyor_execution["status"] == "completed"
     surveyor_lanes = [r for r in detail["runs"] if r["entry_path"] == "surveyor"]
     profiler_lanes = [r for r in detail["runs"] if r["entry_path"] == "profiler"]
     assert len(profiler_lanes) == 1

@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from backend.crud.db_utils import new_id
 from backend.db.models import CandidateSnapshot
-from discount_analyst.agents.surveyor.schema import KeyMetrics, SurveyorCandidate
+from discount_analyst.agents.surveyor.schema import (
+    Currency,
+    Exchange,
+    KeyMetrics,
+    SurveyorCandidate,
+)
 
 
 def candidate_to_snapshot(
@@ -47,8 +52,8 @@ def snapshot_to_candidate(snapshot: CandidateSnapshot) -> SurveyorCandidate:
     return SurveyorCandidate(
         ticker=snapshot.ticker,
         company_name=snapshot.company_name,
-        exchange=snapshot.exchange,
-        currency=snapshot.currency,
+        exchange=Exchange(snapshot.exchange),
+        currency=Currency(snapshot.currency),
         market_cap_local=snapshot.market_cap_local,
         market_cap_display=snapshot.market_cap_display,
         sector=snapshot.sector,

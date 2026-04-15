@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 from datetime import date
+from typing import Any, cast
 
 from sqlalchemy import delete, select
-from sqlmodel import Session
+from sqlmodel import Session, col
 
 from backend.crud.candidate_snapshots import candidate_to_snapshot
 from backend.crud.db_utils import new_id
@@ -58,12 +59,17 @@ def persist_surveyor_output(
     execution: WorkflowAgentExecution,
     output_json: str,
 ) -> None:
-    raw = json.loads(output_json)
-    candidates_raw = raw.get("candidates", []) if isinstance(raw, dict) else []
+    raw: object = json.loads(output_json)
+    candidates_raw: list[object] = []
+    if isinstance(raw, dict):
+        raw_map = cast(dict[str, Any], raw)
+        got = raw_map.get("candidates", [])
+        if isinstance(got, list):
+            candidates_raw = cast(list[Any], got)
     candidates = [SurveyorCandidate.model_validate(c) for c in candidates_raw]
     session.exec(
         delete(CandidateSnapshot).where(
-            CandidateSnapshot.workflow_agent_execution_id == execution.id
+            col(CandidateSnapshot.workflow_agent_execution_id) == execution.id
         )
     )
     for idx, candidate in enumerate(candidates):
@@ -85,7 +91,7 @@ def persist_profiler_output(
     output = ProfilerOutput.model_validate_json(output_json)
     session.exec(
         delete(CandidateSnapshot).where(
-            CandidateSnapshot.agent_execution_id == execution.id
+            col(CandidateSnapshot.agent_execution_id) == execution.id
         )
     )
     snap = candidate_to_snapshot(
@@ -110,44 +116,46 @@ def replace_research_report(
     run = session.get(Run, execution.run_id)
     if run is None or run.candidate_snapshot_id is None:
         return
-    existing = session.exec(
-        select(ResearchReport).where(ResearchReport.agent_execution_id == execution.id)
+    existing = session.scalars(
+        select(ResearchReport).where(
+            col(ResearchReport.agent_execution_id) == execution.id
+        )
     ).first()
     if existing is not None:
         session.exec(
             delete(ResearchReportNarrativeMonitoringSignal).where(
-                ResearchReportNarrativeMonitoringSignal.research_report_id
+                col(ResearchReportNarrativeMonitoringSignal.research_report_id)
                 == existing.id
             )
         )
         session.exec(
             delete(ResearchReportRisk).where(
-                ResearchReportRisk.research_report_id == existing.id
+                col(ResearchReportRisk.research_report_id) == existing.id
             )
         )
         session.exec(
             delete(ResearchReportPotentialCatalyst).where(
-                ResearchReportPotentialCatalyst.research_report_id == existing.id
+                col(ResearchReportPotentialCatalyst.research_report_id) == existing.id
             )
         )
         session.exec(
             delete(ResearchReportClosedGap).where(
-                ResearchReportClosedGap.research_report_id == existing.id
+                col(ResearchReportClosedGap.research_report_id) == existing.id
             )
         )
         session.exec(
             delete(ResearchReportRemainingOpenGap).where(
-                ResearchReportRemainingOpenGap.research_report_id == existing.id
+                col(ResearchReportRemainingOpenGap.research_report_id) == existing.id
             )
         )
         session.exec(
             delete(ResearchReportMaterialOpenGap).where(
-                ResearchReportMaterialOpenGap.research_report_id == existing.id
+                col(ResearchReportMaterialOpenGap.research_report_id) == existing.id
             )
         )
         session.exec(
             delete(ResearchReportSourceNote).where(
-                ResearchReportSourceNote.research_report_id == existing.id
+                col(ResearchReportSourceNote.research_report_id) == existing.id
             )
         )
         session.delete(existing)
@@ -259,31 +267,32 @@ def replace_mispricing_thesis(
     output_json: str,
 ) -> None:
     output = MispricingThesisSchema.model_validate_json(output_json)
-    existing = session.exec(
+    existing = session.scalars(
         select(MispricingThesis).where(
-            MispricingThesis.agent_execution_id == execution.id
+            col(MispricingThesis.agent_execution_id) == execution.id
         )
     ).first()
     if existing is not None:
         session.exec(
             delete(MispricingThesisFalsificationCondition).where(
-                MispricingThesisFalsificationCondition.mispricing_thesis_id
+                col(MispricingThesisFalsificationCondition.mispricing_thesis_id)
                 == existing.id
             )
         )
         session.exec(
             delete(MispricingThesisRisk).where(
-                MispricingThesisRisk.mispricing_thesis_id == existing.id
+                col(MispricingThesisRisk.mispricing_thesis_id) == existing.id
             )
         )
         session.exec(
             delete(MispricingThesisEvaluationQuestion).where(
-                MispricingThesisEvaluationQuestion.mispricing_thesis_id == existing.id
+                col(MispricingThesisEvaluationQuestion.mispricing_thesis_id)
+                == existing.id
             )
         )
         session.exec(
             delete(MispricingThesisPermanentLossScenario).where(
-                MispricingThesisPermanentLossScenario.mispricing_thesis_id
+                col(MispricingThesisPermanentLossScenario.mispricing_thesis_id)
                 == existing.id
             )
         )
@@ -342,20 +351,20 @@ def replace_evaluation_report(
     output_json: str,
 ) -> None:
     output = EvaluationReportSchema.model_validate_json(output_json)
-    existing = session.exec(
+    existing = session.scalars(
         select(EvaluationReport).where(
-            EvaluationReport.agent_execution_id == execution.id
+            col(EvaluationReport.agent_execution_id) == execution.id
         )
     ).first()
     if existing is not None:
         session.exec(
             delete(EvaluationQuestionAssessment).where(
-                EvaluationQuestionAssessment.evaluation_report_id == existing.id
+                col(EvaluationQuestionAssessment.evaluation_report_id) == existing.id
             )
         )
         session.exec(
             delete(EvaluationCaveat).where(
-                EvaluationCaveat.evaluation_report_id == existing.id
+                col(EvaluationCaveat.evaluation_report_id) == existing.id
             )
         )
         session.delete(existing)
@@ -404,9 +413,9 @@ def replace_appraiser_report(
     output_json: str,
 ) -> None:
     output = AppraiserOutput.model_validate_json(output_json)
-    existing = session.exec(
+    existing = session.scalars(
         select(AppraiserReport).where(
-            AppraiserReport.agent_execution_id == execution.id
+            col(AppraiserReport.agent_execution_id) == execution.id
         )
     ).first()
     if existing is not None:
@@ -462,18 +471,20 @@ def upsert_run_final_decision(
     supporting_factors: list[str],
     mitigating_factors: list[str],
 ) -> None:
-    existing = session.exec(
-        select(RunFinalDecision).where(RunFinalDecision.run_id == run_id)
+    existing = session.scalars(
+        select(RunFinalDecision).where(col(RunFinalDecision.run_id) == run_id)
     ).first()
     if existing is not None:
         session.exec(
             delete(RunFinalDecisionSupportingFactor).where(
-                RunFinalDecisionSupportingFactor.run_final_decision_id == existing.id
+                col(RunFinalDecisionSupportingFactor.run_final_decision_id)
+                == existing.id
             )
         )
         session.exec(
             delete(RunFinalDecisionMitigatingFactor).where(
-                RunFinalDecisionMitigatingFactor.run_final_decision_id == existing.id
+                col(RunFinalDecisionMitigatingFactor.run_final_decision_id)
+                == existing.id
             )
         )
         session.delete(existing)
@@ -528,8 +539,8 @@ def insert_dcf_valuation(
     appraiser_agent_execution_id: str,
     dcf_result: DCFAnalysisResult,
 ) -> None:
-    existing = session.exec(
-        select(DcfValuation).where(DcfValuation.run_id == run_id)
+    existing = session.scalars(
+        select(DcfValuation).where(col(DcfValuation.run_id) == run_id)
     ).first()
     if existing is not None:
         session.delete(existing)
@@ -543,4 +554,3 @@ def insert_dcf_valuation(
             equity_value=dcf_result.equity_value,
         )
     )
-    session.commit()

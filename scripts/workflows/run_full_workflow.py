@@ -52,8 +52,9 @@ from discount_analyst.pipeline.builders import (
     verdict_from_decision,
 )
 from discount_analyst.pipeline.schema import SentinelRejection, Verdict
+
+from backend.contracts.stock_run_args import StockRunArgs
 from scripts.agents.run_appraiser import (
-    StockRunArgs,
     display_agent_output,
     run_agent,
     run_dcf_and_display,

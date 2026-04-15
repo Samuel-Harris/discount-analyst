@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from backend.app.main import create_app
+from backend.contracts.agent_lane_order import PROFILER_ENTRY_AGENT_NAMES
 from backend.db.seed import seed
 from backend.settings.config import DashboardSettings
 
@@ -68,14 +69,7 @@ def test_get_workflow_detail(client: TestClient) -> None:
     assert d["surveyor_execution"]["agent_name"] == "surveyor"
     assert len(d["runs"]) == 1
     names = [a["agent_name"] for a in d["runs"][0]["agent_executions"]]
-    assert names == [
-        "profiler",
-        "researcher",
-        "strategist",
-        "sentinel",
-        "appraiser",
-        "arbiter",
-    ]
+    assert names == list(PROFILER_ENTRY_AGENT_NAMES)
 
 
 def test_delete_mock_only(client: TestClient) -> None:
