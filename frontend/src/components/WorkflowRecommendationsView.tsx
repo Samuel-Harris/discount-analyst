@@ -217,10 +217,7 @@ export function WorkflowRecommendationsView({
                 </td>
                 <td>
                   <span
-                    className={recommendationRatingClassNames(
-                      run.final_rating,
-                      run.decision_type,
-                    )}
+                    className={recommendationRatingClassNames(run.final_rating)}
                   >
                     {run.final_rating ?? "Pending"}
                   </span>

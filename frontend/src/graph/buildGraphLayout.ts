@@ -50,19 +50,9 @@ export interface LayoutEdge {
   targetHandle?: string;
 }
 
-/** Per-lane verdict strip aligned with `laneY` / node rows (same sort order as graph nodes). */
-export interface LaneRatingChipLayout {
-  runId: string;
-  ticker: string;
-  finalRating: string | null;
-  decisionType: WorkflowRunDetailResponse["runs"][number]["decision_type"];
-  /** Absolute `top` (px); pair with `translateY(-50%)` to centre on the lane row. */
-  topPx: number;
-}
-
 const COL = 150;
 const NODE_W = 118;
-/** Approximate node body height for vertical centring of multi-lane Surveyor and rating chips. */
+/** Approximate node body height for vertical centring of multi-lane Surveyor. */
 const NODE_H = 52;
 const TOP_Y = 24;
 const LANE_GAP = 112;
@@ -136,12 +126,10 @@ export function buildGraphLayout(detail: WorkflowRunDetailResponse): {
   nodes: LayoutNode[];
   edges: LayoutEdge[];
   surveyorNodeId: string;
-  laneRatingChips: LaneRatingChipLayout[];
 } {
   const surveyorNodeId = `wf-${detail.id}-surveyor`;
   const nodes: LayoutNode[] = [];
   const edges: LayoutEdge[] = [];
-  const laneRatingChips: LaneRatingChipLayout[] = [];
 
   const runs = sortedWorkflowRuns(detail.runs);
 
@@ -219,14 +207,6 @@ export function buildGraphLayout(detail: WorkflowRunDetailResponse): {
   }
 
   runs.forEach((run, laneIndex) => {
-    laneRatingChips.push({
-      runId: run.id,
-      ticker: run.ticker,
-      finalRating: run.final_rating,
-      decisionType: run.decision_type,
-      topPx: laneY(laneIndex) + NODE_H / 2,
-    });
-
     const sorted = sortAgents(run.agent_executions);
     let prevId: string | null = null;
 
@@ -279,5 +259,5 @@ export function buildGraphLayout(detail: WorkflowRunDetailResponse): {
     }
   });
 
-  return { nodes, edges, surveyorNodeId, laneRatingChips };
+  return { nodes, edges, surveyorNodeId };
 }

@@ -293,62 +293,6 @@ describe("buildGraphLayout", () => {
     expect(discY!).toBeLessThan(metaY!);
   });
 
-  it("emits laneRatingChips in runLayoutSort order with verdict fields and top offsets", () => {
-    const detail = baseDetail({
-      runs: [
-        {
-          id: "run-meta",
-          ticker: "META",
-          company_name: "M",
-          entry_path: "profiler",
-          status: "completed",
-          final_rating: "BUY",
-          decision_type: "arbiter",
-          agent_executions: [
-            {
-              id: "m1",
-              agent_name: "profiler",
-              status: "completed",
-              started_at: null,
-              completed_at: null,
-            },
-          ],
-        },
-        {
-          id: "run-disc",
-          ticker: "DISC.L",
-          company_name: "D",
-          entry_path: "surveyor",
-          status: "completed",
-          final_rating: "STRONG SELL",
-          decision_type: "sentinel_rejection",
-          agent_executions: [
-            {
-              id: "d1",
-              agent_name: "researcher",
-              status: "completed",
-              started_at: null,
-              completed_at: null,
-            },
-          ],
-        },
-      ],
-    });
-    const { laneRatingChips } = buildGraphLayout(detail);
-    expect(laneRatingChips).toHaveLength(2);
-    expect(laneRatingChips[0]?.runId).toBe("run-disc");
-    expect(laneRatingChips[0]?.ticker).toBe("DISC.L");
-    expect(laneRatingChips[0]?.finalRating).toBe("STRONG SELL");
-    expect(laneRatingChips[0]?.decisionType).toBe("sentinel_rejection");
-    expect(laneRatingChips[0]?.topPx).toBe(112 + 26);
-
-    expect(laneRatingChips[1]?.runId).toBe("run-meta");
-    expect(laneRatingChips[1]?.ticker).toBe("META");
-    expect(laneRatingChips[1]?.finalRating).toBe("BUY");
-    expect(laneRatingChips[1]?.decisionType).toBe("arbiter");
-    expect(laneRatingChips[1]?.topPx).toBe(224 + 26);
-  });
-
   it("lays out multiple ticker lanes with distinct y positions", () => {
     const detail = baseDetail({
       runs: [
