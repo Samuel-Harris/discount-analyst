@@ -179,32 +179,22 @@ Compose is a **local convenience** for running the dashboard stack; it does not 
 
 **Prerequisites:** Docker Engine or Docker Desktop with [Compose V2](https://docs.docker.com/compose/) (`docker compose`).
 
-### Development stack (FastAPI + Vite)
+### Dashboard stack (nginx + static UI)
 
-[`docker-compose.yml`](docker-compose.yml) runs:
+[`docker-compose.yml`](docker-compose.yml) runs a **production-like** smoke stack:
 
-- **backend** — image built from [`backend/docker/Dockerfile`](backend/docker/Dockerfile), port **8000**, SQLite on a named volume at `DASHBOARD_DATABASE_PATH=/data/dashboard.sqlite`
-- **frontend** — Vite dev server from [`frontend/Dockerfile`](frontend/Dockerfile) `development` stage, port **5173**, with `VITE_DEV_PROXY_TARGET=http://backend:8000` so `/api` from the browser reaches the backend service
+- **backend** — image from [`backend/docker/Dockerfile`](backend/docker/Dockerfile), exposed on **8000** inside the Compose network only, SQLite on a named volume at `DASHBOARD_DATABASE_PATH=/data/dashboard.sqlite`, with **`ENV=PROD`** so mock mode is not forced server-side (this matches the static UI image, which is built with `ENV=PROD`).
+- **web** — static assets from [`frontend/Dockerfile`](frontend/Dockerfile) `production`, served by nginx using [`docker/nginx.dashboard.conf`](docker/nginx.dashboard.conf), which reverse-proxies `/api` to the backend. Published port **8080** maps to nginx port **80**.
 
 Optional secrets and pipeline keys: add a repository root `.env` file; Compose references it when present (`env_file` with `required: false` in [`docker-compose.yml`](docker-compose.yml)). You still need **`discount_analyst/.env`** for agent settings when running **non-mock** workflows inside the backend container.
 
-Wrapper (foreground; pass `-d` for detached):
+From the repository root (foreground; pass `-d` for detached):
 
 ```bash
-./scripts/docker/compose-up.sh
+docker compose -f docker-compose.yml up --build
 ```
 
-Then open **http://localhost:5173**. The SQLite file lives in the `dashboard_sqlite` Docker volume until you remove it (`docker compose down -v`).
-
-### Production-like smoke stack (nginx + static UI)
-
-[`docker-compose.prod.yml`](docker-compose.prod.yml) builds the static frontend (`frontend/Dockerfile` `production` stage), serves it with nginx using [`docker/nginx.dashboard.conf`](docker/nginx.dashboard.conf), and reverse-proxies `/api` to the backend on the internal network. Published port **8080** maps to nginx port 80.
-
-```bash
-./scripts/docker/compose-up-prod.sh
-```
-
-Open **http://localhost:8080**. SQLite uses the separate volume `dashboard_sqlite_prod`.
+Open **http://localhost:8080**. SQLite uses the volume `dashboard_sqlite_prod` until you remove it (`docker compose down -v`).
 
 ### Building images without Compose
 

@@ -1,5 +1,5 @@
 # Production-like smoke stack: nginx serves the built SPA and proxies /api to the backend.
-# Run: ./scripts/docker/compose-up-prod.sh
+# Run (repo root): docker compose -f docker-compose.yml up --build
 # Open http://localhost:8080
 
 services:
@@ -17,6 +17,7 @@ services:
         required: false
     environment:
       DASHBOARD_DATABASE_PATH: /data/dashboard.sqlite
+      ENV: PROD
 
   web:
     build:
