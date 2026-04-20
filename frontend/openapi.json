@@ -155,7 +155,8 @@
           "completed",
           "skipped",
           "rejected",
-          "failed"
+          "failed",
+          "cancelled"
         ],
         "title": "ExecutionStatusApi",
         "type": "string"
@@ -320,7 +321,8 @@
         "enum": [
           "running",
           "completed",
-          "failed"
+          "failed",
+          "cancelled"
         ],
         "title": "TickerRunStatusApi",
         "type": "string"
@@ -509,7 +511,8 @@
         "enum": [
           "running",
           "completed",
-          "failed"
+          "failed",
+          "cancelled"
         ],
         "title": "WorkflowRunStatusApi",
         "type": "string"
@@ -769,6 +772,41 @@
           }
         },
         "summary": "Get Workflow Run",
+        "tags": [
+          "workflow_runs"
+        ]
+      }
+    },
+    "/api/workflow_runs/{workflow_run_id}/cancel": {
+      "post": {
+        "operationId": "cancel_workflow_run_api_workflow_runs__workflow_run_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflow_run_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Workflow Run",
         "tags": [
           "workflow_runs"
         ]

@@ -13,6 +13,7 @@ export type {
 
 export {
   AgentNameSlug,
+  cancelWorkflowRunApiWorkflowRunsWorkflowRunIdCancelPost as cancelWorkflowRun,
   createWorkflowRunApiWorkflowRunsPost as createWorkflowRun,
   deleteWorkflowRunApiWorkflowRunsWorkflowRunIdDelete as deleteWorkflowRun,
   getPortfolioApiPortfolioGet as fetchPortfolio,

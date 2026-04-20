@@ -6,6 +6,8 @@ import { UiStateText } from "./UiStateText";
 export interface WorkflowRunDetailHeaderProps {
   detail: WorkflowRunDetailResponse;
   onRequestDelete: () => void;
+  onRequestCancel: () => void;
+  cancelPending: boolean;
   mainView: WorkflowMainView;
   onOpenRecommendations: () => void;
   onOpenPipeline: () => void;
@@ -14,6 +16,8 @@ export interface WorkflowRunDetailHeaderProps {
 export function WorkflowRunDetailHeader({
   detail,
   onRequestDelete,
+  onRequestCancel,
+  cancelPending,
   mainView,
   onOpenRecommendations,
   onOpenPipeline,
@@ -72,6 +76,16 @@ export function WorkflowRunDetailHeader({
             onClick={() => onRequestDelete()}
           >
             Delete mock run
+          </button>
+        ) : null}
+        {detail.status === "running" ? (
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => onRequestCancel()}
+            disabled={cancelPending}
+          >
+            {cancelPending ? "Cancelling..." : "Cancel workflow"}
           </button>
         ) : null}
       </div>

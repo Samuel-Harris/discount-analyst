@@ -1,16 +1,21 @@
 import type { TickerRunDetail } from "../api";
 
-export type LaneStatusDisplayLabel = "COMPLETED" | "RUNNING" | "PENDING";
+export type LaneStatusDisplayLabel =
+  | "COMPLETED"
+  | "RUNNING"
+  | "PENDING"
+  | "CANCELLED";
 
 /** Styling key for the recommendations table (`failed` keeps the label COMPLETED). */
 export type LaneStatusDisplayTone =
   | "completed"
   | "running"
   | "pending"
-  | "failed";
+  | "failed"
+  | "cancelled";
 
 /**
- * Lane status for the recommendations table: COMPLETED, RUNNING, or PENDING only.
+ * Lane status for the recommendations table.
  * API `running` is split using agent executions: all pending → PENDING, else RUNNING.
  * API `failed` still reads as COMPLETED with error colouring; hover `title` explains.
  */
@@ -29,11 +34,15 @@ export function laneStatusDisplay(run: TickerRunDetail): {
       title: "Lane ended with an error",
     };
   }
+  if (run.status === "cancelled") {
+    return {
+      label: "CANCELLED",
+      tone: "cancelled",
+      title: "Lane was cancelled",
+    };
+  }
   const execs = run.agent_executions;
-  if (
-    execs.length === 0 ||
-    execs.every((e) => e.status === "pending")
-  ) {
+  if (execs.length === 0 || execs.every((e) => e.status === "pending")) {
     return {
       label: "PENDING",
       tone: "pending",

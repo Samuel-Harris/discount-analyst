@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { deleteWorkflowRun } from "../api";
-import { invalidateWorkflowRunsList } from "../serverState";
+import { cancelWorkflowRun, deleteWorkflowRun } from "../api";
+import {
+  invalidateWorkflowRunDetail,
+  invalidateWorkflowRunsList,
+} from "../serverState";
 import { AgentPanel } from "./AgentPanel";
 import { RunPipelineForm } from "./RunPipelineForm";
 import { Sidebar } from "./Sidebar";
@@ -31,10 +34,13 @@ export function DashboardShell() {
     error: detailError,
   } = useWorkflowRunDetail(selectedId);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [workflowActionError, setWorkflowActionError] = useState<string | null>(
+    null,
+  );
+  const [cancelPending, setCancelPending] = useState(false);
 
   useEffect(() => {
-    setDeleteError(null);
+    setWorkflowActionError(null);
   }, [selectedId]);
 
   const conversation = useConversation();
@@ -59,13 +65,13 @@ export function DashboardShell() {
     async (id: string) => {
       const ok = window.confirm("Delete this mock workflow run?");
       if (!ok) return;
-      setDeleteError(null);
+      setWorkflowActionError(null);
       try {
         await deleteWorkflowRun(id);
         if (selectedId === id) selectRunFromSidebar(null);
         await invalidateWorkflowRunsList();
       } catch (e) {
-        setDeleteError(
+        setWorkflowActionError(
           e instanceof Error ? e.message : "Delete failed; try again.",
         );
       }
@@ -73,9 +79,32 @@ export function DashboardShell() {
     [selectedId, selectRunFromSidebar],
   );
 
-  const onLaunched = useCallback((workflowRunId: string) => {
-    openLaunchedRun(workflowRunId);
-  }, [openLaunchedRun]);
+  const handleCancel = useCallback(async (id: string) => {
+    const ok = window.confirm("Cancel this workflow?");
+    if (!ok) return;
+    setWorkflowActionError(null);
+    setCancelPending(true);
+    try {
+      await cancelWorkflowRun(id);
+      await Promise.all([
+        invalidateWorkflowRunsList(),
+        invalidateWorkflowRunDetail(id),
+      ]);
+    } catch (e) {
+      setWorkflowActionError(
+        e instanceof Error ? e.message : "Cancel failed; try again.",
+      );
+    } finally {
+      setCancelPending(false);
+    }
+  }, []);
+
+  const onLaunched = useCallback(
+    (workflowRunId: string) => {
+      openLaunchedRun(workflowRunId);
+    },
+    [openLaunchedRun],
+  );
 
   const launchForm = <RunPipelineForm onLaunched={onLaunched} />;
 
@@ -99,13 +128,15 @@ export function DashboardShell() {
         detailLoading={detailLoading}
         detailError={detailError}
         sidebarCollapsed={sidebarCollapsed}
-        deleteError={deleteError}
+        workflowActionError={workflowActionError}
+        cancelPending={cancelPending}
         launchForm={launchForm}
         mainView={mainView}
         onOpenRecommendations={openRecommendations}
         onOpenPipeline={openPipeline}
         onOpenConversation={openConversation}
         onRequestDeleteRun={(id) => void handleDelete(id)}
+        onRequestCancelRun={(id) => void handleCancel(id)}
       />
 
       <AgentPanel

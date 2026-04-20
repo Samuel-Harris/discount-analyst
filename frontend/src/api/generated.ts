@@ -78,6 +78,7 @@ export const ExecutionStatusApi = {
   skipped: 'skipped',
   rejected: 'rejected',
   failed: 'failed',
+  cancelled: 'cancelled',
 } as const;
 
 export interface HTTPValidationError {
@@ -128,6 +129,7 @@ export const TickerRunStatusApi = {
   running: 'running',
   completed: 'completed',
   failed: 'failed',
+  cancelled: 'cancelled',
 } as const;
 
 export type ValidationErrorCtx = { [key: string]: unknown };
@@ -183,6 +185,7 @@ export const WorkflowRunStatusApi = {
   running: 'running',
   completed: 'completed',
   failed: 'failed',
+  cancelled: 'cancelled',
 } as const;
 
 /**
@@ -349,6 +352,30 @@ export const getWorkflowRunApiWorkflowRunsWorkflowRunIdGet = async (workflowRunI
   {
     ...options,
     method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary Cancel Workflow Run
+ */
+export const getCancelWorkflowRunApiWorkflowRunsWorkflowRunIdCancelPostUrl = (workflowRunId: string,) => {
+
+
+
+
+  return `/api/workflow_runs/${workflowRunId}/cancel`
+}
+
+export const cancelWorkflowRunApiWorkflowRunsWorkflowRunIdCancelPost = async (workflowRunId: string, options?: RequestInit): Promise<void> => {
+
+  return dashboardMutator<void>(getCancelWorkflowRunApiWorkflowRunsWorkflowRunIdCancelPostUrl(workflowRunId),
+  {
+    ...options,
+    method: 'POST'
 
 
   }

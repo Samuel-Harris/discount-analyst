@@ -14,13 +14,15 @@ export interface WorkflowRunMainPanelProps {
   detailLoading: boolean;
   detailError: string | null;
   sidebarCollapsed: boolean;
-  deleteError: string | null;
+  workflowActionError: string | null;
+  cancelPending: boolean;
   launchForm: ReactNode;
   mainView: WorkflowMainView;
   onOpenRecommendations: () => void;
   onOpenPipeline: () => void;
   onOpenConversation: (target: ConversationTarget, title: string) => void;
   onRequestDeleteRun: (id: string) => void;
+  onRequestCancelRun: (id: string) => void;
 }
 
 export function WorkflowRunMainPanel({
@@ -29,21 +31,23 @@ export function WorkflowRunMainPanel({
   detailLoading,
   detailError,
   sidebarCollapsed,
-  deleteError,
+  workflowActionError,
+  cancelPending,
   launchForm,
   mainView,
   onOpenRecommendations,
   onOpenPipeline,
   onOpenConversation,
   onRequestDeleteRun,
+  onRequestCancelRun,
 }: WorkflowRunMainPanelProps) {
   return (
     <main className="main-panel">
       <div className="main-body">
-        {deleteError ? (
+        {workflowActionError ? (
           <div className="main-panel-alert" role="alert">
             <UiStateText tone="error" as="p">
-              {deleteError}
+              {workflowActionError}
             </UiStateText>
           </div>
         ) : null}
@@ -52,6 +56,8 @@ export function WorkflowRunMainPanel({
             <WorkflowRunDetailHeader
               detail={detail}
               onRequestDelete={() => onRequestDeleteRun(detail.id)}
+              onRequestCancel={() => onRequestCancelRun(detail.id)}
+              cancelPending={cancelPending}
               mainView={mainView}
               onOpenRecommendations={onOpenRecommendations}
               onOpenPipeline={onOpenPipeline}

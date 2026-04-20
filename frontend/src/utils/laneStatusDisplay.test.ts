@@ -34,6 +34,14 @@ describe("laneStatusDisplay", () => {
     });
   });
 
+  it("returns CANCELLED when the ticker run was cancelled", () => {
+    expect(laneStatusDisplay(run({ status: "cancelled" }))).toEqual({
+      label: "CANCELLED",
+      tone: "cancelled",
+      title: "Lane was cancelled",
+    });
+  });
+
   it("returns PENDING when the lane is running but every agent is still pending", () => {
     expect(
       laneStatusDisplay(
