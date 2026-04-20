@@ -11,7 +11,7 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 
 | File                                                              | Description                                                                                         |
 | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `tests/conftest.py`                                               | Suite-wide defaults (dummy `DASHBOARD_LOGFIRE_TOKEN` so `DashboardSettings` can load in tests).     |
+| `tests/conftest.py`                                               | Suite-wide defaults (sets `DASHBOARD_LOGFIRE_TOKEN` unless already present).                        |
 | `tests/dcf_analysis/test_dcf_analysis.py`                         | Comprehensive unit tests for the DCF calculation engine using real-world stock data scenarios.      |
 | `tests/discount_analyst/http/test_streaming_retries.py`           | Unit tests for agent streaming retry helpers (`stream_with_retries`, sleep parsing).                |
 | `tests/discount_analyst/agents/common/test_streamed_agent_run.py` | Tests for `run_streamed_agent`.                                                                     |

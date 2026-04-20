@@ -39,3 +39,13 @@ class DashboardSettings(BaseSettings):
             msg = "DASHBOARD_LOGFIRE_TOKEN must be set to a non-empty value"
             raise ValueError(msg)
         return v
+
+
+def load_dashboard_settings() -> DashboardSettings:
+    """Load settings from the process environment and optional repository ``.env``.
+
+    ``DASHBOARD_LOGFIRE_TOKEN`` must be set in the environment or ``.env`` file. Static
+    analysers do not model pydantic-settings env binding, so this helper carries a
+    narrow ``type: ignore`` on the no-argument constructor.
+    """
+    return DashboardSettings()  # type: ignore[call-arg]

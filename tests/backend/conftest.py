@@ -13,6 +13,7 @@ from backend.db.migrate import migrate_to_head
 from backend.db.session import SessionFactory
 from backend.observability.logging import configure_dashboard_observability
 from backend.settings.config import DashboardSettings
+from backend.settings.testing import LOGFIRE_TOKEN_FOR_TESTS
 
 
 @pytest.fixture
@@ -22,7 +23,10 @@ def dashboard_settings(
     # pydantic-settings reads ``ENV`` from the process; pin it so tests do not
     # inherit launch / shell ``ENV=DEV`` (which would force mock-only behaviour).
     monkeypatch.setenv("ENV", "PROD")
-    return DashboardSettings(database_path=tmp_path / "dashboard.sqlite")
+    return DashboardSettings(
+        database_path=tmp_path / "dashboard.sqlite",
+        logfire_token=LOGFIRE_TOKEN_FOR_TESTS,
+    )
 
 
 @pytest.fixture
@@ -50,7 +54,10 @@ def db_session(db_session_factory: SessionFactory) -> Iterator[Session]:
 @pytest.fixture
 def migrated_temp_db_url(tmp_path: Path) -> str:
     configure_dashboard_observability(
-        DashboardSettings(database_path=tmp_path / "migration_smoke.sqlite")
+        DashboardSettings(
+            database_path=tmp_path / "migration_smoke.sqlite",
+            logfire_token=LOGFIRE_TOKEN_FOR_TESTS,
+        )
     )
     db_path = tmp_path / "migration_smoke.sqlite"
     db_url = f"sqlite:///{db_path}"

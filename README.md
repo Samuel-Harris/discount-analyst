@@ -84,7 +84,7 @@ Optional provider blocks can be omitted when unused; consult the settings model 
 
 ### Local dashboard (`backend`)
 
-[`backend/settings/config.py`](backend/settings/config.py) exposes `DashboardSettings` with the `DASHBOARD_` prefix. You may use an optional **repository root** `.env` (Pydantic loads `env_file=".env"` relative to the process working directory — use the repo root when you start uvicorn). **`DASHBOARD_LOGFIRE_TOKEN` is required** for the API to start.
+[`backend/settings/config.py`](backend/settings/config.py) exposes `DashboardSettings` with the `DASHBOARD_` prefix. You may use an optional **repository root** `.env` (Pydantic loads `env_file=".env"` relative to the process working directory — use the repo root when you start uvicorn). **`DASHBOARD_LOGFIRE_TOKEN` is required** for the API to start (non-empty ingest token).
 
 | Variable                           | Default                   | Purpose                                                               |
 | ---------------------------------- | ------------------------- | --------------------------------------------------------------------- |
@@ -133,11 +133,11 @@ There is no first-party CLI wrapper: tests and local experiments call `seed` fro
 ```bash
 uv run python -c "
 from sqlmodel import Session
-from backend.settings.config import DashboardSettings
+from backend.settings.config import load_dashboard_settings
 from backend.db.seed import seed
 from backend.db.session import create_dashboard_engine, create_session_factory
 
-settings = DashboardSettings()
+settings = load_dashboard_settings()
 engine = create_dashboard_engine(settings)
 factory = create_session_factory(engine)
 with Session(engine) as s:
