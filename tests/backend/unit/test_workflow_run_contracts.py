@@ -34,7 +34,7 @@ def test_list_workflow_runs_items_match_workflow_run_list_item(
     assert len(rows) == 1
     item = WorkflowRunListItem.model_validate(rows[0])
     _assert_uuid(item.id)
-    assert item.status in ("running", "completed", "failed")
+    assert item.status in ("running", "completed", "failed", "cancelled")
     assert item.ticker_run_count == 2
     assert item.completed_ticker_run_count >= 0
     assert item.failed_ticker_run_count >= 0

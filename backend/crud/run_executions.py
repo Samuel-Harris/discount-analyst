@@ -21,7 +21,12 @@ from backend.crud.agent_output_persistence import (
     replace_research_report,
     upsert_run_final_decision,
 )
-from backend.crud.db_utils import new_id, utc_now
+from backend.crud.db_utils import (
+    ACTIVE_EXECUTION_STATUSES,
+    TERMINAL_EXECUTION_STATUSES,
+    new_id,
+    utc_now,
+)
 from backend.db.models import (
     AgentExecution,
     AgentNameDb,
@@ -35,6 +40,15 @@ from backend.db.models import (
 )
 from discount_analyst.agents.arbiter.schema import ArbiterDecision
 from discount_analyst.pipeline.schema import SentinelRejection, Verdict
+
+_ACTIVE_RUN_STATUSES = frozenset({WorkflowRunStatusDb.RUNNING.value})
+_TERMINAL_RUN_STATUSES = frozenset(
+    {
+        WorkflowRunStatusDb.COMPLETED.value,
+        WorkflowRunStatusDb.FAILED.value,
+        WorkflowRunStatusDb.CANCELLED.value,
+    }
+)
 
 
 def insert_ticker_run_with_agents(
@@ -135,7 +149,18 @@ def apply_workflow_agent_execution_status(
     execution = session.get(WorkflowAgentExecution, execution_id)
     if execution is None:
         return None
-    execution.status = ExecutionStatusDb(status)
+    next_status = ExecutionStatusDb(status)
+    current_status = execution.status.value
+    if current_status == ExecutionStatusDb.CANCELLED.value and (
+        next_status.value != ExecutionStatusDb.CANCELLED.value
+    ):
+        return None
+    if (
+        current_status in TERMINAL_EXECUTION_STATUSES
+        and next_status.value in ACTIVE_EXECUTION_STATUSES
+    ):
+        return None
+    execution.status = next_status
     if started_at is not None:
         execution.started_at = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
     if completed_at is not None:
@@ -194,7 +219,18 @@ def apply_agent_execution_status(
     execution = session.get(AgentExecution, execution_id)
     if execution is None:
         return None
-    execution.status = ExecutionStatusDb(status)
+    next_status = ExecutionStatusDb(status)
+    current_status = execution.status.value
+    if current_status == ExecutionStatusDb.CANCELLED.value and (
+        next_status.value != ExecutionStatusDb.CANCELLED.value
+    ):
+        return None
+    if (
+        current_status in TERMINAL_EXECUTION_STATUSES
+        and next_status.value in ACTIVE_EXECUTION_STATUSES
+    ):
+        return None
+    execution.status = next_status
     if started_at is not None:
         execution.started_at = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
     if completed_at is not None:
@@ -267,7 +303,18 @@ def apply_ticker_run_completion_fields(
     run = session.get(Run, run_id)
     if run is None:
         return None
-    run.status = WorkflowRunStatusDb(status)
+    next_status = WorkflowRunStatusDb(status)
+    current_status = run.status.value
+    if current_status == WorkflowRunStatusDb.CANCELLED.value and (
+        next_status.value != WorkflowRunStatusDb.CANCELLED.value
+    ):
+        return None
+    if (
+        current_status in _TERMINAL_RUN_STATUSES
+        and next_status.value in _ACTIVE_RUN_STATUSES
+    ):
+        return None
+    run.status = next_status
     run.completed_at = utc_now()
     run.final_rating = final_rating
     run.decision_type = DecisionTypeDb(decision_type) if decision_type else None

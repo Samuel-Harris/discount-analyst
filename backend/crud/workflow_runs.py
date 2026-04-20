@@ -33,6 +33,21 @@ from backend.db.models import (
     WorkflowRunStatusDb,
 )
 
+TERMINAL_WORKFLOW_STATUSES = frozenset(
+    {
+        WorkflowRunStatusDb.COMPLETED.value,
+        WorkflowRunStatusDb.FAILED.value,
+        WorkflowRunStatusDb.CANCELLED.value,
+    }
+)
+TERMINAL_RUN_STATUSES = frozenset(
+    {
+        WorkflowRunStatusDb.COMPLETED.value,
+        WorkflowRunStatusDb.FAILED.value,
+        WorkflowRunStatusDb.CANCELLED.value,
+    }
+)
+
 
 def get_workflow_run_inputs(
     session: Session, workflow_run_id: str
@@ -70,6 +85,11 @@ def recompute_workflow_status(session: Session, workflow_run_id: str) -> None:
     wf = session.get(WorkflowRun, workflow_run_id)
     if wf is None:
         return
+    if wf.status.value in {
+        WorkflowRunStatusDb.CANCELLED.value,
+        WorkflowRunStatusDb.FAILED.value,
+    }:
+        return
 
     surveyor = session.scalars(
         select(WorkflowAgentExecution).where(
@@ -86,6 +106,8 @@ def recompute_workflow_status(session: Session, workflow_run_id: str) -> None:
         new_status = WorkflowRunStatusDb.RUNNING
     elif surveyor.status.value == ExecutionStatusDb.FAILED.value:
         new_status = WorkflowRunStatusDb.FAILED
+    elif surveyor.status.value == ExecutionStatusDb.CANCELLED.value:
+        new_status = WorkflowRunStatusDb.CANCELLED
     elif surveyor.status.value in ACTIVE_EXECUTION_STATUSES:
         new_status = WorkflowRunStatusDb.RUNNING
     elif not runs:
@@ -99,6 +121,8 @@ def recompute_workflow_status(session: Session, workflow_run_id: str) -> None:
             new_status = WorkflowRunStatusDb.RUNNING
         elif all(s == WorkflowRunStatusDb.COMPLETED.value for s in statuses):
             new_status = WorkflowRunStatusDb.COMPLETED
+        elif all(s in TERMINAL_RUN_STATUSES for s in statuses):
+            new_status = WorkflowRunStatusDb.CANCELLED
         else:
             new_status = WorkflowRunStatusDb.RUNNING
 
@@ -346,8 +370,76 @@ def set_workflow_error(session: Session, workflow_run_id: str, message: str) -> 
     wf = session.get(WorkflowRun, workflow_run_id)
     if wf is None:
         return
+    if wf.status == WorkflowRunStatusDb.CANCELLED:
+        return
     wf.status = WorkflowRunStatusDb.FAILED
     wf.error_message = message
     wf.completed_at = utc_now()
     session.add(wf)
     session.commit()
+
+
+def _cancel_unfinished_child_rows(
+    session: Session, workflow_run_id: str, *, completed_at: Any
+) -> None:
+    workflow_executions = list(
+        session.scalars(
+            select(WorkflowAgentExecution).where(
+                col(WorkflowAgentExecution.workflow_run_id) == workflow_run_id
+            )
+        )
+    )
+    for execution in workflow_executions:
+        if execution.status.value not in ACTIVE_EXECUTION_STATUSES:
+            continue
+        execution.status = ExecutionStatusDb.CANCELLED
+        execution.completed_at = completed_at
+        session.add(execution)
+
+    runs = list(
+        session.scalars(select(Run).where(col(Run.workflow_run_id) == workflow_run_id))
+    )
+    for run in runs:
+        if run.status.value != WorkflowRunStatusDb.RUNNING.value:
+            continue
+        run.status = WorkflowRunStatusDb.CANCELLED
+        run.completed_at = completed_at
+        session.add(run)
+
+    agent_executions = list(
+        session.scalars(
+            select(AgentExecution)
+            .join(Run, col(AgentExecution.run_id) == col(Run.id))
+            .where(col(Run.workflow_run_id) == workflow_run_id)
+        )
+    )
+    for execution in agent_executions:
+        if execution.status.value not in ACTIVE_EXECUTION_STATUSES:
+            continue
+        execution.status = ExecutionStatusDb.CANCELLED
+        execution.completed_at = completed_at
+        session.add(execution)
+
+
+def cancel_unfinished_workflow_children(session: Session, workflow_run_id: str) -> None:
+    if session.get(WorkflowRun, workflow_run_id) is None:
+        return
+    _cancel_unfinished_child_rows(session, workflow_run_id, completed_at=utc_now())
+    session.commit()
+
+
+def cancel_workflow_run(session: Session, workflow_run_id: str) -> bool:
+    wf = session.get(WorkflowRun, workflow_run_id)
+    if wf is None:
+        return False
+    if wf.status.value in TERMINAL_WORKFLOW_STATUSES:
+        return True
+
+    completed_at = utc_now()
+    _cancel_unfinished_child_rows(session, workflow_run_id, completed_at=completed_at)
+    wf.status = WorkflowRunStatusDb.CANCELLED
+    wf.completed_at = completed_at
+    wf.error_message = None
+    session.add(wf)
+    session.commit()
+    return True

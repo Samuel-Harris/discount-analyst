@@ -15,6 +15,7 @@ TERMINAL_EXECUTION_STATUSES = frozenset(
         ExecutionStatusDb.SKIPPED.value,
         ExecutionStatusDb.REJECTED.value,
         ExecutionStatusDb.FAILED.value,
+        ExecutionStatusDb.CANCELLED.value,
     }
 )
 ACTIVE_EXECUTION_STATUSES = frozenset(

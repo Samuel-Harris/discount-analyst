@@ -27,6 +27,8 @@ from backend.crud.run_executions import (
     update_workflow_agent_execution,
 )
 from backend.crud.workflow_runs import (
+    cancel_unfinished_workflow_children,
+    cancel_workflow_run,
     get_workflow_run_inputs,
     list_profiler_runs_for_workflow,
     recompute_workflow_status,
@@ -166,6 +168,7 @@ class DashboardPipelineRunner:
             ),
         )
         self._background_tasks: set[asyncio.Task[None]] = set()
+        self._workflow_tasks: dict[str, asyncio.Task[None]] = {}
 
     def schedule_workflow_execution(self, workflow_run_id: str) -> asyncio.Task[None]:
         """Run ``execute_workflow`` in the background; log unexpected task failures."""
@@ -174,11 +177,14 @@ class DashboardPipelineRunner:
             name=f"workflow:{workflow_run_id}",
         )
         self._background_tasks.add(task)
+        self._workflow_tasks[workflow_run_id] = task
 
         def _on_done(t: asyncio.Task[None]) -> None:
             self._background_tasks.discard(t)
+            if self._workflow_tasks.get(workflow_run_id) is t:
+                self._workflow_tasks.pop(workflow_run_id, None)
             if t.cancelled():
-                logfire.warning(
+                logfire.info(
                     "Background workflow execution cancelled",
                     workflow_run_id=workflow_run_id,
                 )
@@ -197,6 +203,15 @@ class DashboardPipelineRunner:
             task_name=task.get_name(),
         )
         return task
+
+    async def cancel_workflow_execution(self, workflow_run_id: str) -> bool:
+        exists = await self._db(cancel_workflow_run, workflow_run_id)
+        if not exists:
+            return False
+        task = self._workflow_tasks.get(workflow_run_id)
+        if task is not None and not task.done():
+            task.cancel()
+        return True
 
     async def _db(self, fn: Any, *args: Any, **kwargs: Any) -> Any:
         def _run() -> Any:
@@ -298,12 +313,19 @@ class DashboardPipelineRunner:
                 "Workflow execution finished",
                 workflow_run_id=workflow_run_id,
             )
+        except asyncio.CancelledError:
+            logfire.info(
+                "Workflow execution cancelled",
+                workflow_run_id=workflow_run_id,
+            )
+            raise
         except Exception as exc:  # noqa: BLE001
             logfire.exception(
                 "Workflow execution failed",
                 workflow_run_id=workflow_run_id,
             )
             await self._db(set_workflow_error, workflow_run_id, str(exc))
+            await self._db(cancel_unfinished_workflow_children, workflow_run_id)
         finally:
             await self._recompute(workflow_run_id)
 
@@ -405,6 +427,7 @@ class DashboardPipelineRunner:
                 error_message=str(exc),
                 completed_at=utc_now_iso(),
             )
+            raise
         finally:
             await self._recompute(workflow_run_id)
 

@@ -14,6 +14,7 @@ from backend.app.main import create_app
 from backend.contracts.agent_lane_order import PROFILER_ENTRY_AGENT_NAMES
 from backend.db.seed import seed
 from backend.settings.config import DashboardSettings
+from backend.settings.testing import LOGFIRE_TOKEN_FOR_TESTS
 
 
 @pytest.fixture
@@ -21,7 +22,10 @@ def client_dev_env(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> Iterator[TestClient]:
     monkeypatch.setenv("ENV", "DEV")
-    settings = DashboardSettings(database_path=tmp_path / "dashboard_dev.sqlite")
+    settings = DashboardSettings(
+        database_path=tmp_path / "dashboard_dev.sqlite",
+        logfire_token=LOGFIRE_TOKEN_FOR_TESTS,
+    )
     with TestClient(create_app(settings)) as test_client:
         yield test_client
 
@@ -81,6 +85,30 @@ def test_delete_mock_only(client: TestClient) -> None:
     rows = client.get("/api/workflow_runs").json()
     mock_id = next(x["id"] for x in rows if x["is_mock"] is True)
     assert client.delete(f"/api/workflow_runs/{mock_id}").status_code == 204
+
+
+def test_cancel_workflow_run_not_found(client: TestClient) -> None:
+    response = client.post(
+        "/api/workflow_runs/00000000-0000-4000-8000-000000000999/cancel"
+    )
+    assert response.status_code == 404
+
+
+def test_cancel_workflow_run_is_idempotent(client: TestClient) -> None:
+    create_response = client.post(
+        "/api/workflow_runs",
+        json={"portfolio_tickers": ["CXL.L"], "is_mock": True},
+    )
+    workflow_run_id = create_response.json()["workflow_run_id"]
+
+    first_cancel = client.post(f"/api/workflow_runs/{workflow_run_id}/cancel")
+    second_cancel = client.post(f"/api/workflow_runs/{workflow_run_id}/cancel")
+
+    assert first_cancel.status_code == 204
+    assert second_cancel.status_code == 204
+    detail = client.get(f"/api/workflow_runs/{workflow_run_id}").json()
+    assert detail["status"] == "cancelled"
+    assert detail["error_message"] is None
 
 
 def test_portfolio_latest(client: TestClient) -> None:

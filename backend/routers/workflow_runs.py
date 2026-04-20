@@ -126,6 +126,18 @@ async def create_workflow_run(
     return resp
 
 
+@router.post("/{workflow_run_id}/cancel", status_code=status.HTTP_204_NO_CONTENT)
+async def cancel_workflow_run(
+    workflow_run_id: str, session: DbSession, runner: Runner
+) -> None:
+    if not workflow_run_exists(session, workflow_run_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Workflow run not found"
+        )
+    await runner.cancel_workflow_execution(workflow_run_id)
+    logfire.info("Workflow run cancellation requested", workflow_run_id=workflow_run_id)
+
+
 @router.delete("/{workflow_run_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_workflow_run(workflow_run_id: str, session: DbSession) -> None:
     ok = delete_workflow_run_if_mock(session, workflow_run_id)

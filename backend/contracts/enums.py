@@ -7,12 +7,14 @@ class WorkflowRunStatusApi(StrEnum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class TickerRunStatusApi(StrEnum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class ExecutionStatusApi(StrEnum):
@@ -22,6 +24,7 @@ class ExecutionStatusApi(StrEnum):
     SKIPPED = "skipped"
     REJECTED = "rejected"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class EntryPathApi(StrEnum):

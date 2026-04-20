@@ -18,6 +18,7 @@ class WorkflowRunStatusDb(StrEnum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class ExecutionStatusDb(StrEnum):
@@ -27,6 +28,7 @@ class ExecutionStatusDb(StrEnum):
     SKIPPED = "skipped"
     REJECTED = "rejected"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class EntryPathDb(StrEnum):
