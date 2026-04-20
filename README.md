@@ -84,17 +84,17 @@ Optional provider blocks can be omitted when unused; consult the settings model 
 
 ### Local dashboard (`backend`)
 
-[`backend/settings/config.py`](backend/settings/config.py) exposes `DashboardSettings` with the `DASHBOARD_` prefix and optional **repository root** `.env` (Pydantic loads `env_file=".env"` relative to the process working directory — use the repo root when you start uvicorn).
+[`backend/settings/config.py`](backend/settings/config.py) exposes `DashboardSettings` with the `DASHBOARD_` prefix. You may use an optional **repository root** `.env` (Pydantic loads `env_file=".env"` relative to the process working directory — use the repo root when you start uvicorn). **`DASHBOARD_LOGFIRE_TOKEN` is required** for the API to start.
 
-| Variable                           | Default                   | Purpose                                                                   |
-| ---------------------------------- | ------------------------- | ------------------------------------------------------------------------- |
-| `DASHBOARD_DATABASE_PATH`          | `data/dashboard.sqlite`   | SQLite file for workflow runs, executions, and conversations              |
-| `DASHBOARD_DEFAULT_MODEL`          | (see `ModelName` in code) | Default LLM for dashboard-driven runs                                     |
-| `DASHBOARD_RISK_FREE_RATE`         | `0.037`                   | Risk-free rate passed into valuation stages                               |
-| `DASHBOARD_USE_PERPLEXITY`         | `false`                   | Toggle Perplexity-backed behaviour where wired                            |
-| `DASHBOARD_USE_MCP_FINANCIAL_DATA` | `true`                    | Toggle MCP financial data integration                                     |
-| `DASHBOARD_LOG_LEVEL`              | `INFO`                    | Minimum Logfire level for dashboard process logs (`DEBUG`–`CRITICAL`)     |
-| `DASHBOARD_LOGFIRE_TOKEN`          | _(unset)_                 | Optional Logfire token; when set, spans and logs are also sent to Logfire |
+| Variable                           | Default                   | Purpose                                                               |
+| ---------------------------------- | ------------------------- | --------------------------------------------------------------------- |
+| `DASHBOARD_DATABASE_PATH`          | `data/dashboard.sqlite`   | SQLite file for workflow runs, executions, and conversations          |
+| `DASHBOARD_DEFAULT_MODEL`          | (see `ModelName` in code) | Default LLM for dashboard-driven runs                                 |
+| `DASHBOARD_RISK_FREE_RATE`         | `0.037`                   | Risk-free rate passed into valuation stages                           |
+| `DASHBOARD_USE_PERPLEXITY`         | `false`                   | Toggle Perplexity-backed behaviour where wired                        |
+| `DASHBOARD_USE_MCP_FINANCIAL_DATA` | `true`                    | Toggle MCP financial data integration                                 |
+| `DASHBOARD_LOG_LEVEL`              | `INFO`                    | Minimum Logfire level for dashboard process logs (`DEBUG`–`CRITICAL`) |
+| `DASHBOARD_LOGFIRE_TOKEN`          | _(required)_              | Logfire ingest token (non-empty); logs and spans are sent to Logfire  |
 
 ### Frontend (Vite)
 
@@ -106,6 +106,8 @@ Optional provider blocks can be omitted when unused; consult the settings model 
 ## Local dashboard (API and UI)
 
 The dashboard is a **local-only** FastAPI app under [`backend/`](backend/) plus a Vite + React UI under [`frontend/`](frontend/). With a workflow run open, use **Recommendations** for a full-width sortable verdict table; the URL can include `?run=<workflow_run_id>&view=recommendations` for deep links.
+
+Logfire is configured with **FastAPI**, **PydanticAI**, and **HTTPX** instrumentation ([`backend/observability/logging.py`](backend/observability/logging.py)), so inbound `/api` requests and outbound model/MCP HTTP traffic emit spans with standard HTTP attributes (including response status when present), consistent with the CLI setup in [`scripts/utils/setup_logfire.py`](scripts/utils/setup_logfire.py).
 
 ### Install
 
@@ -186,7 +188,7 @@ Compose is a **local convenience** for running the dashboard stack; it does not 
 - **backend** — image from [`backend/docker/Dockerfile`](backend/docker/Dockerfile), exposed on **8000** inside the Compose network only, SQLite on a named volume at `DASHBOARD_DATABASE_PATH=/data/dashboard.sqlite`, with **`ENV=PROD`** so mock mode is not forced server-side (this matches the static UI image, which is built with `ENV=PROD`).
 - **web** — static assets from [`frontend/Dockerfile`](frontend/Dockerfile) `production`, served by nginx using [`docker/nginx.dashboard.conf`](docker/nginx.dashboard.conf), which reverse-proxies `/api` to the backend. Published port **8080** maps to nginx port **80**.
 
-Optional secrets and pipeline keys: add a repository root `.env` file; Compose references it when present (`env_file` with `required: false` in [`docker-compose.yml`](docker-compose.yml)). You still need **`discount_analyst/.env`** for agent settings when running **non-mock** workflows inside the backend container.
+Add a repository root `.env` file with at least **`DASHBOARD_LOGFIRE_TOKEN`** (required by the dashboard API); Compose references it when present (`env_file` with `required: false` in [`docker-compose.yml`](docker-compose.yml)). You still need **`discount_analyst/.env`** for agent settings when running **non-mock** workflows inside the backend container.
 
 From the repository root (foreground; pass `-d` for detached):
 

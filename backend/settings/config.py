@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
-from pydantic import AliasChoices, Field, SecretStr
+from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from discount_analyst.config.ai_models_config import ModelName
@@ -28,7 +28,14 @@ class DashboardSettings(BaseSettings):
         default="INFO",
         description="Minimum Logfire console level for the dashboard API process.",
     )
-    logfire_token: SecretStr | None = Field(
-        default=None,
-        description="Optional Logfire ingest token; when unset, logs stay console-only.",
+    logfire_token: SecretStr = Field(
+        description="Logfire ingest token (required); set DASHBOARD_LOGFIRE_TOKEN.",
     )
+
+    @field_validator("logfire_token", mode="after")
+    @classmethod
+    def _logfire_token_non_empty(cls, v: SecretStr) -> SecretStr:
+        if not v.get_secret_value().strip():
+            msg = "DASHBOARD_LOGFIRE_TOKEN must be set to a non-empty value"
+            raise ValueError(msg)
+        return v

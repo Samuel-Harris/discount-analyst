@@ -27,23 +27,21 @@ def configure_dashboard_observability(
     global _configured
 
     if not _configured:
-        token: str | None = None
-        if settings.logfire_token is not None:
-            token = settings.logfire_token.get_secret_value()
-            if token == "":
-                token = None
-
-        send_to_logfire = bool(token)
+        token = settings.logfire_token.get_secret_value()
         level = _LEVEL_MAP[settings.log_level]
         logfire.configure(
             service_name="discount-analyst-dashboard",
             environment=settings.deploy_env.lower(),
-            send_to_logfire=send_to_logfire,
+            send_to_logfire=True,
             token=token,
             console=ConsoleOptions(min_log_level=level),
             min_level=level,
             inspect_arguments=False,
         )
+        # Match ``scripts/utils/setup_logfire.py``: outbound OpenAI/MCP calls use httpx; these
+        # spans include HTTP method, URL, and response status in Logfire for debugging.
+        logfire.instrument_pydantic_ai()
+        logfire.instrument_httpx(capture_all=True)
         _configured = True
 
     if app is not None:
