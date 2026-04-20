@@ -4,7 +4,6 @@ from copy import deepcopy
 from contextlib import AbstractAsyncContextManager
 from typing import Any, AsyncIterator
 
-import logfire
 from openai import (
     APIConnectionError,
     APIError,
@@ -22,6 +21,7 @@ from discount_analyst.http.retrying_client import (
     RETRY_AFTER_MAX_WEIGHT_SECONDS,
     RETRY_WAIT_MULTIPLIER,
 )
+from discount_analyst.agents.common.ai_logging import AI_LOGFIRE
 
 _STREAMING_RETRY_HINT_TRY_AGAIN = re.compile(
     r"try\s+again\s+in\s+(\d+\.?\d*)\s*s", re.IGNORECASE
@@ -142,7 +142,7 @@ class StreamWithRetriesContext[T]:
 
         await self._close_active_attempt(type(exc), exc, exc.__traceback__)
         wait = streaming_retry_sleep_seconds(exc, self._attempt_index)
-        logfire.info(
+        AI_LOGFIRE.info(
             "Agent stream interrupted, retrying",
             attempt=self._attempt_index + 1,
             max_attempts=MAX_STREAM_RETRY_ATTEMPTS,
@@ -169,7 +169,7 @@ class StreamWithRetriesContext[T]:
                 ):
                     raise
                 wait = streaming_retry_sleep_seconds(exc, self._attempt_index)
-                logfire.info(
+                AI_LOGFIRE.info(
                     "Agent stream start failed, retrying",
                     attempt=self._attempt_index + 1,
                     max_attempts=MAX_STREAM_RETRY_ATTEMPTS,

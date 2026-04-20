@@ -1,6 +1,5 @@
 from typing import Any, cast
 
-import logfire
 from httpx import (
     AsyncClient,
     ConnectError,
@@ -18,6 +17,8 @@ from openai import (
 )
 from pydantic_ai.retries import AsyncTenacityTransport, RetryConfig, wait_retry_after
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
+
+from discount_analyst.agents.common.ai_logging import AI_LOGFIRE
 
 _OPENAI_API_HOST = "api.openai.com"
 # Cap logged bodies so Logfire and local logs stay usable on huge error payloads.
@@ -73,7 +74,7 @@ def _log_openai_http_error_if_applicable(response: Response) -> None:
             body = "<response body unavailable>"
     if len(body) > _MAX_OPENAI_ERROR_BODY_CHARS:
         body = f"{body[:_MAX_OPENAI_ERROR_BODY_CHARS]}…(truncated)"
-    logfire.warning(
+    AI_LOGFIRE.warning(
         "OpenAI HTTP error response",
         status_code=response.status_code,
         method=response.request.method,
@@ -109,7 +110,7 @@ class _AsyncTenacityTransportWithErrorBody(AsyncTenacityTransport):
                 try:
                     await response.aread()
                 except Exception as e:
-                    logfire.warning(
+                    AI_LOGFIRE.warning(
                         "OpenAI error response aread failed",
                         error_type=type(e).__name__,
                         url=str(req.url),

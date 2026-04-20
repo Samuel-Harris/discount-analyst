@@ -6,6 +6,7 @@ import logfire
 from fastapi import FastAPI
 from logfire import ConsoleOptions, LevelName
 
+from discount_analyst.agents.common.ai_logging import AI_LOGFIRE
 from backend.settings.config import DashboardLogLevel, DashboardSettings
 
 _configured = False
@@ -38,9 +39,8 @@ def configure_dashboard_observability(
             min_level=level,
             inspect_arguments=False,
         )
-        # Match ``scripts/utils/setup_logfire.py``: outbound OpenAI/MCP calls use httpx; these
-        # spans include HTTP method, URL, and response status in Logfire for debugging.
-        logfire.instrument_pydantic_ai()
+        # Instrument pydantic-ai via the AI-tagged logger while preserving plain dashboard logs.
+        AI_LOGFIRE.instrument_pydantic_ai()
         logfire.instrument_httpx(capture_all=True)
         _configured = True
 
