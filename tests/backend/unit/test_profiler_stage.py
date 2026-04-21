@@ -10,8 +10,7 @@ import pytest
 
 from backend.dev import mock_outputs
 from backend.pipeline.stages.profiler_stage import ProfilerStage
-from backend.settings.config import DashboardSettings
-from backend.settings.testing import LOGFIRE_TOKEN_FOR_TESTS
+from backend.settings.testing import dashboard_settings_for_tests
 
 
 class FakeProfilerPort:
@@ -82,7 +81,7 @@ class FakeProfilerPort:
 @pytest.mark.asyncio
 async def test_profiler_stage_mock_path_records_expected_port_sequence() -> None:
     port = FakeProfilerPort(profiler_exec_id="exec-profiler")
-    settings = DashboardSettings(logfire_token=LOGFIRE_TOKEN_FOR_TESTS)
+    settings = dashboard_settings_for_tests()
     stage = ProfilerStage()
     with patch("backend.pipeline.stages.profiler_stage.asyncio.sleep", new=AsyncMock()):
         candidate = await stage.run(
@@ -115,7 +114,7 @@ async def test_profiler_stage_mock_path_records_expected_port_sequence() -> None
 @pytest.mark.asyncio
 async def test_profiler_stage_raises_when_profiler_execution_missing() -> None:
     port = FakeProfilerPort(profiler_exec_id=None)
-    settings = DashboardSettings(logfire_token=LOGFIRE_TOKEN_FOR_TESTS)
+    settings = dashboard_settings_for_tests()
     with pytest.raises(RuntimeError, match="Missing profiler execution"):
         await ProfilerStage().run(
             port,
@@ -130,7 +129,7 @@ async def test_profiler_stage_raises_when_profiler_execution_missing() -> None:
 @pytest.mark.asyncio
 async def test_profiler_stage_non_mock_path_uses_streamed_agent() -> None:
     port = FakeProfilerPort(profiler_exec_id="exec-p")
-    settings = DashboardSettings(logfire_token=LOGFIRE_TOKEN_FOR_TESTS)
+    settings = dashboard_settings_for_tests()
     profiler_output = mock_outputs.mock_profiler_output(ticker="X.L")
     fake_outcome = SimpleNamespace(output=profiler_output, all_messages=[object()])
     with (

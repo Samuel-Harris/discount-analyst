@@ -5,15 +5,12 @@ from pathlib import Path
 from sqlalchemy import text
 
 from backend.app.main import create_app
-from backend.settings.config import DashboardSettings
-from backend.settings.testing import LOGFIRE_TOKEN_FOR_TESTS
+from backend.settings.testing import dashboard_settings_for_tests
 
 
 def test_startup_applies_alembic_head_and_is_idempotent(tmp_path: Path) -> None:
     db_path = tmp_path / "startup.sqlite"
-    settings = DashboardSettings(
-        database_path=db_path, logfire_token=LOGFIRE_TOKEN_FOR_TESTS
-    )
+    settings = dashboard_settings_for_tests(database_path=db_path)
 
     app_one = create_app(settings)
     app_two = create_app(settings)

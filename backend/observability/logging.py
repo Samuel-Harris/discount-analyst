@@ -1,4 +1,4 @@
-"""Dashboard Logfire bootstrap (no dependency on discount_analyst nested .env)."""
+"""Dashboard Logfire bootstrap using unified :class:`Settings`."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from logfire import ConsoleOptions, LevelName
 
 from discount_analyst.agents.common.ai_logging import AI_LOGFIRE
-from backend.settings.config import DashboardLogLevel, DashboardSettings
+from backend.settings.config import DashboardLogLevel, Settings
 
 _configured = False
 _instrumented_app_ids: set[int] = set()
@@ -22,14 +22,14 @@ _LEVEL_MAP: dict[DashboardLogLevel, LevelName] = {
 
 
 def configure_dashboard_observability(
-    settings: DashboardSettings, app: FastAPI | None = None
+    settings: Settings, app: FastAPI | None = None
 ) -> None:
     """Configure Logfire once; optionally instrument a FastAPI app (per app instance)."""
     global _configured
 
     if not _configured:
-        token = settings.logfire_token.get_secret_value()
-        level = _LEVEL_MAP[settings.log_level]
+        token = settings.logging.logfire_api_key
+        level = _LEVEL_MAP[settings.logging.log_level]
         logfire.configure(
             service_name="discount-analyst-dashboard",
             environment=settings.deploy_env.lower(),

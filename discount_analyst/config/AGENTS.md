@@ -9,11 +9,11 @@ Application and AI model configuration: API keys via `pydantic-settings`, LLM mo
 
 ## Key Files
 
-| File                   | Description                                                                                            |
-| ---------------------- | ------------------------------------------------------------------------------------------------------ |
-| `settings.py`          | Nested settings (`anthropic`, `openai`, `google`, `perplexity`, `eodhd`, `fmp`, …) loaded from `.env`. |
-| `ai_models_config.py`  | `ModelName`, `AIModelsConfig`, discriminated `AIModelConfig` union and `model_settings` per provider.  |
-| `provider_features.py` | `Provider`, `ProviderFeature`, `PROVIDERS_BY_FEATURE` mapping.                                         |
+| File                   | Description                                                                                                                                                                             |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `settings.py`          | Unified `Settings`: pipeline keys, `logging` (`LOGGING__LOGFIRE_API_KEY`, `LOGGING__LOG_LEVEL`), dashboard fields (`DASHBOARD_*` aliases); re-exported by `backend/settings/config.py`. |
+| `ai_models_config.py`  | `ModelName`, `AIModelsConfig`, discriminated `AIModelConfig` union and `model_settings` per provider.                                                                                   |
+| `provider_features.py` | `Provider`, `ProviderFeature`, `PROVIDERS_BY_FEATURE` mapping.                                                                                                                          |
 
 ## Subdirectories
 

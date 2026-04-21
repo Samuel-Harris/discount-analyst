@@ -17,8 +17,7 @@ from backend.db.migrate import migrate_to_head
 from backend.db.session import create_dashboard_engine, create_session_factory
 from backend.observability.logging import configure_dashboard_observability
 from backend.pipeline.sqlmodel_runner import DashboardPipelineRunner
-from backend.settings.config import DashboardSettings
-from backend.settings.testing import LOGFIRE_TOKEN_FOR_TESTS
+from backend.settings.testing import dashboard_settings_for_tests
 
 
 @pytest.mark.asyncio
@@ -26,9 +25,7 @@ async def test_mock_workflow_completes_profiler_and_surveyor(
     tmp_path: Path,
 ) -> None:
     db_path = tmp_path / "w.sqlite"
-    settings = DashboardSettings(
-        database_path=db_path, logfire_token=LOGFIRE_TOKEN_FOR_TESTS
-    )
+    settings = dashboard_settings_for_tests(database_path=db_path)
     configure_dashboard_observability(settings)
     engine = create_dashboard_engine(settings)
     migrate_to_head(str(engine.url))
@@ -97,9 +94,7 @@ async def test_surveyor_failure_stops_workflow_before_profiler_branches(
     tmp_path: Path,
 ) -> None:
     db_path = tmp_path / "surveyor_fail.sqlite"
-    settings = DashboardSettings(
-        database_path=db_path, logfire_token=LOGFIRE_TOKEN_FOR_TESTS
-    )
+    settings = dashboard_settings_for_tests(database_path=db_path)
     configure_dashboard_observability(settings)
     engine = create_dashboard_engine(settings)
     migrate_to_head(str(engine.url))
@@ -163,9 +158,7 @@ async def test_manual_cancel_marks_workflow_and_children_cancelled(
     tmp_path: Path,
 ) -> None:
     db_path = tmp_path / "manual_cancel.sqlite"
-    settings = DashboardSettings(
-        database_path=db_path, logfire_token=LOGFIRE_TOKEN_FOR_TESTS
-    )
+    settings = dashboard_settings_for_tests(database_path=db_path)
     configure_dashboard_observability(settings)
     engine = create_dashboard_engine(settings)
     migrate_to_head(str(engine.url))

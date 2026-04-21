@@ -13,8 +13,7 @@ from fastapi.testclient import TestClient
 from backend.app.main import create_app
 from backend.contracts.agent_lane_order import PROFILER_ENTRY_AGENT_NAMES
 from backend.db.seed import seed
-from backend.settings.config import DashboardSettings
-from backend.settings.testing import LOGFIRE_TOKEN_FOR_TESTS
+from backend.settings.testing import dashboard_settings_for_tests
 
 
 @pytest.fixture
@@ -22,9 +21,9 @@ def client_dev_env(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> Iterator[TestClient]:
     monkeypatch.setenv("ENV", "DEV")
-    settings = DashboardSettings(
+    settings = dashboard_settings_for_tests(
         database_path=tmp_path / "dashboard_dev.sqlite",
-        logfire_token=LOGFIRE_TOKEN_FOR_TESTS,
+        deploy_env="DEV",
     )
     with TestClient(create_app(settings)) as test_client:
         yield test_client

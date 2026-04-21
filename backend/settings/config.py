@@ -1,51 +1,20 @@
-from pathlib import Path
-from typing import Literal
+"""Re-exports unified :class:`Settings` from ``discount_analyst.config.settings``."""
 
-from pydantic import AliasChoices, Field, SecretStr, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from discount_analyst.config.settings import (
+    DashboardLogLevel,
+    Logging,
+    Settings,
+    load_settings,
+)
 
-from discount_analyst.config.ai_models_config import ModelName
+DashboardSettings = Settings
+load_dashboard_settings = load_settings
 
-DashboardLogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-
-
-class DashboardSettings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_prefix="DASHBOARD_", env_file=".env", extra="ignore"
-    )
-
-    database_path: Path = Field(default=Path("data/dashboard.sqlite"))
-    default_model: ModelName = Field(default=ModelName.GPT_5_1)
-    risk_free_rate: float = Field(default=0.037, ge=0.0, le=0.15)
-    use_perplexity: bool = False
-    use_mcp_financial_data: bool = True
-    deploy_env: Literal["DEV", "PROD"] = Field(
-        default="DEV",
-        validation_alias=AliasChoices("ENV"),
-        description="Build/runtime ENV (matches frontend / Compose web build args).",
-    )
-    log_level: DashboardLogLevel = Field(
-        default="INFO",
-        description="Minimum Logfire console level for the dashboard API process.",
-    )
-    logfire_token: SecretStr = Field(
-        description="Logfire ingest token (required); set DASHBOARD_LOGFIRE_TOKEN.",
-    )
-
-    @field_validator("logfire_token", mode="after")
-    @classmethod
-    def _logfire_token_non_empty(cls, v: SecretStr) -> SecretStr:
-        if not v.get_secret_value().strip():
-            msg = "DASHBOARD_LOGFIRE_TOKEN must be set to a non-empty value"
-            raise ValueError(msg)
-        return v
-
-
-def load_dashboard_settings() -> DashboardSettings:
-    """Load settings from the process environment and optional repository ``.env``.
-
-    ``DASHBOARD_LOGFIRE_TOKEN`` must be set in the environment or ``.env`` file. Static
-    analysers do not model pydantic-settings env binding, so this helper carries a
-    narrow ``type: ignore`` on the no-argument constructor.
-    """
-    return DashboardSettings()  # type: ignore[call-arg]
+__all__ = [
+    "DashboardLogLevel",
+    "DashboardSettings",
+    "Logging",
+    "Settings",
+    "load_dashboard_settings",
+    "load_settings",
+]

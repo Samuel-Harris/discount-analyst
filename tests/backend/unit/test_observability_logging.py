@@ -6,10 +6,9 @@ from typing import Any
 
 import pytest
 from fastapi import FastAPI
-from pydantic import SecretStr
 
 import backend.observability.logging as observability_logging
-from backend.settings.config import DashboardSettings
+from backend.settings.testing import dashboard_settings_for_tests
 
 
 class _FakeBaseLogfire:
@@ -46,8 +45,8 @@ def test_configure_dashboard_observability_bootstrap_and_app_idempotency(
     monkeypatch.setattr(observability_logging, "_configured", False)
     monkeypatch.setattr(observability_logging, "_instrumented_app_ids", set[int]())
 
-    settings = DashboardSettings(
-        logfire_token=SecretStr("test-token"),
+    settings = dashboard_settings_for_tests(
+        logfire_api_key="test-token",
         deploy_env="PROD",
     )
     app_a = FastAPI()

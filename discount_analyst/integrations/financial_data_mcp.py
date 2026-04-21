@@ -32,7 +32,13 @@ def create_fmp_mcp_server() -> MCPServerStreamableHTTP:
 def create_financial_data_mcp_servers() -> list[MCPServerStreamableHTTP]:
     """Create native MCP toolsets for EODHD and FMP financial data.
 
+    EODHD is omitted when ``EODHD__DISABLED`` is true in the root ``.env``.
+
     Returns:
         A list of MCPServerStreamableHTTP instances for agent toolsets.
     """
-    return [create_eodhd_mcp_server(), create_fmp_mcp_server()]
+    servers: list[MCPServerStreamableHTTP] = []
+    if not settings.eodhd.disabled:
+        servers.append(create_eodhd_mcp_server())
+    servers.append(create_fmp_mcp_server())
+    return servers

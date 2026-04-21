@@ -12,8 +12,7 @@ from httpx import ASGITransport, AsyncClient
 from backend.app.main import create_app
 from backend.contracts.agent_lane_order import PROFILER_ENTRY_AGENT_NAMES
 from backend.observability.logging import configure_dashboard_observability
-from backend.settings.config import DashboardSettings
-from backend.settings.testing import LOGFIRE_TOKEN_FOR_TESTS
+from backend.settings.testing import dashboard_settings_for_tests
 
 
 @pytest.mark.asyncio
@@ -23,8 +22,9 @@ async def test_post_workflow_run_then_poll_detail_until_completed(
 ) -> None:
     monkeypatch.setenv("ENV", "PROD")
     db_path = tmp_path / "dashboard_http_e2e.sqlite"
-    settings = DashboardSettings(
-        database_path=db_path, logfire_token=LOGFIRE_TOKEN_FOR_TESTS
+    settings = dashboard_settings_for_tests(
+        database_path=db_path,
+        deploy_env="PROD",
     )
     configure_dashboard_observability(settings)
     app = create_app(settings)

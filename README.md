@@ -62,39 +62,32 @@ Review the DCF outputs across all analysed stocks. Buy the stocks with the great
 
 ## Environment variables
 
-### Pipeline agents (`discount_analyst`)
+### Application settings (pipeline + dashboard)
 
-Structured settings are defined in [`discount_analyst/config/settings.py`](discount_analyst/config/settings.py). They load from **`discount_analyst/.env`** (path resolved next to the `discount_analyst` package, not the repository root unless you place the file there by convention).
+All configuration lives in a single [`discount_analyst/config/settings.py`](discount_analyst/config/settings.py) model. Values load from **`discount_analyst/.env`**, then the **repository root** `.env` if it exists (later keys override earlier ones). The FastAPI app imports the same model via [`backend/settings/config.py`](backend/settings/config.py) (aliases: `Settings`, `DashboardSettings`, `load_settings`, `load_dashboard_settings`).
 
-Nested fields use double underscores in environment variable names, for example:
+Nested groups use double underscores, for example `PERPLEXITY__API_KEY`, `LOGGING__LOGFIRE_API_KEY`, `EODHD__DISABLED`.
 
-| Variable                            | Purpose                         |
-| ----------------------------------- | ------------------------------- |
-| `PYDANTIC__AI_GATEWAY_API_KEY`      | Gateway key used by Pydantic AI |
-| `PYDANTIC__LOGFIRE_API_KEY`         | Logfire key                     |
-| `PERPLEXITY__API_KEY`               | Perplexity API key              |
-| `PERPLEXITY__RATE_LIMIT_PER_MINUTE` | Perplexity rate limit           |
-| `ANTHROPIC__API_KEY`                | Optional Anthropic key          |
-| `OPENAI__API_KEY`                   | Optional OpenAI key             |
-| `GOOGLE__API_KEY`                   | Optional Google GenAI key       |
-| `FMP__API_KEY`                      | Financial Modeling Prep         |
-| `EODHD__API_KEY`                    | EODHD                           |
+| Variable                            | Purpose                                                                                |
+| ----------------------------------- | -------------------------------------------------------------------------------------- |
+| `LOGGING__LOGFIRE_API_KEY`          | Logfire ingest token (CLI agents and dashboard; non-empty)                             |
+| `PERPLEXITY__API_KEY`               | Perplexity API key                                                                     |
+| `PERPLEXITY__RATE_LIMIT_PER_MINUTE` | Perplexity rate limit                                                                  |
+| `ANTHROPIC__API_KEY`                | Optional Anthropic key                                                                 |
+| `OPENAI__API_KEY`                   | Optional OpenAI key                                                                    |
+| `GOOGLE__API_KEY`                   | Optional Google GenAI key                                                              |
+| `FMP__API_KEY`                      | Financial Modeling Prep                                                                |
+| `EODHD__API_KEY`                    | EODHD                                                                                  |
+| `EODHD__DISABLED`                   | Set to `true` to skip EODHD MCP (FMP unchanged)                                        |
+| `LOGGING__LOG_LEVEL`                | Logfire console minimum for the dashboard process (`DEBUG`–`CRITICAL`; default `INFO`) |
+| `DASHBOARD_DATABASE_PATH`           | SQLite path for workflow runs (default `data/dashboard.sqlite`)                        |
+| `DASHBOARD_DEFAULT_MODEL`           | Default LLM for dashboard-driven runs                                                  |
+| `DASHBOARD_RISK_FREE_RATE`          | Risk-free rate for valuation stages                                                    |
+| `DASHBOARD_USE_PERPLEXITY`          | Toggle Perplexity-backed behaviour where wired                                         |
+| `DASHBOARD_USE_MCP_FINANCIAL_DATA`  | Toggle MCP financial data in dashboard runs                                            |
+| `ENV` or `DASHBOARD_DEPLOY_ENV`     | `DEV` or `PROD` (mock vs live server behaviour)                                        |
 
 Optional provider blocks can be omitted when unused; consult the settings model for required combinations.
-
-### Local dashboard (`backend`)
-
-[`backend/settings/config.py`](backend/settings/config.py) exposes `DashboardSettings` with the `DASHBOARD_` prefix. You may use an optional **repository root** `.env` (Pydantic loads `env_file=".env"` relative to the process working directory — use the repo root when you start uvicorn). **`DASHBOARD_LOGFIRE_TOKEN` is required** for the API to start (non-empty ingest token).
-
-| Variable                           | Default                   | Purpose                                                               |
-| ---------------------------------- | ------------------------- | --------------------------------------------------------------------- |
-| `DASHBOARD_DATABASE_PATH`          | `data/dashboard.sqlite`   | SQLite file for workflow runs, executions, and conversations          |
-| `DASHBOARD_DEFAULT_MODEL`          | (see `ModelName` in code) | Default LLM for dashboard-driven runs                                 |
-| `DASHBOARD_RISK_FREE_RATE`         | `0.037`                   | Risk-free rate passed into valuation stages                           |
-| `DASHBOARD_USE_PERPLEXITY`         | `false`                   | Toggle Perplexity-backed behaviour where wired                        |
-| `DASHBOARD_USE_MCP_FINANCIAL_DATA` | `true`                    | Toggle MCP financial data integration                                 |
-| `DASHBOARD_LOG_LEVEL`              | `INFO`                    | Minimum Logfire level for dashboard process logs (`DEBUG`–`CRITICAL`) |
-| `DASHBOARD_LOGFIRE_TOKEN`          | _(required)_              | Logfire ingest token (non-empty); logs and spans are sent to Logfire  |
 
 ### Frontend (Vite)
 
@@ -188,7 +181,7 @@ Compose is a **local convenience** for running the dashboard stack; it does not 
 - **backend** — image from [`backend/docker/Dockerfile`](backend/docker/Dockerfile), exposed on **8000** inside the Compose network only, SQLite on a named volume at `DASHBOARD_DATABASE_PATH=/data/dashboard.sqlite`, with **`ENV=PROD`** so mock mode is not forced server-side (this matches the static UI image, which is built with `ENV=PROD`).
 - **web** — static assets from [`frontend/Dockerfile`](frontend/Dockerfile) `production`, served by nginx using [`docker/nginx.dashboard.conf`](docker/nginx.dashboard.conf), which reverse-proxies `/api` to the backend. Published port **8080** maps to nginx port **80**.
 
-Add a repository root `.env` file with at least **`DASHBOARD_LOGFIRE_TOKEN`** (required by the dashboard API); Compose references it when present (`env_file` with `required: false` in [`docker-compose.yml`](docker-compose.yml)). You still need **`discount_analyst/.env`** for agent settings when running **non-mock** workflows inside the backend container.
+Add a repository root `.env` with at least **`LOGGING__LOGFIRE_API_KEY`** (and other keys required by [`discount_analyst/config/settings.py`](discount_analyst/config/settings.py)); Compose references it when present (`env_file` with `required: false` in [`docker-compose.yml`](docker-compose.yml)).
 
 From the repository root (foreground; pass `-d` for detached):
 
