@@ -18,7 +18,9 @@ export function finalRatingToneSlug(finalRating: string | null): string {
 }
 
 /** Rating cell in the recommendations table. */
-export function recommendationRatingClassNames(finalRating: string | null): string {
+export function recommendationRatingClassNames(
+  finalRating: string | null,
+): string {
   const tone = finalRatingToneSlug(finalRating);
   return `recommendations-rating recommendations-rating--${tone}`;
 }

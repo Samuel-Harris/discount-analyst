@@ -28,7 +28,7 @@ from backend.crud.workflow_runs import (
 )
 from backend.pipeline.sqlmodel_runner import DashboardPipelineRunner
 from backend.serialisation.workflows import workflow_detail, workflow_list_item
-from backend.settings.config import DashboardSettings
+from common.config import Settings
 
 router = APIRouter(tags=["workflow_runs"])
 
@@ -37,12 +37,12 @@ def get_runner(request: Request) -> DashboardPipelineRunner:
     return request.app.state.pipeline_runner
 
 
-def get_settings(request: Request) -> DashboardSettings:
+def get_settings(request: Request) -> Settings:
     return request.app.state.settings
 
 
 Runner = Annotated[DashboardPipelineRunner, Depends(get_runner)]
-Settings = Annotated[DashboardSettings, Depends(get_settings)]
+SettingsDep = Annotated[Settings, Depends(get_settings)]
 
 
 @router.get("")
@@ -70,7 +70,7 @@ async def create_workflow_run(
     body: CreateWorkflowRunRequest,
     session: DbSession,
     runner: Runner,
-    settings: Settings,
+    settings: SettingsDep,
 ) -> CreateWorkflowRunResponse:
     workflow_run_id = new_id()
     surveyor_exec_id = new_id()

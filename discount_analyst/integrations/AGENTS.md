@@ -18,7 +18,7 @@ Named external service adapters: Perplexity search tools and EODHD/FMP MCP `MCPS
 
 ### Internal
 
-- `discount_analyst.config.settings` for API keys; `discount_analyst.agents.common.tool_descriptions` / `agent_names` for Perplexity.
+- `common.config` for API keys; `discount_analyst.agents.common.tool_descriptions` / `agent_names` for Perplexity.
 
 ### External
 

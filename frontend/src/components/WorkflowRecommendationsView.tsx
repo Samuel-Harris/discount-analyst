@@ -17,9 +17,7 @@ type SortKey =
   | "decision_type"
   | "entry_path";
 
-function formatDecisionType(
-  dt: TickerRunDetail["decision_type"],
-): string {
+function formatDecisionType(dt: TickerRunDetail["decision_type"]): string {
   if (dt === "arbiter") return "Arbiter";
   if (dt === "sentinel_rejection") return "Sentinel";
   return "—";
@@ -203,28 +201,30 @@ export function WorkflowRecommendationsView({
             {rows.map((run) => {
               const laneSt = laneStatusDisplay(run);
               return (
-              <tr key={run.id}>
-                <td className="recommendations-mono">{run.ticker}</td>
-                <td>{run.company_name}</td>
-                <td>{formatEntryPath(run.entry_path)}</td>
-                <td>
-                  <span
-                    className={`recommendations-status recommendations-status--${laneSt.tone}`}
-                    title={laneSt.title}
-                  >
-                    {laneSt.label}
-                  </span>
-                </td>
-                <td>
-                  <span
-                    className={recommendationRatingClassNames(run.final_rating)}
-                  >
-                    {run.final_rating ?? "Pending"}
-                  </span>
-                </td>
-                <td>{formatDecisionType(run.decision_type)}</td>
-              </tr>
-            );
+                <tr key={run.id}>
+                  <td className="recommendations-mono">{run.ticker}</td>
+                  <td>{run.company_name}</td>
+                  <td>{formatEntryPath(run.entry_path)}</td>
+                  <td>
+                    <span
+                      className={`recommendations-status recommendations-status--${laneSt.tone}`}
+                      title={laneSt.title}
+                    >
+                      {laneSt.label}
+                    </span>
+                  </td>
+                  <td>
+                    <span
+                      className={recommendationRatingClassNames(
+                        run.final_rating,
+                      )}
+                    >
+                      {run.final_rating ?? "Pending"}
+                    </span>
+                  </td>
+                  <td>{formatDecisionType(run.decision_type)}</td>
+                </tr>
+              );
             })}
           </tbody>
         </table>

@@ -37,7 +37,7 @@ from backend.crud.workflow_runs import (
 from backend.pipeline.ports import ProfilerStagePort
 from backend.pipeline.stages.profiler_stage import ProfilerStage
 from backend.dev import mock_conversation_messages, mock_outputs
-from backend.settings.config import DashboardSettings
+from common.config import Settings
 from backend.db.session import SessionFactory
 from discount_analyst.agents.appraiser.appraiser import create_appraiser_agent
 from discount_analyst.agents.appraiser.schema import AppraiserInput
@@ -98,9 +98,7 @@ from backend.contracts.stock_run_args import StockRunArgs
 
 
 class DashboardPipelineRunner:
-    def __init__(
-        self, session_factory: SessionFactory, settings: DashboardSettings
-    ) -> None:
+    def __init__(self, session_factory: SessionFactory, settings: Settings) -> None:
         self._session_factory = session_factory
         self._settings = settings
         self._lock = asyncio.Lock()

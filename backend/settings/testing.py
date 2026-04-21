@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import Literal
 
 from discount_analyst.config.ai_models_config import ModelName
-from discount_analyst.config.settings import (
+
+from common.config import (
     DashboardLogLevel,
     EODHD,
     FMP,

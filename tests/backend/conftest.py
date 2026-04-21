@@ -12,7 +12,7 @@ from backend.app.main import create_app
 from backend.db.migrate import migrate_to_head
 from backend.db.session import SessionFactory
 from backend.observability.logging import configure_dashboard_observability
-from backend.settings.config import Settings
+from common.config import Settings
 from backend.settings.testing import dashboard_settings_for_tests
 
 

@@ -1,7 +1,7 @@
 import logfire
 
 from discount_analyst.agents.common.ai_logging import AI_LOGFIRE
-from discount_analyst.config.settings import settings
+from common.config import settings
 
 
 def setup_logfire() -> None:

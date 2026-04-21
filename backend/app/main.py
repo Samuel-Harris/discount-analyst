@@ -13,11 +13,11 @@ from backend.db.session import create_dashboard_engine, create_session_factory
 from backend.observability.logging import configure_dashboard_observability
 from backend.pipeline.sqlmodel_runner import DashboardPipelineRunner
 from backend.routers import agents, portfolio, workflow_runs
-from backend.settings.config import DashboardSettings, load_dashboard_settings
+from common.config import Settings, load_settings
 
 
-def create_app(settings: DashboardSettings | None = None) -> FastAPI:
-    settings = settings or load_dashboard_settings()
+def create_app(settings: Settings | None = None) -> FastAPI:
+    settings = settings or load_settings()
     configure_dashboard_observability(settings)
     logfire.info(
         "Creating dashboard application",

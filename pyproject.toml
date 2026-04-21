@@ -55,6 +55,7 @@ dev = [
 [tool.pyrefly]
 python-version = "3.14.0"
 project-includes = [
+    "common/",
     "discount_analyst/",
     "backend/",
     "scripts/",

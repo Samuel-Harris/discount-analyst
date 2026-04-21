@@ -61,15 +61,15 @@ class Logging(BaseModel):
     )
 
 
-_PACKAGE_ROOT = Path(__file__).resolve().parent.parent  # discount_analyst/
-_REPO_ROOT = _PACKAGE_ROOT.parent
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_DISCOUNT_ANALYST_DIR = _REPO_ROOT / "discount_analyst"
 
 
 class Settings(BaseSettings):
     """Unified application settings (pipeline agents, dashboard API, observability)."""
 
     model_config = SettingsConfigDict(
-        env_file=(_PACKAGE_ROOT / ".env", _REPO_ROOT / ".env"),
+        env_file=(_DISCOUNT_ANALYST_DIR / ".env", _REPO_ROOT / ".env"),
         env_file_encoding="utf-8",
         env_nested_delimiter="__",
         extra="ignore",

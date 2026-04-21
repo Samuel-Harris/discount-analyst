@@ -12,7 +12,7 @@ from discount_analyst.config.ai_models_config import (
     GoogleAIModelConfig,
     OpenAIAIModelConfig,
 )
-from discount_analyst.config.settings import settings
+from common.config import settings
 from discount_analyst.http.retrying_client import create_rate_limit_client
 
 

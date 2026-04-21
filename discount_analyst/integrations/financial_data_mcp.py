@@ -11,7 +11,7 @@ Use --no-mcp when running with Google models.
 
 from pydantic_ai.mcp import MCPServerStreamableHTTP
 
-from discount_analyst.config.settings import settings
+from common.config import settings
 
 EODHD_MCP_URL = "https://mcp.eodhd.dev/mcp"
 FMP_MCP_URL = "https://financialmodelingprep.com/mcp"

@@ -19,7 +19,7 @@ from discount_analyst.agents.surveyor.schema import SurveyorCandidate
 from discount_analyst.config.ai_models_config import AIModelsConfig
 
 if TYPE_CHECKING:
-    from backend.settings.config import DashboardSettings
+    from common.config import Settings
 
 _PROFILER_AGENT = "profiler"
 
@@ -30,7 +30,7 @@ class ProfilerStage:
     async def run(
         self,
         port: ProfilerStagePort,
-        settings: DashboardSettings,
+        settings: Settings,
         *,
         workflow_run_id: str,
         run_id: str,

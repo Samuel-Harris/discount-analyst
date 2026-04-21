@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from logfire import ConsoleOptions, LevelName
 
 from discount_analyst.agents.common.ai_logging import AI_LOGFIRE
-from backend.settings.config import DashboardLogLevel, Settings
+from common.config import DashboardLogLevel, Settings
 
 _configured = False
 _instrumented_app_ids: set[int] = set()

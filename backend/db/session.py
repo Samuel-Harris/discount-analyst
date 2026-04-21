@@ -9,7 +9,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import Session, create_engine
 
-from backend.settings.config import DashboardSettings
+from common.config import Settings
 
 SessionFactory = Callable[[], Session]
 
@@ -18,7 +18,7 @@ def sqlite_url_from_path(database_path: Path) -> str:
     return f"sqlite:///{database_path}"
 
 
-def create_dashboard_engine(settings: DashboardSettings) -> Engine:
+def create_dashboard_engine(settings: Settings) -> Engine:
     return create_engine(
         sqlite_url_from_path(settings.database_path),
         connect_args={"check_same_thread": False},

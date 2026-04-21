@@ -64,7 +64,7 @@ Review the DCF outputs across all analysed stocks. Buy the stocks with the great
 
 ### Application settings (pipeline + dashboard)
 
-All configuration lives in a single [`discount_analyst/config/settings.py`](discount_analyst/config/settings.py) model. Values load from **`discount_analyst/.env`**, then the **repository root** `.env` if it exists (later keys override earlier ones). The FastAPI app imports the same model via [`backend/settings/config.py`](backend/settings/config.py) (aliases: `Settings`, `DashboardSettings`, `load_settings`, `load_dashboard_settings`).
+All configuration lives in a single [`common/config.py`](common/config.py) model (`Settings`, `load_settings`, module-level `settings`). Values load from **`discount_analyst/.env`**, then the **repository root** `.env` if it exists (later keys override earlier ones). The FastAPI app and agents import from `common.config`.
 
 Nested groups use double underscores, for example `PERPLEXITY__API_KEY`, `LOGGING__LOGFIRE_API_KEY`, `EODHD__DISABLED`.
 
@@ -126,11 +126,11 @@ There is no first-party CLI wrapper: tests and local experiments call `seed` fro
 ```bash
 uv run python -c "
 from sqlmodel import Session
-from backend.settings.config import load_dashboard_settings
+from common.config import load_settings
 from backend.db.seed import seed
 from backend.db.session import create_dashboard_engine, create_session_factory
 
-settings = load_dashboard_settings()
+settings = load_settings()
 engine = create_dashboard_engine(settings)
 factory = create_session_factory(engine)
 with Session(engine) as s:
@@ -181,7 +181,7 @@ Compose is a **local convenience** for running the dashboard stack; it does not 
 - **backend** — image from [`backend/docker/Dockerfile`](backend/docker/Dockerfile), exposed on **8000** inside the Compose network only, SQLite on a named volume at `DASHBOARD_DATABASE_PATH=/data/dashboard.sqlite`, with **`ENV=PROD`** so mock mode is not forced server-side (this matches the static UI image, which is built with `ENV=PROD`).
 - **web** — static assets from [`frontend/Dockerfile`](frontend/Dockerfile) `production`, served by nginx using [`docker/nginx.dashboard.conf`](docker/nginx.dashboard.conf), which reverse-proxies `/api` to the backend. Published port **8080** maps to nginx port **80**.
 
-Add a repository root `.env` with at least **`LOGGING__LOGFIRE_API_KEY`** (and other keys required by [`discount_analyst/config/settings.py`](discount_analyst/config/settings.py)); Compose references it when present (`env_file` with `required: false` in [`docker-compose.yml`](docker-compose.yml)).
+Add a repository root `.env` with at least **`LOGGING__LOGFIRE_API_KEY`** (and other keys required by [`common/config.py`](common/config.py)); Compose references it when present (`env_file` with `required: false` in [`docker-compose.yml`](docker-compose.yml)).
 
 From the repository root (foreground; pass `-d` for detached):
 
