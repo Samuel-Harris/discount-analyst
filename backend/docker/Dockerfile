@@ -8,6 +8,7 @@ WORKDIR /app
 ENV UV_LINK_MODE=copy
 
 COPY pyproject.toml uv.lock README.md ./
+COPY common ./common
 COPY discount_analyst ./discount_analyst
 COPY backend ./backend
 COPY scripts ./scripts
