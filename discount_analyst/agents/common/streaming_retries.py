@@ -4,6 +4,7 @@ from copy import deepcopy
 from contextlib import AbstractAsyncContextManager
 from typing import Any, AsyncIterator
 
+import httpx
 from openai import (
     APIConnectionError,
     APIError,
@@ -57,7 +58,14 @@ def api_error_indicates_rate_limit(exc: APIError) -> bool:
 def should_retry_streaming_error(exc: BaseException) -> bool:
     """Whether to backoff and restart a streamed agent run."""
     if isinstance(
-        exc, (RateLimitError, InternalServerError, APITimeoutError, APIConnectionError)
+        exc,
+        (
+            RateLimitError,
+            InternalServerError,
+            APITimeoutError,
+            APIConnectionError,
+            httpx.RemoteProtocolError,
+        ),
     ):
         return True
     if isinstance(exc, APIError):

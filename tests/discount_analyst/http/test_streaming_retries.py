@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from typing import Any, cast
 
+import httpx
 import pytest
 from openai import APIError
 from pydantic_ai.usage import RunUsage, UsageLimits
@@ -36,6 +37,14 @@ def test_api_error_indicates_rate_limit_negative() -> None:
 
 def test_should_retry_streaming_error_rate_limit_message() -> None:
     exc = _api_error("429 Too many requests — rate limit exceeded")
+    assert should_retry_streaming_error(exc) is True
+
+
+def test_should_retry_streaming_error_remote_protocol_error() -> None:
+    exc = httpx.RemoteProtocolError(
+        "peer closed connection without sending complete message body "
+        "(incomplete chunked read)"
+    )
     assert should_retry_streaming_error(exc) is True
 
 
