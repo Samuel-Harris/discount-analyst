@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Discount Analyst">
+  <rect width="32" height="32" rx="7" fill="#070a08" />
+  <rect x="1" y="1" width="30" height="30" rx="6" fill="none" stroke="#1f3d28" stroke-width="1" />
+  <!-- Declining bars: margin-of-safety / discount-to-value motif -->
+  <rect x="6" y="10" width="5" height="14" rx="1" fill="#39ff7a" />
+  <rect x="13.5" y="14" width="5" height="10" rx="1" fill="#39ff7a" opacity="0.92" />
+  <rect x="21" y="18" width="5" height="6" rx="1" fill="#39ff7a" opacity="0.78" />
+</svg>
