@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from time import perf_counter
 from typing import Any
 
+import logfire
 from pydantic_ai.agent.abstract import AbstractAgent
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.usage import RunUsage, UsageLimits
@@ -40,20 +41,25 @@ async def run_streamed_agent[T](
     agent_tag = agent.name
 
     start = perf_counter()
-    with AI_LOGFIRE.with_tags(agent_tag).span(
-        "Run AI agent {agent_name}", agent_name=agent_tag
-    ):
-        async with stream_with_retries(
-            agent=agent,
-            user_prompt=user_prompt,
-            usage_limits=usage_limits,
-        ) as result:
-            async for chunk in result.stream_output(debounce_by=stream_debounce_by):
-                if on_stream_chunk is not None:
-                    on_stream_chunk(chunk)
-            output = await result.get_output()
-            usage = result.usage()
-            all_messages = result.all_messages()
+    # Use baggage to propagate attributes to all child spans (including pydantic-ai
+    # instrumentation spans). Baggage values become span attributes automatically.
+    # The outer span uses AI_LOGFIRE.with_tags() for proper logfire.tags filtering;
+    # child spans get the baggage attributes for custom filtering.
+    with logfire.set_baggage(ai_agent=agent_tag):
+        with AI_LOGFIRE.with_tags(agent_tag).span(
+            "Run AI agent {agent_name}", agent_name=agent_tag
+        ):
+            async with stream_with_retries(
+                agent=agent,
+                user_prompt=user_prompt,
+                usage_limits=usage_limits,
+            ) as result:
+                async for chunk in result.stream_output(debounce_by=stream_debounce_by):
+                    if on_stream_chunk is not None:
+                        on_stream_chunk(chunk)
+                output = await result.get_output()
+                usage = result.usage()
+                all_messages = result.all_messages()
     elapsed_s = perf_counter() - start
     return StreamedAgentRunOutcome(
         output=output,

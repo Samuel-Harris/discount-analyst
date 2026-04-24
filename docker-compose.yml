@@ -18,6 +18,7 @@ services:
     environment:
       DASHBOARD_DATABASE_PATH: /data/dashboard.sqlite
       ENV: PROD
+      PYTHONUNBUFFERED: "1"
 
   web:
     build:

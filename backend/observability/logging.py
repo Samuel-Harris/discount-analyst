@@ -39,7 +39,9 @@ def configure_dashboard_observability(
             min_level=level,
             inspect_arguments=False,
         )
-        # Instrument pydantic-ai via the AI-tagged logger while preserving plain dashboard logs.
+        # Instrument pydantic-ai. Note: calling via AI_LOGFIRE doesn't automatically tag
+        # the spans created by pydantic-ai instrumentation. Use logfire.set_baggage()
+        # in run_streamed_agent to propagate attributes to child spans for filtering.
         AI_LOGFIRE.instrument_pydantic_ai()
         logfire.instrument_httpx(capture_all=True)
         _configured = True
