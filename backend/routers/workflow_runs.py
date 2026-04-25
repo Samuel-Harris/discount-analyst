@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import Annotated
 
-import logfire
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+
+from discount_analyst.agents.common.ai_logging import AI_LOGFIRE
 
 from backend.contracts.api import (
     CreateWorkflowRunRequest,
@@ -48,7 +49,7 @@ SettingsDep = Annotated[Settings, Depends(get_settings)]
 @router.get("")
 def list_workflow_runs(session: DbSession) -> list[WorkflowRunListItem]:
     rows = list_workflow_runs_from_db(session)
-    logfire.debug("Listed workflow runs", count=len(rows))
+    AI_LOGFIRE.debug("Listed workflow runs", count=len(rows))
     return [workflow_list_item(r) for r in rows]
 
 
@@ -61,7 +62,7 @@ def get_workflow_run(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Workflow run not found"
         )
-    logfire.debug("Fetched workflow run detail", workflow_run_id=workflow_run_id)
+    AI_LOGFIRE.debug("Fetched workflow run detail", workflow_run_id=workflow_run_id)
     return workflow_detail(d)
 
 
@@ -75,7 +76,7 @@ async def create_workflow_run(
     workflow_run_id = new_id()
     surveyor_exec_id = new_id()
     is_mock = True if settings.deploy_env == "DEV" else body.is_mock
-    logfire.info(
+    AI_LOGFIRE.info(
         "Creating workflow run",
         workflow_run_id=workflow_run_id,
         portfolio_ticker_count=len(body.portfolio_tickers),
@@ -119,7 +120,7 @@ async def create_workflow_run(
         surveyor_started=True,
     )
     runner.schedule_workflow_execution(workflow_run_id)
-    logfire.info(
+    AI_LOGFIRE.info(
         "Background workflow execution task scheduled",
         workflow_run_id=workflow_run_id,
     )
@@ -135,7 +136,9 @@ async def cancel_workflow_run(
             status_code=status.HTTP_404_NOT_FOUND, detail="Workflow run not found"
         )
     await runner.cancel_workflow_execution(workflow_run_id)
-    logfire.info("Workflow run cancellation requested", workflow_run_id=workflow_run_id)
+    AI_LOGFIRE.info(
+        "Workflow run cancellation requested", workflow_run_id=workflow_run_id
+    )
 
 
 @router.delete("/{workflow_run_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -146,7 +149,7 @@ def delete_workflow_run(workflow_run_id: str, session: DbSession) -> None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Workflow run not found"
             )
-        logfire.warning(
+        AI_LOGFIRE.warning(
             "Delete workflow run forbidden (non-mock run)",
             workflow_run_id=workflow_run_id,
         )

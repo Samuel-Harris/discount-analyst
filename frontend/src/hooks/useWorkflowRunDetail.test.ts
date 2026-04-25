@@ -59,6 +59,44 @@ describe("useWorkflowRunDetail", () => {
     expect(result.current.detail).toBeNull();
   });
 
+  it("hides stale detail while a newly selected workflow loads", async () => {
+    let resolveNew!: (detail: WorkflowRunDetailResponse) => void;
+    const newDetail = new Promise<WorkflowRunDetailResponse>((resolve) => {
+      resolveNew = resolve;
+    });
+    const fetch = vi
+      .spyOn(api, "fetchWorkflowRunDetail")
+      .mockResolvedValueOnce(minimalDetail("wf-old"))
+      .mockReturnValueOnce(newDetail);
+
+    const { result, rerender } = renderHook(
+      ({ workflowRunId }) => useWorkflowRunDetail(workflowRunId, 60_000),
+      { initialProps: { workflowRunId: "wf-old" } },
+    );
+
+    await waitFor(() => {
+      expect(result.current.detail?.id).toBe("wf-old");
+    });
+
+    rerender({ workflowRunId: "wf-new" });
+
+    expect(result.current.detail).toBeNull();
+    expect(result.current.loading).toBe(true);
+    await waitFor(() => {
+      expect(fetch).toHaveBeenLastCalledWith("wf-new", expect.anything());
+    });
+
+    await act(async () => {
+      resolveNew(minimalDetail("wf-new"));
+      await newDetail;
+    });
+
+    await waitFor(() => {
+      expect(result.current.detail?.id).toBe("wf-new");
+    });
+    expect(result.current.loading).toBe(false);
+  });
+
   it("polls detail without toggling loading on refresh", async () => {
     vi.useFakeTimers();
     const fetch = vi

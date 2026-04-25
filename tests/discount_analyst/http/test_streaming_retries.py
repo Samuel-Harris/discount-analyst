@@ -267,6 +267,226 @@ async def test_stream_with_retries_resumes_with_copied_history_and_usage(
 
 
 @pytest.mark.anyio
+async def test_stream_with_retries_preserves_checkpoint_across_open_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _no_wait(exc: BaseException, attempt: int) -> float:
+        del exc, attempt
+        return 0.0
+
+    monkeypatch.setattr(
+        streaming_retries_mod,
+        "streaming_retry_sleep_seconds",
+        _no_wait,
+    )
+
+    first_messages = [{"turn": {"text": "checkpointed"}}]
+    first_usage = RunUsage(input_tokens=9, output_tokens=4, details={"reasoning": 2})
+    first_result = _FakeStreamedRunResult(
+        outputs=["partial"],
+        final_output="unused",
+        messages=first_messages,
+        usage=first_usage,
+        stream_error=_api_error("Rate limit reached, please try again in 0.1s."),
+    )
+    first_cm = _FakeRunStreamContextManager(result=first_result)
+    failed_open_cm = _FakeRunStreamContextManager(
+        enter_error=_api_error("Rate limit reached while opening stream.")
+    )
+    final_result = _FakeStreamedRunResult(
+        outputs=["resumed"],
+        final_output="done",
+        messages=[{"turn": {"text": "resumed"}}],
+        usage=RunUsage(input_tokens=20, output_tokens=10),
+    )
+    final_cm = _FakeRunStreamContextManager(result=final_result)
+    agent_impl = _FakeAgent([first_cm, failed_open_cm, final_cm])
+
+    outputs: list[str] = []
+    async with stream_with_retries(
+        agent=cast(Any, agent_impl),
+        user_prompt="hello",
+        usage_limits=UsageLimits(request_limit=5),
+    ) as result:
+        async for chunk in result.stream_output(debounce_by=None):
+            outputs.append(chunk)
+
+    assert outputs == ["partial", "resumed"]
+    assert len(agent_impl.calls) == 3
+    first_call, failed_open_call, final_call = agent_impl.calls
+    assert first_call["user_prompt"] == "hello"
+    assert first_call["message_history"] is None
+    assert first_call["usage"] is None
+
+    assert failed_open_call["user_prompt"] is None
+    assert failed_open_call["message_history"] == [{"turn": {"text": "checkpointed"}}]
+    assert failed_open_call["message_history"] is not first_messages
+    assert failed_open_call["usage"] is not first_usage
+    assert failed_open_call["usage"].details == {"reasoning": 2}
+
+    assert final_call["user_prompt"] is None
+    assert final_call["message_history"] == [{"turn": {"text": "checkpointed"}}]
+    assert final_call["message_history"] is failed_open_call["message_history"]
+    assert final_call["usage"] is failed_open_call["usage"]
+
+    assert len(first_cm.exit_calls) == 1
+    assert first_cm.exit_calls[0][0] is APIError
+    assert failed_open_cm.exit_calls == []
+    assert len(final_cm.exit_calls) == 1
+    assert final_cm.exit_calls[0] == (None, None)
+
+
+@pytest.mark.anyio
+async def test_stream_with_retries_does_not_replay_prompt_on_uncheckpointed_open_failure() -> (
+    None
+):
+    open_error = _api_error("Rate limit reached while opening stream.")
+    failed_open_cm = _FakeRunStreamContextManager(enter_error=open_error)
+    agent_impl = _FakeAgent([failed_open_cm])
+
+    with pytest.raises(APIError, match="Rate limit reached") as exc_info:
+        async with stream_with_retries(
+            agent=cast(Any, agent_impl),
+            user_prompt="hello",
+            usage_limits=UsageLimits(request_limit=5),
+        ):
+            pass
+
+    assert exc_info.value is open_error
+    assert getattr(exc_info.value, "__notes__", []) == [
+        "Stream retry was not attempted because no message-history checkpoint "
+        "was available; the original prompt was not replayed."
+    ]
+    assert agent_impl.calls == [
+        {
+            "user_prompt": "hello",
+            "message_history": None,
+            "usage_limits": UsageLimits(request_limit=5),
+            "usage": None,
+        }
+    ]
+    assert failed_open_cm.exit_calls == []
+
+
+@pytest.mark.anyio
+async def test_stream_with_retries_retries_tool_startup_timeout_before_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _no_wait(exc: BaseException, attempt: int) -> float:
+        del exc, attempt
+        return 0.0
+
+    monkeypatch.setattr(
+        streaming_retries_mod,
+        "streaming_retry_sleep_seconds",
+        _no_wait,
+    )
+
+    failed_open_cm = _FakeRunStreamContextManager(
+        enter_error=ExceptionGroup(
+            "unhandled errors in a TaskGroup",
+            [TimeoutError("MCP server connection timed out")],
+        )
+    )
+    final_result = _FakeStreamedRunResult(
+        outputs=["started"],
+        final_output="done",
+        messages=[{"turn": {"text": "started"}}],
+        usage=RunUsage(input_tokens=8, output_tokens=3),
+    )
+    final_cm = _FakeRunStreamContextManager(result=final_result)
+    agent_impl = _FakeAgent([failed_open_cm, final_cm])
+
+    outputs: list[str] = []
+    async with stream_with_retries(
+        agent=cast(Any, agent_impl),
+        user_prompt="hello",
+        usage_limits=UsageLimits(request_limit=5),
+    ) as result:
+        async for chunk in result.stream_output(debounce_by=None):
+            outputs.append(chunk)
+
+    assert outputs == ["started"]
+    assert len(agent_impl.calls) == 2
+    first_call, second_call = agent_impl.calls
+    assert first_call["user_prompt"] == "hello"
+    assert first_call["message_history"] is None
+    assert first_call["usage"] is None
+    assert second_call["user_prompt"] == "hello"
+    assert second_call["message_history"] is None
+    assert second_call["usage"] is None
+    assert failed_open_cm.exit_calls == []
+    assert len(final_cm.exit_calls) == 1
+    assert final_cm.exit_calls[0] == (None, None)
+
+
+@pytest.mark.anyio
+async def test_stream_with_retries_get_output_retry_preserves_history_and_usage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _no_wait(exc: BaseException, attempt: int) -> float:
+        del exc, attempt
+        return 0.0
+
+    monkeypatch.setattr(
+        streaming_retries_mod,
+        "streaming_retry_sleep_seconds",
+        _no_wait,
+    )
+
+    first_messages = [{"turn": {"text": "before-get-output"}}]
+    first_usage = RunUsage(input_tokens=13, output_tokens=8, details={"cached": 3})
+    first_result = _FakeStreamedRunResult(
+        outputs=["partial"],
+        final_output="unused",
+        messages=first_messages,
+        usage=first_usage,
+        get_output_error=_api_error("Rate limit reached while getting output."),
+    )
+    second_result = _FakeStreamedRunResult(
+        outputs=[],
+        final_output="done",
+        messages=[{"turn": {"text": "after-get-output"}}],
+        usage=RunUsage(input_tokens=21, output_tokens=12),
+    )
+    first_cm = _FakeRunStreamContextManager(result=first_result)
+    second_cm = _FakeRunStreamContextManager(result=second_result)
+    agent_impl = _FakeAgent([first_cm, second_cm])
+
+    outputs: list[str] = []
+    async with stream_with_retries(
+        agent=cast(Any, agent_impl),
+        user_prompt="hello",
+        usage_limits=UsageLimits(request_limit=5),
+    ) as result:
+        async for chunk in result.stream_output(debounce_by=None):
+            outputs.append(chunk)
+        output = await result.get_output()
+        usage = result.usage()
+
+    assert outputs == ["partial"]
+    assert output == "done"
+    assert usage is second_result.usage()
+
+    assert len(agent_impl.calls) == 2
+    first_call, second_call = agent_impl.calls
+    assert first_call["user_prompt"] == "hello"
+    assert first_call["message_history"] is None
+    assert first_call["usage"] is None
+
+    assert second_call["user_prompt"] is None
+    assert second_call["message_history"] == [{"turn": {"text": "before-get-output"}}]
+    assert second_call["message_history"] is not first_messages
+    assert second_call["usage"] is not first_usage
+    assert second_call["usage"].details == {"cached": 3}
+
+    assert len(first_cm.exit_calls) == 1
+    assert first_cm.exit_calls[0][0] is APIError
+    assert len(second_cm.exit_calls) == 1
+    assert second_cm.exit_calls[0] == (None, None)
+
+
+@pytest.mark.anyio
 async def test_stream_with_retries_does_not_retry_non_retryable_interrupt() -> None:
     non_retryable = _api_error("Invalid API key")
     first_result = _FakeStreamedRunResult(

@@ -2,6 +2,7 @@ import "@xyflow/react/dist/style.css";
 
 import {
   memo,
+  useEffect,
   type KeyboardEvent,
   type MouseEvent,
   useCallback,
@@ -19,6 +20,7 @@ import {
   Position,
   ReactFlow,
   ReactFlowProvider,
+  useReactFlow,
 } from "@xyflow/react";
 
 import { AgentNameSlug, type WorkflowRunDetailResponse } from "../api";
@@ -116,6 +118,8 @@ const PipelineNode = memo(function PipelineNodeInner({
 
 const nodeTypes = { pipeline: PipelineNode } satisfies NodeTypes;
 
+const FIT_VIEW_OPTIONS = { padding: 0.2, maxZoom: 1.1 };
+
 function graphHeight(detail: WorkflowRunDetailResponse): number {
   const lanes = Math.max(1, detail.runs.length);
   return 88 + 112 + lanes * 112 + 48;
@@ -134,6 +138,7 @@ function PipelineGraphInner({
   detail,
   onOpenConversation,
 }: PipelineGraphProps) {
+  const { fitView } = useReactFlow();
   const { nodes: layoutNodes, edges: layoutEdges } = useMemo(
     () => buildGraphLayout(detail),
     [detail],
@@ -171,6 +176,15 @@ function PipelineGraphInner({
   const h = graphHeight(detail);
   const w = graphWidth();
 
+  useEffect(() => {
+    if (nodes.length === 0) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      void fitView(FIT_VIEW_OPTIONS);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [detail.id, edges.length, fitView, nodes.length]);
+
   return (
     <div className="graph-wrap" style={{ height: h, minHeight: 280 }}>
       <ReactFlow
@@ -185,7 +199,7 @@ function PipelineGraphInner({
         panOnScroll
         zoomOnScroll
         fitView
-        fitViewOptions={{ padding: 0.2, maxZoom: 1.1 }}
+        fitViewOptions={FIT_VIEW_OPTIONS}
         minZoom={0.4}
         maxZoom={1.4}
         proOptions={{ hideAttribution: true }}
@@ -204,7 +218,7 @@ function PipelineGraphInner({
 
 export function PipelineGraph(props: PipelineGraphProps) {
   return (
-    <ReactFlowProvider>
+    <ReactFlowProvider key={props.detail.id}>
       <PipelineGraphInner {...props} />
     </ReactFlowProvider>
   );

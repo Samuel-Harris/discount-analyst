@@ -49,5 +49,13 @@ export function useWorkflowRunDetail(
     discardDataOnError,
   });
 
-  return { detail, loading, error, refresh };
+  const selectedDetail = detail?.id === workflowRunId ? detail : null;
+  const waitingForSelectedDetail = enabled && !error && selectedDetail === null;
+
+  return {
+    detail: selectedDetail,
+    loading: loading || waitingForSelectedDetail,
+    error,
+    refresh,
+  };
 }

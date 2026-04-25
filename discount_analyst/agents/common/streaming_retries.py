@@ -86,6 +86,16 @@ def should_retry_streaming_error(exc: BaseException) -> bool:
     return _is_retryable_single_error(exc)
 
 
+def _is_tool_startup_timeout(exc: BaseException) -> bool:
+    """True for MCP/tool startup timeouts that occur before model progress."""
+    if type(exc) is TimeoutError:
+        return True
+    if isinstance(exc, BaseExceptionGroup):
+        sub_exceptions = cast(tuple[BaseException, ...], exc.exceptions)
+        return all(_is_tool_startup_timeout(e) for e in sub_exceptions)
+    return False
+
+
 def _stream_wait(attempt: int) -> float:
     """Wait time for streaming retries (exponential backoff, capped)."""
     return min(
@@ -167,10 +177,9 @@ class StreamWithRetriesContext[T]:
             await self._close_active_attempt(type(exc), exc, exc.__traceback__)
             raise exc
 
-        self._next_message_history = deepcopy(
-            self.active_streamed_result.all_messages()
-        )
-        self._next_usage = deepcopy(self.active_streamed_result.usage())
+        if not self._checkpoint_active_attempt():
+            await self._close_active_attempt(type(exc), exc, exc.__traceback__)
+            self._raise_unresumable_open_failure(exc)
 
         await self._close_active_attempt(type(exc), exc, exc.__traceback__)
         wait = streaming_retry_sleep_seconds(exc, self._attempt_index)
@@ -200,6 +209,15 @@ class StreamWithRetriesContext[T]:
                     MAX_STREAM_RETRY_ATTEMPTS - 1
                 ):
                     raise
+                if self._next_message_history is None:
+                    if not _is_tool_startup_timeout(exc):
+                        self._raise_unresumable_open_failure(exc)
+                    AI_LOGFIRE.info(
+                        "Agent tool startup failed before stream progress, retrying",
+                        attempt=self._attempt_index + 1,
+                        max_attempts=MAX_STREAM_RETRY_ATTEMPTS,
+                        error=str(exc),
+                    )
                 wait = streaming_retry_sleep_seconds(exc, self._attempt_index)
                 AI_LOGFIRE.info(
                     "Agent stream start failed, retrying",
@@ -220,6 +238,27 @@ class StreamWithRetriesContext[T]:
         if self._next_message_history is None:
             return self._user_prompt
         return None
+
+    def _checkpoint_active_attempt(self) -> bool:
+        active_result = self._active_streamed_result
+        if active_result is None:
+            return False
+        self._next_message_history = deepcopy(active_result.all_messages())
+        self._next_usage = deepcopy(active_result.usage())
+        return True
+
+    def _raise_unresumable_open_failure(self, exc: BaseException) -> None:
+        AI_LOGFIRE.info(
+            "Agent stream start failed without resumable message history",
+            attempt=self._attempt_index + 1,
+            max_attempts=MAX_STREAM_RETRY_ATTEMPTS,
+            error=str(exc),
+        )
+        exc.add_note(
+            "Stream retry was not attempted because no message-history checkpoint "
+            "was available; the original prompt was not replayed."
+        )
+        raise exc
 
     async def _close_active_attempt(
         self,

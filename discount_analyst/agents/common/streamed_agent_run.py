@@ -45,7 +45,9 @@ async def run_streamed_agent[T](
     # instrumentation spans). Baggage values become span attributes automatically.
     # The outer span uses AI_LOGFIRE.with_tags() for proper logfire.tags filtering;
     # child spans get the baggage attributes for custom filtering.
-    with logfire.set_baggage(ai_agent=agent_tag):
+    # Note: agent_tag is typically uppercase (e.g. "SURVEYOR"); we lowercase for agent_name
+    # to match the AgentNameDb enum values used in the database and logs.
+    with logfire.set_baggage(ai_agent=agent_tag, agent_name=agent_tag.lower()):
         with AI_LOGFIRE.with_tags(agent_tag).span(
             "Run AI agent {agent_name}", agent_name=agent_tag
         ):

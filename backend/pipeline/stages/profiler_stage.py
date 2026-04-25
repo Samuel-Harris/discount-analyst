@@ -5,9 +5,9 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
-import logfire
-
+from backend.db.models import AgentNameDb
 from backend.dev import mock_conversation_messages, mock_outputs
+from discount_analyst.agents.common.ai_logging import AI_LOGFIRE
 from backend.pipeline.ports import ProfilerStagePort
 from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
 from discount_analyst.agents.profiler.profiler import create_profiler_agent
@@ -44,8 +44,9 @@ class ProfilerStage:
             execution_id=profiler_exec_id, status="running", started=True
         )
         await port.recompute_workflow_status(workflow_run_id)
-        logfire.info(
+        AI_LOGFIRE.info(
             "Profiler stage started",
+            agent_name=AgentNameDb.PROFILER,
             workflow_run_id=workflow_run_id,
             run_id=run_id,
             ticker=ticker,
@@ -91,8 +92,9 @@ class ProfilerStage:
             run_id=run_id,
             company_name=profiler_output.candidate.company_name,
         )
-        logfire.info(
+        AI_LOGFIRE.info(
             "Profiler stage completed",
+            agent_name=AgentNameDb.PROFILER,
             workflow_run_id=workflow_run_id,
             run_id=run_id,
             ticker=ticker,
