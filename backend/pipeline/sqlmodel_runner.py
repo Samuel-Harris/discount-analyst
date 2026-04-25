@@ -15,15 +15,17 @@ from backend.crud.agent_output_persistence import insert_dcf_valuation
 from backend.db.models import AgentNameDb
 from backend.crud.conversations import (
     insert_conversation_for_agent_execution,
-    insert_conversation_for_workflow_agent,
 )
 from backend.contracts.agent_lane_order import SURVEYOR_ENTRY_AGENT_NAMES
 from backend.crud.db_utils import new_id, utc_now_iso
 from backend.crud.run_executions import (
+    complete_agent_execution_with_conversation,
+    complete_workflow_agent_execution_with_conversation,
     get_agent_execution_id_by_run_and_agent,
     get_workflow_candidate_snapshot_id,
     get_workflow_surveyor_execution_id,
     insert_ticker_run_with_agents,
+    mark_lane_abort,
     update_agent_execution,
     update_ticker_run_company_name,
     update_ticker_run_completion,
@@ -281,6 +283,49 @@ class DashboardPipelineRunner:
             error_message=error_message,
         )
 
+    async def _complete_exec_with_conversation(
+        self,
+        *,
+        execution_id: str,
+        system_prompt: str,
+        output_json: str | None,
+        messages: list[Any] | None = None,
+        messages_json: str | None = None,
+    ) -> None:
+        await self._db(
+            complete_agent_execution_with_conversation,
+            execution_id=execution_id,
+            conversation_id=new_id(),
+            system_prompt=system_prompt,
+            output_json=output_json,
+            completed_at=utc_now_iso(),
+            messages=messages,
+            messages_json=messages_json,
+        )
+
+    async def _complete_workflow_exec_with_conversation(
+        self,
+        *,
+        execution_id: str,
+        system_prompt: str,
+        output_json: str | None,
+        messages: list[Any] | None = None,
+        messages_json: str | None = None,
+    ) -> None:
+        await self._db(
+            complete_workflow_agent_execution_with_conversation,
+            execution_id=execution_id,
+            conversation_id=new_id(),
+            system_prompt=system_prompt,
+            output_json=output_json,
+            completed_at=utc_now_iso(),
+            messages=messages,
+            messages_json=messages_json,
+        )
+
+    async def _mark_lane_abort(self, *, run_id: str, error_message: str) -> None:
+        await self._db(mark_lane_abort, run_id=run_id, error_message=error_message)
+
     async def _store_conversation(
         self,
         *,
@@ -406,18 +451,10 @@ class DashboardPipelineRunner:
                 surveyor_output = outcome.output
                 messages = list(outcome.all_messages)
                 surveyor_messages_json = None
-            await self._db(
-                update_workflow_agent_execution,
+            await self._complete_workflow_exec_with_conversation(
                 execution_id=surveyor_exec_id,
-                status="completed",
-                output_json=surveyor_output.model_dump_json(),
-                completed_at=utc_now_iso(),
-            )
-            await self._db(
-                insert_conversation_for_workflow_agent,
-                conversation_id=new_id(),
-                workflow_agent_execution_id=surveyor_exec_id,
                 system_prompt=SURVEYOR_SYSTEM_PROMPT,
+                output_json=surveyor_output.model_dump_json(),
                 messages=messages,
                 messages_json=surveyor_messages_json,
             )
@@ -533,6 +570,7 @@ class DashboardPipelineRunner:
                 ticker=ticker,
                 error_message=error_msg,
             )
+            await self._mark_lane_abort(run_id=run_id, error_message=error_msg)
             await self._db(
                 update_ticker_run_completion,
                 run_id=run_id,
@@ -599,6 +637,7 @@ class DashboardPipelineRunner:
                 ticker=candidate.ticker,
                 error_message=error_msg,
             )
+            await self._mark_lane_abort(run_id=run_id, error_message=error_msg)
             await self._db(
                 update_ticker_run_completion,
                 run_id=run_id,
@@ -705,16 +744,10 @@ class DashboardPipelineRunner:
             research_out = outcome.output
             r_messages = list(outcome.all_messages)
             r_mock_json = None
-        await self._mark_exec(
+        await self._complete_exec_with_conversation(
             execution_id=research_exec_id,
-            status="completed",
-            output_json=research_out.model_dump_json(),
-            completed=True,
-        )
-        await self._store_conversation(
-            run_id=run_id,
-            agent_name=AgentNameDb.RESEARCHER,
             system_prompt=RESEARCHER_SYSTEM_PROMPT,
+            output_json=research_out.model_dump_json(),
             messages=r_messages,
             messages_json=r_mock_json,
         )
@@ -762,16 +795,10 @@ class DashboardPipelineRunner:
             thesis = outcome.output
             s_messages = list(outcome.all_messages)
             s_mock_json = None
-        await self._mark_exec(
+        await self._complete_exec_with_conversation(
             execution_id=strategist_exec_id,
-            status="completed",
-            output_json=thesis.model_dump_json(),
-            completed=True,
-        )
-        await self._store_conversation(
-            run_id=run_id,
-            agent_name=AgentNameDb.STRATEGIST,
             system_prompt=STRATEGIST_SYSTEM_PROMPT,
+            output_json=thesis.model_dump_json(),
             messages=s_messages,
             messages_json=s_mock_json,
         )
@@ -826,16 +853,10 @@ class DashboardPipelineRunner:
             evaluation = outcome.output
             n_messages = list(outcome.all_messages)
             n_mock_json = None
-        await self._mark_exec(
+        await self._complete_exec_with_conversation(
             execution_id=sentinel_exec_id,
-            status="completed",
-            output_json=evaluation.model_dump_json(),
-            completed=True,
-        )
-        await self._store_conversation(
-            run_id=run_id,
-            agent_name=AgentNameDb.SENTINEL,
             system_prompt=SENTINEL_SYSTEM_PROMPT,
+            output_json=evaluation.model_dump_json(),
             messages=n_messages,
             messages_json=n_mock_json,
         )
@@ -951,16 +972,10 @@ class DashboardPipelineRunner:
             appraiser_out = outcome.output
             a_messages = list(outcome.all_messages)
             a_mock_json = None
-        await self._mark_exec(
+        await self._complete_exec_with_conversation(
             execution_id=appraiser_exec_id,
-            status="completed",
-            output_json=appraiser_out.model_dump_json(),
-            completed=True,
-        )
-        await self._store_conversation(
-            run_id=run_id,
-            agent_name=AgentNameDb.APPRAISER,
             system_prompt=APPRAISER_SYSTEM_PROMPT,
+            output_json=appraiser_out.model_dump_json(),
             messages=a_messages,
             messages_json=a_mock_json,
         )
@@ -1058,16 +1073,10 @@ class DashboardPipelineRunner:
             )
             b_messages = list(outcome.all_messages)
             b_mock_json = None
-        await self._mark_exec(
+        await self._complete_exec_with_conversation(
             execution_id=arbiter_exec_id,
-            status="completed",
-            output_json=arbiter_decision.model_dump_json(),
-            completed=True,
-        )
-        await self._store_conversation(
-            run_id=run_id,
-            agent_name=AgentNameDb.ARBITER,
             system_prompt=ARBITER_SYSTEM_PROMPT,
+            output_json=arbiter_decision.model_dump_json(),
             messages=b_messages,
             messages_json=b_mock_json,
         )

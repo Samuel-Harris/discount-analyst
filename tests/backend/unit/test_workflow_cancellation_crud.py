@@ -8,6 +8,7 @@ from backend.crud.run_executions import (
     get_agent_execution_id_by_run_and_agent,
     insert_ticker_run_with_agents,
     update_agent_execution,
+    update_ticker_run_completion,
     update_workflow_agent_execution,
 )
 from backend.crud.workflow_runs import (
@@ -118,6 +119,104 @@ def test_set_workflow_error_does_not_override_cancelled_workflow(
     assert detail is not None
     assert detail["status"] == "cancelled"
     assert detail["error_message"] is None
+
+
+def test_recompute_workflow_status_keeps_running_with_failed_and_running_runs(
+    db_session: Session,
+) -> None:
+    workflow_run_id, surveyor_execution_id, failed_run_id = _insert_workflow_fixture(
+        db_session
+    )
+    running_run_id = new_id()
+    insert_ticker_run_with_agents(
+        db_session,
+        run_id=running_run_id,
+        workflow_run_id=workflow_run_id,
+        ticker="DEF.L",
+        company_name="DEF plc",
+        entry_path="surveyor",
+        is_existing_position=False,
+        is_mock=True,
+        agent_names=("researcher",),
+    )
+    update_workflow_agent_execution(
+        db_session,
+        execution_id=surveyor_execution_id,
+        status="completed",
+        started_at=utc_now_iso(),
+        completed_at=utc_now_iso(),
+    )
+    update_ticker_run_completion(
+        db_session,
+        run_id=failed_run_id,
+        status="failed",
+        final_rating=None,
+        decision_type=None,
+        recommended_action=None,
+        final_verdict_json=None,
+        error_message="lane failed",
+    )
+    db_session.commit()
+
+    recompute_workflow_status(db_session, workflow_run_id)
+
+    detail = fetch_workflow_detail(db_session, workflow_run_id)
+    assert detail is not None
+    assert detail["status"] == "running"
+
+
+def test_recompute_workflow_status_fails_after_all_runs_terminal_with_failure(
+    db_session: Session,
+) -> None:
+    workflow_run_id, surveyor_execution_id, failed_run_id = _insert_workflow_fixture(
+        db_session
+    )
+    completed_run_id = new_id()
+    insert_ticker_run_with_agents(
+        db_session,
+        run_id=completed_run_id,
+        workflow_run_id=workflow_run_id,
+        ticker="DEF.L",
+        company_name="DEF plc",
+        entry_path="surveyor",
+        is_existing_position=False,
+        is_mock=True,
+        agent_names=("researcher",),
+    )
+    update_workflow_agent_execution(
+        db_session,
+        execution_id=surveyor_execution_id,
+        status="completed",
+        started_at=utc_now_iso(),
+        completed_at=utc_now_iso(),
+    )
+    update_ticker_run_completion(
+        db_session,
+        run_id=failed_run_id,
+        status="failed",
+        final_rating=None,
+        decision_type=None,
+        recommended_action=None,
+        final_verdict_json=None,
+        error_message="lane failed",
+    )
+    update_ticker_run_completion(
+        db_session,
+        run_id=completed_run_id,
+        status="completed",
+        final_rating="Hold",
+        decision_type=None,
+        recommended_action="Hold",
+        final_verdict_json=None,
+        error_message=None,
+    )
+    db_session.commit()
+
+    recompute_workflow_status(db_session, workflow_run_id)
+
+    detail = fetch_workflow_detail(db_session, workflow_run_id)
+    assert detail is not None
+    assert detail["status"] == "failed"
 
 
 def test_cancel_workflow_run_marks_active_rows_cancelled(db_session: Session) -> None:

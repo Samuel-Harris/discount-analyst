@@ -8,6 +8,7 @@ which commits after each operation batch).
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import Any
 
 from sqlalchemy import select
 from sqlmodel import Session, col
@@ -20,6 +21,10 @@ from backend.crud.agent_output_persistence import (
     replace_mispricing_thesis,
     replace_research_report,
     upsert_run_final_decision,
+)
+from backend.crud.conversations import (
+    insert_conversation_for_agent_execution,
+    insert_conversation_for_workflow_agent,
 )
 from backend.crud.db_utils import (
     ACTIVE_EXECUTION_STATUSES,
@@ -49,6 +54,14 @@ _TERMINAL_RUN_STATUSES = frozenset(
         WorkflowRunStatusDb.CANCELLED.value,
     }
 )
+_AGENT_LANE_ORDER = {
+    AgentNameDb.PROFILER: 0,
+    AgentNameDb.RESEARCHER: 1,
+    AgentNameDb.STRATEGIST: 2,
+    AgentNameDb.SENTINEL: 3,
+    AgentNameDb.APPRAISER: 4,
+    AgentNameDb.ARBITER: 5,
+}
 
 
 def insert_ticker_run_with_agents(
@@ -206,6 +219,34 @@ def update_workflow_agent_execution(
     persist_workflow_agent_execution_structured_output(session, execution, output_json)
 
 
+def complete_workflow_agent_execution_with_conversation(
+    session: Session,
+    *,
+    execution_id: str,
+    conversation_id: str,
+    system_prompt: str,
+    output_json: str | None,
+    completed_at: str,
+    messages: list[Any] | None = None,
+    messages_json: str | None = None,
+) -> None:
+    insert_conversation_for_workflow_agent(
+        session,
+        conversation_id=conversation_id,
+        workflow_agent_execution_id=execution_id,
+        system_prompt=system_prompt,
+        messages=messages,
+        messages_json=messages_json,
+    )
+    update_workflow_agent_execution(
+        session,
+        execution_id=execution_id,
+        status=ExecutionStatusDb.COMPLETED.value,
+        output_json=output_json,
+        completed_at=completed_at,
+    )
+
+
 def apply_agent_execution_status(
     session: Session,
     *,
@@ -287,6 +328,77 @@ def update_agent_execution(
     if execution is None:
         return
     persist_agent_execution_structured_output(session, execution, output_json)
+
+
+def complete_agent_execution_with_conversation(
+    session: Session,
+    *,
+    execution_id: str,
+    conversation_id: str,
+    system_prompt: str,
+    output_json: str | None,
+    completed_at: str,
+    messages: list[Any] | None = None,
+    messages_json: str | None = None,
+) -> None:
+    insert_conversation_for_agent_execution(
+        session,
+        conversation_id=conversation_id,
+        agent_execution_id=execution_id,
+        system_prompt=system_prompt,
+        messages=messages,
+        messages_json=messages_json,
+    )
+    update_agent_execution(
+        session,
+        execution_id=execution_id,
+        status=ExecutionStatusDb.COMPLETED.value,
+        output_json=output_json,
+        completed_at=completed_at,
+    )
+
+
+def mark_lane_abort(
+    session: Session,
+    *,
+    run_id: str,
+    error_message: str,
+) -> None:
+    """Fail the active stage and mark unreached downstream stages as skipped."""
+    executions = sorted(
+        session.scalars(
+            select(AgentExecution).where(col(AgentExecution.run_id) == run_id)
+        ),
+        key=lambda execution: _AGENT_LANE_ORDER.get(execution.agent_name, 99),
+    )
+    completed_at = utc_now()
+    failed_execution: AgentExecution | None = None
+    for execution in executions:
+        if execution.status == ExecutionStatusDb.RUNNING:
+            failed_execution = execution
+            break
+    if failed_execution is None:
+        completed = [
+            execution
+            for execution in executions
+            if execution.status == ExecutionStatusDb.COMPLETED
+        ]
+        if completed:
+            failed_execution = completed[-1]
+
+    if failed_execution is not None:
+        failed_execution.status = ExecutionStatusDb.FAILED
+        failed_execution.completed_at = completed_at
+        failed_execution.error_message = error_message
+        session.add(failed_execution)
+
+    for execution in executions:
+        if execution.status != ExecutionStatusDb.PENDING:
+            continue
+        execution.status = ExecutionStatusDb.SKIPPED
+        execution.completed_at = completed_at
+        execution.error_message = error_message
+        session.add(execution)
 
 
 def apply_ticker_run_completion_fields(

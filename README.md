@@ -145,7 +145,7 @@ print('Seeded', settings.database_path)
 Terminal 1 — API (reload optional):
 
 ```bash
-uv run uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
+uv run uvicorn backend.app.main:create_app --factory --reload --host 127.0.0.1 --port 8000
 ```
 
 Terminal 2 — UI:

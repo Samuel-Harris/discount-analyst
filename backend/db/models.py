@@ -63,6 +63,7 @@ class MessagePartKindDb(StrEnum):
     TOOL_CALL = "tool_call"
     TOOL_RETURN = "tool_return"
     RETRY_PROMPT = "retry_prompt"
+    UNKNOWN = "unknown"
 
 
 class WorkflowRun(SQLModel, table=True):
@@ -573,7 +574,7 @@ class AgentConversationMessagePart(SQLModel, table=True):
         CheckConstraint(
             """
             (
-                part_kind IN ('system_prompt', 'user_prompt', 'text', 'retry_prompt')
+                part_kind IN ('system_prompt', 'user_prompt', 'text', 'retry_prompt', 'unknown')
                 AND content_text IS NOT NULL
             )
             OR

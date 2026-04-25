@@ -85,10 +85,9 @@ def recompute_workflow_status(session: Session, workflow_run_id: str) -> None:
     wf = session.get(WorkflowRun, workflow_run_id)
     if wf is None:
         return
-    if wf.status.value in {
-        WorkflowRunStatusDb.CANCELLED.value,
-        WorkflowRunStatusDb.FAILED.value,
-    }:
+    if wf.status == WorkflowRunStatusDb.CANCELLED:
+        return
+    if wf.status == WorkflowRunStatusDb.FAILED and wf.error_message:
         return
 
     surveyor = session.scalars(
@@ -115,10 +114,10 @@ def recompute_workflow_status(session: Session, workflow_run_id: str) -> None:
             new_status = WorkflowRunStatusDb.COMPLETED
     else:
         statuses = [r.status.value for r in runs]
-        if WorkflowRunStatusDb.FAILED.value in statuses:
-            new_status = WorkflowRunStatusDb.FAILED
-        elif WorkflowRunStatusDb.RUNNING.value in statuses:
+        if WorkflowRunStatusDb.RUNNING.value in statuses:
             new_status = WorkflowRunStatusDb.RUNNING
+        elif WorkflowRunStatusDb.FAILED.value in statuses:
+            new_status = WorkflowRunStatusDb.FAILED
         elif all(s == WorkflowRunStatusDb.COMPLETED.value for s in statuses):
             new_status = WorkflowRunStatusDb.COMPLETED
         elif all(s in TERMINAL_RUN_STATUSES for s in statuses):

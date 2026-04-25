@@ -19,11 +19,13 @@ from discount_analyst.agents.common.agent_names import AgentName
 from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
 from discount_analyst.agents.researcher.schema import DeepResearchReport
 from discount_analyst.agents.strategist.schema import MispricingThesis
+from discount_analyst.agents.surveyor.schema import SurveyorCandidate
 from scripts.common.cli import add_agent_cli_model_argument
 from scripts.common.artefacts import write_agent_json
 from scripts.common.run_outputs import (
     ResearcherRunOutput,
     StrategistRunOutput,
+    SurveyorRunOutput,
     TurnUsage,
 )
 from scripts.common.usage import extract_turn_usage
@@ -44,6 +46,7 @@ class Selector:
 class ResearcherTarget(NamedTuple):
     researcher_report_path: Path
     run_output: ResearcherRunOutput
+    surveyor_candidate: SurveyorCandidate
 
 
 @dataclass
@@ -145,18 +148,49 @@ def load_researcher_run_output(path: Path) -> ResearcherRunOutput:
         ) from exc
 
 
+def load_surveyor_run_output(path: Path) -> SurveyorRunOutput:
+    """Parse the Surveyor run output referenced by a Researcher artefact."""
+    try:
+        return SurveyorRunOutput.model_validate_json(path.read_text())
+    except ValidationError as exc:
+        raise ValueError(
+            f"Invalid Surveyor run output JSON shape at {path}: {exc}"
+        ) from exc
+
+
 def _resolve_targets_for_selector(selector: Selector) -> list[ResearcherTarget]:
     run_output = load_researcher_run_output(selector.researcher_report_path)
-    if selector.ticker is None:
-        return [ResearcherTarget(selector.researcher_report_path, run_output)]
+    if selector.ticker is not None:
+        ticker_folded = selector.ticker.casefold()
+        if run_output.ticker.casefold() != ticker_folded:
+            raise ValueError(
+                f"Ticker '{selector.ticker}' does not match Researcher artefact "
+                f"{selector.researcher_report_path} (ticker={run_output.ticker})."
+            )
 
-    ticker_folded = selector.ticker.casefold()
-    if run_output.ticker.casefold() != ticker_folded:
+    surveyor_path = Path(run_output.source_surveyor_report).expanduser().resolve()
+    surveyor = load_surveyor_run_output(surveyor_path)
+    idx = run_output.source_candidate_index
+    if idx < 0 or idx >= len(surveyor.output.candidates):
         raise ValueError(
-            f"Ticker '{selector.ticker}' does not match Researcher artefact "
-            f"{selector.researcher_report_path} (ticker={run_output.ticker})."
+            f"Researcher artefact {selector.researcher_report_path} references "
+            f"candidate_index={idx} but Surveyor report has "
+            f"{len(surveyor.output.candidates)} candidates ({surveyor_path})."
         )
-    return [ResearcherTarget(selector.researcher_report_path, run_output)]
+    surveyor_candidate = surveyor.output.candidates[idx]
+    if surveyor_candidate.ticker.casefold() != run_output.ticker.casefold():
+        raise ValueError(
+            f"Researcher artefact {selector.researcher_report_path} ticker "
+            f"{run_output.ticker!r} does not match Surveyor candidate "
+            f"{surveyor_candidate.ticker!r} at index {idx}."
+        )
+    return [
+        ResearcherTarget(
+            selector.researcher_report_path,
+            run_output,
+            surveyor_candidate,
+        )
+    ]
 
 
 def resolve_targets(selectors: list[Selector]) -> list[ResearcherTarget]:
@@ -203,12 +237,12 @@ def display_output(output: MispricingThesis) -> None:
 async def run_agent(
     *,
     model_name: ModelName,
+    surveyor_candidate: SurveyorCandidate,
     deep_research: DeepResearchReport,
 ) -> AgentRunResult:
     """Run the Strategist agent and return output with usage stats."""
     ai_models_config = AIModelsConfig(model_name=model_name)
     agent = create_strategist_agent(ai_models_config)
-    surveyor_candidate = deep_research.candidate
     user_prompt = create_user_prompt(
         surveyor_candidate=surveyor_candidate,
         deep_research=deep_research,
@@ -317,6 +351,7 @@ async def main() -> None:
         try:
             run_result = await run_agent(
                 model_name=args.model,
+                surveyor_candidate=target.surveyor_candidate,
                 deep_research=ro.output,
             )
             display_output(run_result.output)

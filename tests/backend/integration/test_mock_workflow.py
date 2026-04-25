@@ -13,11 +13,16 @@ from backend.crud import run_executions as runs
 from backend.crud import workflow_runs as workflow_crud
 from backend.crud.db_utils import new_id
 from backend.contracts.agent_lane_order import PROFILER_ENTRY_AGENT_NAMES
+from backend.dev import mock_outputs
 from backend.db.migrate import migrate_to_head
 from backend.db.session import create_dashboard_engine, create_session_factory
 from backend.observability.logging import configure_dashboard_observability
 from backend.pipeline.sqlmodel_runner import DashboardPipelineRunner
 from backend.settings.testing import dashboard_settings_for_tests
+from discount_analyst.agents.appraiser.system_prompt import (
+    SYSTEM_PROMPT as APPRAISER_SYSTEM_PROMPT,
+)
+from discount_analyst.agents.surveyor.schema import SurveyorOutput
 
 
 @pytest.mark.asyncio
@@ -216,3 +221,152 @@ async def test_manual_cancel_marks_workflow_and_children_cancelled(
     assert {run["status"] for run in detail["runs"]} == {"cancelled"}
     for run in detail["runs"]:
         assert {row["status"] for row in run["agent_executions"]} == {"cancelled"}
+
+
+@pytest.mark.asyncio
+async def test_appraiser_conversation_failure_does_not_leave_appraiser_completed(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "appraiser_conversation_fail.sqlite"
+    settings = dashboard_settings_for_tests(database_path=db_path)
+    configure_dashboard_observability(settings)
+    engine = create_dashboard_engine(settings)
+    migrate_to_head(str(engine.url))
+    session_factory = create_session_factory(engine)
+
+    workflow_run_id = new_id()
+    with session_factory() as session:
+        workflow_crud.insert_workflow_run(
+            session,
+            workflow_run_id=workflow_run_id,
+            portfolio_tickers=["M1.L"],
+            is_mock=True,
+        )
+        workflow_crud.insert_surveyor_workflow_execution(
+            session,
+            execution_id=new_id(),
+            workflow_run_id=workflow_run_id,
+        )
+        runs.insert_ticker_run_with_agents(
+            session,
+            run_id=new_id(),
+            workflow_run_id=workflow_run_id,
+            ticker="M1.L",
+            company_name="M1.L",
+            entry_path="profiler",
+            is_existing_position=True,
+            is_mock=True,
+            agent_names=PROFILER_ENTRY_AGENT_NAMES,
+        )
+        session.commit()
+
+    original_insert = runs.insert_conversation_for_agent_execution
+
+    def _fail_appraiser_conversation(*args: object, **kwargs: object) -> None:
+        if kwargs.get("system_prompt") == APPRAISER_SYSTEM_PROMPT:
+            raise KeyError("builtin-tool-call")
+        original_insert(*args, **kwargs)
+
+    runner = DashboardPipelineRunner(session_factory, settings)
+    with (
+        patch("backend.pipeline.sqlmodel_runner.asyncio.sleep", new=AsyncMock()),
+        patch(
+            "backend.pipeline.sqlmodel_runner.mock_outputs.mock_surveyor_dashboard_discoveries",
+            return_value=SurveyorOutput.model_construct(candidates=[]),
+        ),
+        patch(
+            "backend.pipeline.sqlmodel_runner.mock_outputs.mock_sentinel_proceed_for_dashboard_lane",
+            return_value=True,
+        ),
+        patch(
+            "backend.crud.run_executions.insert_conversation_for_agent_execution",
+            side_effect=_fail_appraiser_conversation,
+        ),
+    ):
+        await runner.execute_workflow(workflow_run_id)
+
+    with session_factory() as session:
+        detail = workflow_crud.fetch_workflow_detail(session, workflow_run_id)
+    assert detail is not None
+    assert detail["status"] == "failed"
+    profiler_lane = next(
+        run for run in detail["runs"] if run["entry_path"] == "profiler"
+    )
+    statuses = {
+        row["agent_name"]: row["status"] for row in profiler_lane["agent_executions"]
+    }
+    assert profiler_lane["status"] == "failed"
+    assert statuses["appraiser"] == "failed"
+    assert statuses["arbiter"] == "skipped"
+
+
+@pytest.mark.asyncio
+async def test_lane_abort_marks_unreached_downstream_agents_skipped(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "downstream_skips.sqlite"
+    settings = dashboard_settings_for_tests(database_path=db_path)
+    configure_dashboard_observability(settings)
+    engine = create_dashboard_engine(settings)
+    migrate_to_head(str(engine.url))
+    session_factory = create_session_factory(engine)
+
+    workflow_run_id = new_id()
+    with session_factory() as session:
+        workflow_crud.insert_workflow_run(
+            session,
+            workflow_run_id=workflow_run_id,
+            portfolio_tickers=["M1.L"],
+            is_mock=True,
+        )
+        workflow_crud.insert_surveyor_workflow_execution(
+            session,
+            execution_id=new_id(),
+            workflow_run_id=workflow_run_id,
+        )
+        runs.insert_ticker_run_with_agents(
+            session,
+            run_id=new_id(),
+            workflow_run_id=workflow_run_id,
+            ticker="M1.L",
+            company_name="M1.L",
+            entry_path="profiler",
+            is_existing_position=True,
+            is_mock=True,
+            agent_names=PROFILER_ENTRY_AGENT_NAMES,
+        )
+        session.commit()
+
+    def _researcher_failure(candidate: object) -> object:
+        del candidate
+        raise RuntimeError("researcher validation failed")
+
+    runner = DashboardPipelineRunner(session_factory, settings)
+    with (
+        patch("backend.pipeline.sqlmodel_runner.asyncio.sleep", new=AsyncMock()),
+        patch(
+            "backend.pipeline.sqlmodel_runner.mock_outputs.mock_surveyor_dashboard_discoveries",
+            return_value=SurveyorOutput.model_construct(candidates=[]),
+        ),
+        patch.object(
+            mock_outputs, "mock_deep_research", side_effect=_researcher_failure
+        ),
+    ):
+        await runner.execute_workflow(workflow_run_id)
+
+    with session_factory() as session:
+        detail = workflow_crud.fetch_workflow_detail(session, workflow_run_id)
+    assert detail is not None
+    assert detail["status"] == "failed"
+    profiler_lane = next(
+        run for run in detail["runs"] if run["entry_path"] == "profiler"
+    )
+    statuses = {
+        row["agent_name"]: row["status"] for row in profiler_lane["agent_executions"]
+    }
+    assert statuses["profiler"] == "completed"
+    assert statuses["researcher"] == "failed"
+    assert statuses["strategist"] == "skipped"
+    assert statuses["sentinel"] == "skipped"
+    assert statuses["appraiser"] == "skipped"
+    assert statuses["arbiter"] == "skipped"

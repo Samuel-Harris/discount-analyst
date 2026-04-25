@@ -7,6 +7,7 @@ import httpx
 import pytest
 from openai import APIError
 from pydantic_ai import capture_run_messages
+from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
@@ -19,6 +20,7 @@ from pydantic_ai.usage import RunUsage, UsageLimits
 import discount_analyst.agents.common.streaming_retries as streaming_retries_mod
 from discount_analyst.agents.common.streaming_retries import (
     api_error_indicates_rate_limit,
+    should_repair_structured_output_error,
     should_retry_streaming_error,
     stream_with_retries,
     streaming_retry_sleep_seconds,
@@ -69,6 +71,16 @@ def test_should_retry_streaming_error_exception_group_with_timeout() -> None:
 def test_should_retry_streaming_error_exception_group_with_non_retryable() -> None:
     exc = ExceptionGroup("errors", [ValueError("not retryable")])
     assert should_retry_streaming_error(exc) is False
+
+
+def test_should_repair_structured_output_error_validation_message() -> None:
+    exc = UnexpectedModelBehavior("Exceeded maximum retries (1) for output validation")
+    assert should_repair_structured_output_error(exc) is True
+
+
+def test_should_repair_structured_output_error_tool_failure_negative() -> None:
+    exc = UnexpectedModelBehavior("Tool failed after maximum retries")
+    assert should_repair_structured_output_error(exc) is False
 
 
 def test_streaming_retry_sleep_tpm_waits_60s() -> None:
@@ -672,6 +684,59 @@ async def test_stream_with_retries_get_output_retry_uses_response_partial(
     ]
     retry_prompt = _user_prompt_text(second_call["message_history"][1])
     assert "Draft recovered from response state." in retry_prompt
+
+
+@pytest.mark.anyio
+async def test_stream_with_retries_repairs_structured_output_validation_failure() -> (
+    None
+):
+    validation_error = UnexpectedModelBehavior(
+        "Exceeded maximum retries (1) for output validation: missing field"
+    )
+    first_messages = [{"turn": {"text": "invalid-structured-output"}}]
+    first_result = _FakeStreamedRunResult(
+        outputs=["invalid"],
+        final_output="unused",
+        messages=first_messages,
+        usage=RunUsage(input_tokens=12, output_tokens=6),
+        get_output_error=validation_error,
+    )
+    repaired_result = _FakeStreamedRunResult(
+        outputs=[],
+        final_output="repaired",
+        messages=[{"turn": {"text": "repaired-structured-output"}}],
+        usage=RunUsage(input_tokens=18, output_tokens=9),
+    )
+    first_cm = _FakeRunStreamContextManager(result=first_result)
+    repaired_cm = _FakeRunStreamContextManager(result=repaired_result)
+    agent_impl = _FakeAgent([first_cm, repaired_cm])
+
+    outputs: list[str] = []
+    async with stream_with_retries(
+        agent=cast(Any, agent_impl),
+        user_prompt="hello",
+        usage_limits=UsageLimits(request_limit=5),
+    ) as result:
+        async for chunk in result.stream_output(debounce_by=None):
+            outputs.append(chunk)
+        output = await result.get_output()
+
+    assert outputs == ["invalid"]
+    assert output == "repaired"
+    assert len(agent_impl.calls) == 2
+    second_call = agent_impl.calls[1]
+    assert second_call["user_prompt"] is None
+    assert second_call["message_history"][:1] == [
+        {"turn": {"text": "invalid-structured-output"}}
+    ]
+    repair_prompt = _user_prompt_text(second_call["message_history"][1])
+    assert "could not be validated" in repair_prompt
+    assert "missing field" in repair_prompt
+    assert second_call["usage"].input_tokens == 12
+    assert len(first_cm.exit_calls) == 1
+    assert first_cm.exit_calls[0][0] is UnexpectedModelBehavior
+    assert len(repaired_cm.exit_calls) == 1
+    assert repaired_cm.exit_calls[0] == (None, None)
 
 
 @pytest.mark.anyio

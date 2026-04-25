@@ -54,6 +54,3 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     configure_dashboard_observability(settings, app)
     return app
-
-
-app = create_app()

@@ -16,6 +16,7 @@ from openai import (
 from pydantic import BaseModel
 from pydantic_ai import capture_run_messages
 from pydantic_ai.agent.abstract import AbstractAgent
+from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.messages import (
     AgentStreamEvent,
     BuiltinToolCallPart,
@@ -41,6 +42,7 @@ from discount_analyst.agents.common.ai_logging import AI_LOGFIRE
 
 # Streaming can fail mid-`stream_output()` (e.g. OpenAI TPM) after a successful `run_stream` start.
 MAX_STREAM_RETRY_ATTEMPTS = 6
+MAX_STRUCTURED_OUTPUT_COMPLETIONS = 3
 
 
 _TPM_RPM_WAIT_SECONDS = 60.0
@@ -54,6 +56,17 @@ def _partial_output_retry_prompt(partial_output: str) -> str:
         "coherence.\n\n"
         "Partial draft from the interrupted response:\n\n"
         f"{partial_output}"
+    )
+
+
+def _structured_output_repair_prompt(exc: BaseException) -> str:
+    return (
+        "Your previous response could not be validated against the required "
+        "structured output schema. Return a complete corrected output object "
+        "that satisfies the schema. Do not include a preamble, markdown, or "
+        "explanatory text.\n\n"
+        "Validation failure:\n\n"
+        f"{exc}"
     )
 
 
@@ -112,6 +125,19 @@ def should_retry_streaming_error(exc: BaseException) -> bool:
         sub_exceptions = cast(tuple[BaseException, ...], exc.exceptions)
         return all(_is_retryable_single_error(e) for e in sub_exceptions)
     return _is_retryable_single_error(exc)
+
+
+def should_repair_structured_output_error(exc: BaseException) -> bool:
+    """True when pydantic-ai exhausted structured output validation retries."""
+    if not isinstance(exc, UnexpectedModelBehavior):
+        return False
+    texts = [str(exc).lower()]
+    if exc.__cause__ is not None:
+        texts.append(str(exc.__cause__).lower())
+    text = "\n".join(texts)
+    return "validation" in text and (
+        "output" in text or "result" in text or "structured" in text
+    )
 
 
 def _is_tool_startup_timeout(exc: BaseException) -> bool:
@@ -227,6 +253,7 @@ class StreamWithRetriesContext[T]:
         self._active_streamed_result: StreamedRunResult[Any, T] | None = None
         self._partial_output_snapshot: str | None = None
         self._attempt_index = 0
+        self._structured_output_repair_count = 0
 
         self._result = StreamedResultWrapper(self)
 
@@ -273,6 +300,33 @@ class StreamWithRetriesContext[T]:
         )
         await asyncio.sleep(wait)
         self._attempt_index += 1
+        await self._open_attempt_with_retries()
+
+    async def reopen_after_output_validation_failure(self, exc: BaseException) -> None:
+        """Feed a structured-output validation failure back to the model."""
+        if not should_repair_structured_output_error(
+            exc
+        ) or self._structured_output_repair_count >= (
+            MAX_STRUCTURED_OUTPUT_COMPLETIONS - 1
+        ):
+            await self._close_active_attempt(type(exc), exc, exc.__traceback__)
+            raise exc
+
+        if not self._checkpoint_active_attempt():
+            await self._close_active_attempt(type(exc), exc, exc.__traceback__)
+            raise exc
+        self._append_structured_output_repair_message(exc)
+        await self._close_active_attempt(type(exc), exc, exc.__traceback__)
+
+        repair_attempt = self._structured_output_repair_count + 1
+        AI_LOGFIRE.info(
+            "Structured output validation failed, retrying repair",
+            repair_attempt=repair_attempt,
+            structured_completion_attempt=repair_attempt + 1,
+            max_structured_completion_attempts=MAX_STRUCTURED_OUTPUT_COMPLETIONS,
+            error=str(exc),
+        )
+        self._structured_output_repair_count = repair_attempt
         await self._open_attempt_with_retries()
 
     async def _open_attempt_with_retries(self) -> None:
@@ -385,6 +439,14 @@ class StreamWithRetriesContext[T]:
         self._partial_output_snapshot = None
         return True
 
+    def _append_structured_output_repair_message(self, exc: BaseException) -> None:
+        if self._next_message_history is None:
+            return
+        self._next_message_history.append(
+            ModelRequest(parts=[UserPromptPart(_structured_output_repair_prompt(exc))])
+        )
+        self._partial_output_snapshot = None
+
     def _raise_unresumable_open_failure(self, exc: BaseException) -> None:
         AI_LOGFIRE.info(
             "Agent stream start failed without resumable message history",
@@ -441,10 +503,15 @@ class StreamedResultWrapper[T]:
         raise RuntimeError("Stream retries exhausted without terminal result")
 
     async def get_output(self) -> T:
-        for _ in range(MAX_STREAM_RETRY_ATTEMPTS):
+        for _ in range(MAX_STREAM_RETRY_ATTEMPTS + MAX_STRUCTURED_OUTPUT_COMPLETIONS):
             try:
                 return await self._active_result.get_output()
             except BaseException as exc:
+                if should_repair_structured_output_error(exc):
+                    await self._retries_context.reopen_after_output_validation_failure(
+                        exc
+                    )
+                    continue
                 self._retries_context.capture_partial_output_from_active_result()
                 await self._retries_context.reopen_after_stream_interrupt(exc)
         raise RuntimeError("Output retries exhausted without terminal result")

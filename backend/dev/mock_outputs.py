@@ -157,7 +157,6 @@ def mock_profiler_output(*, ticker: str) -> ProfilerOutput:
 
 def mock_deep_research(candidate: SurveyorCandidate) -> DeepResearchReport:
     return DeepResearchReport(
-        candidate=candidate,
         executive_overview="Mock executive overview.",
         business_model=BusinessModel(
             products_and_services="Mock products.",

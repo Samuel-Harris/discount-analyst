@@ -287,8 +287,9 @@ def display_candidate_table(
     console.print(table)
 
 
-def display_researcher_output(output: DeepResearchReport) -> None:
-    candidate = output.candidate
+def display_researcher_output(
+    output: DeepResearchReport, *, candidate: SurveyorCandidate
+) -> None:
     table = Table(title=f"Researcher - {candidate.ticker}", show_header=True)
     table.add_column("Field", style="cyan", no_wrap=True)
     table.add_column("Value", style="white")
@@ -1061,7 +1062,7 @@ async def main() -> None:
             console.print(f"[dim]{exc}[/dim]")
             continue
 
-        display_researcher_output(run_result.output)
+        display_researcher_output(run_result.output, candidate=candidate)
         researcher_out_path = save_researcher_output(
             model_name=args.model,
             surveyor_report_path=entry_path,

@@ -244,9 +244,8 @@ def _build_suffixes(targets: list[CandidateTarget]) -> list[str]:
     return suffixes
 
 
-def display_output(output: DeepResearchReport) -> None:
+def display_output(output: DeepResearchReport, *, candidate: SurveyorCandidate) -> None:
     """Print a concise Researcher summary panel/table."""
-    candidate = output.candidate
     table = Table(title=f"Researcher Output - {candidate.ticker}", show_header=True)
     table.add_column("Field", style="cyan", no_wrap=True)
     table.add_column("Value", style="white")
@@ -399,7 +398,7 @@ async def main() -> None:
                 use_perplexity=args.use_perplexity,
                 use_mcp_financial_data=args.use_mcp_financial_data,
             )
-            display_output(run_result.output)
+            display_output(run_result.output, candidate=target.candidate)
             out_path = save_run_output(
                 run_result=run_result,
                 model_name=args.model,

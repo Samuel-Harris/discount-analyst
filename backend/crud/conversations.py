@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any, Literal, cast
 
 from pydantic_ai import ModelMessagesTypeAdapter
@@ -74,6 +75,8 @@ from discount_analyst.agents.surveyor.schema import KeyMetrics, SurveyorOutput
 from discount_analyst.rating import InvestmentRating
 from discount_analyst.valuation.schema import StockAssumptions, StockData
 
+logger = logging.getLogger(__name__)
+
 
 def _optional_json_str(value: object | None) -> str | None:
     if value is None:
@@ -90,10 +93,12 @@ def message_part_kind_from_raw(raw: str) -> MessagePartKindDb:
         "text": MessagePartKindDb.TEXT,
         "thinking": MessagePartKindDb.TEXT,
         "tool-call": MessagePartKindDb.TOOL_CALL,
+        "builtin-tool-call": MessagePartKindDb.TOOL_CALL,
         "tool-return": MessagePartKindDb.TOOL_RETURN,
+        "builtin-tool-return": MessagePartKindDb.TOOL_RETURN,
         "retry-prompt": MessagePartKindDb.RETRY_PROMPT,
     }
-    return mapping[raw]
+    return mapping.get(raw, MessagePartKindDb.UNKNOWN)
 
 
 def message_part_kind_to_raw(kind: MessagePartKindDb) -> str:
@@ -104,8 +109,48 @@ def message_part_kind_to_raw(kind: MessagePartKindDb) -> str:
         MessagePartKindDb.TOOL_CALL: "tool-call",
         MessagePartKindDb.TOOL_RETURN: "tool-return",
         MessagePartKindDb.RETRY_PROMPT: "retry-prompt",
+        MessagePartKindDb.UNKNOWN: "unknown",
     }
     return mapping[kind]
+
+
+def _normalise_message_part(
+    part_dict: dict[str, Any],
+    *,
+    conversation_id: str,
+    message_index: int,
+    part_index: int,
+) -> tuple[MessagePartKindDb, str | None, str | None, str | None]:
+    raw_kind = str(part_dict.get("part_kind", "text"))
+    kind = message_part_kind_from_raw(raw_kind)
+    tool_name = _optional_json_str(part_dict.get("tool_name"))
+    tool_call_id = _optional_json_str(part_dict.get("tool_call_id"))
+
+    if kind in {MessagePartKindDb.TOOL_CALL, MessagePartKindDb.TOOL_RETURN} and not (
+        tool_name and tool_call_id
+    ):
+        kind = MessagePartKindDb.UNKNOWN
+
+    content_text: str | None = None
+    if kind == MessagePartKindDb.TOOL_CALL:
+        content_text = dump_json_string(part_dict.get("args", ""))
+    elif kind == MessagePartKindDb.TOOL_RETURN:
+        content_text = dump_json_string(part_dict.get("content", ""))
+    elif kind == MessagePartKindDb.UNKNOWN:
+        content_text = dump_json_string(part_dict)
+        logger.warning(
+            "Persisting unknown pydantic-ai message part kind",
+            extra={
+                "raw_part_kind": raw_kind,
+                "conversation_id": conversation_id,
+                "message_index": message_index,
+                "part_index": part_index,
+            },
+        )
+    elif "content" in part_dict:
+        content_text = dump_json_string(part_dict.get("content"))
+
+    return kind, content_text, tool_name, tool_call_id
 
 
 def parse_messages_payload(
@@ -171,13 +216,12 @@ def replace_conversation_messages(
             if not isinstance(part_obj, dict):
                 continue
             part_dict = cast(dict[str, Any], part_obj)
-            raw_kind = str(part_dict.get("part_kind", "text"))
-            kind = message_part_kind_from_raw(raw_kind)
-            content_text: str | None = None
-            if kind == MessagePartKindDb.TOOL_CALL:
-                content_text = dump_json_string(part_dict.get("args", ""))
-            elif "content" in part_dict:
-                content_text = dump_json_string(part_dict.get("content"))
+            kind, content_text, tool_name, tool_call_id = _normalise_message_part(
+                part_dict,
+                conversation_id=conversation_id,
+                message_index=message_index,
+                part_index=part_index,
+            )
 
             part_row = AgentConversationMessagePart(
                 id=new_id(),
@@ -185,8 +229,8 @@ def replace_conversation_messages(
                 part_index=part_index,
                 part_kind=kind,
                 content_text=content_text,
-                tool_name=_optional_json_str(part_dict.get("tool_name")),
-                tool_call_id=_optional_json_str(part_dict.get("tool_call_id")),
+                tool_name=tool_name,
+                tool_call_id=tool_call_id,
             )
             session.add(part_row)
 
@@ -350,9 +394,6 @@ def assistant_response_for_run_agent(
         ).first()
         if report is None:
             return "{}"
-        snapshot = session.get(CandidateSnapshot, report.candidate_snapshot_id)
-        if snapshot is None:
-            return "{}"
         narrative_signals = [
             r.signal
             for r in session.scalars(
@@ -419,7 +460,6 @@ def assistant_response_for_run_agent(
             )
         ]
         payload = DeepResearchReport(
-            candidate=snapshot_to_candidate(snapshot),
             executive_overview=report.executive_overview,
             business_model=BusinessModel(
                 products_and_services=report.products_and_services,
