@@ -1,8 +1,7 @@
 import asyncio
-import re
 from copy import deepcopy
 from contextlib import AbstractAsyncContextManager
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, cast
 
 import httpx
 from openai import (
@@ -19,16 +18,15 @@ from pydantic_ai.usage import RunUsage, UsageLimits
 
 from discount_analyst.http.retrying_client import (
     FALLBACK_MAX_WEIGHT_SECONDS,
-    RETRY_AFTER_MAX_WEIGHT_SECONDS,
     RETRY_WAIT_MULTIPLIER,
 )
 from discount_analyst.agents.common.ai_logging import AI_LOGFIRE
 
-_STREAMING_RETRY_HINT_TRY_AGAIN = re.compile(
-    r"try\s+again\s+in\s+(\d+\.?\d*)\s*s", re.IGNORECASE
-)
 # Streaming can fail mid-`stream_output()` (e.g. OpenAI TPM) after a successful `run_stream` start.
 MAX_STREAM_RETRY_ATTEMPTS = 6
+
+
+_TPM_RPM_WAIT_SECONDS = 60.0
 
 
 def _openai_error_text(exc: BaseException) -> str:
@@ -55,8 +53,8 @@ def api_error_indicates_rate_limit(exc: APIError) -> bool:
     )
 
 
-def should_retry_streaming_error(exc: BaseException) -> bool:
-    """Whether to backoff and restart a streamed agent run."""
+def _is_retryable_single_error(exc: BaseException) -> bool:
+    """Check if a single exception (not a group) is retryable."""
     if isinstance(
         exc,
         (
@@ -65,12 +63,27 @@ def should_retry_streaming_error(exc: BaseException) -> bool:
             APITimeoutError,
             APIConnectionError,
             httpx.RemoteProtocolError,
+            TimeoutError,  # MCP and other transient timeouts
         ),
     ):
         return True
     if isinstance(exc, APIError):
         return api_error_indicates_rate_limit(exc)
     return False
+
+
+def should_retry_streaming_error(exc: BaseException) -> bool:
+    """Whether to backoff and restart a streamed agent run.
+
+    Handles ExceptionGroups (from anyio TaskGroups) by checking if all
+    sub-exceptions are retryable.
+    """
+    # Handle ExceptionGroup (e.g., from MCP's anyio TaskGroup)
+    if isinstance(exc, BaseExceptionGroup):
+        # Retry if all sub-exceptions are retryable transient errors
+        sub_exceptions = cast(tuple[BaseException, ...], exc.exceptions)
+        return all(_is_retryable_single_error(e) for e in sub_exceptions)
+    return _is_retryable_single_error(exc)
 
 
 def _stream_wait(attempt: int) -> float:
@@ -81,14 +94,25 @@ def _stream_wait(attempt: int) -> float:
     )
 
 
+def _is_tpm_or_rpm_error(text: str) -> bool:
+    """Check if the error indicates a TPM or RPM rate limit."""
+    text_lower = text.lower()
+    return any(
+        indicator in text_lower
+        for indicator in ("tokens per min", "tpm", "requests per min", "rpm")
+    )
+
+
 def streaming_retry_sleep_seconds(exc: BaseException, attempt: int) -> float:
-    """Sleep before retry; prefer OpenAI's suggested delay when present."""
+    """Sleep before retry; wait 60s for TPM/RPM limits to let the window clear."""
     text = _openai_error_text(exc)
-    m = _STREAMING_RETRY_HINT_TRY_AGAIN.search(text)
-    if m:
-        suggested = float(m.group(1))
-        # Small cushion so the TPM window has cleared.
-        return min(max(suggested + 1.0, 1.0), RETRY_AFTER_MAX_WEIGHT_SECONDS)
+
+    # TPM/RPM limits need a full window to clear — OpenAI's suggested wait is
+    # too short because it assumes no other requests are consuming quota.
+    if _is_tpm_or_rpm_error(text):
+        return _TPM_RPM_WAIT_SECONDS
+
+    # For other transient errors, use exponential backoff.
     return min(_stream_wait(attempt), FALLBACK_MAX_WEIGHT_SECONDS)
 
 

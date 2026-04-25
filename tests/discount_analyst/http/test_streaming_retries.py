@@ -48,9 +48,34 @@ def test_should_retry_streaming_error_remote_protocol_error() -> None:
     assert should_retry_streaming_error(exc) is True
 
 
-def test_streaming_retry_sleep_parses_try_again_hint() -> None:
-    exc = _api_error("Rate limit reached. Please try again in 12.5s.")
-    assert streaming_retry_sleep_seconds(exc, attempt=0) == 13.5
+def test_should_retry_streaming_error_timeout_error() -> None:
+    exc = TimeoutError("MCP server connection timed out")
+    assert should_retry_streaming_error(exc) is True
+
+
+def test_should_retry_streaming_error_exception_group_with_timeout() -> None:
+    exc = ExceptionGroup("unhandled errors in a TaskGroup", [TimeoutError()])
+    assert should_retry_streaming_error(exc) is True
+
+
+def test_should_retry_streaming_error_exception_group_with_non_retryable() -> None:
+    exc = ExceptionGroup("errors", [ValueError("not retryable")])
+    assert should_retry_streaming_error(exc) is False
+
+
+def test_streaming_retry_sleep_tpm_waits_60s() -> None:
+    exc = _api_error(
+        "Rate limit reached for gpt-5.1 on tokens per min (TPM): "
+        "Limit 500000. Please try again in 1.5s."
+    )
+    assert streaming_retry_sleep_seconds(exc, attempt=0) == 60.0
+
+
+def test_streaming_retry_sleep_rpm_waits_60s() -> None:
+    exc = _api_error(
+        "Rate limit reached on requests per min (RPM). Please try again in 2s."
+    )
+    assert streaming_retry_sleep_seconds(exc, attempt=0) == 60.0
 
 
 def test_streaming_retry_sleep_fallback_exponential() -> None:
