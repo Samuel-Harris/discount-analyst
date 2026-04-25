@@ -88,6 +88,7 @@ def message_part_kind_from_raw(raw: str) -> MessagePartKindDb:
         "system-prompt": MessagePartKindDb.SYSTEM_PROMPT,
         "user-prompt": MessagePartKindDb.USER_PROMPT,
         "text": MessagePartKindDb.TEXT,
+        "thinking": MessagePartKindDb.TEXT,
         "tool-call": MessagePartKindDb.TOOL_CALL,
         "tool-return": MessagePartKindDb.TOOL_RETURN,
         "retry-prompt": MessagePartKindDb.RETRY_PROMPT,

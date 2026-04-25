@@ -64,8 +64,9 @@ class _FakeAgent:
         message_history: list[Any] | None = None,
         usage_limits: UsageLimits | None = None,
         usage: RunUsage | None = None,
+        event_stream_handler: Any | None = None,
     ) -> _FakeRunStreamContextManager:
-        del user_prompt, message_history, usage_limits, usage
+        del user_prompt, message_history, usage_limits, usage, event_stream_handler
         return _FakeRunStreamContextManager(self.streamed_result)
 
 
