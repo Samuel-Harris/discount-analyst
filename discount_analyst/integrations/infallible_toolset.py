@@ -10,7 +10,6 @@ This is particularly useful for MCP tools where we don't control the error handl
 from typing import Any
 
 from pydantic_ai import RunContext
-from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.toolsets.abstract import ToolsetTool
 from pydantic_ai.toolsets.wrapper import WrapperToolset
 
@@ -32,8 +31,6 @@ class InfallibleToolset[AgentDepsT](WrapperToolset[AgentDepsT]):
     ) -> Any:
         try:
             return await super().call_tool(name, tool_args, ctx, tool)
-        except ModelRetry:
-            raise
         except Exception as exc:
             return format_tool_error(name, exc)
 
