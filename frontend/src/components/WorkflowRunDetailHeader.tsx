@@ -7,7 +7,9 @@ export interface WorkflowRunDetailHeaderProps {
   detail: WorkflowRunDetailResponse;
   onRequestDelete: () => void;
   onRequestCancel: () => void;
+  onRequestRetryFailedAgents: () => void;
   cancelPending: boolean;
+  retryFailedAgentsPending: boolean;
   mainView: WorkflowMainView;
   onOpenRecommendations: () => void;
   onOpenPipeline: () => void;
@@ -17,11 +19,23 @@ export function WorkflowRunDetailHeader({
   detail,
   onRequestDelete,
   onRequestCancel,
+  onRequestRetryFailedAgents,
   cancelPending,
+  retryFailedAgentsPending,
   mainView,
   onOpenRecommendations,
   onOpenPipeline,
 }: WorkflowRunDetailHeaderProps) {
+  const isTerminalWorkflow = ["completed", "failed", "cancelled"].includes(
+    detail.status,
+  );
+  const hasFailedAgent =
+    detail.surveyor_execution?.status === "failed" ||
+    detail.runs.some((run) =>
+      run.agent_executions.some((execution) => execution.status === "failed"),
+    );
+  const canRetryFailedAgents = isTerminalWorkflow && hasFailedAgent;
+
   return (
     <div className="detail-header">
       <div>
@@ -86,6 +100,18 @@ export function WorkflowRunDetailHeader({
             disabled={cancelPending}
           >
             {cancelPending ? "Cancelling..." : "Cancel workflow"}
+          </button>
+        ) : null}
+        {canRetryFailedAgents ? (
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => onRequestRetryFailedAgents()}
+            disabled={retryFailedAgentsPending}
+          >
+            {retryFailedAgentsPending
+              ? "Retrying failed agents..."
+              : "Retry all failed agents"}
           </button>
         ) : null}
       </div>

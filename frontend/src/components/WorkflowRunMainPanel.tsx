@@ -16,6 +16,7 @@ export interface WorkflowRunMainPanelProps {
   sidebarCollapsed: boolean;
   workflowActionError: string | null;
   cancelPending: boolean;
+  retryFailedAgentsPending: boolean;
   launchForm: ReactNode;
   mainView: WorkflowMainView;
   onOpenRecommendations: () => void;
@@ -23,6 +24,7 @@ export interface WorkflowRunMainPanelProps {
   onOpenConversation: (target: ConversationTarget, title: string) => void;
   onRequestDeleteRun: (id: string) => void;
   onRequestCancelRun: (id: string) => void;
+  onRequestRetryFailedAgents: (id: string) => void;
 }
 
 export function WorkflowRunMainPanel({
@@ -33,6 +35,7 @@ export function WorkflowRunMainPanel({
   sidebarCollapsed,
   workflowActionError,
   cancelPending,
+  retryFailedAgentsPending,
   launchForm,
   mainView,
   onOpenRecommendations,
@@ -40,6 +43,7 @@ export function WorkflowRunMainPanel({
   onOpenConversation,
   onRequestDeleteRun,
   onRequestCancelRun,
+  onRequestRetryFailedAgents,
 }: WorkflowRunMainPanelProps) {
   return (
     <main className="main-panel">
@@ -57,7 +61,11 @@ export function WorkflowRunMainPanel({
               detail={detail}
               onRequestDelete={() => onRequestDeleteRun(detail.id)}
               onRequestCancel={() => onRequestCancelRun(detail.id)}
+              onRequestRetryFailedAgents={() =>
+                onRequestRetryFailedAgents(detail.id)
+              }
               cancelPending={cancelPending}
+              retryFailedAgentsPending={retryFailedAgentsPending}
               mainView={mainView}
               onOpenRecommendations={onOpenRecommendations}
               onOpenPipeline={onOpenPipeline}

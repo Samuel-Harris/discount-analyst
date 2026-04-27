@@ -26,7 +26,9 @@ describe("WorkflowRunDetailHeader", () => {
     const sharedProps = {
       onRequestDelete: vi.fn(),
       onRequestCancel: vi.fn(),
+      onRequestRetryFailedAgents: vi.fn(),
       cancelPending: false,
+      retryFailedAgentsPending: false,
       mainView: "pipeline" as const,
       onOpenRecommendations: vi.fn(),
       onOpenPipeline: vi.fn(),
@@ -80,7 +82,9 @@ describe("WorkflowRunDetailHeader", () => {
         detail={makeDetail({ status: "running" })}
         onRequestDelete={vi.fn()}
         onRequestCancel={onRequestCancel}
+        onRequestRetryFailedAgents={vi.fn()}
         cancelPending={false}
+        retryFailedAgentsPending={false}
         mainView="pipeline"
         onOpenRecommendations={vi.fn()}
         onOpenPipeline={vi.fn()}
@@ -96,7 +100,9 @@ describe("WorkflowRunDetailHeader", () => {
         detail={makeDetail({ status: "running" })}
         onRequestDelete={vi.fn()}
         onRequestCancel={vi.fn()}
+        onRequestRetryFailedAgents={vi.fn()}
         cancelPending={true}
+        retryFailedAgentsPending={false}
         mainView="pipeline"
         onOpenRecommendations={vi.fn()}
         onOpenPipeline={vi.fn()}
@@ -104,6 +110,101 @@ describe("WorkflowRunDetailHeader", () => {
     );
     expect(
       screen.getByRole("button", { name: "Cancelling..." }),
+    ).toBeDisabled();
+  });
+
+  it("shows retry button for terminal workflows with failed agents", async () => {
+    const user = userEvent.setup();
+    const onRequestRetryFailedAgents = vi.fn();
+    render(
+      <WorkflowRunDetailHeader
+        detail={makeDetail({
+          status: "completed",
+          runs: [
+            {
+              id: "run-1",
+              ticker: "ABC.L",
+              company_name: "ABC plc",
+              entry_path: "profiler",
+              status: "failed",
+              final_rating: null,
+              decision_type: null,
+              agent_executions: [
+                {
+                  id: "exec-1",
+                  agent_name: "researcher",
+                  status: "failed",
+                  started_at: null,
+                  completed_at: null,
+                },
+              ],
+            },
+          ],
+        })}
+        onRequestDelete={vi.fn()}
+        onRequestCancel={vi.fn()}
+        onRequestRetryFailedAgents={onRequestRetryFailedAgents}
+        cancelPending={false}
+        retryFailedAgentsPending={false}
+        mainView="pipeline"
+        onOpenRecommendations={vi.fn()}
+        onOpenPipeline={vi.fn()}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Retry all failed agents" }),
+    );
+
+    expect(onRequestRetryFailedAgents).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides retry button without failed agent executions", () => {
+    render(
+      <WorkflowRunDetailHeader
+        detail={makeDetail({ status: "completed" })}
+        onRequestDelete={vi.fn()}
+        onRequestCancel={vi.fn()}
+        onRequestRetryFailedAgents={vi.fn()}
+        cancelPending={false}
+        retryFailedAgentsPending={false}
+        mainView="pipeline"
+        onOpenRecommendations={vi.fn()}
+        onOpenPipeline={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Retry all failed agents" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("disables retry button while retry is in-flight", () => {
+    render(
+      <WorkflowRunDetailHeader
+        detail={makeDetail({
+          status: "failed",
+          surveyor_execution: {
+            id: "surveyor-1",
+            agent_name: "surveyor",
+            status: "failed",
+            started_at: null,
+            completed_at: null,
+          },
+        })}
+        onRequestDelete={vi.fn()}
+        onRequestCancel={vi.fn()}
+        onRequestRetryFailedAgents={vi.fn()}
+        cancelPending={false}
+        retryFailedAgentsPending={true}
+        mainView="pipeline"
+        onOpenRecommendations={vi.fn()}
+        onOpenPipeline={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Retrying failed agents..." }),
     ).toBeDisabled();
   });
 });

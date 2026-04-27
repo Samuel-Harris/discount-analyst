@@ -12,7 +12,12 @@ from pydantic_ai.exceptions import UnexpectedModelBehavior
 from discount_analyst.agents.common.ai_logging import AI_LOGFIRE
 
 from backend.crud.agent_output_persistence import insert_dcf_valuation
-from backend.db.models import AgentNameDb
+from backend.db.models import (
+    AgentNameDb,
+    EntryPathDb,
+    ExecutionStatusDb,
+    WorkflowRunStatusDb,
+)
 from backend.crud.conversations import (
     insert_conversation_for_agent_execution,
 )
@@ -22,8 +27,13 @@ from backend.crud.run_executions import (
     complete_agent_execution_with_conversation,
     complete_workflow_agent_execution_with_conversation,
     get_agent_execution_id_by_run_and_agent,
+    get_agent_execution_status_by_run_and_agent,
+    get_candidate_for_run,
+    get_completed_agent_output_json,
+    get_dcf_valuation_for_run,
     get_workflow_candidate_snapshot_id,
     get_workflow_surveyor_execution_id,
+    get_workflow_surveyor_execution_status,
     insert_ticker_run_with_agents,
     mark_lane_abort,
     update_agent_execution,
@@ -35,7 +45,7 @@ from backend.crud.workflow_runs import (
     cancel_unfinished_workflow_children,
     cancel_workflow_run,
     get_workflow_run_inputs,
-    list_profiler_runs_for_workflow,
+    list_ticker_runs_for_workflow,
     recompute_workflow_status,
     set_workflow_error,
 )
@@ -45,7 +55,7 @@ from backend.dev import mock_conversation_messages, mock_outputs
 from common.config import Settings
 from backend.db.session import SessionFactory
 from discount_analyst.agents.appraiser.appraiser import create_appraiser_agent
-from discount_analyst.agents.appraiser.schema import AppraiserInput
+from discount_analyst.agents.appraiser.schema import AppraiserInput, AppraiserOutput
 from discount_analyst.agents.appraiser.system_prompt import (
     SYSTEM_PROMPT as APPRAISER_SYSTEM_PROMPT,
 )
@@ -62,6 +72,7 @@ from discount_analyst.agents.arbiter.user_prompt import (
 )
 from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
 from discount_analyst.agents.researcher.researcher import create_researcher_agent
+from discount_analyst.agents.researcher.schema import DeepResearchReport
 from discount_analyst.agents.researcher.system_prompt import (
     SYSTEM_PROMPT as RESEARCHER_SYSTEM_PROMPT,
 )
@@ -69,6 +80,9 @@ from discount_analyst.agents.researcher.user_prompt import (
     create_user_prompt as create_researcher_user_prompt,
 )
 from discount_analyst.agents.sentinel.schema import sentinel_proceeds_to_valuation
+from discount_analyst.agents.sentinel.schema import (
+    EvaluationReport as SentinelEvaluationReport,
+)
 from discount_analyst.agents.sentinel.sentinel import create_sentinel_agent
 from discount_analyst.agents.sentinel.system_prompt import (
     SYSTEM_PROMPT as SENTINEL_SYSTEM_PROMPT,
@@ -77,6 +91,7 @@ from discount_analyst.agents.sentinel.user_prompt import (
     create_user_prompt as create_sentinel_user_prompt,
 )
 from discount_analyst.agents.strategist.strategist import create_strategist_agent
+from discount_analyst.agents.strategist.schema import MispricingThesis
 from discount_analyst.agents.strategist.system_prompt import (
     SYSTEM_PROMPT as STRATEGIST_SYSTEM_PROMPT,
 )
@@ -96,7 +111,10 @@ from discount_analyst.pipeline.builders import (
     build_sentinel_rejection,
     verdict_from_decision,
 )
-from discount_analyst.valuation.data_types import DCFAnalysisParameters
+from discount_analyst.valuation.data_types import (
+    DCFAnalysisParameters,
+    DCFAnalysisResult,
+)
 from discount_analyst.valuation.dcf_analysis import DCFAnalysis
 
 from backend.contracts.stock_run_args import StockRunArgs
@@ -123,6 +141,10 @@ def _extract_agent_error_message(exc: BaseException) -> str:
             return f"Tool failure: {cause_msg}"
         return str(exc)
     return str(exc)
+
+
+class WorkflowTaskAlreadyActiveError(RuntimeError):
+    """Raised when a workflow already has an active background task."""
 
 
 class DashboardPipelineRunner:
@@ -196,8 +218,14 @@ class DashboardPipelineRunner:
         self._background_tasks: set[asyncio.Task[None]] = set()
         self._workflow_tasks: dict[str, asyncio.Task[None]] = {}
 
+    def has_active_workflow_task(self, workflow_run_id: str) -> bool:
+        task = self._workflow_tasks.get(workflow_run_id)
+        return task is not None and not task.done()
+
     def schedule_workflow_execution(self, workflow_run_id: str) -> asyncio.Task[None]:
         """Run ``execute_workflow`` in the background; log unexpected task failures."""
+        if self.has_active_workflow_task(workflow_run_id):
+            raise WorkflowTaskAlreadyActiveError(workflow_run_id)
         task = asyncio.create_task(
             self.execute_workflow(workflow_run_id),
             name=f"workflow:{workflow_run_id}",
@@ -262,6 +290,28 @@ class DashboardPipelineRunner:
             run_id=run_id,
             agent_name=agent_name,
         )
+
+    async def _get_agent_status(self, run_id: str, agent_name: str) -> str | None:
+        return await self._db(
+            get_agent_execution_status_by_run_and_agent,
+            run_id=run_id,
+            agent_name=agent_name,
+        )
+
+    async def _load_candidate_for_run(self, run_id: str) -> SurveyorCandidate | None:
+        return await self._db(get_candidate_for_run, run_id=run_id)
+
+    async def _load_completed_agent_output_json(
+        self, *, run_id: str, agent_name: str
+    ) -> str | None:
+        return await self._db(
+            get_completed_agent_output_json,
+            run_id=run_id,
+            agent_name=agent_name,
+        )
+
+    async def _load_dcf_valuation(self, *, run_id: str) -> DCFAnalysisResult | None:
+        return await self._db(get_dcf_valuation_for_run, run_id=run_id)
 
     async def _mark_exec(
         self,
@@ -359,23 +409,39 @@ class DashboardPipelineRunner:
                 return
             portfolio_tickers, is_mock = inputs
             portfolio_fold = {t.casefold() for t in portfolio_tickers}
-            profiler_runs = await self._db(
-                list_profiler_runs_for_workflow, workflow_run_id
+            initial_runs = await self._db(
+                list_ticker_runs_for_workflow, workflow_run_id
             )
             AI_LOGFIRE.info(
                 "Workflow branches prepared",
                 workflow_run_id=workflow_run_id,
                 portfolio_ticker_count=len(portfolio_tickers),
-                profiler_run_count=len(profiler_runs),
+                ticker_run_count=len(initial_runs),
                 is_mock=is_mock,
             )
             # Run strictly one branch at a time (low provider rate limits).
             await self._surveyor_branch(workflow_run_id, portfolio_fold, is_mock)
-            for run_id, ticker in profiler_runs:
-                await self._profiler_entry_pipeline(
+            ticker_runs = await self._db(list_ticker_runs_for_workflow, workflow_run_id)
+            for run in ticker_runs:
+                if run["status"] != WorkflowRunStatusDb.RUNNING.value:
+                    continue
+                if run["entry_path"] == EntryPathDb.PROFILER.value:
+                    await self._profiler_entry_pipeline(
+                        workflow_run_id=workflow_run_id,
+                        run_id=run["id"],
+                        ticker=run["ticker"],
+                        is_mock=is_mock,
+                    )
+                    continue
+                candidate = await self._load_candidate_for_run(run["id"])
+                if candidate is None:
+                    raise RuntimeError(
+                        f"Missing candidate snapshot for surveyor run {run['id']}"
+                    )
+                await self._surveyor_entry_pipeline(
                     workflow_run_id=workflow_run_id,
-                    run_id=run_id,
-                    ticker=ticker,
+                    run_id=run["id"],
+                    candidate=candidate,
                     is_mock=is_mock,
                 )
             AI_LOGFIRE.info(
@@ -409,6 +475,16 @@ class DashboardPipelineRunner:
         if surveyor_exec_id is None:
             AI_LOGFIRE.debug(
                 "No surveyor execution for workflow; skipping surveyor branch",
+                workflow_run_id=workflow_run_id,
+            )
+            return
+        surveyor_status = await self._db(
+            get_workflow_surveyor_execution_status, workflow_run_id
+        )
+        if surveyor_status == ExecutionStatusDb.COMPLETED.value:
+            AI_LOGFIRE.info(
+                "Surveyor branch already completed; skipping",
+                agent_name=AgentNameDb.SURVEYOR,
                 workflow_run_id=workflow_run_id,
             )
             return
@@ -540,7 +616,7 @@ class DashboardPipelineRunner:
             is_mock=is_mock,
         )
         try:
-            candidate = await self._run_profiler_stage(
+            candidate = await self._run_or_load_profiler_stage(
                 workflow_run_id=workflow_run_id,
                 run_id=run_id,
                 ticker=ticker,
@@ -590,6 +666,29 @@ class DashboardPipelineRunner:
         return await self._profiler_stage.run(
             self._profiler_port_adapter,
             self._settings,
+            workflow_run_id=workflow_run_id,
+            run_id=run_id,
+            ticker=ticker,
+            is_mock=is_mock,
+        )
+
+    async def _run_or_load_profiler_stage(
+        self, *, workflow_run_id: str, run_id: str, ticker: str, is_mock: bool
+    ) -> SurveyorCandidate:
+        status = await self._get_agent_status(run_id, AgentNameDb.PROFILER.value)
+        if status == ExecutionStatusDb.COMPLETED.value:
+            candidate = await self._load_candidate_for_run(run_id)
+            if candidate is None:
+                raise RuntimeError(f"Missing profiler candidate for run {run_id}")
+            AI_LOGFIRE.info(
+                "Profiler stage already completed; skipping",
+                agent_name=AgentNameDb.PROFILER,
+                workflow_run_id=workflow_run_id,
+                run_id=run_id,
+                ticker=ticker,
+            )
+            return candidate
+        return await self._run_profiler_stage(
             workflow_run_id=workflow_run_id,
             run_id=run_id,
             ticker=ticker,
@@ -706,167 +805,225 @@ class DashboardPipelineRunner:
         candidate: SurveyorCandidate,
         is_mock: bool,
     ) -> tuple[Any, Any, Any]:
-        research_exec_id = await self._get_exec_id(run_id, "researcher")
+        research_exec_id = await self._get_exec_id(run_id, AgentNameDb.RESEARCHER.value)
         if research_exec_id is None:
             raise RuntimeError(f"Missing researcher execution for run {run_id}")
-        await self._mark_exec(
-            execution_id=research_exec_id, status="running", started=True
+        research_status = await self._get_agent_status(
+            run_id, AgentNameDb.RESEARCHER.value
         )
-        await self._recompute(workflow_run_id)
-        AI_LOGFIRE.info(
-            "Researcher stage started",
-            agent_name=AgentNameDb.RESEARCHER,
-            workflow_run_id=workflow_run_id,
-            run_id=run_id,
-            ticker=candidate.ticker,
-            is_mock=is_mock,
-        )
-        r_mock_json: str | None = None
-        if is_mock:
-            await asyncio.sleep(5)
-            research_out = mock_outputs.mock_deep_research(candidate)
-            r_messages = None
-            r_mock_json = mock_conversation_messages.researcher_messages_json(
-                ticker=candidate.ticker
+        if research_status == ExecutionStatusDb.COMPLETED.value:
+            research_json = await self._load_completed_agent_output_json(
+                run_id=run_id, agent_name=AgentNameDb.RESEARCHER.value
+            )
+            if research_json is None:
+                raise RuntimeError(f"Missing completed researcher output for {run_id}")
+            research_out = DeepResearchReport.model_validate_json(research_json)
+            AI_LOGFIRE.info(
+                "Researcher stage already completed; skipping",
+                agent_name=AgentNameDb.RESEARCHER,
+                workflow_run_id=workflow_run_id,
+                run_id=run_id,
+                ticker=candidate.ticker,
             )
         else:
-            ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
-            agent = create_researcher_agent(
-                ai_cfg,
-                use_perplexity=self._settings.use_perplexity,
-                use_mcp_financial_data=self._settings.use_mcp_financial_data,
+            await self._mark_exec(
+                execution_id=research_exec_id, status="running", started=True
             )
-            outcome = await run_streamed_agent(
-                agent=agent,
-                user_prompt=create_researcher_user_prompt(surveyor_candidate=candidate),
-                usage_limits=ai_cfg.model.usage_limits,
+            await self._recompute(workflow_run_id)
+            AI_LOGFIRE.info(
+                "Researcher stage started",
+                agent_name=AgentNameDb.RESEARCHER,
+                workflow_run_id=workflow_run_id,
+                run_id=run_id,
+                ticker=candidate.ticker,
+                is_mock=is_mock,
             )
-            research_out = outcome.output
-            r_messages = list(outcome.all_messages)
-            r_mock_json = None
-        await self._complete_exec_with_conversation(
-            execution_id=research_exec_id,
-            system_prompt=RESEARCHER_SYSTEM_PROMPT,
-            output_json=research_out.model_dump_json(),
-            messages=r_messages,
-            messages_json=r_mock_json,
-        )
-        AI_LOGFIRE.info(
-            "Researcher stage completed",
-            agent_name=AgentNameDb.RESEARCHER,
-            workflow_run_id=workflow_run_id,
-            run_id=run_id,
-            ticker=candidate.ticker,
-        )
+            r_mock_json: str | None = None
+            if is_mock:
+                await asyncio.sleep(5)
+                research_out = mock_outputs.mock_deep_research(candidate)
+                r_messages = None
+                r_mock_json = mock_conversation_messages.researcher_messages_json(
+                    ticker=candidate.ticker
+                )
+            else:
+                ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
+                agent = create_researcher_agent(
+                    ai_cfg,
+                    use_perplexity=self._settings.use_perplexity,
+                    use_mcp_financial_data=self._settings.use_mcp_financial_data,
+                )
+                outcome = await run_streamed_agent(
+                    agent=agent,
+                    user_prompt=create_researcher_user_prompt(
+                        surveyor_candidate=candidate
+                    ),
+                    usage_limits=ai_cfg.model.usage_limits,
+                )
+                research_out = outcome.output
+                r_messages = list(outcome.all_messages)
+                r_mock_json = None
+            await self._complete_exec_with_conversation(
+                execution_id=research_exec_id,
+                system_prompt=RESEARCHER_SYSTEM_PROMPT,
+                output_json=research_out.model_dump_json(),
+                messages=r_messages,
+                messages_json=r_mock_json,
+            )
+            AI_LOGFIRE.info(
+                "Researcher stage completed",
+                agent_name=AgentNameDb.RESEARCHER,
+                workflow_run_id=workflow_run_id,
+                run_id=run_id,
+                ticker=candidate.ticker,
+            )
 
-        strategist_exec_id = await self._get_exec_id(run_id, "strategist")
+        strategist_exec_id = await self._get_exec_id(
+            run_id, AgentNameDb.STRATEGIST.value
+        )
         if strategist_exec_id is None:
             raise RuntimeError(f"Missing strategist execution for run {run_id}")
-        await self._mark_exec(
-            execution_id=strategist_exec_id, status="running", started=True
+        strategist_status = await self._get_agent_status(
+            run_id, AgentNameDb.STRATEGIST.value
         )
-        await self._recompute(workflow_run_id)
-        AI_LOGFIRE.info(
-            "Strategist stage started",
-            agent_name=AgentNameDb.STRATEGIST,
-            workflow_run_id=workflow_run_id,
-            run_id=run_id,
-            ticker=candidate.ticker,
-            is_mock=is_mock,
-        )
-        s_mock_json: str | None = None
-        if is_mock:
-            await asyncio.sleep(5)
-            thesis = mock_outputs.mock_thesis(candidate)
-            s_messages = None
-            s_mock_json = mock_conversation_messages.strategist_messages_json(
-                ticker=candidate.ticker
+        if strategist_status == ExecutionStatusDb.COMPLETED.value:
+            thesis_json = await self._load_completed_agent_output_json(
+                run_id=run_id, agent_name=AgentNameDb.STRATEGIST.value
+            )
+            if thesis_json is None:
+                raise RuntimeError(f"Missing completed strategist output for {run_id}")
+            thesis = MispricingThesis.model_validate_json(thesis_json)
+            AI_LOGFIRE.info(
+                "Strategist stage already completed; skipping",
+                agent_name=AgentNameDb.STRATEGIST,
+                workflow_run_id=workflow_run_id,
+                run_id=run_id,
+                ticker=candidate.ticker,
             )
         else:
-            ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
-            agent = create_strategist_agent(ai_cfg)
-            outcome = await run_streamed_agent(
-                agent=agent,
-                user_prompt=create_strategist_user_prompt(
-                    surveyor_candidate=candidate, deep_research=research_out
-                ),
-                usage_limits=ai_cfg.model.usage_limits,
+            await self._mark_exec(
+                execution_id=strategist_exec_id, status="running", started=True
             )
-            thesis = outcome.output
-            s_messages = list(outcome.all_messages)
-            s_mock_json = None
-        await self._complete_exec_with_conversation(
-            execution_id=strategist_exec_id,
-            system_prompt=STRATEGIST_SYSTEM_PROMPT,
-            output_json=thesis.model_dump_json(),
-            messages=s_messages,
-            messages_json=s_mock_json,
-        )
-        AI_LOGFIRE.info(
-            "Strategist stage completed",
-            agent_name=AgentNameDb.STRATEGIST,
-            workflow_run_id=workflow_run_id,
-            run_id=run_id,
-            ticker=candidate.ticker,
-        )
+            await self._recompute(workflow_run_id)
+            AI_LOGFIRE.info(
+                "Strategist stage started",
+                agent_name=AgentNameDb.STRATEGIST,
+                workflow_run_id=workflow_run_id,
+                run_id=run_id,
+                ticker=candidate.ticker,
+                is_mock=is_mock,
+            )
+            s_mock_json: str | None = None
+            if is_mock:
+                await asyncio.sleep(5)
+                thesis = mock_outputs.mock_thesis(candidate)
+                s_messages = None
+                s_mock_json = mock_conversation_messages.strategist_messages_json(
+                    ticker=candidate.ticker
+                )
+            else:
+                ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
+                agent = create_strategist_agent(ai_cfg)
+                outcome = await run_streamed_agent(
+                    agent=agent,
+                    user_prompt=create_strategist_user_prompt(
+                        surveyor_candidate=candidate, deep_research=research_out
+                    ),
+                    usage_limits=ai_cfg.model.usage_limits,
+                )
+                thesis = outcome.output
+                s_messages = list(outcome.all_messages)
+                s_mock_json = None
+            await self._complete_exec_with_conversation(
+                execution_id=strategist_exec_id,
+                system_prompt=STRATEGIST_SYSTEM_PROMPT,
+                output_json=thesis.model_dump_json(),
+                messages=s_messages,
+                messages_json=s_mock_json,
+            )
+            AI_LOGFIRE.info(
+                "Strategist stage completed",
+                agent_name=AgentNameDb.STRATEGIST,
+                workflow_run_id=workflow_run_id,
+                run_id=run_id,
+                ticker=candidate.ticker,
+            )
 
-        sentinel_exec_id = await self._get_exec_id(run_id, "sentinel")
+        sentinel_exec_id = await self._get_exec_id(run_id, AgentNameDb.SENTINEL.value)
         if sentinel_exec_id is None:
             raise RuntimeError(f"Missing sentinel execution for run {run_id}")
-        await self._mark_exec(
-            execution_id=sentinel_exec_id, status="running", started=True
+        sentinel_status = await self._get_agent_status(
+            run_id, AgentNameDb.SENTINEL.value
         )
-        await self._recompute(workflow_run_id)
-        AI_LOGFIRE.info(
-            "Sentinel stage started",
-            agent_name=AgentNameDb.SENTINEL,
-            workflow_run_id=workflow_run_id,
-            run_id=run_id,
-            ticker=candidate.ticker,
-            is_mock=is_mock,
-        )
-        n_mock_json: str | None = None
-        if is_mock:
-            await asyncio.sleep(5)
-            evaluation = mock_outputs.mock_sentinel_evaluation(
-                candidate=candidate,
-                proceed=mock_outputs.mock_sentinel_proceed_for_dashboard_lane(
-                    candidate.ticker
-                ),
+        if sentinel_status == ExecutionStatusDb.COMPLETED.value:
+            evaluation_json = await self._load_completed_agent_output_json(
+                run_id=run_id, agent_name=AgentNameDb.SENTINEL.value
             )
-            n_messages = None
-            n_mock_json = mock_conversation_messages.sentinel_messages_json(
-                ticker=candidate.ticker
+            if evaluation_json is None:
+                raise RuntimeError(f"Missing completed sentinel output for {run_id}")
+            evaluation = SentinelEvaluationReport.model_validate_json(evaluation_json)
+            AI_LOGFIRE.info(
+                "Sentinel stage already completed; skipping",
+                agent_name=AgentNameDb.SENTINEL,
+                workflow_run_id=workflow_run_id,
+                run_id=run_id,
+                ticker=candidate.ticker,
             )
         else:
-            ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
-            agent = create_sentinel_agent(ai_cfg)
-            outcome = await run_streamed_agent(
-                agent=agent,
-                user_prompt=create_sentinel_user_prompt(
-                    surveyor_candidate=candidate,
-                    deep_research=research_out,
-                    thesis=thesis,
-                ),
-                usage_limits=ai_cfg.model.usage_limits,
+            await self._mark_exec(
+                execution_id=sentinel_exec_id, status="running", started=True
             )
-            evaluation = outcome.output
-            n_messages = list(outcome.all_messages)
-            n_mock_json = None
-        await self._complete_exec_with_conversation(
-            execution_id=sentinel_exec_id,
-            system_prompt=SENTINEL_SYSTEM_PROMPT,
-            output_json=evaluation.model_dump_json(),
-            messages=n_messages,
-            messages_json=n_mock_json,
-        )
-        AI_LOGFIRE.info(
-            "Sentinel stage completed",
-            agent_name=AgentNameDb.SENTINEL,
-            workflow_run_id=workflow_run_id,
-            run_id=run_id,
-            ticker=candidate.ticker,
-        )
+            await self._recompute(workflow_run_id)
+            AI_LOGFIRE.info(
+                "Sentinel stage started",
+                agent_name=AgentNameDb.SENTINEL,
+                workflow_run_id=workflow_run_id,
+                run_id=run_id,
+                ticker=candidate.ticker,
+                is_mock=is_mock,
+            )
+            n_mock_json: str | None = None
+            if is_mock:
+                await asyncio.sleep(5)
+                evaluation = mock_outputs.mock_sentinel_evaluation(
+                    candidate=candidate,
+                    proceed=mock_outputs.mock_sentinel_proceed_for_dashboard_lane(
+                        candidate.ticker
+                    ),
+                )
+                n_messages = None
+                n_mock_json = mock_conversation_messages.sentinel_messages_json(
+                    ticker=candidate.ticker
+                )
+            else:
+                ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
+                agent = create_sentinel_agent(ai_cfg)
+                outcome = await run_streamed_agent(
+                    agent=agent,
+                    user_prompt=create_sentinel_user_prompt(
+                        surveyor_candidate=candidate,
+                        deep_research=research_out,
+                        thesis=thesis,
+                    ),
+                    usage_limits=ai_cfg.model.usage_limits,
+                )
+                evaluation = outcome.output
+                n_messages = list(outcome.all_messages)
+                n_mock_json = None
+            await self._complete_exec_with_conversation(
+                execution_id=sentinel_exec_id,
+                system_prompt=SENTINEL_SYSTEM_PROMPT,
+                output_json=evaluation.model_dump_json(),
+                messages=n_messages,
+                messages_json=n_mock_json,
+            )
+            AI_LOGFIRE.info(
+                "Sentinel stage completed",
+                agent_name=AgentNameDb.SENTINEL,
+                workflow_run_id=workflow_run_id,
+                run_id=run_id,
+                ticker=candidate.ticker,
+            )
         return research_out, thesis, evaluation
 
     async def _apply_sentinel_rejection(
@@ -920,79 +1077,106 @@ class DashboardPipelineRunner:
         is_mock: bool,
         is_existing_position: bool,
     ) -> None:
-        appraiser_exec_id = await self._get_exec_id(run_id, "appraiser")
+        appraiser_exec_id = await self._get_exec_id(run_id, AgentNameDb.APPRAISER.value)
         if appraiser_exec_id is None:
             return
-        await self._mark_exec(
-            execution_id=appraiser_exec_id, status="running", started=True
-        )
-        await self._recompute(workflow_run_id)
-        AI_LOGFIRE.info(
-            "Appraiser stage started",
-            agent_name=AgentNameDb.APPRAISER,
-            workflow_run_id=workflow_run_id,
-            run_id=run_id,
-            ticker=candidate.ticker,
-            is_mock=is_mock,
-        )
-        appraiser_input = AppraiserInput(
-            stock_candidate=candidate,
-            deep_research=research_out,
-            thesis=thesis,
-            evaluation=evaluation,
-            risk_free_rate=self._settings.risk_free_rate,
-        )
         stock_args = StockRunArgs(
             surveyor_candidate=candidate,
             risk_free_rate=self._settings.risk_free_rate,
             model=self._settings.default_model,
         )
-        a_mock_json: str | None = None
-        if is_mock:
-            await asyncio.sleep(5)
-            appraiser_out = mock_outputs.mock_appraiser_output(candidate)
-            a_messages = None
-            a_mock_json = mock_conversation_messages.appraiser_messages_json(
-                ticker=candidate.ticker
+        appraiser_status = await self._get_agent_status(
+            run_id, AgentNameDb.APPRAISER.value
+        )
+        if appraiser_status == ExecutionStatusDb.COMPLETED.value:
+            appraiser_json = await self._load_completed_agent_output_json(
+                run_id=run_id, agent_name=AgentNameDb.APPRAISER.value
+            )
+            if appraiser_json is None:
+                raise RuntimeError(f"Missing completed appraiser output for {run_id}")
+            appraiser_out = AppraiserOutput.model_validate_json(appraiser_json)
+            AI_LOGFIRE.info(
+                "Appraiser stage already completed; skipping",
+                agent_name=AgentNameDb.APPRAISER,
+                workflow_run_id=workflow_run_id,
+                run_id=run_id,
+                ticker=candidate.ticker,
             )
         else:
-            ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
-            agent = create_appraiser_agent(
-                ai_cfg,
-                use_perplexity=self._settings.use_perplexity,
-                use_mcp_financial_data=self._settings.use_mcp_financial_data,
+            await self._mark_exec(
+                execution_id=appraiser_exec_id, status="running", started=True
             )
-            outcome = await run_streamed_agent(
-                agent=agent,
-                user_prompt=create_appraiser_user_prompt(
-                    appraiser_input=appraiser_input
-                ),
-                usage_limits=ai_cfg.model.usage_limits,
+            await self._recompute(workflow_run_id)
+            AI_LOGFIRE.info(
+                "Appraiser stage started",
+                agent_name=AgentNameDb.APPRAISER,
+                workflow_run_id=workflow_run_id,
+                run_id=run_id,
+                ticker=candidate.ticker,
+                is_mock=is_mock,
             )
-            appraiser_out = outcome.output
-            a_messages = list(outcome.all_messages)
-            a_mock_json = None
-        await self._complete_exec_with_conversation(
-            execution_id=appraiser_exec_id,
-            system_prompt=APPRAISER_SYSTEM_PROMPT,
-            output_json=appraiser_out.model_dump_json(),
-            messages=a_messages,
-            messages_json=a_mock_json,
+            appraiser_input = AppraiserInput(
+                stock_candidate=candidate,
+                deep_research=research_out,
+                thesis=thesis,
+                evaluation=evaluation,
+                risk_free_rate=self._settings.risk_free_rate,
+            )
+            a_mock_json: str | None = None
+            if is_mock:
+                await asyncio.sleep(5)
+                appraiser_out = mock_outputs.mock_appraiser_output(candidate)
+                a_messages = None
+                a_mock_json = mock_conversation_messages.appraiser_messages_json(
+                    ticker=candidate.ticker
+                )
+            else:
+                ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
+                agent = create_appraiser_agent(
+                    ai_cfg,
+                    use_perplexity=self._settings.use_perplexity,
+                    use_mcp_financial_data=self._settings.use_mcp_financial_data,
+                )
+                outcome = await run_streamed_agent(
+                    agent=agent,
+                    user_prompt=create_appraiser_user_prompt(
+                        appraiser_input=appraiser_input
+                    ),
+                    usage_limits=ai_cfg.model.usage_limits,
+                )
+                appraiser_out = outcome.output
+                a_messages = list(outcome.all_messages)
+                a_mock_json = None
+            await self._complete_exec_with_conversation(
+                execution_id=appraiser_exec_id,
+                system_prompt=APPRAISER_SYSTEM_PROMPT,
+                output_json=appraiser_out.model_dump_json(),
+                messages=a_messages,
+                messages_json=a_mock_json,
+            )
+            AI_LOGFIRE.info(
+                "Appraiser stage completed; running DCF",
+                agent_name=AgentNameDb.APPRAISER,
+                workflow_run_id=workflow_run_id,
+                run_id=run_id,
+                ticker=candidate.ticker,
+            )
+
+        dcf_result = (
+            await self._load_dcf_valuation(run_id=run_id)
+            if appraiser_status == ExecutionStatusDb.COMPLETED.value
+            else None
         )
-        AI_LOGFIRE.info(
-            "Appraiser stage completed; running DCF",
-            agent_name=AgentNameDb.APPRAISER,
-            workflow_run_id=workflow_run_id,
-            run_id=run_id,
-            ticker=candidate.ticker,
-        )
-        dcf_result, dcf_error = await self._run_dcf(
-            stock_args,
-            appraiser_out,
-            workflow_run_id=workflow_run_id,
-            run_id=run_id,
-            ticker=candidate.ticker,
-        )
+        persist_dcf_result = dcf_result is None
+        dcf_error: str | None = None
+        if dcf_result is None:
+            dcf_result, dcf_error = await self._run_dcf(
+                stock_args,
+                appraiser_out,
+                workflow_run_id=workflow_run_id,
+                run_id=run_id,
+                ticker=candidate.ticker,
+            )
         if dcf_result is None:
             AI_LOGFIRE.warning(
                 "DCF valuation failed or produced no result; skipping arbiter",
@@ -1011,21 +1195,32 @@ class DashboardPipelineRunner:
                 final_verdict_json=None,
                 error_message=dcf_error or "DCF failed",
             )
-            arbiter_exec_id = await self._get_exec_id(run_id, "arbiter")
+            arbiter_exec_id = await self._get_exec_id(run_id, AgentNameDb.ARBITER.value)
             if arbiter_exec_id is not None:
                 await self._mark_exec(
                     execution_id=arbiter_exec_id, status="skipped", completed=True
                 )
             await self._recompute(workflow_run_id)
             return
-        await self._db(
-            insert_dcf_valuation,
-            run_id=run_id,
-            appraiser_agent_execution_id=appraiser_exec_id,
-            dcf_result=dcf_result,
-        )
-        arbiter_exec_id = await self._get_exec_id(run_id, "arbiter")
+        if persist_dcf_result:
+            await self._db(
+                insert_dcf_valuation,
+                run_id=run_id,
+                appraiser_agent_execution_id=appraiser_exec_id,
+                dcf_result=dcf_result,
+            )
+        arbiter_exec_id = await self._get_exec_id(run_id, AgentNameDb.ARBITER.value)
         if arbiter_exec_id is None:
+            return
+        arbiter_status = await self._get_agent_status(run_id, AgentNameDb.ARBITER.value)
+        if arbiter_status == ExecutionStatusDb.COMPLETED.value:
+            AI_LOGFIRE.info(
+                "Arbiter stage already completed; skipping",
+                agent_name=AgentNameDb.ARBITER,
+                workflow_run_id=workflow_run_id,
+                run_id=run_id,
+                ticker=candidate.ticker,
+            )
             return
         await self._mark_exec(
             execution_id=arbiter_exec_id, status="running", started=True

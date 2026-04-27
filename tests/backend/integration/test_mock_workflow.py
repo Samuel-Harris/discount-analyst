@@ -15,6 +15,13 @@ from backend.crud.db_utils import new_id
 from backend.contracts.agent_lane_order import PROFILER_ENTRY_AGENT_NAMES
 from backend.dev import mock_outputs
 from backend.db.migrate import migrate_to_head
+from backend.db.models import (
+    AgentExecution,
+    ExecutionStatusDb,
+    Run,
+    WorkflowRun,
+    WorkflowRunStatusDb,
+)
 from backend.db.session import create_dashboard_engine, create_session_factory
 from backend.observability.logging import configure_dashboard_observability
 from backend.pipeline.sqlmodel_runner import DashboardPipelineRunner
@@ -370,3 +377,109 @@ async def test_lane_abort_marks_unreached_downstream_agents_skipped(
     assert statuses["sentinel"] == "skipped"
     assert statuses["appraiser"] == "skipped"
     assert statuses["arbiter"] == "skipped"
+
+
+@pytest.mark.asyncio
+async def test_retry_resume_skips_completed_surveyor_without_duplicate_lanes(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "resume_without_duplicate_surveyor.sqlite"
+    settings = dashboard_settings_for_tests(database_path=db_path)
+    configure_dashboard_observability(settings)
+    engine = create_dashboard_engine(settings)
+    migrate_to_head(str(engine.url))
+    session_factory = create_session_factory(engine)
+
+    workflow_run_id = new_id()
+    surveyor_execution_id = new_id()
+    portfolio = ["M1.L"]
+    profiler_run_id = new_id()
+    with session_factory() as session:
+        workflow_crud.insert_workflow_run(
+            session,
+            workflow_run_id=workflow_run_id,
+            portfolio_tickers=portfolio,
+            is_mock=True,
+        )
+        workflow_crud.insert_surveyor_workflow_execution(
+            session,
+            execution_id=surveyor_execution_id,
+            workflow_run_id=workflow_run_id,
+        )
+        runs.insert_ticker_run_with_agents(
+            session,
+            run_id=profiler_run_id,
+            workflow_run_id=workflow_run_id,
+            ticker="M1.L",
+            company_name="M1.L",
+            entry_path="profiler",
+            is_existing_position=True,
+            is_mock=True,
+            agent_names=PROFILER_ENTRY_AGENT_NAMES,
+        )
+        session.commit()
+
+    runner = DashboardPipelineRunner(session_factory, settings)
+    with patch("backend.pipeline.sqlmodel_runner.asyncio.sleep", new=AsyncMock()):
+        await runner.execute_workflow(workflow_run_id)
+
+    with session_factory() as session:
+        detail = workflow_crud.fetch_workflow_detail(session, workflow_run_id)
+        assert detail is not None
+        original_surveyor_lane_ids = {
+            row["id"] for row in detail["runs"] if row["entry_path"] == "surveyor"
+        }
+        assert len(original_surveyor_lane_ids) == 3
+
+        workflow = session.get(WorkflowRun, workflow_run_id)
+        run = session.get(Run, profiler_run_id)
+        assert workflow is not None
+        assert run is not None
+        workflow.status = WorkflowRunStatusDb.COMPLETED
+        workflow.completed_at = None
+        run.status = WorkflowRunStatusDb.FAILED
+        run.completed_at = None
+        run.error_message = "researcher failed"
+        session.add(workflow)
+        session.add(run)
+        for agent_name, status in (
+            ("researcher", ExecutionStatusDb.FAILED),
+            ("strategist", ExecutionStatusDb.SKIPPED),
+            ("sentinel", ExecutionStatusDb.SKIPPED),
+            ("appraiser", ExecutionStatusDb.SKIPPED),
+            ("arbiter", ExecutionStatusDb.SKIPPED),
+        ):
+            execution_id = runs.get_agent_execution_id_by_run_and_agent(
+                session, run_id=profiler_run_id, agent_name=agent_name
+            )
+            assert execution_id is not None
+            execution = session.get(AgentExecution, execution_id)
+            assert execution is not None
+            execution.status = status
+            execution.error_message = (
+                "researcher failed" if status == ExecutionStatusDb.FAILED else None
+            )
+            session.add(execution)
+        runs.prepare_retry_failed_agents(session, workflow_run_id)
+        session.commit()
+
+    with (
+        patch("backend.pipeline.sqlmodel_runner.asyncio.sleep", new=AsyncMock()),
+        patch(
+            "backend.pipeline.sqlmodel_runner.mock_outputs.mock_surveyor_dashboard_discoveries",
+            side_effect=AssertionError("surveyor should not rerun on lane retry"),
+        ),
+    ):
+        await runner.execute_workflow(workflow_run_id)
+
+    with session_factory() as session:
+        detail = workflow_crud.fetch_workflow_detail(session, workflow_run_id)
+    assert detail is not None
+    assert detail["surveyor_execution"] is not None
+    assert detail["surveyor_execution"]["status"] == "completed"
+    current_surveyor_lane_ids = {
+        row["id"] for row in detail["runs"] if row["entry_path"] == "surveyor"
+    }
+    assert current_surveyor_lane_ids == original_surveyor_lane_ids
+    profiler_lane = next(row for row in detail["runs"] if row["id"] == profiler_run_id)
+    assert profiler_lane["status"] == "completed"

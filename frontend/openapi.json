@@ -811,6 +811,46 @@
           "workflow_runs"
         ]
       }
+    },
+    "/api/workflow_runs/{workflow_run_id}/retry_failed_agents": {
+      "post": {
+        "operationId": "retry_failed_agents_api_workflow_runs__workflow_run_id__retry_failed_agents_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflow_run_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry Failed Agents",
+        "tags": [
+          "workflow_runs"
+        ]
+      }
     }
   }
 }

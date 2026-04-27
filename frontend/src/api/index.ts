@@ -21,4 +21,5 @@ export {
   getSurveyorConversationApiAgentsWorkflowRunsWorkflowRunIdAgentsSurveyorConversationGet as fetchSurveyorConversation,
   getWorkflowRunApiWorkflowRunsWorkflowRunIdGet as fetchWorkflowRunDetail,
   listWorkflowRunsApiWorkflowRunsGet as fetchWorkflowRuns,
+  retryFailedAgentsApiWorkflowRunsWorkflowRunIdRetryFailedAgentsPost as retryFailedAgents,
 } from "./generated";

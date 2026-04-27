@@ -159,6 +159,7 @@ def replace_research_report(
             )
         )
         session.delete(existing)
+        session.flush()
 
     report = ResearchReport(
         id=new_id(),
@@ -297,6 +298,7 @@ def replace_mispricing_thesis(
             )
         )
         session.delete(existing)
+        session.flush()
     row = MispricingThesis(
         id=new_id(),
         agent_execution_id=execution.id,
@@ -368,6 +370,7 @@ def replace_evaluation_report(
             )
         )
         session.delete(existing)
+        session.flush()
 
     report = EvaluationReport(
         id=new_id(),
@@ -420,6 +423,7 @@ def replace_appraiser_report(
     ).first()
     if existing is not None:
         session.delete(existing)
+        session.flush()
     row = AppraiserReport(
         id=new_id(),
         agent_execution_id=execution.id,
@@ -488,6 +492,7 @@ def upsert_run_final_decision(
             )
         )
         session.delete(existing)
+        session.flush()
 
     row = RunFinalDecision(
         id=new_id(),
@@ -544,6 +549,7 @@ def insert_dcf_valuation(
     ).first()
     if existing is not None:
         session.delete(existing)
+        session.flush()
     session.add(
         DcfValuation(
             id=new_id(),

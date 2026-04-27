@@ -12,6 +12,23 @@ from fastapi.testclient import TestClient
 
 from backend.app.main import create_app
 from backend.contracts.agent_lane_order import PROFILER_ENTRY_AGENT_NAMES
+from backend.crud.db_utils import new_id, utc_now
+from backend.crud.run_executions import (
+    get_agent_execution_id_by_run_and_agent,
+    insert_ticker_run_with_agents,
+)
+from backend.crud.workflow_runs import (
+    insert_surveyor_workflow_execution,
+    insert_workflow_run,
+)
+from backend.db.models import (
+    AgentExecution,
+    ExecutionStatusDb,
+    Run,
+    WorkflowAgentExecution,
+    WorkflowRun,
+    WorkflowRunStatusDb,
+)
 from backend.db.seed import seed
 from backend.settings.testing import dashboard_settings_for_tests
 
@@ -154,3 +171,147 @@ def test_run_agent_conversation_after_seed(client: TestClient) -> None:
         f"/api/agents/runs/{run_profiler['id']}/agents/profiler/conversation"
     )
     assert r.status_code == 200
+
+
+def _insert_retryable_workflow(app: FastAPI) -> tuple[str, str]:
+    workflow_run_id = new_id()
+    surveyor_execution_id = new_id()
+    run_id = new_id()
+    with app.state.db_session_factory() as session:
+        insert_workflow_run(
+            session,
+            workflow_run_id=workflow_run_id,
+            portfolio_tickers=["RET.L"],
+            is_mock=True,
+        )
+        insert_surveyor_workflow_execution(
+            session,
+            execution_id=surveyor_execution_id,
+            workflow_run_id=workflow_run_id,
+        )
+        insert_ticker_run_with_agents(
+            session,
+            run_id=run_id,
+            workflow_run_id=workflow_run_id,
+            ticker="RET.L",
+            company_name="Retry plc",
+            entry_path="profiler",
+            is_existing_position=True,
+            is_mock=True,
+            agent_names=PROFILER_ENTRY_AGENT_NAMES,
+        )
+        workflow = session.get(WorkflowRun, workflow_run_id)
+        surveyor = session.get(WorkflowAgentExecution, surveyor_execution_id)
+        run = session.get(Run, run_id)
+        assert workflow is not None
+        assert surveyor is not None
+        assert run is not None
+        workflow.status = WorkflowRunStatusDb.COMPLETED
+        workflow.completed_at = utc_now()
+        surveyor.status = ExecutionStatusDb.COMPLETED
+        surveyor.completed_at = utc_now()
+        run.status = WorkflowRunStatusDb.FAILED
+        run.completed_at = utc_now()
+        researcher_id = get_agent_execution_id_by_run_and_agent(
+            session, run_id=run_id, agent_name="researcher"
+        )
+        assert researcher_id is not None
+        researcher = session.get(AgentExecution, researcher_id)
+        assert researcher is not None
+        researcher.status = ExecutionStatusDb.FAILED
+        researcher.completed_at = utc_now()
+        researcher.error_message = "researcher failed"
+        session.add(workflow)
+        session.add(surveyor)
+        session.add(run)
+        session.add(researcher)
+        session.commit()
+    return workflow_run_id, run_id
+
+
+def test_retry_failed_agents_not_found(client: TestClient) -> None:
+    response = client.post(
+        "/api/workflow_runs/00000000-0000-4000-8000-000000000999/retry_failed_agents"
+    )
+    assert response.status_code == 404
+
+
+def test_retry_failed_agents_requires_terminal_workflow(client: TestClient) -> None:
+    app = cast(FastAPI, client.app)
+    workflow_run_id, run_id = _insert_retryable_workflow(app)
+    with app.state.db_session_factory() as session:
+        workflow = session.get(WorkflowRun, workflow_run_id)
+        assert workflow is not None
+        workflow.status = WorkflowRunStatusDb.RUNNING
+        workflow.completed_at = None
+        session.add(workflow)
+        run = session.get(Run, run_id)
+        assert run is not None
+        run.status = WorkflowRunStatusDb.RUNNING
+        session.add(run)
+        session.commit()
+
+    response = client.post(f"/api/workflow_runs/{workflow_run_id}/retry_failed_agents")
+
+    assert response.status_code == 409
+
+
+def test_retry_failed_agents_returns_400_when_no_failed_agents(
+    client: TestClient,
+) -> None:
+    app = cast(FastAPI, client.app)
+    workflow_run_id, run_id = _insert_retryable_workflow(app)
+    with app.state.db_session_factory() as session:
+        researcher_id = get_agent_execution_id_by_run_and_agent(
+            session, run_id=run_id, agent_name="researcher"
+        )
+        assert researcher_id is not None
+        researcher = session.get(AgentExecution, researcher_id)
+        assert researcher is not None
+        researcher.status = ExecutionStatusDb.REJECTED
+        researcher.error_message = None
+        session.add(researcher)
+        session.commit()
+
+    response = client.post(f"/api/workflow_runs/{workflow_run_id}/retry_failed_agents")
+
+    assert response.status_code == 400
+
+
+def test_retry_failed_agents_returns_409_when_runner_task_active(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app = cast(FastAPI, client.app)
+    workflow_run_id, _run_id = _insert_retryable_workflow(app)
+    monkeypatch.setattr(
+        app.state.pipeline_runner,
+        "has_active_workflow_task",
+        lambda _workflow_run_id: True,
+    )
+
+    response = client.post(f"/api/workflow_runs/{workflow_run_id}/retry_failed_agents")
+
+    assert response.status_code == 409
+
+
+def test_retry_failed_agents_prepares_and_schedules(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app = cast(FastAPI, client.app)
+    workflow_run_id, run_id = _insert_retryable_workflow(app)
+    scheduled: list[str] = []
+    monkeypatch.setattr(
+        app.state.pipeline_runner,
+        "schedule_workflow_execution",
+        lambda workflow_id: scheduled.append(workflow_id),
+    )
+
+    response = client.post(f"/api/workflow_runs/{workflow_run_id}/retry_failed_agents")
+
+    assert response.status_code == 202
+    assert scheduled == [workflow_run_id]
+    detail = client.get(f"/api/workflow_runs/{workflow_run_id}").json()
+    assert detail["status"] == "running"
+    lane = next(run for run in detail["runs"] if run["id"] == run_id)
+    statuses = {row["agent_name"]: row["status"] for row in lane["agent_executions"]}
+    assert statuses["researcher"] == "pending"

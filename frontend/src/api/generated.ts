@@ -380,3 +380,27 @@ export const cancelWorkflowRunApiWorkflowRunsWorkflowRunIdCancelPost = async (wo
 
   }
 );}
+
+
+
+/**
+ * @summary Retry Failed Agents
+ */
+export const getRetryFailedAgentsApiWorkflowRunsWorkflowRunIdRetryFailedAgentsPostUrl = (workflowRunId: string,) => {
+
+
+
+
+  return `/api/workflow_runs/${workflowRunId}/retry_failed_agents`
+}
+
+export const retryFailedAgentsApiWorkflowRunsWorkflowRunIdRetryFailedAgentsPost = async (workflowRunId: string, options?: RequestInit): Promise<unknown> => {
+
+  return dashboardMutator<unknown>(getRetryFailedAgentsApiWorkflowRunsWorkflowRunIdRetryFailedAgentsPostUrl(workflowRunId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}

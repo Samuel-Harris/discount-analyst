@@ -55,6 +55,14 @@ class TickerRunRow(TypedDict):
     agent_executions: list[AgentExecutionRow]
 
 
+class TickerRunResumeRow(TypedDict):
+    id: str
+    ticker: str
+    entry_path: str
+    status: str
+    is_existing_position: bool
+
+
 class WorkflowRunDetailRecord(WorkflowRunHeaderRow):
     surveyor_execution: SurveyorExecutionRow | None
     runs: list[TickerRunRow]

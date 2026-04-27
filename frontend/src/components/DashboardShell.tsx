@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { cancelWorkflowRun, deleteWorkflowRun } from "../api";
+import { cancelWorkflowRun, deleteWorkflowRun, retryFailedAgents } from "../api";
 import {
   invalidateWorkflowRunDetail,
   invalidateWorkflowRunsList,
@@ -38,6 +38,7 @@ export function DashboardShell() {
     null,
   );
   const [cancelPending, setCancelPending] = useState(false);
+  const [retryFailedAgentsPending, setRetryFailedAgentsPending] = useState(false);
 
   useEffect(() => {
     setWorkflowActionError(null);
@@ -99,6 +100,24 @@ export function DashboardShell() {
     }
   }, []);
 
+  const handleRetryFailedAgents = useCallback(async (id: string) => {
+    setWorkflowActionError(null);
+    setRetryFailedAgentsPending(true);
+    try {
+      await retryFailedAgents(id);
+      await Promise.all([
+        invalidateWorkflowRunsList(),
+        invalidateWorkflowRunDetail(id),
+      ]);
+    } catch (e) {
+      setWorkflowActionError(
+        e instanceof Error ? e.message : "Retry failed; try again.",
+      );
+    } finally {
+      setRetryFailedAgentsPending(false);
+    }
+  }, []);
+
   const onLaunched = useCallback(
     (workflowRunId: string) => {
       openLaunchedRun(workflowRunId);
@@ -130,6 +149,7 @@ export function DashboardShell() {
         sidebarCollapsed={sidebarCollapsed}
         workflowActionError={workflowActionError}
         cancelPending={cancelPending}
+        retryFailedAgentsPending={retryFailedAgentsPending}
         launchForm={launchForm}
         mainView={mainView}
         onOpenRecommendations={openRecommendations}
@@ -137,6 +157,7 @@ export function DashboardShell() {
         onOpenConversation={openConversation}
         onRequestDeleteRun={(id) => void handleDelete(id)}
         onRequestCancelRun={(id) => void handleCancel(id)}
+        onRequestRetryFailedAgents={(id) => void handleRetryFailedAgents(id)}
       />
 
       <AgentPanel

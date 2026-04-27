@@ -11,6 +11,7 @@ from backend.contracts.workflow_rows import (
     AgentExecutionRow,
     SurveyorExecutionRow,
     TickerRunRow,
+    TickerRunResumeRow,
     WorkflowRunDetailRecord,
     WorkflowRunHeaderRow,
     WorkflowRunListRow,
@@ -79,6 +80,28 @@ def list_profiler_runs_for_workflow(
         )
     )
     return [(row.id, row.ticker) for row in rows]
+
+
+def list_ticker_runs_for_workflow(
+    session: Session, workflow_run_id: str
+) -> list[TickerRunResumeRow]:
+    rows = list(
+        session.scalars(
+            select(Run)
+            .where(col(Run.workflow_run_id) == workflow_run_id)
+            .order_by(col(Run.started_at))
+        )
+    )
+    return [
+        {
+            "id": row.id,
+            "ticker": row.ticker,
+            "entry_path": row.entry_path.value,
+            "status": row.status.value,
+            "is_existing_position": row.is_existing_position,
+        }
+        for row in rows
+    ]
 
 
 def recompute_workflow_status(session: Session, workflow_run_id: str) -> None:

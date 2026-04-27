@@ -7,6 +7,7 @@ which commits after each operation batch).
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any
 
@@ -22,7 +23,9 @@ from backend.crud.agent_output_persistence import (
     replace_research_report,
     upsert_run_final_decision,
 )
+from backend.crud.candidate_snapshots import snapshot_to_candidate
 from backend.crud.conversations import (
+    assistant_response_for_run_agent,
     insert_conversation_for_agent_execution,
     insert_conversation_for_workflow_agent,
 )
@@ -36,15 +39,19 @@ from backend.db.models import (
     AgentExecution,
     AgentNameDb,
     CandidateSnapshot,
+    DcfValuation,
     DecisionTypeDb,
     EntryPathDb,
     ExecutionStatusDb,
     Run,
+    WorkflowRun,
     WorkflowAgentExecution,
     WorkflowRunStatusDb,
 )
 from discount_analyst.agents.arbiter.schema import ArbiterDecision
+from discount_analyst.agents.surveyor.schema import SurveyorCandidate
 from discount_analyst.pipeline.schema import SentinelRejection, Verdict
+from discount_analyst.valuation.data_types import DCFAnalysisResult
 
 _ACTIVE_RUN_STATUSES = frozenset({WorkflowRunStatusDb.RUNNING.value})
 _TERMINAL_RUN_STATUSES = frozenset(
@@ -62,6 +69,140 @@ _AGENT_LANE_ORDER = {
     AgentNameDb.APPRAISER: 4,
     AgentNameDb.ARBITER: 5,
 }
+
+
+@dataclass(frozen=True)
+class RetryFailedAgentsPreparation:
+    workflow_run_id: str
+    surveyor_reset: bool
+    lane_reset_count: int
+    agent_execution_reset_count: int
+
+
+class RetryFailedAgentsError(Exception):
+    """Base class for retry preparation failures."""
+
+
+class RetryWorkflowRunNotFoundError(RetryFailedAgentsError):
+    """Raised when the workflow run does not exist."""
+
+
+class RetryWorkflowRunNotTerminalError(RetryFailedAgentsError):
+    """Raised when the workflow run is not in a terminal state."""
+
+
+class NoFailedAgentsToRetryError(RetryFailedAgentsError):
+    """Raised when no failed surveyor or lane execution exists."""
+
+
+def _reset_workflow_agent_execution(execution: WorkflowAgentExecution) -> None:
+    execution.status = ExecutionStatusDb.PENDING
+    execution.started_at = None
+    execution.completed_at = None
+    execution.error_message = None
+
+
+def _reset_agent_execution(execution: AgentExecution) -> None:
+    execution.status = ExecutionStatusDb.PENDING
+    execution.started_at = None
+    execution.completed_at = None
+    execution.error_message = None
+
+
+def _clear_run_completion_fields(run: Run) -> None:
+    run.status = WorkflowRunStatusDb.RUNNING
+    run.completed_at = None
+    run.error_message = None
+    run.final_rating = None
+    run.decision_type = None
+    run.recommended_action = None
+
+
+def prepare_retry_failed_agents(
+    session: Session,
+    workflow_run_id: str,
+) -> RetryFailedAgentsPreparation:
+    """Reset failed agents, and downstream lane agents, for an explicit retry."""
+    workflow = session.get(WorkflowRun, workflow_run_id)
+    if workflow is None:
+        raise RetryWorkflowRunNotFoundError(workflow_run_id)
+    if workflow.status.value not in _TERMINAL_RUN_STATUSES:
+        raise RetryWorkflowRunNotTerminalError(workflow_run_id)
+
+    surveyor_reset = False
+    lane_reset_count = 0
+    agent_execution_reset_count = 0
+
+    surveyor = session.scalars(
+        select(WorkflowAgentExecution).where(
+            col(WorkflowAgentExecution.workflow_run_id) == workflow_run_id,
+            col(WorkflowAgentExecution.agent_name) == AgentNameDb.SURVEYOR,
+        )
+    ).first()
+    if surveyor is not None and surveyor.status == ExecutionStatusDb.FAILED:
+        _reset_workflow_agent_execution(surveyor)
+        session.add(surveyor)
+        surveyor_reset = True
+
+    runs = list(
+        session.scalars(select(Run).where(col(Run.workflow_run_id) == workflow_run_id))
+    )
+    for run in runs:
+        executions = sorted(
+            session.scalars(
+                select(AgentExecution).where(col(AgentExecution.run_id) == run.id)
+            ),
+            key=lambda execution: _AGENT_LANE_ORDER.get(execution.agent_name, 99),
+        )
+        failed_orders = [
+            _AGENT_LANE_ORDER[execution.agent_name]
+            for execution in executions
+            if execution.status == ExecutionStatusDb.FAILED
+            and execution.agent_name in _AGENT_LANE_ORDER
+        ]
+        if not failed_orders:
+            continue
+        first_failed_order = min(failed_orders)
+        for execution in executions:
+            order = _AGENT_LANE_ORDER.get(execution.agent_name)
+            if order is None or order < first_failed_order:
+                continue
+            _reset_agent_execution(execution)
+            session.add(execution)
+            agent_execution_reset_count += 1
+        _clear_run_completion_fields(run)
+        session.add(run)
+        lane_reset_count += 1
+
+    if surveyor_reset:
+        for run in runs:
+            if run.status != WorkflowRunStatusDb.CANCELLED:
+                continue
+            _clear_run_completion_fields(run)
+            session.add(run)
+            for execution in session.scalars(
+                select(AgentExecution).where(col(AgentExecution.run_id) == run.id)
+            ):
+                if execution.status != ExecutionStatusDb.CANCELLED:
+                    continue
+                _reset_agent_execution(execution)
+                session.add(execution)
+                agent_execution_reset_count += 1
+
+    if not surveyor_reset and lane_reset_count == 0:
+        raise NoFailedAgentsToRetryError(workflow_run_id)
+
+    workflow.status = WorkflowRunStatusDb.RUNNING
+    workflow.completed_at = None
+    workflow.error_message = None
+    session.add(workflow)
+
+    return RetryFailedAgentsPreparation(
+        workflow_run_id=workflow_run_id,
+        surveyor_reset=surveyor_reset,
+        lane_reset_count=lane_reset_count,
+        agent_execution_reset_count=agent_execution_reset_count,
+    )
 
 
 def insert_ticker_run_with_agents(
@@ -125,6 +266,21 @@ def get_agent_execution_id_by_run_and_agent(
     return row
 
 
+def get_agent_execution_status_by_run_and_agent(
+    session: Session,
+    *,
+    run_id: str,
+    agent_name: str,
+) -> str | None:
+    row = session.scalars(
+        select(AgentExecution).where(
+            col(AgentExecution.run_id) == run_id,
+            col(AgentExecution.agent_name) == AgentNameDb(agent_name),
+        )
+    ).first()
+    return None if row is None else row.status.value
+
+
 def get_workflow_surveyor_execution_id(
     session: Session, workflow_run_id: str
 ) -> str | None:
@@ -137,6 +293,18 @@ def get_workflow_surveyor_execution_id(
     return row
 
 
+def get_workflow_surveyor_execution_status(
+    session: Session, workflow_run_id: str
+) -> str | None:
+    row = session.scalars(
+        select(WorkflowAgentExecution).where(
+            col(WorkflowAgentExecution.workflow_run_id) == workflow_run_id,
+            col(WorkflowAgentExecution.agent_name) == AgentNameDb.SURVEYOR,
+        )
+    ).first()
+    return None if row is None else row.status.value
+
+
 def get_workflow_candidate_snapshot_id(
     session: Session, *, workflow_execution_id: str, ticker: str
 ) -> str | None:
@@ -147,6 +315,53 @@ def get_workflow_candidate_snapshot_id(
         )
     ).first()
     return row
+
+
+def get_candidate_for_run(session: Session, *, run_id: str) -> SurveyorCandidate | None:
+    run = session.get(Run, run_id)
+    if run is None or run.candidate_snapshot_id is None:
+        return None
+    snapshot = session.get(CandidateSnapshot, run.candidate_snapshot_id)
+    if snapshot is None:
+        return None
+    return snapshot_to_candidate(snapshot)
+
+
+def get_completed_agent_output_json(
+    session: Session,
+    *,
+    run_id: str,
+    agent_name: str,
+) -> str | None:
+    execution = session.scalars(
+        select(AgentExecution).where(
+            col(AgentExecution.run_id) == run_id,
+            col(AgentExecution.agent_name) == AgentNameDb(agent_name),
+        )
+    ).first()
+    if execution is None or execution.status != ExecutionStatusDb.COMPLETED:
+        return None
+    output_json = assistant_response_for_run_agent(session, execution)
+    if output_json == "{}":
+        return None
+    return output_json
+
+
+def get_dcf_valuation_for_run(
+    session: Session,
+    *,
+    run_id: str,
+) -> DCFAnalysisResult | None:
+    row = session.scalars(
+        select(DcfValuation).where(col(DcfValuation.run_id) == run_id)
+    ).first()
+    if row is None:
+        return None
+    return DCFAnalysisResult(
+        intrinsic_share_price=row.intrinsic_share_price,
+        enterprise_value=row.enterprise_value,
+        equity_value=row.equity_value,
+    )
 
 
 def apply_workflow_agent_execution_status(
