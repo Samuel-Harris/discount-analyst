@@ -19,17 +19,17 @@ from discount_analyst.agents.common.agent_names import AgentName
 from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
 from discount_analyst.agents.researcher.schema import DeepResearchReport
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
-from scripts.common.cli import (
+from scripts.shared.cli import (
     add_agent_cli_model_argument,
     add_agent_cli_web_search_arguments,
 )
-from scripts.common.artefacts import write_agent_json
-from scripts.common.run_outputs import (
+from scripts.shared.artefacts import write_agent_json
+from scripts.shared.run_outputs import (
     ResearcherRunOutput,
     SurveyorRunOutput,
     TurnUsage,
 )
-from scripts.common.usage import extract_turn_usage
+from scripts.shared.usage import extract_turn_usage
 from scripts.utils.setup_logfire import setup_logfire
 
 setup_logfire()

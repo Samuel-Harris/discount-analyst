@@ -113,6 +113,20 @@ def _is_retryable_single_error(exc: BaseException) -> bool:
     return False
 
 
+def _streaming_retryable_exception_group(
+    group: BaseExceptionGroup[BaseException],
+) -> bool:
+    """True when every leaf under the group passes `_is_retryable_single_error`."""
+    for sub in group.exceptions:
+        if isinstance(sub, BaseExceptionGroup):
+            nested = cast(BaseExceptionGroup[BaseException], sub)
+            if not _streaming_retryable_exception_group(nested):
+                return False
+        elif not _is_retryable_single_error(sub):
+            return False
+    return True
+
+
 def should_retry_streaming_error(exc: BaseException) -> bool:
     """Whether to backoff and restart a streamed agent run.
 
@@ -121,9 +135,9 @@ def should_retry_streaming_error(exc: BaseException) -> bool:
     """
     # Handle ExceptionGroup (e.g., from MCP's anyio TaskGroup)
     if isinstance(exc, BaseExceptionGroup):
-        # Retry if all sub-exceptions are retryable transient errors
-        sub_exceptions = cast(tuple[BaseException, ...], exc.exceptions)
-        return all(_is_retryable_single_error(e) for e in sub_exceptions)
+        return _streaming_retryable_exception_group(
+            cast(BaseExceptionGroup[BaseException], exc),
+        )
     return _is_retryable_single_error(exc)
 
 
@@ -145,8 +159,8 @@ def _is_tool_startup_timeout(exc: BaseException) -> bool:
     if type(exc) is TimeoutError:
         return True
     if isinstance(exc, BaseExceptionGroup):
-        sub_exceptions = cast(tuple[BaseException, ...], exc.exceptions)
-        return all(_is_tool_startup_timeout(e) for e in sub_exceptions)
+        group = cast(BaseExceptionGroup[BaseException], exc)
+        return all(_is_tool_startup_timeout(sub) for sub in group.exceptions)
     return False
 
 

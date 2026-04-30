@@ -120,7 +120,7 @@ from discount_analyst.valuation.dcf_analysis import DCFAnalysis
 from backend.contracts.stock_run_args import StockRunArgs
 
 
-def _extract_agent_error_message(exc: BaseException) -> str:
+def extract_agent_error_message(exc: BaseException) -> str:
     """Extract a user-friendly error message, especially for tool failures.
 
     UnexpectedModelBehavior wraps the underlying cause (e.g., ModelRetry with
@@ -455,7 +455,7 @@ class DashboardPipelineRunner:
             )
             raise
         except Exception as exc:  # noqa: BLE001
-            error_msg = _extract_agent_error_message(exc)
+            error_msg = extract_agent_error_message(exc)
             AI_LOGFIRE.exception(
                 "Workflow execution failed",
                 workflow_run_id=workflow_run_id,
@@ -556,7 +556,7 @@ class DashboardPipelineRunner:
                 discovered_candidates=len(surveyor_output.candidates),
             )
         except Exception as exc:  # noqa: BLE001
-            error_msg = _extract_agent_error_message(exc)
+            error_msg = extract_agent_error_message(exc)
             AI_LOGFIRE.exception(
                 "Surveyor branch failed",
                 agent_name=AgentNameDb.SURVEYOR,
@@ -637,7 +637,7 @@ class DashboardPipelineRunner:
                 ticker=ticker,
             )
         except Exception as exc:  # noqa: BLE001
-            error_msg = _extract_agent_error_message(exc)
+            error_msg = extract_agent_error_message(exc)
             AI_LOGFIRE.exception(
                 "Profiler entry pipeline failed",
                 entry_path=AgentNameDb.PROFILER,
@@ -727,7 +727,7 @@ class DashboardPipelineRunner:
                 ticker=candidate.ticker,
             )
         except Exception as exc:  # noqa: BLE001
-            error_msg = _extract_agent_error_message(exc)
+            error_msg = extract_agent_error_message(exc)
             AI_LOGFIRE.exception(
                 "Surveyor entry pipeline failed",
                 entry_path=AgentNameDb.SURVEYOR,

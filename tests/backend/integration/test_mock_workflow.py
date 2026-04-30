@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from sqlmodel import Session
 
 from backend.crud import conversations as conv
 from backend.crud import run_executions as runs
@@ -269,10 +270,27 @@ async def test_appraiser_conversation_failure_does_not_leave_appraiser_completed
 
     original_insert = runs.insert_conversation_for_agent_execution
 
-    def _fail_appraiser_conversation(*args: object, **kwargs: object) -> None:
-        if kwargs.get("system_prompt") == APPRAISER_SYSTEM_PROMPT:
+    def _fail_appraiser_conversation(
+        session: Session,
+        *,
+        conversation_id: str,
+        agent_execution_id: str,
+        system_prompt: str,
+        messages_json: str | None = None,
+        assistant_response: str | None = None,
+        messages: list[object] | None = None,
+    ) -> None:
+        if system_prompt == APPRAISER_SYSTEM_PROMPT:
             raise KeyError("builtin-tool-call")
-        original_insert(*args, **kwargs)
+        original_insert(
+            session,
+            conversation_id=conversation_id,
+            agent_execution_id=agent_execution_id,
+            system_prompt=system_prompt,
+            messages_json=messages_json,
+            assistant_response=assistant_response,
+            messages=messages,
+        )
 
     runner = DashboardPipelineRunner(session_factory, settings)
     with (

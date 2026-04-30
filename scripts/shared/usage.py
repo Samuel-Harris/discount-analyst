@@ -2,7 +2,7 @@
 
 from pydantic_ai.messages import ModelMessage, ModelResponse
 
-from scripts.common.run_outputs import TurnUsage
+from scripts.shared.run_outputs import TurnUsage
 
 
 def extract_turn_usage(messages: list[ModelMessage]) -> list[TurnUsage]:

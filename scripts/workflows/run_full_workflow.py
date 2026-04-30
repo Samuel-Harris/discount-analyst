@@ -60,12 +60,12 @@ from scripts.agents.run_appraiser import (
     run_dcf_and_display,
     save_run_output,
 )
-from scripts.common.cli import (
+from scripts.shared.cli import (
     add_agent_cli_model_argument,
     add_agent_cli_web_search_arguments,
 )
-from scripts.common.artefacts import write_agent_json, write_verdicts_json
-from scripts.common.run_outputs import (
+from scripts.shared.artefacts import write_agent_json, write_verdicts_json
+from scripts.shared.run_outputs import (
     ArbiterRunOutput,
     ProfilerRunOutput,
     SentinelRunOutput,
@@ -74,7 +74,7 @@ from scripts.common.run_outputs import (
     SurveyorRunOutput,
     TurnUsage,
 )
-from scripts.common.usage import extract_turn_usage
+from scripts.shared.usage import extract_turn_usage
 from scripts.utils.setup_logfire import setup_logfire
 
 setup_logfire()

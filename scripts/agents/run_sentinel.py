@@ -24,16 +24,16 @@ from discount_analyst.agents.researcher.schema import DeepResearchReport
 from discount_analyst.agents.strategist.schema import MispricingThesis
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
 from discount_analyst.config.ai_models_config import AIModelsConfig, ModelName
-from scripts.common.artefacts import write_agent_json
-from scripts.common.cli import add_agent_cli_model_argument
-from scripts.common.run_outputs import (
+from scripts.shared.artefacts import write_agent_json
+from scripts.shared.cli import add_agent_cli_model_argument
+from scripts.shared.run_outputs import (
     SentinelRunOutput,
     ResearcherRunOutput,
     StrategistRunOutput,
     SurveyorRunOutput,
     TurnUsage,
 )
-from scripts.common.usage import extract_turn_usage
+from scripts.shared.usage import extract_turn_usage
 from scripts.utils.setup_logfire import setup_logfire
 
 setup_logfire()

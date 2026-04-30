@@ -283,10 +283,14 @@ def test_retry_failed_agents_returns_409_when_runner_task_active(
 ) -> None:
     app = cast(FastAPI, client.app)
     workflow_run_id, _run_id = _insert_retryable_workflow(app)
+
+    def _stub_has_active(_workflow_run_id: str) -> bool:
+        return True
+
     monkeypatch.setattr(
         app.state.pipeline_runner,
         "has_active_workflow_task",
-        lambda _workflow_run_id: True,
+        _stub_has_active,
     )
 
     response = client.post(f"/api/workflow_runs/{workflow_run_id}/retry_failed_agents")
@@ -300,10 +304,14 @@ def test_retry_failed_agents_prepares_and_schedules(
     app = cast(FastAPI, client.app)
     workflow_run_id, run_id = _insert_retryable_workflow(app)
     scheduled: list[str] = []
+
+    def _capture_schedule(workflow_id: str) -> None:
+        scheduled.append(workflow_id)
+
     monkeypatch.setattr(
         app.state.pipeline_runner,
         "schedule_workflow_execution",
-        lambda workflow_id: scheduled.append(workflow_id),
+        _capture_schedule,
     )
 
     response = client.post(f"/api/workflow_runs/{workflow_run_id}/retry_failed_agents")

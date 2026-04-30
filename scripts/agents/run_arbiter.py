@@ -23,9 +23,9 @@ from discount_analyst.agents.arbiter.user_prompt import create_user_prompt
 from discount_analyst.agents.common.agent_names import AgentName
 from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
 from discount_analyst.config.ai_models_config import AIModelsConfig, ModelName
-from scripts.common.artefacts import write_agent_json
-from scripts.common.cli import add_agent_cli_model_argument
-from scripts.common.run_outputs import (
+from scripts.shared.artefacts import write_agent_json
+from scripts.shared.cli import add_agent_cli_model_argument
+from scripts.shared.run_outputs import (
     AppraiserRunOutput,
     ArbiterRunOutput,
     ResearcherRunOutput,
@@ -34,7 +34,7 @@ from scripts.common.run_outputs import (
     SurveyorRunOutput,
     TurnUsage,
 )
-from scripts.common.usage import extract_turn_usage
+from scripts.shared.usage import extract_turn_usage
 from scripts.utils.setup_logfire import setup_logfire
 
 setup_logfire()
