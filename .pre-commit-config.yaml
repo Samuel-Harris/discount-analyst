@@ -5,6 +5,8 @@ repos:
     rev: v3.2.0
     hooks:
       - id: trailing-whitespace
+        # Orval emits lines that look blank but contain spaces; CI diffs raw generator output.
+        exclude: ^frontend/src/api/generated\.ts$
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-added-large-files

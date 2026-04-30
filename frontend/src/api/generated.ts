@@ -195,20 +195,20 @@ export const getGetRunAgentConversationApiAgentsRunsRunIdAgentsAgentNameConversa
     agentName: AgentNameSlug,) => {
 
 
-
+  
 
   return `/api/agents/runs/${runId}/agents/${agentName}/conversation`
 }
 
 export const getRunAgentConversationApiAgentsRunsRunIdAgentsAgentNameConversationGet = async (runId: string,
     agentName: AgentNameSlug, options?: RequestInit): Promise<ConversationResponse> => {
-
+  
   return dashboardMutator<ConversationResponse>(getGetRunAgentConversationApiAgentsRunsRunIdAgentsAgentNameConversationGetUrl(runId,agentName),
-  {
+  {      
     ...options,
     method: 'GET'
-
-
+    
+    
   }
 );}
 
@@ -220,19 +220,19 @@ export const getRunAgentConversationApiAgentsRunsRunIdAgentsAgentNameConversatio
 export const getGetSurveyorConversationApiAgentsWorkflowRunsWorkflowRunIdAgentsSurveyorConversationGetUrl = (workflowRunId: string,) => {
 
 
-
+  
 
   return `/api/agents/workflow_runs/${workflowRunId}/agents/surveyor/conversation`
 }
 
 export const getSurveyorConversationApiAgentsWorkflowRunsWorkflowRunIdAgentsSurveyorConversationGet = async (workflowRunId: string, options?: RequestInit): Promise<ConversationResponse> => {
-
+  
   return dashboardMutator<ConversationResponse>(getGetSurveyorConversationApiAgentsWorkflowRunsWorkflowRunIdAgentsSurveyorConversationGetUrl(workflowRunId),
-  {
+  {      
     ...options,
     method: 'GET'
-
-
+    
+    
   }
 );}
 
@@ -244,19 +244,19 @@ export const getSurveyorConversationApiAgentsWorkflowRunsWorkflowRunIdAgentsSurv
 export const getGetPortfolioApiPortfolioGetUrl = () => {
 
 
-
+  
 
   return `/api/portfolio`
 }
 
 export const getPortfolioApiPortfolioGet = async ( options?: RequestInit): Promise<PortfolioResponse> => {
-
+  
   return dashboardMutator<PortfolioResponse>(getGetPortfolioApiPortfolioGetUrl(),
-  {
+  {      
     ...options,
     method: 'GET'
-
-
+    
+    
   }
 );}
 
@@ -268,19 +268,19 @@ export const getPortfolioApiPortfolioGet = async ( options?: RequestInit): Promi
 export const getListWorkflowRunsApiWorkflowRunsGetUrl = () => {
 
 
-
+  
 
   return `/api/workflow_runs`
 }
 
 export const listWorkflowRunsApiWorkflowRunsGet = async ( options?: RequestInit): Promise<WorkflowRunListItem[]> => {
-
+  
   return dashboardMutator<WorkflowRunListItem[]>(getListWorkflowRunsApiWorkflowRunsGetUrl(),
-  {
+  {      
     ...options,
     method: 'GET'
-
-
+    
+    
   }
 );}
 
@@ -292,15 +292,15 @@ export const listWorkflowRunsApiWorkflowRunsGet = async ( options?: RequestInit)
 export const getCreateWorkflowRunApiWorkflowRunsPostUrl = () => {
 
 
-
+  
 
   return `/api/workflow_runs`
 }
 
 export const createWorkflowRunApiWorkflowRunsPost = async (createWorkflowRunRequest: CreateWorkflowRunRequest, options?: RequestInit): Promise<CreateWorkflowRunResponse> => {
-
+  
   return dashboardMutator<CreateWorkflowRunResponse>(getCreateWorkflowRunApiWorkflowRunsPostUrl(),
-  {
+  {      
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -317,19 +317,19 @@ export const createWorkflowRunApiWorkflowRunsPost = async (createWorkflowRunRequ
 export const getDeleteWorkflowRunApiWorkflowRunsWorkflowRunIdDeleteUrl = (workflowRunId: string,) => {
 
 
-
+  
 
   return `/api/workflow_runs/${workflowRunId}`
 }
 
 export const deleteWorkflowRunApiWorkflowRunsWorkflowRunIdDelete = async (workflowRunId: string, options?: RequestInit): Promise<void> => {
-
+  
   return dashboardMutator<void>(getDeleteWorkflowRunApiWorkflowRunsWorkflowRunIdDeleteUrl(workflowRunId),
-  {
+  {      
     ...options,
     method: 'DELETE'
-
-
+    
+    
   }
 );}
 
@@ -341,19 +341,19 @@ export const deleteWorkflowRunApiWorkflowRunsWorkflowRunIdDelete = async (workfl
 export const getGetWorkflowRunApiWorkflowRunsWorkflowRunIdGetUrl = (workflowRunId: string,) => {
 
 
-
+  
 
   return `/api/workflow_runs/${workflowRunId}`
 }
 
 export const getWorkflowRunApiWorkflowRunsWorkflowRunIdGet = async (workflowRunId: string, options?: RequestInit): Promise<WorkflowRunDetailResponse> => {
-
+  
   return dashboardMutator<WorkflowRunDetailResponse>(getGetWorkflowRunApiWorkflowRunsWorkflowRunIdGetUrl(workflowRunId),
-  {
+  {      
     ...options,
     method: 'GET'
-
-
+    
+    
   }
 );}
 
@@ -365,19 +365,19 @@ export const getWorkflowRunApiWorkflowRunsWorkflowRunIdGet = async (workflowRunI
 export const getCancelWorkflowRunApiWorkflowRunsWorkflowRunIdCancelPostUrl = (workflowRunId: string,) => {
 
 
-
+  
 
   return `/api/workflow_runs/${workflowRunId}/cancel`
 }
 
 export const cancelWorkflowRunApiWorkflowRunsWorkflowRunIdCancelPost = async (workflowRunId: string, options?: RequestInit): Promise<void> => {
-
+  
   return dashboardMutator<void>(getCancelWorkflowRunApiWorkflowRunsWorkflowRunIdCancelPostUrl(workflowRunId),
-  {
+  {      
     ...options,
     method: 'POST'
-
-
+    
+    
   }
 );}
 
@@ -389,18 +389,18 @@ export const cancelWorkflowRunApiWorkflowRunsWorkflowRunIdCancelPost = async (wo
 export const getRetryFailedAgentsApiWorkflowRunsWorkflowRunIdRetryFailedAgentsPostUrl = (workflowRunId: string,) => {
 
 
-
+  
 
   return `/api/workflow_runs/${workflowRunId}/retry_failed_agents`
 }
 
 export const retryFailedAgentsApiWorkflowRunsWorkflowRunIdRetryFailedAgentsPost = async (workflowRunId: string, options?: RequestInit): Promise<unknown> => {
-
+  
   return dashboardMutator<unknown>(getRetryFailedAgentsApiWorkflowRunsWorkflowRunIdRetryFailedAgentsPostUrl(workflowRunId),
-  {
+  {      
     ...options,
     method: 'POST'
-
-
+    
+    
   }
 );}
