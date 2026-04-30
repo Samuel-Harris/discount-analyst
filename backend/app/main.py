@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 
 import logfire
 from fastapi import FastAPI
+import uvicorn
 
 from backend.db.migrate import migrate_to_head
 from backend.db.session import create_dashboard_engine, create_session_factory
@@ -54,3 +55,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     configure_dashboard_observability(settings, app)
     return app
+
+
+if __name__ == "__main__":
+    app = create_app()
+    uvicorn.run(app, host="127.0.0.1", port=8000)

@@ -2,7 +2,9 @@ import { useEffect } from "react";
 
 import type { ConversationResponse } from "../api";
 
-import { JsonPretty } from "./JsonPretty";
+import { AssistantResponsePanel } from "./agentPanel/AssistantResponsePanel";
+import { ConversationMessagesList } from "./agentPanel/ConversationMessagesList";
+import { SystemPromptPanel } from "./agentPanel/SystemPromptPanel";
 import { UiStateText } from "./UiStateText";
 
 export interface AgentPanelProps {
@@ -65,15 +67,17 @@ export function AgentPanel({
             <>
               <section>
                 <h3>System prompt</h3>
-                <pre>{data.system_prompt}</pre>
+                <SystemPromptPanel systemPrompt={data.system_prompt} />
               </section>
               <section>
                 <h3>Messages</h3>
-                <JsonPretty raw={data.messages_json} />
+                <ConversationMessagesList messagesJson={data.messages_json} />
               </section>
               <section>
                 <h3>Assistant response</h3>
-                <JsonPretty raw={data.assistant_response} />
+                <AssistantResponsePanel
+                  assistantResponse={data.assistant_response}
+                />
               </section>
             </>
           ) : null}
