@@ -14,13 +14,13 @@ from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
 from discount_analyst.agents.surveyor.schema import SurveyorOutput
 from discount_analyst.agents.surveyor.surveyor import create_surveyor_agent
 from discount_analyst.agents.surveyor.user_prompt import USER_PROMPT
-from scripts.common.cli import (
+from scripts.shared.cli import (
     add_agent_cli_model_argument,
     add_agent_cli_web_search_arguments,
 )
-from scripts.common.artefacts import write_agent_json
-from scripts.common.run_outputs import SurveyorRunOutput
-from scripts.common.usage import extract_turn_usage
+from scripts.shared.artefacts import write_agent_json
+from scripts.shared.run_outputs import SurveyorRunOutput
+from scripts.shared.usage import extract_turn_usage
 
 from scripts.utils.setup_logfire import setup_logfire
 

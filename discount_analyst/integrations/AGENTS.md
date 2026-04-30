@@ -9,17 +9,18 @@ Named external service adapters: Perplexity search tools and EODHD/FMP MCP `MCPS
 
 ## Key Files
 
-| File                    | Description                                                |
-| ----------------------- | ---------------------------------------------------------- |
-| `perplexity.py`         | `create_perplexity_toolset(AgentName)` for web/SEC search. |
-| `financial_data_mcp.py` | `create_financial_data_mcp_servers()` (EODHD + FMP URLs).  |
+| File                    | Description                                                                                     |
+| ----------------------- | ----------------------------------------------------------------------------------------------- |
+| `perplexity.py`         | `create_perplexity_toolset(AgentName)` for web/SEC search.                                      |
+| `financial_data_mcp.py` | `create_financial_data_mcp_servers()` (EODHD + FMP URLs; EODHD omitted if `EODHD__DISABLED`).   |
+| `infallible_toolset.py` | `InfallibleToolset` wrapper that catches tool errors and returns them as messages to the model. |
 
 ## Dependencies
 
 ### Internal
 
-- `discount_analyst.config.settings` for API keys; `discount_analyst.agents.common.tool_descriptions` / `agent_names` for Perplexity.
+- `common.config` for API keys; `discount_analyst.agents.common.tool_descriptions` / `agent_names` for Perplexity.
 
 ### External
 
-- **perplexityai**, **pydantic-ai** (`FunctionToolset`, `MCPServerStreamableHTTP`).
+- **perplexityai**, **pydantic-ai** (`FunctionToolset`, `MCPServerStreamableHTTP`, `WrapperToolset`).

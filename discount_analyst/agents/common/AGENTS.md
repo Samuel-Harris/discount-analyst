@@ -13,6 +13,8 @@ Shared **agent runtime** only: model construction from config, streaming runs wi
 | ----------------------- | ------------------------------------------------------ |
 | `agent_factory.py`      | `AgentSpec`, `create_agent`.                           |
 | `model.py`              | `create_model_from_config`.                            |
+| `ai_logging.py`         | Shared AI-tagged Logfire instance (`AI_LOGFIRE`).      |
+| `logging_constants.py`  | Shared observability constants (e.g. `AI_LOG_TAG`).    |
 | `streamed_agent_run.py` | `run_streamed_agent`, `StreamedAgentRunOutcome`.       |
 | `streaming_retries.py`  | `stream_with_retries`, streaming error classification. |
 | `tool_support.py`       | `add_required_feature_to_builtin_tools` (MCP, etc.).   |

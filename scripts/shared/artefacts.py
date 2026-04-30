@@ -10,7 +10,7 @@ from discount_analyst.agents.common.agent_names import AgentName
 from discount_analyst.config.ai_models_config import ModelName
 from discount_analyst.pipeline.schema import Verdict
 
-from scripts.common.constants import SCRIPTS_OUTPUTS_DIR
+from scripts.shared.constants import SCRIPTS_OUTPUTS_DIR
 
 
 def _sanitize_filename_suffix_body(s: str) -> str:

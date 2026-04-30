@@ -10,6 +10,7 @@ from discount_analyst.config.provider_features import (
 from discount_analyst.integrations.financial_data_mcp import (
     create_financial_data_mcp_servers,
 )
+from discount_analyst.integrations.infallible_toolset import InfallibleToolset
 
 
 def add_required_feature_to_builtin_tools(
@@ -37,7 +38,11 @@ def add_required_feature_to_builtin_tools(
 
     match required_feature:
         case ProviderFeature.MCP:
-            toolsets.extend(create_financial_data_mcp_servers())
+            # Wrap MCP servers with InfallibleToolset so tool errors (e.g., 402
+            # Payment Required) are returned as error messages to the model
+            # instead of crashing the agent run.
+            for mcp_server in create_financial_data_mcp_servers():
+                toolsets.append(InfallibleToolset(mcp_server))
         case _:
             raise NotImplementedError(
                 f"Feature '{required_feature.value}' is not supported."

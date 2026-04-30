@@ -5,7 +5,7 @@
 
 ## Purpose
 
-The core source code for the "Discount Analyst" stock analysis engine. This directory contains the implementation of the financial modeling logic (DCF), the AI agents for automated research, and explicit packages for configuration, HTTP transport, integrations, valuation types, and shared agent runtime.
+The core source code for the "Discount Analyst" stock analysis engine. This directory contains the implementation of the financial modeling logic (DCF), the AI agents for automated research, and explicit packages for configuration, HTTP transport, integrations, valuation types, and shared agent runtime. Unified environment-backed settings live in [`common/config.py`](../common/config.py) at the repository root.
 
 ## Key Files
 
@@ -27,7 +27,6 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 | `agents/strategist/schema.py`         | Strategist output schema: `MispricingThesis`.                                                                      |
 | `agents/sentinel/schema.py`           | Sentinel output schema: `EvaluationReport` and nested assessment models.                                           |
 | `agents/appraiser/schema.py`          | Appraiser I/O: `AppraiserInput` (pipeline inputs) and `AppraiserOutput` (`StockData` + `StockAssumptions`).        |
-| `config/settings.py`                  | Application configuration using `pydantic-settings` for API keys and environment variables.                        |
 | `config/ai_models_config.py`          | Configuration for LLM models, including token budgets and thinking parameters.                                     |
 | `http/retrying_client.py`             | Tenacity-backed async HTTP client for provider APIs.                                                               |
 | `integrations/perplexity.py`          | Perplexity-backed toolset factory for agents.                                                                      |

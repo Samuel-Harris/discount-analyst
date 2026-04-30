@@ -138,10 +138,10 @@ class SurveyorOutput(BaseModel):
     """Complete output from a single Surveyor run."""
 
     candidates: list[SurveyorCandidate] = Field(
-        min_length=10,
+        min_length=15,
         description=(
-            "Ranked list of candidates. Must contain at least 10. Aim for "
-            "15-25, but do not pad - a shorter list of strong candidates is "
+            "Ranked list of candidates. Must contain at least 15. Aim for "
+            "20-30, but do not pad - a shorter list of strong candidates is "
             "better than a diluted one."
         ),
     )

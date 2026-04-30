@@ -39,3 +39,11 @@ outputs/
 # Cursor artefacts
 .cursor/artefacts/
 .cursor/plans/
+
+# Dashboard frontend (Vite)
+frontend/node_modules/
+frontend/dist/
+frontend/tsconfig.tsbuildinfo
+
+# Data
+data/

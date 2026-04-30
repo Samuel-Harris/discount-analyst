@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-23 | Updated: 2026-02-23 -->
+<!-- Generated: 2026-02-23 | Updated: 2026-04-15 -->
 
 # workflows
 
@@ -9,9 +9,9 @@ The `workflows/` directory contains GitHub Actions workflow definitions that aut
 
 ## Key Files
 
-| File | Description |
-| --------- | ---------------------------- |
-| `ci.yml` | The primary Continuous Integration workflow that executes pre-commit hooks, runs the full pytest suite, and performs pyrefly analysis. |
+| File     | Description                                                                                                                                                                                                                                                         |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ci.yml` | The primary Continuous Integration workflow: pre-commit, pytest (with coverage for `discount_analyst/` and `backend/`), pyright, a Node-only frontend build and Vitest job, and an OpenAPI/Orval drift check that rebuilds the dashboard client after regeneration. |
 
 ## Subdirectories
 

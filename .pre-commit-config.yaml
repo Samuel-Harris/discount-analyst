@@ -5,12 +5,14 @@ repos:
     rev: v3.2.0
     hooks:
       - id: trailing-whitespace
+        # Orval emits lines that look blank but contain spaces; CI diffs raw generator output.
+        exclude: ^frontend/src/api/generated\.ts$
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-added-large-files
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.14.1
     hooks:
-        - id: ruff-check
-          args: [--fix, --exit-non-zero-on-fix]
-        - id: ruff-format
+      - id: ruff-check
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format

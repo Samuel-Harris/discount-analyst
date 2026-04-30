@@ -52,19 +52,20 @@ from discount_analyst.pipeline.builders import (
     verdict_from_decision,
 )
 from discount_analyst.pipeline.schema import SentinelRejection, Verdict
+
+from backend.contracts.stock_run_args import StockRunArgs
 from scripts.agents.run_appraiser import (
-    StockRunArgs,
     display_agent_output,
     run_agent,
     run_dcf_and_display,
     save_run_output,
 )
-from scripts.common.cli import (
+from scripts.shared.cli import (
     add_agent_cli_model_argument,
     add_agent_cli_web_search_arguments,
 )
-from scripts.common.artefacts import write_agent_json, write_verdicts_json
-from scripts.common.run_outputs import (
+from scripts.shared.artefacts import write_agent_json, write_verdicts_json
+from scripts.shared.run_outputs import (
     ArbiterRunOutput,
     ProfilerRunOutput,
     SentinelRunOutput,
@@ -73,7 +74,7 @@ from scripts.common.run_outputs import (
     SurveyorRunOutput,
     TurnUsage,
 )
-from scripts.common.usage import extract_turn_usage
+from scripts.shared.usage import extract_turn_usage
 from scripts.utils.setup_logfire import setup_logfire
 
 setup_logfire()
@@ -286,8 +287,9 @@ def display_candidate_table(
     console.print(table)
 
 
-def display_researcher_output(output: DeepResearchReport) -> None:
-    candidate = output.candidate
+def display_researcher_output(
+    output: DeepResearchReport, *, candidate: SurveyorCandidate
+) -> None:
     table = Table(title=f"Researcher - {candidate.ticker}", show_header=True)
     table.add_column("Field", style="cyan", no_wrap=True)
     table.add_column("Value", style="white")
@@ -1060,7 +1062,7 @@ async def main() -> None:
             console.print(f"[dim]{exc}[/dim]")
             continue
 
-        display_researcher_output(run_result.output)
+        display_researcher_output(run_result.output, candidate=candidate)
         researcher_out_path = save_researcher_output(
             model_name=args.model,
             surveyor_report_path=entry_path,

@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from discount_analyst.agents.surveyor.schema import KeyMetrics, SurveyorCandidate
+from discount_analyst.agents.surveyor.schema import KeyMetrics
 
 
 class BusinessModel(BaseModel):
@@ -106,9 +106,6 @@ class DataGapsUpdate(BaseModel):
 class DeepResearchReport(BaseModel):
     """Structured, neutral evidence report for one Surveyor candidate."""
 
-    candidate: SurveyorCandidate = Field(
-        description="Original Surveyor candidate context used for research."
-    )
     executive_overview: str = Field(
         description="Neutral synthesis of what is known, unknown, and most relevant."
     )

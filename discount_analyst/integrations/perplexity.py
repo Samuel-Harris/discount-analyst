@@ -6,7 +6,7 @@ from pydantic_ai import FunctionToolset
 
 from discount_analyst.agents.common.agent_names import AgentName
 from discount_analyst.agents.common.tool_descriptions import AGENT_TOOL_DESCRIPTIONS
-from discount_analyst.config.settings import settings
+from common.config import settings
 
 perplexity_rate_limiter = AsyncLimiter(settings.perplexity.rate_limit_per_minute, 60)
 

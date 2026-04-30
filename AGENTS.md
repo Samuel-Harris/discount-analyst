@@ -1,4 +1,4 @@
-<!-- Generated: 2026-02-23 | Updated: 2026-04-03 (researcher workflow added) -->
+<!-- Generated: 2026-02-23 | Updated: 2026-04-15 (pytest coverage includes backend) -->
 
 # Discount Analyst
 
@@ -53,7 +53,7 @@ The analyst reviews the DCF outputs and AI buy recommendations across all stocks
 | `uv.lock`                                                 | Locked versions of all project dependencies.                                                                                                                                                         |
 | `README.md`                                               | Overview, quick start instructions, and high-level documentation.                                                                                                                                    |
 | `LICENSE`                                                 | MIT License terms for the repository.                                                                                                                                                                |
-| `pytest.ini`                                              | Configuration for the `pytest` test suite, including coverage settings.                                                                                                                              |
+| `pytest.ini`                                              | Pytest defaults: branch coverage and terminal missing-line reports for `discount_analyst/` and `backend/`.                                                                                           |
 | `.cursor/hooks.json`                                      | Cursor hooks: `sessionStart` (injects branch + uv env context) and `afterFileEdit` (auto-runs `ruff` on Python files).                                                                               |
 | `scripts/agents/run_researcher.py`                        | Runs Researcher from Surveyor output selectors (`<json>` or `<json>:<TICKER>`) and writes one JSON per candidate.                                                                                    |
 | `scripts/agents/run_strategist.py`                        | Runs Strategist from Researcher output selectors (`<json>` or `<json>:<TICKER>`) and writes one JSON per target.                                                                                     |
@@ -62,14 +62,16 @@ The analyst reviews the DCF outputs and AI buy recommendations across all stocks
 | `scripts/workflows/run_surveyor_researcher_strategist.py` | Runs Surveyor once, Researcher per candidate, then Strategist per successful Researcher.                                                                                                             |
 | `scripts/workflows/run_surveyor_to_sentinel.py`           | Runs Surveyor once, Researcher per candidate, then Strategist and Sentinel per successful prior stage.                                                                                               |
 | `scripts/workflows/run_full_workflow.py`                  | Runs Surveyor once, Researcher per candidate, then Strategist and Sentinel; Appraiser + DCF and Arbiter when the Sentinel valuation gate passes; writes `Verdict` rows and a verdicts JSON artefact. |
+| `common/config.py`                                        | Canonical unified `Settings` (API keys, dashboard fields, `load_settings`, module `settings`).                                                                                                       |
 
 ## Subdirectories
 
-| Directory           | Purpose                                                                     |
-| ------------------- | --------------------------------------------------------------------------- |
-| `discount_analyst/` | Core source code for the analysis engine (see `discount_analyst/AGENTS.md`) |
-| `scripts/`          | Entry point scripts for running analyses (see `scripts/AGENTS.md`)          |
-| `tests/`            | Comprehensive unit and integration tests (see `tests/AGENTS.md`)            |
+| Directory           | Purpose                                                                      |
+| ------------------- | ---------------------------------------------------------------------------- |
+| `common/`           | Shared modules used across the package and backend (see `common/config.py`). |
+| `discount_analyst/` | Core source code for the analysis engine (see `discount_analyst/AGENTS.md`)  |
+| `scripts/`          | Entry point scripts for running analyses (see `scripts/AGENTS.md`)           |
+| `tests/`            | Comprehensive unit and integration tests (see `tests/AGENTS.md`)             |
 
 ## For AI Agents
 

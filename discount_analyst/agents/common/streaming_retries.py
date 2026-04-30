@@ -1,10 +1,11 @@
 import asyncio
-import re
+import json
+from collections.abc import AsyncIterable
 from copy import deepcopy
 from contextlib import AbstractAsyncContextManager
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, cast
 
-import logfire
+import httpx
 from openai import (
     APIConnectionError,
     APIError,
@@ -12,22 +13,61 @@ from openai import (
     InternalServerError,
     RateLimitError,
 )
+from pydantic import BaseModel
+from pydantic_ai import capture_run_messages
 from pydantic_ai.agent.abstract import AbstractAgent
-from pydantic_ai.messages import ModelMessage
+from pydantic_ai.exceptions import UnexpectedModelBehavior
+from pydantic_ai.messages import (
+    AgentStreamEvent,
+    BuiltinToolCallPart,
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    PartDeltaEvent,
+    PartStartEvent,
+    TextPart,
+    TextPartDelta,
+    ToolCallPart,
+    ToolCallPartDelta,
+    UserPromptPart,
+)
 from pydantic_ai.result import StreamedRunResult
 from pydantic_ai.usage import RunUsage, UsageLimits
 
 from discount_analyst.http.retrying_client import (
     FALLBACK_MAX_WEIGHT_SECONDS,
-    RETRY_AFTER_MAX_WEIGHT_SECONDS,
     RETRY_WAIT_MULTIPLIER,
 )
+from discount_analyst.agents.common.ai_logging import AI_LOGFIRE
 
-_STREAMING_RETRY_HINT_TRY_AGAIN = re.compile(
-    r"try\s+again\s+in\s+(\d+\.?\d*)\s*s", re.IGNORECASE
-)
 # Streaming can fail mid-`stream_output()` (e.g. OpenAI TPM) after a successful `run_stream` start.
 MAX_STREAM_RETRY_ATTEMPTS = 6
+MAX_STRUCTURED_OUTPUT_COMPLETIONS = 3
+
+
+_TPM_RPM_WAIT_SECONDS = 60.0
+
+
+def _partial_output_retry_prompt(partial_output: str) -> str:
+    return (
+        "Your previous response was interrupted before it finished. Continue from "
+        "the point where it stopped, using the partial draft below as context. "
+        "Do not restart or repeat completed material unless it is necessary for "
+        "coherence.\n\n"
+        "Partial draft from the interrupted response:\n\n"
+        f"{partial_output}"
+    )
+
+
+def _structured_output_repair_prompt(exc: BaseException) -> str:
+    return (
+        "Your previous response could not be validated against the required "
+        "structured output schema. Return a complete corrected output object "
+        "that satisfies the schema. Do not include a preamble, markdown, or "
+        "explanatory text.\n\n"
+        "Validation failure:\n\n"
+        f"{exc}"
+    )
 
 
 def _openai_error_text(exc: BaseException) -> str:
@@ -54,14 +94,73 @@ def api_error_indicates_rate_limit(exc: APIError) -> bool:
     )
 
 
-def should_retry_streaming_error(exc: BaseException) -> bool:
-    """Whether to backoff and restart a streamed agent run."""
+def _is_retryable_single_error(exc: BaseException) -> bool:
+    """Check if a single exception (not a group) is retryable."""
     if isinstance(
-        exc, (RateLimitError, InternalServerError, APITimeoutError, APIConnectionError)
+        exc,
+        (
+            RateLimitError,
+            InternalServerError,
+            APITimeoutError,
+            APIConnectionError,
+            httpx.RemoteProtocolError,
+            TimeoutError,  # MCP and other transient timeouts
+        ),
     ):
         return True
     if isinstance(exc, APIError):
         return api_error_indicates_rate_limit(exc)
+    return False
+
+
+def _streaming_retryable_exception_group(
+    group: BaseExceptionGroup[BaseException],
+) -> bool:
+    """True when every leaf under the group passes `_is_retryable_single_error`."""
+    for sub in group.exceptions:
+        if isinstance(sub, BaseExceptionGroup):
+            nested = cast(BaseExceptionGroup[BaseException], sub)
+            if not _streaming_retryable_exception_group(nested):
+                return False
+        elif not _is_retryable_single_error(sub):
+            return False
+    return True
+
+
+def should_retry_streaming_error(exc: BaseException) -> bool:
+    """Whether to backoff and restart a streamed agent run.
+
+    Handles ExceptionGroups (from anyio TaskGroups) by checking if all
+    sub-exceptions are retryable.
+    """
+    # Handle ExceptionGroup (e.g., from MCP's anyio TaskGroup)
+    if isinstance(exc, BaseExceptionGroup):
+        return _streaming_retryable_exception_group(
+            cast(BaseExceptionGroup[BaseException], exc),
+        )
+    return _is_retryable_single_error(exc)
+
+
+def should_repair_structured_output_error(exc: BaseException) -> bool:
+    """True when pydantic-ai exhausted structured output validation retries."""
+    if not isinstance(exc, UnexpectedModelBehavior):
+        return False
+    texts = [str(exc).lower()]
+    if exc.__cause__ is not None:
+        texts.append(str(exc.__cause__).lower())
+    text = "\n".join(texts)
+    return "validation" in text and (
+        "output" in text or "result" in text or "structured" in text
+    )
+
+
+def _is_tool_startup_timeout(exc: BaseException) -> bool:
+    """True for MCP/tool startup timeouts that occur before model progress."""
+    if type(exc) is TimeoutError:
+        return True
+    if isinstance(exc, BaseExceptionGroup):
+        group = cast(BaseExceptionGroup[BaseException], exc)
+        return all(_is_tool_startup_timeout(sub) for sub in group.exceptions)
     return False
 
 
@@ -73,15 +172,76 @@ def _stream_wait(attempt: int) -> float:
     )
 
 
+def _is_tpm_or_rpm_error(text: str) -> bool:
+    """Check if the error indicates a TPM or RPM rate limit."""
+    text_lower = text.lower()
+    return any(
+        indicator in text_lower
+        for indicator in ("tokens per min", "tpm", "requests per min", "rpm")
+    )
+
+
 def streaming_retry_sleep_seconds(exc: BaseException, attempt: int) -> float:
-    """Sleep before retry; prefer OpenAI's suggested delay when present."""
+    """Sleep before retry; wait 60s for TPM/RPM limits to let the window clear."""
     text = _openai_error_text(exc)
-    m = _STREAMING_RETRY_HINT_TRY_AGAIN.search(text)
-    if m:
-        suggested = float(m.group(1))
-        # Small cushion so the TPM window has cleared.
-        return min(max(suggested + 1.0, 1.0), RETRY_AFTER_MAX_WEIGHT_SECONDS)
+
+    # TPM/RPM limits need a full window to clear — OpenAI's suggested wait is
+    # too short because it assumes no other requests are consuming quota.
+    if _is_tpm_or_rpm_error(text):
+        return _TPM_RPM_WAIT_SECONDS
+
+    # For other transient errors, use exponential backoff.
     return min(_stream_wait(attempt), FALLBACK_MAX_WEIGHT_SECONDS)
+
+
+def _stringify_partial_output(output: Any) -> str | None:
+    if output is None:
+        return None
+    if isinstance(output, str):
+        text = output
+    elif isinstance(output, BaseModel):
+        text = output.model_dump_json(indent=2)
+    else:
+        text = json.dumps(output, default=str, indent=2)
+    text = text.strip()
+    return text or None
+
+
+def _tool_args_as_text(part: ToolCallPart | BuiltinToolCallPart) -> str | None:
+    if not part.has_content():
+        return None
+    return part.args_as_json_str()
+
+
+def _model_response_partial_output(response: ModelResponse) -> str | None:
+    parts: list[str] = []
+    for part in response.parts:
+        if isinstance(part, TextPart) and part.content.strip():
+            parts.append(part.content.strip())
+        elif isinstance(part, ToolCallPart | BuiltinToolCallPart):
+            if args := _tool_args_as_text(part):
+                parts.append(args)
+    text = "\n\n".join(parts).strip()
+    return text or None
+
+
+def _event_partial_output(event: AgentStreamEvent) -> str | None:
+    if isinstance(event, PartStartEvent):
+        part = event.part
+        if isinstance(part, TextPart):
+            return part.content
+        if isinstance(part, ToolCallPart | BuiltinToolCallPart):
+            return _tool_args_as_text(part)
+    if isinstance(event, PartDeltaEvent):
+        delta = event.delta
+        if isinstance(delta, TextPartDelta):
+            return delta.content_delta
+        if isinstance(delta, ToolCallPartDelta):
+            if isinstance(delta.args_delta, str):
+                return delta.args_delta
+            if isinstance(delta.args_delta, dict):
+                return json.dumps(delta.args_delta, default=str)
+    return None
 
 
 class StreamWithRetriesContext[T]:
@@ -105,7 +265,9 @@ class StreamWithRetriesContext[T]:
             AbstractAsyncContextManager[StreamedRunResult[Any, T]] | None
         ) = None
         self._active_streamed_result: StreamedRunResult[Any, T] | None = None
+        self._partial_output_snapshot: str | None = None
         self._attempt_index = 0
+        self._structured_output_repair_count = 0
 
         self._result = StreamedResultWrapper(self)
 
@@ -135,14 +297,15 @@ class StreamWithRetriesContext[T]:
             await self._close_active_attempt(type(exc), exc, exc.__traceback__)
             raise exc
 
-        self._next_message_history = deepcopy(
-            self.active_streamed_result.all_messages()
-        )
-        self._next_usage = deepcopy(self.active_streamed_result.usage())
+        self.capture_partial_output_from_active_result()
+        if not self._checkpoint_active_attempt():
+            await self._close_active_attempt(type(exc), exc, exc.__traceback__)
+            self._raise_unresumable_open_failure(exc)
+        self._append_partial_output_retry_message()
 
         await self._close_active_attempt(type(exc), exc, exc.__traceback__)
         wait = streaming_retry_sleep_seconds(exc, self._attempt_index)
-        logfire.info(
+        AI_LOGFIRE.info(
             "Agent stream interrupted, retrying",
             attempt=self._attempt_index + 1,
             max_attempts=MAX_STREAM_RETRY_ATTEMPTS,
@@ -153,41 +316,163 @@ class StreamWithRetriesContext[T]:
         self._attempt_index += 1
         await self._open_attempt_with_retries()
 
+    async def reopen_after_output_validation_failure(self, exc: BaseException) -> None:
+        """Feed a structured-output validation failure back to the model."""
+        if not should_repair_structured_output_error(
+            exc
+        ) or self._structured_output_repair_count >= (
+            MAX_STRUCTURED_OUTPUT_COMPLETIONS - 1
+        ):
+            await self._close_active_attempt(type(exc), exc, exc.__traceback__)
+            raise exc
+
+        if not self._checkpoint_active_attempt():
+            await self._close_active_attempt(type(exc), exc, exc.__traceback__)
+            raise exc
+        self._append_structured_output_repair_message(exc)
+        await self._close_active_attempt(type(exc), exc, exc.__traceback__)
+
+        repair_attempt = self._structured_output_repair_count + 1
+        AI_LOGFIRE.info(
+            "Structured output validation failed, retrying repair",
+            repair_attempt=repair_attempt,
+            structured_completion_attempt=repair_attempt + 1,
+            max_structured_completion_attempts=MAX_STRUCTURED_OUTPUT_COMPLETIONS,
+            error=str(exc),
+        )
+        self._structured_output_repair_count = repair_attempt
+        await self._open_attempt_with_retries()
+
     async def _open_attempt_with_retries(self) -> None:
         while True:
-            context_manager = self._agent.run_stream(
-                self._next_user_prompt(),
-                message_history=self._next_message_history,
-                usage_limits=self._usage_limits,
-                usage=self._next_usage,
-            )
-            try:
-                result = await context_manager.__aenter__()
-            except BaseException as exc:
-                if not should_retry_streaming_error(exc) or self._attempt_index >= (
-                    MAX_STREAM_RETRY_ATTEMPTS - 1
-                ):
-                    raise
-                wait = streaming_retry_sleep_seconds(exc, self._attempt_index)
-                logfire.info(
-                    "Agent stream start failed, retrying",
-                    attempt=self._attempt_index + 1,
-                    max_attempts=MAX_STREAM_RETRY_ATTEMPTS,
-                    wait_s=wait,
-                    error=str(exc),
+            with capture_run_messages() as captured_messages:
+                context_manager = self._agent.run_stream(
+                    self._next_user_prompt(),
+                    message_history=self._next_message_history,
+                    usage_limits=self._usage_limits,
+                    usage=self._next_usage,
+                    event_stream_handler=self._capture_open_stream_events,
                 )
-                await asyncio.sleep(wait)
-                self._attempt_index += 1
-                continue
+                try:
+                    result = await context_manager.__aenter__()
+                except BaseException as exc:
+                    self._checkpoint_captured_messages(captured_messages)
+                    if not should_retry_streaming_error(exc) or self._attempt_index >= (
+                        MAX_STREAM_RETRY_ATTEMPTS - 1
+                    ):
+                        raise
+                    if self._next_message_history is None:
+                        if not _is_tool_startup_timeout(exc):
+                            self._raise_unresumable_open_failure(exc)
+                        AI_LOGFIRE.info(
+                            "Agent tool startup failed before stream progress, retrying",
+                            attempt=self._attempt_index + 1,
+                            max_attempts=MAX_STREAM_RETRY_ATTEMPTS,
+                            error=str(exc),
+                        )
+                    self._append_partial_output_retry_message()
+                    wait = streaming_retry_sleep_seconds(exc, self._attempt_index)
+                    AI_LOGFIRE.info(
+                        "Agent stream start failed, retrying",
+                        attempt=self._attempt_index + 1,
+                        max_attempts=MAX_STREAM_RETRY_ATTEMPTS,
+                        wait_s=wait,
+                        error=str(exc),
+                    )
+                    await asyncio.sleep(wait)
+                    self._attempt_index += 1
+                    continue
 
             self._run_stream_context_manager = context_manager
             self._active_streamed_result = result
+            self._partial_output_snapshot = None
             return
 
     def _next_user_prompt(self) -> str | None:
         if self._next_message_history is None:
             return self._user_prompt
         return None
+
+    def _checkpoint_active_attempt(self) -> bool:
+        active_result = self._active_streamed_result
+        if active_result is None:
+            return False
+        self._next_message_history = deepcopy(active_result.all_messages())
+        self._next_usage = deepcopy(active_result.usage())
+        return True
+
+    def _checkpoint_captured_messages(self, messages: list[ModelMessage]) -> bool:
+        if not messages:
+            return False
+        self._next_message_history = deepcopy(messages)
+        return True
+
+    def record_partial_output(self, output: Any) -> None:
+        if text := _stringify_partial_output(output):
+            self._partial_output_snapshot = text
+
+    def capture_partial_output_from_active_result(self) -> None:
+        active_result = self._active_streamed_result
+        if active_result is None:
+            return
+        try:
+            response = active_result.response
+        except Exception:
+            return
+        if text := _model_response_partial_output(response):
+            self._partial_output_snapshot = text
+
+    async def _capture_open_stream_events(
+        self,
+        run_context: Any,
+        events: AsyncIterable[AgentStreamEvent],
+    ) -> None:
+        del run_context
+        partial_parts: dict[int, str] = {}
+        async for event in events:
+            if text := _event_partial_output(event):
+                if isinstance(event, PartStartEvent):
+                    partial_parts[event.index] = text
+                elif isinstance(event, PartDeltaEvent):
+                    partial_parts[event.index] = (
+                        partial_parts.get(event.index, "") + text
+                    )
+                self._partial_output_snapshot = "\n\n".join(
+                    part for _, part in sorted(partial_parts.items()) if part.strip()
+                )
+
+    def _append_partial_output_retry_message(self) -> bool:
+        partial_output = self._partial_output_snapshot
+        if self._next_message_history is None or partial_output is None:
+            return False
+        self._next_message_history.append(
+            ModelRequest(
+                parts=[UserPromptPart(_partial_output_retry_prompt(partial_output))]
+            )
+        )
+        self._partial_output_snapshot = None
+        return True
+
+    def _append_structured_output_repair_message(self, exc: BaseException) -> None:
+        if self._next_message_history is None:
+            return
+        self._next_message_history.append(
+            ModelRequest(parts=[UserPromptPart(_structured_output_repair_prompt(exc))])
+        )
+        self._partial_output_snapshot = None
+
+    def _raise_unresumable_open_failure(self, exc: BaseException) -> None:
+        AI_LOGFIRE.info(
+            "Agent stream start failed without resumable message history",
+            attempt=self._attempt_index + 1,
+            max_attempts=MAX_STREAM_RETRY_ATTEMPTS,
+            error=str(exc),
+        )
+        exc.add_note(
+            "Stream retry was not attempted because no message-history checkpoint "
+            "was available; the original prompt was not replayed."
+        )
+        raise exc
 
     async def _close_active_attempt(
         self,
@@ -223,6 +508,7 @@ class StreamedResultWrapper[T]:
                 async for output in self._active_result.stream_output(
                     debounce_by=debounce_by
                 ):
+                    self._retries_context.record_partial_output(output)
                     yield output
             except BaseException as exc:
                 await self._retries_context.reopen_after_stream_interrupt(exc)
@@ -231,10 +517,16 @@ class StreamedResultWrapper[T]:
         raise RuntimeError("Stream retries exhausted without terminal result")
 
     async def get_output(self) -> T:
-        for _ in range(MAX_STREAM_RETRY_ATTEMPTS):
+        for _ in range(MAX_STREAM_RETRY_ATTEMPTS + MAX_STRUCTURED_OUTPUT_COMPLETIONS):
             try:
                 return await self._active_result.get_output()
             except BaseException as exc:
+                if should_repair_structured_output_error(exc):
+                    await self._retries_context.reopen_after_output_validation_failure(
+                        exc
+                    )
+                    continue
+                self._retries_context.capture_partial_output_from_active_result()
                 await self._retries_context.reopen_after_stream_interrupt(exc)
         raise RuntimeError("Output retries exhausted without terminal result")
 

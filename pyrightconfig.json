@@ -1,5 +1,10 @@
 {
-  "include": ["discount_analyst/**/*.py", "scripts/**/*.py", "tests/**/*.py"],
+  "include": [
+    "backend/**/*.py",
+    "discount_analyst/**/*.py",
+    "scripts/**/*.py",
+    "tests/**/*.py"
+  ],
   "exclude": [
     "**/__pycache__/**",
     "**/.venv/**",
@@ -7,5 +12,6 @@
     "discount_analyst/notebooks/**"
   ],
   "typeCheckingMode": "strict",
-  "pythonVersion": "3.14"
+  "pythonVersion": "3.14",
+  "reportUnknownVariableType": true
 }
