@@ -1,4 +1,4 @@
-"""Example `messages_json` payloads for dashboard mock mode (pydantic-ai–style message rows)."""
+"""Example `messages_json` payloads for dashboard mock mode (pydantic-ai-style message rows)."""
 
 from __future__ import annotations
 
@@ -249,34 +249,6 @@ def appraiser_messages_json(*, ticker: str) -> str:
                         "DCF is computed locally from this payload."
                     ),
                     _text("`AppraiserOutput` is stored on the agent execution."),
-                ],
-            ),
-        ]
-    )
-
-
-def arbiter_messages_json(*, ticker: str) -> str:
-    return _dumps(
-        [
-            _msg(
-                "request",
-                [
-                    _user_prompt(
-                        f"Synthesize a final Arbiter decision for {ticker} using research, "
-                        "thesis, Sentinel view, and valuation output."
-                    ),
-                ],
-            ),
-            _msg(
-                "response",
-                [
-                    _text(
-                        "(mock) Arbiter: weighed margin of safety vs. conviction and wrote a "
-                        "verdict-shaped decision for the dashboard."
-                    ),
-                    _text(
-                        "`ArbiterDecision` JSON is available as the assistant response."
-                    ),
                 ],
             ),
         ]

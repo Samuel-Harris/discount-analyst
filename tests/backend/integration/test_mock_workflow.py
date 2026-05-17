@@ -89,7 +89,7 @@ async def test_mock_workflow_completes_profiler_and_surveyor(
     assert len(detail["runs"]) == 4
     surveyor_decisions = {r["decision_type"] for r in surveyor_lanes}
     assert "sentinel_rejection" in surveyor_decisions
-    assert "arbiter" in surveyor_decisions
+    assert "rating_table" in surveyor_decisions
     profiler_run = profiler_lanes[0]
     assert profiler_run["status"] == "completed"
     for a in profiler_run["agent_executions"]:
@@ -322,7 +322,6 @@ async def test_appraiser_conversation_failure_does_not_leave_appraiser_completed
     }
     assert profiler_lane["status"] == "failed"
     assert statuses["appraiser"] == "failed"
-    assert statuses["arbiter"] == "skipped"
 
 
 @pytest.mark.asyncio
@@ -394,7 +393,6 @@ async def test_lane_abort_marks_unreached_downstream_agents_skipped(
     assert statuses["strategist"] == "skipped"
     assert statuses["sentinel"] == "skipped"
     assert statuses["appraiser"] == "skipped"
-    assert statuses["arbiter"] == "skipped"
 
 
 @pytest.mark.asyncio
@@ -465,7 +463,6 @@ async def test_retry_resume_skips_completed_surveyor_without_duplicate_lanes(
             ("strategist", ExecutionStatusDb.SKIPPED),
             ("sentinel", ExecutionStatusDb.SKIPPED),
             ("appraiser", ExecutionStatusDb.SKIPPED),
-            ("arbiter", ExecutionStatusDb.SKIPPED),
         ):
             execution_id = runs.get_agent_execution_id_by_run_and_agent(
                 session, run_id=profiler_run_id, agent_name=agent_name

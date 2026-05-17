@@ -77,7 +77,6 @@ def test_workflow_run_detail_matches_contract_after_post(client: TestClient) -> 
             "strategist",
             "sentinel",
             "appraiser",
-            "arbiter",
         )
 
 

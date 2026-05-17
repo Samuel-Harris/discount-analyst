@@ -7,8 +7,8 @@ class DCFAnalysisParameters(BaseModel):
     stock_data: StockData
     stock_assumptions: StockAssumptions
 
-    risk_free_rate: float
-    expected_market_return: float = 0.09
+    risk_free_rate_pct: float
+    expected_market_return_pct: float = 9.0
 
 
 class DCFAnalysisResult(BaseModel):

@@ -308,7 +308,6 @@ def fetch_workflow_detail(
         AgentNameDb.STRATEGIST.value: 2,
         AgentNameDb.SENTINEL.value: 3,
         AgentNameDb.APPRAISER.value: 4,
-        AgentNameDb.ARBITER.value: 5,
     }
 
     runs = list(

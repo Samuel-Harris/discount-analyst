@@ -15,7 +15,9 @@ Produce a `DeepResearchReport` for the following screened candidate.
 {candidate_json}
 </SurveyorCandidate>
 
-Use the Surveyor candidate as input context only. Do not copy it into the output object. Populate `data_gaps_update.original_data_gaps` from the candidate's `data_gaps` field.
+The `ticker` field uses the exchange's native format (e.g. `GLE.L` for LSE, `AVNW` for NASDAQ). Follow the symbol resolution playbook in your instructions before making any data calls.
+
+Use the Surveyor candidate as input context only. Do not copy it into the output object. Populate `data_gaps_update.original_data_gaps` from the candidate's `data_gaps` field verbatim.
 
 Return only the `DeepResearchReport` JSON object. No preamble, no markdown.
 """.strip()

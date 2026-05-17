@@ -25,25 +25,28 @@ class DCFAnalysis:
         self.total_interest_expense = stock_data.total_interest_expense
         self.beta = stock_data.beta
 
-        # Market parameters (from dcf_analysis_params directly)
-        self.risk_free_rate = dcf_analysis_params.risk_free_rate
-        self.expected_market_return = dcf_analysis_params.expected_market_return
+        # Market parameters (fractional rates for internal math)
+        self.risk_free_rate = dcf_analysis_params.risk_free_rate_pct / 100
+        self.expected_market_return = (
+            dcf_analysis_params.expected_market_return_pct / 100
+        )
 
-        # Assumptions (from stock_assumptions)
+        # Assumptions (fractional rates for internal math)
         self.assumed_forecast_period_annual_revenue_growth_rate = (
-            stock_assumptions.assumed_forecast_period_annual_revenue_growth_rate
+            stock_assumptions.assumed_forecast_period_annual_revenue_growth_rate_pct
+            / 100
         )
         self.assumed_perpetuity_cash_flow_growth_rate = (
-            stock_assumptions.assumed_perpetuity_cash_flow_growth_rate
+            stock_assumptions.assumed_perpetuity_cash_flow_growth_rate_pct / 100
         )
-        self.assumed_ebit_margin = stock_assumptions.assumed_ebit_margin
-        self.assumed_tax_rate = stock_assumptions.assumed_tax_rate
+        self.assumed_ebit_margin = stock_assumptions.assumed_ebit_margin_pct / 100
+        self.assumed_tax_rate = stock_assumptions.assumed_tax_rate_pct / 100
         self.assumed_depreciation_and_amortization_rate = (
-            stock_assumptions.assumed_depreciation_and_amortization_rate
+            stock_assumptions.assumed_depreciation_and_amortization_rate_pct / 100
         )
-        self.assumed_capex_rate = stock_assumptions.assumed_capex_rate
+        self.assumed_capex_rate = stock_assumptions.assumed_capex_rate_pct / 100
         self.assumed_change_in_working_capital_rate = (
-            stock_assumptions.assumed_change_in_working_capital_rate
+            stock_assumptions.assumed_change_in_working_capital_rate_pct / 100
         )
 
         # Input parameters (from stock_assumptions)
@@ -60,10 +63,10 @@ class DCFAnalysis:
             <= self.assumed_perpetuity_cash_flow_growth_rate
         ):
             raise ValueError(
-                f"Forecast period revenue growth rate ({self.assumed_forecast_period_annual_revenue_growth_rate:.4f}) "
-                f"must be greater than perpetuity cash flow growth rate ({self.assumed_perpetuity_cash_flow_growth_rate:.4f}). "
+                f"Forecast period revenue growth rate ({self.assumed_forecast_period_annual_revenue_growth_rate * 100:.2f}%) "
+                f"must be greater than perpetuity cash flow growth rate ({self.assumed_perpetuity_cash_flow_growth_rate * 100:.2f}%). "
                 f"This ensures the company transitions from high-growth to stable growth. "
-                f"Expected: forecast rate > perpetuity rate (e.g., 0.08 > 0.025)."
+                f"Expected: forecast rate > perpetuity rate (e.g. 8.0% > 2.5%)."
             )
 
     def _calculate_cost_of_equity(self) -> float:
@@ -152,10 +155,10 @@ class DCFAnalysis:
     ) -> float:
         if discount_rate <= self.assumed_perpetuity_cash_flow_growth_rate:
             raise ValueError(
-                f"Discount rate ({discount_rate:.4f}) must be strictly greater than "
-                f"perpetuity growth rate ({self.assumed_perpetuity_cash_flow_growth_rate:.4f}) "
-                f"for terminal value calculation. Provided discount rate: {discount_rate:.4f}. "
-                f"Expected: discount rate > perpetuity rate (e.g., 0.08 > 0.025) to ensure convergence."
+                f"Discount rate ({discount_rate * 100:.2f}%) must be strictly greater than "
+                f"perpetuity growth rate ({self.assumed_perpetuity_cash_flow_growth_rate * 100:.2f}%) "
+                f"for terminal value calculation. Provided discount rate: {discount_rate * 100:.2f}%. "
+                f"Expected: discount rate > perpetuity rate (e.g. 8.0% > 2.5%) to ensure convergence."
             )
 
         return (
