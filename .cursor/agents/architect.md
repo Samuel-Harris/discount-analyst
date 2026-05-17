@@ -34,7 +34,7 @@ Launch multiple tool calls in a single message for speed.
 
 ## Phase 3: Recommendation Synthesis
 
-1. **Summary** — 2–3 sentence overview
+1. **Summary** — 2-3 sentence overview
 2. **Diagnosis** — what's actually happening and why
 3. **Root Cause** — the fundamental issue (not symptoms)
 4. **Recommendations** — prioritised, actionable steps

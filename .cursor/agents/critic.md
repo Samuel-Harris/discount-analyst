@@ -38,7 +38,7 @@ The plan must explain WHY the work matters, WHAT the overall objective is, and H
 1. **Read the plan** — parse all tasks, descriptions, and file references
 2. **Deep verification** — for every referenced file, read it. Verify line numbers. Check that patterns are followable
 3. **Apply the four criteria** to each task
-4. **Simulate implementation** — for 2–3 representative tasks, walk through execution using actual files. Ask: "Does the worker have ALL the context they need?"
+4. **Simulate implementation** — for 2-3 representative tasks, walk through execution using actual files. Ask: "Does the worker have ALL the context they need?"
 5. **Write the evaluation report**
 
 ## Spec Compliance Review (When Requested)
@@ -65,4 +65,4 @@ When asked to review implementation against a spec:
 - Completeness: [Brief assessment]
 - Big Picture: [Brief assessment]
 
-[If REJECT, provide top 3–5 critical improvements needed with specific suggestions]
+[If REJECT, provide top 3-5 critical improvements needed with specific suggestions]
