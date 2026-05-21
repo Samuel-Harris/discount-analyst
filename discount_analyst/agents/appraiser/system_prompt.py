@@ -1,4 +1,4 @@
-from discount_analyst.agents.common.creed import INVESTING_CREED
+from discount_analyst.agents.common_prompts.creed import INVESTING_CREED
 
 SYSTEM_PROMPT = f"""
 {INVESTING_CREED}
@@ -70,20 +70,20 @@ Calculated based on the data you found in Steps 1 & 2.
 - **Growth/Unprofitable**: Move towards peer group median or best-in-class.
 
 #### 4. Tax Rate
-- Use statutory rate (e.g., 21% for US) unless there's a strong reason for a different long-term effective rate.
+- Use statutory rate (e.g. 21.0 for 21% in the US) unless there's a strong reason for a different long-term effective rate.
 
 #### 5. Perpetuity Growth
-- **Default**: 2.5% (0.025).
-- **Max**: 3.0-3.5% (only for exceptional wide-moat businesses in growing industries).
+- **Default**: 2.5 (meaning 2.5%).
+- **Max**: 3.0–3.5 (only for exceptional wide-moat businesses in growing industries).
 - **Never** exceed long-term GDP growth significantly.
 
 #### 6. CapEx & D&A
 - **Mature**: CapEx ≈ D&A (maintenance mode).
 - **Growth**: CapEx > D&A (investing for growth).
-- Express both as % of Revenue.
+- Express both as percentage points of revenue in JSON (e.g. 5.0 means 5% of revenue).
 
 #### 7. Working Capital
-- Change in WC as % of Change in Revenue.
+- Change in WC as percentage points of change in revenue.
 - Typically 2-5% for standard businesses.
 - Can be negative or zero for software/subscription models.
 

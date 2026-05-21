@@ -117,7 +117,7 @@ def test_prepare_retry_failed_agents_resets_failed_surveyor_and_lane(
         agent_name="researcher",
         status=ExecutionStatusDb.FAILED,
     )
-    for agent_name in ("strategist", "sentinel", "appraiser", "arbiter"):
+    for agent_name in ("strategist", "sentinel", "appraiser"):
         _set_agent_status(
             db_session,
             run_id=run_id,
@@ -146,7 +146,6 @@ def test_prepare_retry_failed_agents_resets_failed_surveyor_and_lane(
     assert statuses["strategist"] == "pending"
     assert statuses["sentinel"] == "pending"
     assert statuses["appraiser"] == "pending"
-    assert statuses["arbiter"] == "pending"
 
 
 def test_prepare_retry_failed_agents_rejects_running_workflow(

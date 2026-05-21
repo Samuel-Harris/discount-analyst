@@ -43,11 +43,10 @@ class AgentNameDb(StrEnum):
     STRATEGIST = "strategist"
     SENTINEL = "sentinel"
     APPRAISER = "appraiser"
-    ARBITER = "arbiter"
 
 
 class DecisionTypeDb(StrEnum):
-    ARBITER = "arbiter"
+    RATING_TABLE = "rating_table"
     SENTINEL_REJECTION = "sentinel_rejection"
 
 
@@ -403,13 +402,13 @@ class AppraiserReport(SQLModel, table=True):
     beta: float
     reasoning: str
     forecast_period_years: int
-    assumed_tax_rate: float
-    assumed_forecast_period_annual_revenue_growth_rate: float
-    assumed_perpetuity_cash_flow_growth_rate: float
-    assumed_ebit_margin: float
-    assumed_depreciation_and_amortization_rate: float
-    assumed_capex_rate: float
-    assumed_change_in_working_capital_rate: float
+    assumed_tax_rate_pct: float
+    assumed_forecast_period_annual_revenue_growth_rate_pct: float
+    assumed_perpetuity_cash_flow_growth_rate_pct: float
+    assumed_ebit_margin_pct: float
+    assumed_depreciation_and_amortization_rate_pct: float
+    assumed_capex_rate_pct: float
+    assumed_change_in_working_capital_rate_pct: float
 
 
 class DcfValuation(SQLModel, table=True):
@@ -437,7 +436,7 @@ class RunFinalDecision(SQLModel, table=True):
         CheckConstraint(
             """
             (
-                decision_type = 'arbiter'
+                decision_type = 'rating_table'
                 AND rejection_reason IS NULL
                 AND conviction IS NOT NULL
                 AND current_price IS NOT NULL

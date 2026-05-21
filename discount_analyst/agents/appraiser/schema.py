@@ -14,10 +14,10 @@ class AppraiserInput(BaseModel):
     deep_research: DeepResearchReport
     thesis: MispricingThesis
     evaluation: EvaluationReport
-    risk_free_rate: float = Field(
+    risk_free_rate_pct: float = Field(
         description=(
-            "Risk-free rate as a decimal (e.g. 0.045). Supplied by the caller; "
-            "must not be inferred by the model."
+            "Risk-free rate as a percentage (e.g. 4.5 means 4.5%). Supplied by the "
+            "caller; must not be inferred by the model."
         ),
     )
 

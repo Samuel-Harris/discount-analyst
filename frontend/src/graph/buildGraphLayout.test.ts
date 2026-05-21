@@ -110,8 +110,8 @@ describe("buildGraphLayout", () => {
           decision_type: null,
           agent_executions: [
             {
-              id: "a-arb",
-              agent_name: "arbiter",
+              id: "a-app",
+              agent_name: "appraiser",
               status: "pending",
               started_at: null,
               completed_at: null,

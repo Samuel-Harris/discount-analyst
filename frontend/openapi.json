@@ -55,8 +55,7 @@
           "researcher",
           "strategist",
           "sentinel",
-          "appraiser",
-          "arbiter"
+          "appraiser"
         ],
         "title": "AgentNameSlug",
         "type": "string"
@@ -134,7 +133,7 @@
       },
       "DecisionTypeApi": {
         "enum": [
-          "arbiter",
+          "rating_table",
           "sentinel_rejection"
         ],
         "title": "DecisionTypeApi",

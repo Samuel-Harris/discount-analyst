@@ -119,7 +119,7 @@ Feed answers back to the Planner in the next iteration.
 
 **Always invoke after the Planner finishes.** No plan is approved without a Critic verdict.
 
-Dispatch via Task with `subagent_type: "cursor-critic"` (readonly). Provide the plan file path. The Critic evaluates four criteria (clarity, verifiability, context completeness, big picture), simulates implementation of 2–3 tasks, and returns an OKAY or REJECT verdict with specific improvements.
+Dispatch via Task with `subagent_type: "cursor-critic"` (readonly). Provide the plan file path. The Critic evaluates four criteria (clarity, verifiability, context completeness, big picture), simulates implementation of 2-3 tasks, and returns an OKAY or REJECT verdict with specific improvements.
 
 For multi-task plans, the Critic should additionally verify that dependency annotations are accurate and file lists are complete.
 

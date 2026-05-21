@@ -7,7 +7,7 @@ def create_user_prompt(*, appraiser_input: AppraiserInput) -> str:
     deep_research_json = appraiser_input.deep_research.model_dump_json(indent=2)
     thesis_json = appraiser_input.thesis.model_dump_json(indent=2)
     evaluation_json = appraiser_input.evaluation.model_dump_json(indent=2)
-    rfr = appraiser_input.risk_free_rate
+    rfr = appraiser_input.risk_free_rate_pct
 
     return f"""
 Analyze **{ticker}** and determine the DCF valuation assumptions.
@@ -16,7 +16,9 @@ Analyze **{ticker}** and determine the DCF valuation assumptions.
 
 **Downstream contract:** Return **inspectable** `StockData` and `StockAssumptions` — someone else should see **what you used** and **why**, without private context.
 
-**Risk-free rate (externally supplied — do not infer or override):** {rfr} (decimal, e.g. 0.045 means 4.5%). This value is passed into the DCF after your output; state in `StockAssumptions.reasoning` only if you reference it, and **do not substitute a different rate**.
+**Risk-free rate (externally supplied — do not infer or override):** {rfr} (percentage points, e.g. 4.5 means 4.5%). This value is passed into the DCF after your output; state in `StockAssumptions.reasoning` only if you reference it, and **do not substitute a different rate**.
+
+**StockAssumptions percentages:** Express every rate and margin in `StockAssumptions` as **percentage points** with the same convention (e.g. 21.0 for 21% tax, 2.5 for 2.5% terminal growth, 18.0 for 18% EBIT margin).
 
 ---
 

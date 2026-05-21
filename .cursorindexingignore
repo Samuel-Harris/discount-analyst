@@ -1,0 +1,2 @@
+# Keep large dashboard DB snapshots out of the codebase index (still @-mentionable if needed)
+.cursor/artefacts/analyse-workflow-run/**/*.sqlite

@@ -62,14 +62,6 @@ from discount_analyst.agents.appraiser.system_prompt import (
 from discount_analyst.agents.appraiser.user_prompt import (
     create_user_prompt as create_appraiser_user_prompt,
 )
-from discount_analyst.agents.arbiter.arbiter import create_arbiter_agent
-from discount_analyst.agents.arbiter.schema import ArbiterInput, ValuationResult
-from discount_analyst.agents.arbiter.system_prompt import (
-    SYSTEM_PROMPT as ARBITER_SYSTEM_PROMPT,
-)
-from discount_analyst.agents.arbiter.user_prompt import (
-    create_user_prompt as create_arbiter_user_prompt,
-)
 from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
 from discount_analyst.agents.researcher.researcher import create_researcher_agent
 from discount_analyst.agents.researcher.schema import DeepResearchReport
@@ -108,9 +100,11 @@ from discount_analyst.agents.surveyor.user_prompt import (
 )
 from discount_analyst.config.ai_models_config import AIModelsConfig
 from discount_analyst.pipeline.builders import (
+    build_rating_table_decision,
     build_sentinel_rejection,
     verdict_from_decision,
 )
+from discount_analyst.rating.margin_of_safety import MarginOfSafetyAssessment
 from discount_analyst.valuation.data_types import (
     DCFAnalysisParameters,
     DCFAnalysisResult,
@@ -786,7 +780,7 @@ class DashboardPipelineRunner:
             run_id=run_id,
             ticker=candidate.ticker,
         )
-        await self._run_appraiser_arbiter(
+        await self._run_appraiser_dcf_final_rating(
             workflow_run_id=workflow_run_id,
             run_id=run_id,
             candidate=candidate,
@@ -1040,7 +1034,7 @@ class DashboardPipelineRunner:
             workflow_run_id=workflow_run_id,
             run_id=run_id,
         )
-        for agent_name in ("appraiser", "arbiter"):
+        for agent_name in ("appraiser",):
             execution_id = await self._get_exec_id(run_id, agent_name)
             if execution_id is not None:
                 await self._mark_exec(
@@ -1065,7 +1059,7 @@ class DashboardPipelineRunner:
         )
         await self._recompute(workflow_run_id)
 
-    async def _run_appraiser_arbiter(
+    async def _run_appraiser_dcf_final_rating(
         self,
         *,
         workflow_run_id: str,
@@ -1082,7 +1076,7 @@ class DashboardPipelineRunner:
             return
         stock_args = StockRunArgs(
             surveyor_candidate=candidate,
-            risk_free_rate=self._settings.risk_free_rate,
+            risk_free_rate_pct=self._settings.risk_free_rate_pct,
             model=self._settings.default_model,
         )
         appraiser_status = await self._get_agent_status(
@@ -1120,7 +1114,7 @@ class DashboardPipelineRunner:
                 deep_research=research_out,
                 thesis=thesis,
                 evaluation=evaluation,
-                risk_free_rate=self._settings.risk_free_rate,
+                risk_free_rate_pct=self._settings.risk_free_rate_pct,
             )
             a_mock_json: str | None = None
             if is_mock:
@@ -1179,7 +1173,7 @@ class DashboardPipelineRunner:
             )
         if dcf_result is None:
             AI_LOGFIRE.warning(
-                "DCF valuation failed or produced no result; skipping arbiter",
+                "DCF valuation failed or produced no result; no final verdict",
                 workflow_run_id=workflow_run_id,
                 run_id=run_id,
                 ticker=candidate.ticker,
@@ -1195,11 +1189,6 @@ class DashboardPipelineRunner:
                 final_verdict_json=None,
                 error_message=dcf_error or "DCF failed",
             )
-            arbiter_exec_id = await self._get_exec_id(run_id, AgentNameDb.ARBITER.value)
-            if arbiter_exec_id is not None:
-                await self._mark_exec(
-                    execution_id=arbiter_exec_id, status="skipped", completed=True
-                )
             await self._recompute(workflow_run_id)
             return
         if persist_dcf_result:
@@ -1209,87 +1198,45 @@ class DashboardPipelineRunner:
                 appraiser_agent_execution_id=appraiser_exec_id,
                 dcf_result=dcf_result,
             )
-        arbiter_exec_id = await self._get_exec_id(run_id, AgentNameDb.ARBITER.value)
-        if arbiter_exec_id is None:
-            return
-        arbiter_status = await self._get_agent_status(run_id, AgentNameDb.ARBITER.value)
-        if arbiter_status == ExecutionStatusDb.COMPLETED.value:
-            AI_LOGFIRE.info(
-                "Arbiter stage already completed; skipping",
-                agent_name=AgentNameDb.ARBITER,
-                workflow_run_id=workflow_run_id,
-                run_id=run_id,
-                ticker=candidate.ticker,
-            )
-            return
-        await self._mark_exec(
-            execution_id=arbiter_exec_id, status="running", started=True
-        )
-        await self._recompute(workflow_run_id)
-        AI_LOGFIRE.info(
-            "Arbiter stage started",
-            agent_name=AgentNameDb.ARBITER,
-            workflow_run_id=workflow_run_id,
-            run_id=run_id,
-            ticker=candidate.ticker,
-            is_mock=is_mock,
-        )
-        b_mock_json: str | None = None
+
         if is_mock:
             await asyncio.sleep(5)
-            arbiter_decision = mock_outputs.mock_arbiter_decision(
-                candidate, is_existing_position=is_existing_position
-            )
-            b_messages = None
-            b_mock_json = mock_conversation_messages.arbiter_messages_json(
-                ticker=candidate.ticker
-            )
-        else:
-            ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
-            agent = create_arbiter_agent(ai_cfg)
-            arbiter_input = ArbiterInput(
-                stock_candidate=candidate,
-                deep_research=research_out,
+            rating_decision = mock_outputs.mock_rating_table_decision(
+                candidate,
+                is_existing_position=is_existing_position,
                 thesis=thesis,
                 evaluation=evaluation,
-                valuation=ValuationResult(
-                    appraiser_output=appraiser_out, dcf_result=dcf_result
-                ),
-                risk_free_rate=self._settings.risk_free_rate,
+            )
+        else:
+            sd = appraiser_out.stock_data
+            mos = MarginOfSafetyAssessment.from_market_cap(
+                market_cap=sd.market_cap,
+                n_shares_outstanding=sd.n_shares_outstanding,
+                intrinsic_value_base=dcf_result.intrinsic_share_price,
+            )
+            rating_decision = build_rating_table_decision(
+                candidate=candidate,
+                thesis=thesis,
+                evaluation=evaluation,
+                margin_of_safety=mos,
                 is_existing_position=is_existing_position,
+                decision_date=date.today().isoformat(),
             )
-            outcome = await run_streamed_agent(
-                agent=agent,
-                user_prompt=create_arbiter_user_prompt(arbiter_input=arbiter_input),
-                usage_limits=ai_cfg.model.usage_limits,
-            )
-            arbiter_decision = outcome.output.model_copy(
-                update={"decision_date": date.today().isoformat()}
-            )
-            b_messages = list(outcome.all_messages)
-            b_mock_json = None
-        await self._complete_exec_with_conversation(
-            execution_id=arbiter_exec_id,
-            system_prompt=ARBITER_SYSTEM_PROMPT,
-            output_json=arbiter_decision.model_dump_json(),
-            messages=b_messages,
-            messages_json=b_mock_json,
-        )
-        verdict = verdict_from_decision(arbiter_decision)
+        verdict = verdict_from_decision(rating_decision)
         await self._db(
             update_ticker_run_completion,
             run_id=run_id,
             status="completed",
             final_rating=str(verdict.rating.value),
-            decision_type="arbiter",
+            decision_type="rating_table",
             recommended_action=verdict.recommended_action,
             final_verdict_json=verdict.model_dump_json(),
             error_message=None,
         )
         await self._recompute(workflow_run_id)
         AI_LOGFIRE.info(
-            "Arbiter stage completed; ticker run finished",
-            agent_name=AgentNameDb.ARBITER,
+            "Deterministic rating table applied; ticker run finished",
+            agent_name=AgentNameDb.APPRAISER,
             workflow_run_id=workflow_run_id,
             run_id=run_id,
             ticker=candidate.ticker,
@@ -1308,7 +1255,7 @@ class DashboardPipelineRunner:
             params = DCFAnalysisParameters(
                 stock_data=appraiser_out.stock_data,
                 stock_assumptions=appraiser_out.stock_assumptions,
-                risk_free_rate=stock_args.risk_free_rate,
+                risk_free_rate_pct=stock_args.risk_free_rate_pct,
             )
             try:
                 return DCFAnalysis(params).dcf_analysis(), None

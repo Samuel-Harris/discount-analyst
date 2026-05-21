@@ -61,7 +61,7 @@ Round {n} | Targeting: {weakest_dimension} | Ambiguity: {score}%
 
 ### Step 2c: Score Ambiguity
 
-After receiving the answer, score clarity across all dimensions (0.0–1.0 each):
+After receiving the answer, score clarity across all dimensions (0.0-1.0 each):
 
 1. **Goal Clarity**: Is the primary objective unambiguous? Can you state it in one sentence without qualifiers?
 2. **Constraint Clarity**: Are the boundaries, limitations, and non-goals clear?
@@ -209,9 +209,9 @@ When ambiguity ≤ threshold (or hard cap / early exit):
 
 | Score Range | Meaning              | Action                          |
 | ----------- | -------------------- | ------------------------------- |
-| 0.0–0.1     | Crystal clear        | Proceed immediately             |
-| 0.1–0.2     | Clear enough         | Proceed (default threshold)     |
-| 0.2–0.4     | Some gaps            | Continue interviewing           |
-| 0.4–0.6     | Significant gaps     | Focus on weakest dimensions     |
-| 0.6–0.8     | Very unclear         | May need reframing (Ontologist) |
-| 0.8–1.0     | Almost nothing known | Early stages, keep going        |
+| 0.0-0.1     | Crystal clear        | Proceed immediately             |
+| 0.1-0.2     | Clear enough         | Proceed (default threshold)     |
+| 0.2-0.4     | Some gaps            | Continue interviewing           |
+| 0.4-0.6     | Significant gaps     | Focus on weakest dimensions     |
+| 0.6-0.8     | Very unclear         | May need reframing (Ontologist) |
+| 0.8-1.0     | Almost nothing known | Early stages, keep going        |

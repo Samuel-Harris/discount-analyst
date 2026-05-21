@@ -1,5 +1,11 @@
 USER_PROMPT = """
-Screen UK and US public equity markets for promising small-cap stock candidates according to your system prompt. Your output will be used to test mispricing hypotheses later — prioritise **checkable facts, clear rationales, and honest uncertainty** over breadth.
+Execute the four-step screening plan in your system prompt now.
 
-Start screening immediately: use your tools to find candidates, verify financial data, and return your findings.
+Step 1: launch the three screener calls in parallel — NYSE, NASDAQ, and LSE.
+Step 2: pull financial scores for your shortlist in parallel.
+Step 3: run web_search (and web_fetch only where the snippet is insufficient) sequentially per candidate.
+Step 4: call final_result once with your completed candidates.
+
+Do not produce any reasoning about which tools to use or in what order — the plan is fixed.
+Your first action must be the parallel batch from Step 1.
 """
