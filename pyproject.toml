@@ -52,6 +52,9 @@ dev = [
     "opentelemetry-instrumentation-fastapi>=0.49b0",
 ]
 
+[tool.uv]
+exclude-newer = "1 week"
+
 [tool.pyrefly]
 python-version = "3.14.0"
 project-includes = [
