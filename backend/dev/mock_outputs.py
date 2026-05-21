@@ -429,12 +429,10 @@ def mock_rating_table_decision(
     ev = evaluation or mock_rating_table_gate_evaluation(candidate)
     appraiser_out = mock_appraiser_output(candidate)
     dcf = mock_dcf_result()
-    current = (
-        appraiser_out.stock_data.market_cap
-        / appraiser_out.stock_data.n_shares_outstanding
-    )
-    mos = MarginOfSafetyAssessment(
-        current_price=current,
+    sd = appraiser_out.stock_data
+    mos = MarginOfSafetyAssessment.from_market_cap(
+        market_cap=sd.market_cap,
+        n_shares_outstanding=sd.n_shares_outstanding,
         intrinsic_value_base=dcf.intrinsic_share_price,
     )
     return build_rating_table_decision(

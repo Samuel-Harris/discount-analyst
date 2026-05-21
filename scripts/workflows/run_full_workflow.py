@@ -203,9 +203,9 @@ def parse_args() -> WorkflowArgs:
         ),
     )
     raw = parser.parse_args()
-    if not (0 < raw.risk_free_rate_pct <= 15):
+    if not (1 <= raw.risk_free_rate_pct <= 15):
         parser.error(
-            f"--risk-free-rate must be a percentage between 0 and 15 (e.g. 4.5 for 4.5%). "
+            f"--risk-free-rate must be a percentage between 1 and 15 (e.g. 4.5 for 4.5%). "
             f"Got {raw.risk_free_rate_pct}."
         )
     profiler_tickers = (
@@ -790,9 +790,9 @@ async def _run_appraiser_dcf_final_rating_for_candidate(
         return
 
     sd = agent_result.output.stock_data
-    current_price = sd.market_cap / sd.n_shares_outstanding
-    margin_of_safety = MarginOfSafetyAssessment(
-        current_price=current_price,
+    margin_of_safety = MarginOfSafetyAssessment.from_market_cap(
+        market_cap=sd.market_cap,
+        n_shares_outstanding=sd.n_shares_outstanding,
         intrinsic_value_base=dcf_result.intrinsic_share_price,
     )
     rating_decision = build_rating_table_decision(

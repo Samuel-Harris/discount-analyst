@@ -1,6 +1,8 @@
 """Pre-DCF margin-of-safety verdict derived from base-case intrinsic vs price."""
 
-from typing import Literal
+from __future__ import annotations
+
+from typing import Literal, Self
 
 from pydantic import AliasChoices, BaseModel, Field
 from pydantic.fields import computed_field
@@ -23,11 +25,29 @@ MOS_NONE: MarginOfSafetyVerdict = "None — stock appears fairly valued or overv
 class MarginOfSafetyAssessment(BaseModel):
     """Quantitative margin-of-safety view anchored on the DCF base intrinsic."""
 
-    current_price: float
+    current_price: float = Field(gt=0)
     intrinsic_value_base: float = Field(
+        gt=0,
         validation_alias=AliasChoices("intrinsic_value_base", "base_intrinsic_value"),
         serialization_alias="intrinsic_value_base",
     )
+
+    @classmethod
+    def from_market_cap(
+        cls,
+        *,
+        market_cap: float,
+        n_shares_outstanding: float,
+        intrinsic_value_base: float,
+    ) -> Self:
+        """Derive per-share price from market cap and shares; reject non-positive share count."""
+        if n_shares_outstanding <= 0:
+            msg = f"n_shares_outstanding must be positive, got {n_shares_outstanding}."
+            raise ValueError(msg)
+        return cls(
+            current_price=market_cap / n_shares_outstanding,
+            intrinsic_value_base=intrinsic_value_base,
+        )
 
     @computed_field  # type: ignore[prop-decorator]
     @property

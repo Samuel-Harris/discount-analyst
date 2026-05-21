@@ -1,6 +1,6 @@
 """Serialisable run records written under scripts/outputs."""
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 from discount_analyst.agents.appraiser.schema import AppraiserOutput
 from discount_analyst.agents.sentinel.schema import EvaluationReport
@@ -32,16 +32,10 @@ def default_turn_usage_list() -> list[TurnUsage]:
 class AppraiserRunOutput(BaseModel):
     """Complete serialisable record for one model run written to outputs/."""
 
-    model_config = ConfigDict(populate_by_name=True)
-
     ticker: str
     model_name: str
-    risk_free_rate_pct: float = Field(
-        validation_alias=AliasChoices("risk_free_rate", "risk_free_rate_pct"),
-    )
-    appraiser: AppraiserOutput = Field(
-        validation_alias=AliasChoices("market_analyst", "appraiser"),
-    )
+    risk_free_rate_pct: float
+    appraiser: AppraiserOutput
     dcf_result: DCFAnalysisResult | None = None
     dcf_error: str | None = None
     elapsed_s: float

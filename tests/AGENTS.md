@@ -18,7 +18,6 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | `tests/discount_analyst/agents/common/test_streamed_agent_run.py` | Tests for `run_streamed_agent`.                                                                                                        |
 | `tests/discount_analyst/agents/sentinel/test_sentinel_gate.py`    | Tests for `sentinel_proceeds_to_valuation` (thesis + red-flag gate).                                                                   |
 | `tests/discount_analyst/pipeline/test_builders.py`                | Tests for `build_sentinel_rejection` and `verdict_from_decision`.                                                                      |
-| `tests/discount_analyst/pipeline/test_rating_decision_table.py`   | Exhaustive deterministic rating-table mapping tests.                                                                                   |
 | `tests/backend/unit/test_dashboard_settings.py`                   | Unified ``Settings`` validation (e.g. non-empty ``LOGGING__LOGFIRE_API_KEY``).                                                         |
 | `tests/backend/unit/test_workflow_api.py`                         | HTTP contract tests for the FastAPI dashboard (`backend`) with isolated SQLite.                                                        |
 | `tests/backend/unit/test_agent_lane_order_sync.py`                | Keeps `backend/contracts/agent_lane_order.py` aligned with `frontend/src/graph/agentLaneOrder.ts`.                                     |

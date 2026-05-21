@@ -95,7 +95,7 @@ class Settings(BaseSettings):
     )
     risk_free_rate_pct: float = Field(
         default=3.7,
-        ge=0.0,
+        ge=1.0,
         le=15.0,
         validation_alias=AliasChoices("DASHBOARD_RISK_FREE_RATE"),
         description="Risk-free rate as a percentage (e.g. 3.7 means 3.7%).",

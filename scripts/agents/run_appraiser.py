@@ -170,9 +170,9 @@ def parse_args() -> AppraiserCliArgs:
 
     raw = parser.parse_args()
 
-    if not (0 < raw.risk_free_rate_pct <= 15):
+    if not (1 <= raw.risk_free_rate_pct <= 15):
         parser.error(
-            f"--risk-free-rate must be a percentage between 0 and 15 (e.g. 4.5 for 4.5%%). "
+            f"--risk-free-rate must be a percentage between 1 and 15 (e.g. 4.5 for 4.5%%). "
             f"Got {raw.risk_free_rate_pct}."
         )
 

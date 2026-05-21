@@ -1208,9 +1208,10 @@ class DashboardPipelineRunner:
                 evaluation=evaluation,
             )
         else:
-            mos = MarginOfSafetyAssessment(
-                current_price=appraiser_out.stock_data.market_cap
-                / appraiser_out.stock_data.n_shares_outstanding,
+            sd = appraiser_out.stock_data
+            mos = MarginOfSafetyAssessment.from_market_cap(
+                market_cap=sd.market_cap,
+                n_shares_outstanding=sd.n_shares_outstanding,
                 intrinsic_value_base=dcf_result.intrinsic_share_price,
             )
             rating_decision = build_rating_table_decision(
