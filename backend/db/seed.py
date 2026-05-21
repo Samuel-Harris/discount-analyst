@@ -71,7 +71,7 @@ def seed(session: Session) -> None:
         messages_json=mock_conversation_messages.surveyor_messages_json(),
     )
 
-    # Lane A: profiler entry with arbiter completion.
+    # Lane A: profiler entry with rating-table completion.
     run_a_id = new_id()
     insert_ticker_run_with_agents(
         session,
@@ -108,7 +108,7 @@ def seed(session: Session) -> None:
             ),
         )
 
-    for agent_name in ("researcher", "strategist", "sentinel", "appraiser", "arbiter"):
+    for agent_name in ("researcher", "strategist", "sentinel", "appraiser"):
         exec_id = get_agent_execution_id_by_run_and_agent(
             session, run_id=run_a_id, agent_name=agent_name
         )
@@ -125,18 +125,18 @@ def seed(session: Session) -> None:
     candidate_a = mock_outputs.mock_surveyor_candidate(
         ticker="SEED1.L", company_name="Seed One plc"
     )
-    arbiter_decision = mock_outputs.mock_arbiter_decision(
+    rating_decision = mock_outputs.mock_rating_table_decision(
         candidate_a, is_existing_position=True
     )
-    arbiter_verdict = verdict_from_decision(arbiter_decision)
+    rating_verdict = verdict_from_decision(rating_decision)
     update_ticker_run_completion(
         session,
         run_id=run_a_id,
         status="completed",
-        final_rating=arbiter_verdict.rating.value,
-        decision_type="arbiter",
-        recommended_action=arbiter_verdict.recommended_action,
-        final_verdict_json=arbiter_verdict.model_dump_json(),
+        final_rating=rating_verdict.rating.value,
+        decision_type="rating_table",
+        recommended_action=rating_verdict.recommended_action,
+        final_verdict_json=rating_verdict.model_dump_json(),
         error_message=None,
     )
 
@@ -166,7 +166,6 @@ def seed(session: Session) -> None:
         ("strategist", "completed"),
         ("sentinel", "completed"),
         ("appraiser", "skipped"),
-        ("arbiter", "skipped"),
     ):
         exec_id = get_agent_execution_id_by_run_and_agent(
             session, run_id=run_b_id, agent_name=agent_name

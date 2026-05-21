@@ -65,7 +65,7 @@ class AppraiserTarget(NamedTuple):
 
 @dataclass
 class SharedArgs:
-    risk_free_rate: float
+    risk_free_rate_pct: float
     model: ModelName
     use_perplexity: bool
     use_mcp_financial_data: bool
@@ -74,7 +74,7 @@ class SharedArgs:
 class AppraiserCliArgs(BaseModel):
     model: ModelName
     selectors: list[Selector]
-    risk_free_rate: float
+    risk_free_rate_pct: float
     use_perplexity: bool
     use_mcp_financial_data: bool
 
@@ -154,7 +154,8 @@ def parse_args() -> AppraiserCliArgs:
         "--risk-free-rate",
         type=float,
         required=True,
-        help="Risk-free rate as a decimal (e.g., 0.045)",
+        dest="risk_free_rate_pct",
+        help="Risk-free rate as a percentage (e.g. 4.5 means 4.5%).",
     )
     add_agent_cli_model_argument(parser)
     add_agent_cli_web_search_arguments(parser)
@@ -169,17 +170,17 @@ def parse_args() -> AppraiserCliArgs:
 
     raw = parser.parse_args()
 
-    if not (0 < raw.risk_free_rate <= 0.15):
+    if not (1 <= raw.risk_free_rate_pct <= 15):
         parser.error(
-            f"--risk-free-rate must be a decimal between 0 and 0.15 (e.g. 0.045 for 4.5%%). "
-            f"Got {raw.risk_free_rate}."
+            f"--risk-free-rate must be a percentage between 1 and 15 (e.g. 4.5 for 4.5%%). "
+            f"Got {raw.risk_free_rate_pct}."
         )
 
     selectors = [_parse_selector(value, parser) for value in raw.selectors]
     return AppraiserCliArgs(
         model=raw.model,
         selectors=selectors,
-        risk_free_rate=raw.risk_free_rate,
+        risk_free_rate_pct=raw.risk_free_rate_pct,
         use_perplexity=raw.use_perplexity,
         use_mcp_financial_data=not raw.no_mcp,
     )
@@ -221,7 +222,9 @@ def _load_strategist_run_output(path: Path) -> StrategistRunOutput:
         ) from exc
 
 
-def _resolve_target(selector: Selector, *, risk_free_rate: float) -> AppraiserTarget:
+def _resolve_target(
+    selector: Selector, *, risk_free_rate_pct: float
+) -> AppraiserTarget:
     sent = _load_sentinel_run_output(selector.sentinel_report_path)
     if selector.ticker is not None:
         ticker_folded = selector.ticker.casefold()
@@ -263,7 +266,7 @@ def _resolve_target(selector: Selector, *, risk_free_rate: float) -> AppraiserTa
         deep_research=researcher.output,
         thesis=strategist.output,
         evaluation=sent.output,
-        risk_free_rate=risk_free_rate,
+        risk_free_rate_pct=risk_free_rate_pct,
     )
 
     return AppraiserTarget(
@@ -274,9 +277,11 @@ def _resolve_target(selector: Selector, *, risk_free_rate: float) -> AppraiserTa
 
 
 def resolve_targets(
-    selectors: list[Selector], *, risk_free_rate: float
+    selectors: list[Selector], *, risk_free_rate_pct: float
 ) -> list[AppraiserTarget]:
-    return [_resolve_target(s, risk_free_rate=risk_free_rate) for s in selectors]
+    return [
+        _resolve_target(s, risk_free_rate_pct=risk_free_rate_pct) for s in selectors
+    ]
 
 
 def _build_suffixes(targets: list[AppraiserTarget]) -> list[str]:
@@ -299,7 +304,7 @@ def _build_suffixes(targets: list[AppraiserTarget]) -> list[str]:
 def _stock_run_args(candidate: SurveyorCandidate, shared: SharedArgs) -> StockRunArgs:
     return StockRunArgs(
         surveyor_candidate=candidate,
-        risk_free_rate=shared.risk_free_rate,
+        risk_free_rate_pct=shared.risk_free_rate_pct,
         model=shared.model,
     )
 
@@ -379,7 +384,7 @@ def build_stock_table(output: AppraiserOutput) -> Table:
     table.add_row(
         "Revenue (TTM)",
         f"${revenue_m:.2f}M",
-        f"EBIT Margin: {stock_data.ebit_margin:.1%}",
+        f"EBIT Margin: {stock_data.ebit_margin_pct:.1f}%",
     )
     table.add_row("EBIT (TTM)", f"${ebit_m:.2f}M", "Earnings Before Interest & Taxes")
     table.add_row(
@@ -390,7 +395,7 @@ def build_stock_table(output: AppraiserOutput) -> Table:
     table.add_row("Beta", f"{stock_data.beta:.2f}", "Volatility relative to market")
     table.add_row(
         "Interest Rate",
-        f"{stock_data.implied_interest_rate:.1%}",
+        f"{stock_data.implied_interest_rate_pct:.1f}%",
         "Implied cost of debt",
     )
     return table
@@ -433,10 +438,10 @@ def run_dcf_and_display(
         )
     )
     dcf_details_panel = Panel.fit(
-        f"Risk-free Rate: {args.risk_free_rate:.1%}\n"
+        f"Risk-free Rate: {args.risk_free_rate_pct:.1f}%\n"
         f"Forecast Period: {stock_assumptions.forecast_period_years} years\n"
-        f"Terminal Growth: {stock_assumptions.assumed_perpetuity_cash_flow_growth_rate:.1%}\n"
-        f"Tax Rate: {stock_assumptions.assumed_tax_rate:.1%}",
+        f"Terminal Growth: {stock_assumptions.assumed_perpetuity_cash_flow_growth_rate_pct:.1f}%\n"
+        f"Tax Rate: {stock_assumptions.assumed_tax_rate_pct:.1f}%",
         title="📊 DCF Model Parameters",
         border_style="cyan",
         padding=(1, 2),
@@ -446,7 +451,7 @@ def run_dcf_and_display(
     dcf_params = DCFAnalysisParameters(
         stock_data=stock_data,
         stock_assumptions=stock_assumptions,
-        risk_free_rate=args.risk_free_rate,
+        risk_free_rate_pct=args.risk_free_rate_pct,
     )
 
     dcf_error: str | None = None
@@ -512,7 +517,7 @@ def save_run_output(
     run_output = AppraiserRunOutput(
         ticker=args.surveyor_candidate.ticker,
         model_name=args.model.value,
-        risk_free_rate=args.risk_free_rate,
+        risk_free_rate_pct=args.risk_free_rate_pct,
         appraiser=agent_output,
         dcf_result=dcf_result,
         dcf_error=dcf_error,
@@ -540,12 +545,12 @@ def save_run_output(
 async def main() -> None:
     cli = parse_args()
     shared = SharedArgs(
-        risk_free_rate=cli.risk_free_rate,
+        risk_free_rate_pct=cli.risk_free_rate_pct,
         model=cli.model,
         use_perplexity=cli.use_perplexity,
         use_mcp_financial_data=cli.use_mcp_financial_data,
     )
-    targets = resolve_targets(cli.selectors, risk_free_rate=cli.risk_free_rate)
+    targets = resolve_targets(cli.selectors, risk_free_rate_pct=cli.risk_free_rate_pct)
     if not targets:
         raise SystemExit("No Sentinel artefacts selected to run Appraiser.")
 

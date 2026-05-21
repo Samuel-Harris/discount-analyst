@@ -42,7 +42,7 @@ def dashboard_settings_for_tests(
         ),
         database_path=database_path or Path("data/dashboard.sqlite"),
         default_model=ModelName.GPT_5_1,
-        risk_free_rate=0.037,
+        risk_free_rate_pct=3.7,
         use_perplexity=False,
         use_mcp_financial_data=True,
         deploy_env=deploy_env,

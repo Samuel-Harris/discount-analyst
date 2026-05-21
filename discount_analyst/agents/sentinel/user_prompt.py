@@ -18,7 +18,7 @@ Evaluate the following investment candidate.
 
 **Upstream contract:** You receive **screening context**, **neutral deep research**, and a **mispricing thesis** (with bespoke questions). The research does not endorse the thesis; the thesis does not excuse gaps in the research.
 
-**Your task:** Stress-test the thesis against the evidence and deliver a **clear, defensible verdict**. You are **the adversary, not a validator** — earn the conclusion.
+**Your task:** Stress-test the thesis against the evidence and deliver a **clear, defensible verdict**. You are **the adversary, not a validator** — earn the conclusion. Apply the epistemic, numeric, and red-flag calibration rules strictly.
 
 ---
 
@@ -48,14 +48,9 @@ Evaluate the following investment candidate.
 
 ## Your task
 
-Work through the evaluation in the sequence defined in your instructions:
-
-1. Answer each **evaluation_question** from the thesis in turn, assessing the quality and weight of evidence — not merely the direction of the answer.
-2. Apply the universal red flag screen across all six dimensions. The screen is thesis-agnostic. Run it regardless of how strong the thesis appears.
-3. Identify any material data gaps that are load-bearing for the thesis and remain unresolved in the research.
-4. Deliver your thesis_verdict, verdict_rationale, caveats, and material_data_gaps (see schema — no separate recommendation field).
+Work through the evaluation in the sequence defined in your instructions.
 
 Your verdict must be **earned by your analysis** — not assumed from the thesis's stated conviction. If conviction is "High" and your assessment breaks the thesis, say so. If conviction is "Low" and your assessment supports the thesis, say so.
 
-Return your output as a populated EvaluationReport JSON object.
+**CRITICAL:** Return your output as a purely populated JSON object conforming to the `EvaluationReport` schema provided in your system instructions. Do NOT include any conversational scaffolding, thought process, or markdown text before or after the JSON.
 """.strip()

@@ -51,5 +51,7 @@ As you construct the thesis, hold the following questions in mind:
 
 Be rigorous, be honest, and be specific. **Clarity and falsifiability matter more than completeness.**
 
-Return a completed `MispricingThesis` object.
+**Action Items:**
+1. First, provide your concise, human-readable reasoning. You must include the exact sentence: "This thesis hangs on [specific field/claim from the deep research]."
+2. Then, return the completed `MispricingThesis` JSON object strictly adhering to the schema provided in your system instructions.
 """.strip()

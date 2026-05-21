@@ -439,13 +439,13 @@ def replace_appraiser_report(
         beta=output.stock_data.beta,
         reasoning=output.stock_assumptions.reasoning,
         forecast_period_years=output.stock_assumptions.forecast_period_years,
-        assumed_tax_rate=output.stock_assumptions.assumed_tax_rate,
-        assumed_forecast_period_annual_revenue_growth_rate=output.stock_assumptions.assumed_forecast_period_annual_revenue_growth_rate,
-        assumed_perpetuity_cash_flow_growth_rate=output.stock_assumptions.assumed_perpetuity_cash_flow_growth_rate,
-        assumed_ebit_margin=output.stock_assumptions.assumed_ebit_margin,
-        assumed_depreciation_and_amortization_rate=output.stock_assumptions.assumed_depreciation_and_amortization_rate,
-        assumed_capex_rate=output.stock_assumptions.assumed_capex_rate,
-        assumed_change_in_working_capital_rate=output.stock_assumptions.assumed_change_in_working_capital_rate,
+        assumed_tax_rate_pct=output.stock_assumptions.assumed_tax_rate_pct,
+        assumed_forecast_period_annual_revenue_growth_rate_pct=output.stock_assumptions.assumed_forecast_period_annual_revenue_growth_rate_pct,
+        assumed_perpetuity_cash_flow_growth_rate_pct=output.stock_assumptions.assumed_perpetuity_cash_flow_growth_rate_pct,
+        assumed_ebit_margin_pct=output.stock_assumptions.assumed_ebit_margin_pct,
+        assumed_depreciation_and_amortization_rate_pct=output.stock_assumptions.assumed_depreciation_and_amortization_rate_pct,
+        assumed_capex_rate_pct=output.stock_assumptions.assumed_capex_rate_pct,
+        assumed_change_in_working_capital_rate_pct=output.stock_assumptions.assumed_change_in_working_capital_rate_pct,
     )
     session.add(row)
 

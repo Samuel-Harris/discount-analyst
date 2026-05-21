@@ -2,11 +2,6 @@
 
 import pytest
 
-from discount_analyst.agents.arbiter.schema import (
-    ArbiterDecision,
-    ArbiterRationale,
-    MarginOfSafetyAssessment,
-)
 from discount_analyst.agents.sentinel.schema import (
     EvaluationReport,
     OverallRedFlagVerdict,
@@ -19,8 +14,13 @@ from discount_analyst.pipeline.builders import (
     build_sentinel_rejection,
     verdict_from_decision,
 )
-from discount_analyst.pipeline.schema import SentinelRejection
-from discount_analyst.rating import InvestmentRating
+from discount_analyst.pipeline.schema import (
+    RatingTableDecision,
+    RatingTableRationale,
+    SentinelRejection,
+)
+from discount_analyst.rating.investment_rating import InvestmentRating
+from discount_analyst.rating.margin_of_safety import MarginOfSafetyAssessment
 
 
 def _evaluation(
@@ -161,35 +161,28 @@ def test_verdict_from_decision_hoists_sentinel_fields() -> None:
     assert v.decision is sr
 
 
-def test_verdict_from_decision_hoists_arbiter_fields() -> None:
-    ad = ArbiterDecision(
+def test_verdict_from_decision_hoists_rating_table_fields() -> None:
+    mos = MarginOfSafetyAssessment(current_price=10.0, intrinsic_value_base=12.0)
+    rtd = RatingTableDecision(
+        decision_rule_id="rating_table_v1",
         ticker="T",
         company_name="C",
         decision_date="2026-04-05",
         is_existing_position=False,
         rating=InvestmentRating.BUY,
-        recommended_action="Initiate.",
+        recommended_action="Initiate at half or quarter position (starter)",
         conviction="Medium",
-        margin_of_safety=MarginOfSafetyAssessment(
-            current_price=10.0,
-            bear_intrinsic_value=8.0,
-            base_intrinsic_value=12.0,
-            bull_intrinsic_value=15.0,
-            margin_of_safety_base_pct=20.0,
-            margin_of_safety_verdict=(
-                "Moderate — meaningful upside but not exceptional"
-            ),
-        ),
-        rationale=ArbiterRationale(
+        margin_of_safety=mos,
+        rationale=RatingTableRationale(
             primary_driver="x",
-            supporting_factors=["a"],
-            mitigating_factors=["b"],
+            supporting_factors=[],
+            mitigating_factors=[],
             red_flag_disposition="c",
             data_gap_disposition="d",
         ),
         thesis_expiry_note="12-18 months",
     )
-    v = verdict_from_decision(ad)
-    assert v.rating == ad.rating
-    assert v.recommended_action == ad.recommended_action
-    assert v.decision is ad
+    v = verdict_from_decision(rtd)
+    assert v.rating == rtd.rating
+    assert v.recommended_action == rtd.recommended_action
+    assert v.decision is rtd

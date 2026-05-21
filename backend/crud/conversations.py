@@ -46,12 +46,7 @@ from backend.db.models import (
     WorkflowAgentExecution,
 )
 from discount_analyst.agents.appraiser.schema import AppraiserOutput
-from discount_analyst.agents.arbiter.schema import (
-    ArbiterDecision,
-    ArbiterRationale,
-    MarginOfSafetyAssessment,
-    MarginOfSafetyVerdict,
-)
+from discount_analyst.pipeline.schema import RatingTableDecision, RatingTableRationale
 from discount_analyst.agents.profiler.schema import ProfilerOutput
 from discount_analyst.agents.researcher.schema import (
     BusinessModel,
@@ -72,7 +67,8 @@ from discount_analyst.agents.strategist.schema import (
     MispricingThesis as MispricingThesisSchema,
 )
 from discount_analyst.agents.surveyor.schema import KeyMetrics, SurveyorOutput
-from discount_analyst.rating import InvestmentRating
+from discount_analyst.rating.investment_rating import InvestmentRating
+from discount_analyst.rating.margin_of_safety import MarginOfSafetyAssessment
 from discount_analyst.valuation.schema import StockAssumptions, StockData
 
 logger = logging.getLogger(__name__)
@@ -641,12 +637,71 @@ def assistant_response_for_run_agent(
         return payload.model_dump_json()
 
     if execution.agent_name == AgentNameDb.APPRAISER:
+        run_final = session.scalars(
+            select(RunFinalDecision).where(
+                col(RunFinalDecision.run_id) == execution.run_id,
+                col(RunFinalDecision.source_agent_execution_id) == execution.id,
+                col(RunFinalDecision.decision_type) == DecisionTypeDb.RATING_TABLE,
+            )
+        ).first()
+        run = session.get(Run, execution.run_id)
+        if run_final is not None and run is not None:
+            supporting = [
+                r.factor_text
+                for r in session.scalars(
+                    select(RunFinalDecisionSupportingFactor)
+                    .where(
+                        col(RunFinalDecisionSupportingFactor.run_final_decision_id)
+                        == run_final.id
+                    )
+                    .order_by(col(RunFinalDecisionSupportingFactor.sort_order))
+                )
+            ]
+            mitigating = [
+                r.factor_text
+                for r in session.scalars(
+                    select(RunFinalDecisionMitigatingFactor)
+                    .where(
+                        col(RunFinalDecisionMitigatingFactor.run_final_decision_id)
+                        == run_final.id
+                    )
+                    .order_by(col(RunFinalDecisionMitigatingFactor.sort_order))
+                )
+            ]
+            conviction_lit: Literal["Low", "Medium", "High"] = cast(
+                Literal["Low", "Medium", "High"],
+                run_final.conviction or "Medium",
+            )
+            mos = MarginOfSafetyAssessment(
+                current_price=run_final.current_price or 0.0,
+                intrinsic_value_base=run_final.base_intrinsic_value or 0.0,
+            )
+            payload = RatingTableDecision(
+                decision_rule_id="rating_table_v1",
+                ticker=run.ticker,
+                company_name=run.company_name,
+                decision_date=run_final.decision_date.isoformat(),
+                is_existing_position=run_final.is_existing_position,
+                rating=InvestmentRating(run_final.rating),
+                recommended_action=run_final.recommended_action,
+                conviction=conviction_lit,
+                margin_of_safety=mos,
+                rationale=RatingTableRationale(
+                    primary_driver=run_final.primary_driver or "",
+                    supporting_factors=supporting,
+                    mitigating_factors=mitigating,
+                    red_flag_disposition=run_final.red_flag_disposition or "",
+                    data_gap_disposition=run_final.data_gap_disposition or "",
+                ),
+                thesis_expiry_note=run_final.thesis_expiry_note or "",
+            )
+            return payload.model_dump_json()
+
         row = session.scalars(
             select(AppraiserReport).where(
                 col(AppraiserReport.agent_execution_id) == execution.id
             )
         ).first()
-        run = session.get(Run, execution.run_id)
         if row is None or run is None:
             return "{}"
         payload = AppraiserOutput(
@@ -667,82 +722,14 @@ def assistant_response_for_run_agent(
             stock_assumptions=StockAssumptions(
                 reasoning=row.reasoning,
                 forecast_period_years=row.forecast_period_years,
-                assumed_tax_rate=row.assumed_tax_rate,
-                assumed_forecast_period_annual_revenue_growth_rate=row.assumed_forecast_period_annual_revenue_growth_rate,
-                assumed_perpetuity_cash_flow_growth_rate=row.assumed_perpetuity_cash_flow_growth_rate,
-                assumed_ebit_margin=row.assumed_ebit_margin,
-                assumed_depreciation_and_amortization_rate=row.assumed_depreciation_and_amortization_rate,
-                assumed_capex_rate=row.assumed_capex_rate,
-                assumed_change_in_working_capital_rate=row.assumed_change_in_working_capital_rate,
+                assumed_tax_rate_pct=row.assumed_tax_rate_pct,
+                assumed_forecast_period_annual_revenue_growth_rate_pct=row.assumed_forecast_period_annual_revenue_growth_rate_pct,
+                assumed_perpetuity_cash_flow_growth_rate_pct=row.assumed_perpetuity_cash_flow_growth_rate_pct,
+                assumed_ebit_margin_pct=row.assumed_ebit_margin_pct,
+                assumed_depreciation_and_amortization_rate_pct=row.assumed_depreciation_and_amortization_rate_pct,
+                assumed_capex_rate_pct=row.assumed_capex_rate_pct,
+                assumed_change_in_working_capital_rate_pct=row.assumed_change_in_working_capital_rate_pct,
             ),
-        )
-        return payload.model_dump_json()
-
-    if execution.agent_name == AgentNameDb.ARBITER:
-        run_final = session.scalars(
-            select(RunFinalDecision).where(
-                col(RunFinalDecision.run_id) == execution.run_id,
-                col(RunFinalDecision.decision_type) == DecisionTypeDb.ARBITER,
-            )
-        ).first()
-        run = session.get(Run, execution.run_id)
-        if run_final is None or run is None:
-            return "{}"
-        supporting = [
-            r.factor_text
-            for r in session.scalars(
-                select(RunFinalDecisionSupportingFactor)
-                .where(
-                    col(RunFinalDecisionSupportingFactor.run_final_decision_id)
-                    == run_final.id
-                )
-                .order_by(col(RunFinalDecisionSupportingFactor.sort_order))
-            )
-        ]
-        mitigating = [
-            r.factor_text
-            for r in session.scalars(
-                select(RunFinalDecisionMitigatingFactor)
-                .where(
-                    col(RunFinalDecisionMitigatingFactor.run_final_decision_id)
-                    == run_final.id
-                )
-                .order_by(col(RunFinalDecisionMitigatingFactor.sort_order))
-            )
-        ]
-        mos_verdict: MarginOfSafetyVerdict = cast(
-            MarginOfSafetyVerdict,
-            run_final.margin_of_safety_verdict
-            or "None — stock appears fairly valued or overvalued",
-        )
-        conviction_lit: Literal["Low", "Medium", "High"] = cast(
-            Literal["Low", "Medium", "High"],
-            run_final.conviction or "Medium",
-        )
-        payload = ArbiterDecision(
-            ticker=run.ticker,
-            company_name=run.company_name,
-            decision_date=run_final.decision_date.isoformat(),
-            is_existing_position=run_final.is_existing_position,
-            rating=InvestmentRating(run_final.rating),
-            recommended_action=run_final.recommended_action,
-            conviction=conviction_lit,
-            margin_of_safety=MarginOfSafetyAssessment(
-                current_price=run_final.current_price or 0.0,
-                bear_intrinsic_value=run_final.bear_intrinsic_value or 0.0,
-                base_intrinsic_value=run_final.base_intrinsic_value or 0.0,
-                bull_intrinsic_value=run_final.bull_intrinsic_value or 0.0,
-                margin_of_safety_base_pct=run_final.margin_of_safety_base_pct or 0.0,
-                margin_of_safety_verdict=mos_verdict,
-            ),
-            rationale=ArbiterRationale(
-                primary_driver=run_final.primary_driver or "",
-                supporting_factors=supporting,
-                mitigating_factors=mitigating,
-                red_flag_disposition=run_final.red_flag_disposition or "",
-                data_gap_disposition=run_final.data_gap_disposition or "",
-            ),
-            thesis_expiry_note=run_final.thesis_expiry_note or "",
         )
         return payload.model_dump_json()
 

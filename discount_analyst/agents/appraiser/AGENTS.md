@@ -9,13 +9,13 @@ The `appraiser` directory contains the implementation of the "Appraiser" AI agen
 
 ## Key Files
 
-| File               | Description                                                                                                |
-| ------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `appraiser.py`     | Factory for the Appraiser agent (`create_appraiser_agent`).                                                |
-| `system_prompt.py` | The expert financial analyst persona and step-by-step analysis instructions for the agent.                 |
-| `schema.py`        | `AppraiserInput` (pipeline inputs) and `AppraiserOutput` (`StockData` + `StockAssumptions`).               |
-| `user_prompt.py`   | `create_user_prompt(appraiser_input=...)`: tagged JSON blocks + explicit caller-supplied `risk_free_rate`. |
-| `__init__.py`      | Package initialization for the appraiser module.                                                           |
+| File               | Description                                                                                                                        |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `appraiser.py`     | Factory for the Appraiser agent (`create_appraiser_agent`).                                                                        |
+| `system_prompt.py` | The expert financial analyst persona and step-by-step analysis instructions for the agent.                                         |
+| `schema.py`        | `AppraiserInput` (pipeline inputs) and `AppraiserOutput` (`StockData` + `StockAssumptions`).                                       |
+| `user_prompt.py`   | `create_user_prompt(appraiser_input=...)`: tagged JSON blocks + explicit caller-supplied `risk_free_rate_pct` (percentage points). |
+| `__init__.py`      | Package initialization for the appraiser module.                                                                                   |
 
 ## Subdirectories
 

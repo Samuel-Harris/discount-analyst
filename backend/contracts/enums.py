@@ -33,7 +33,7 @@ class EntryPathApi(StrEnum):
 
 
 class DecisionTypeApi(StrEnum):
-    ARBITER = "arbiter"
+    RATING_TABLE = "rating_table"
     SENTINEL_REJECTION = "sentinel_rejection"
 
 
@@ -44,4 +44,3 @@ class AgentNameSlug(StrEnum):
     STRATEGIST = "strategist"
     SENTINEL = "sentinel"
     APPRAISER = "appraiser"
-    ARBITER = "arbiter"

@@ -28,7 +28,6 @@ export const AgentNameSlug = {
   strategist: 'strategist',
   sentinel: 'sentinel',
   appraiser: 'appraiser',
-  arbiter: 'arbiter',
 } as const;
 
 export interface ConversationResponse {
@@ -54,7 +53,7 @@ export type DecisionTypeApi = typeof DecisionTypeApi[keyof typeof DecisionTypeAp
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const DecisionTypeApi = {
-  arbiter: 'arbiter',
+  rating_table: 'rating_table',
   sentinel_rejection: 'sentinel_rejection',
 } as const;
 

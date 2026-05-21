@@ -1,10 +1,10 @@
-"""Shared investment rating strings (schema, Arbiter, programmatic verdicts)."""
+"""Shared investment rating enum for programmatic verdicts and dashboards."""
 
 from enum import StrEnum
 
 
 class InvestmentRating(StrEnum):
-    """Five-level rating used by Arbiter and hoisted onto ``Verdict``."""
+    """Five-level rating used on ``Verdict`` and related persistence."""
 
     STRONG_BUY = "STRONG BUY"
     BUY = "BUY"

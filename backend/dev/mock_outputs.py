@@ -6,12 +6,6 @@ import random
 from datetime import date
 
 from discount_analyst.agents.appraiser.schema import AppraiserOutput
-from discount_analyst.agents.arbiter.schema import (
-    ArbiterDecision,
-    ArbiterRationale,
-    MarginOfSafetyAssessment,
-    MarginOfSafetyVerdict,
-)
 from discount_analyst.agents.profiler.schema import ProfilerOutput
 from discount_analyst.agents.researcher.schema import (
     BusinessModel,
@@ -36,7 +30,9 @@ from discount_analyst.agents.surveyor.schema import (
     SurveyorCandidate,
     SurveyorOutput,
 )
-from discount_analyst.rating import InvestmentRating
+from discount_analyst.pipeline.builders import build_rating_table_decision
+from discount_analyst.pipeline.schema import RatingTableDecision
+from discount_analyst.rating.margin_of_safety import MarginOfSafetyAssessment
 from discount_analyst.valuation.data_types import DCFAnalysisResult
 from discount_analyst.valuation.schema import StockAssumptions, StockData
 
@@ -363,13 +359,13 @@ def mock_stock_assumptions() -> StockAssumptions:
     return StockAssumptions(
         reasoning="Mock assumptions for dashboard DCF.",
         forecast_period_years=5,
-        assumed_tax_rate=0.21,
-        assumed_forecast_period_annual_revenue_growth_rate=0.08,
-        assumed_perpetuity_cash_flow_growth_rate=0.025,
-        assumed_ebit_margin=0.18,
-        assumed_depreciation_and_amortization_rate=0.04,
-        assumed_capex_rate=0.05,
-        assumed_change_in_working_capital_rate=0.02,
+        assumed_tax_rate_pct=21.0,
+        assumed_forecast_period_annual_revenue_growth_rate_pct=8.0,
+        assumed_perpetuity_cash_flow_growth_rate_pct=2.5,
+        assumed_ebit_margin_pct=18.0,
+        assumed_depreciation_and_amortization_rate_pct=4.0,
+        assumed_capex_rate_pct=5.0,
+        assumed_change_in_working_capital_rate_pct=2.0,
     )
 
 
@@ -388,128 +384,62 @@ def mock_dcf_result() -> DCFAnalysisResult:
     )
 
 
-def mock_arbiter_rating_for_dashboard_lane(ticker: str) -> InvestmentRating:
-    """Pick a stable ``InvestmentRating`` per ticker for mock Arbiter output.
-
-    Random ratings made short mock runs look uniformly bearish; this cycles
-    across all five levels using the same case-folded character-sum scheme as
-    :func:`mock_sentinel_proceed_for_dashboard_lane`.
-    """
-
-    order: tuple[InvestmentRating, ...] = (
-        InvestmentRating.STRONG_BUY,
-        InvestmentRating.BUY,
-        InvestmentRating.HOLD,
-        InvestmentRating.SELL,
-        InvestmentRating.STRONG_SELL,
-    )
-    bucket = sum(ord(ch) for ch in ticker.casefold()) % len(order)
-    return order[bucket]
-
-
-def mock_arbiter_decision(
-    candidate: SurveyorCandidate, *, is_existing_position: bool
-) -> ArbiterDecision:
-    rating = mock_arbiter_rating_for_dashboard_lane(candidate.ticker)
-    conviction = random.choice(("Low", "Medium", "High"))
-
-    action_by_rating = {
-        InvestmentRating.STRONG_BUY: (
-            "Increase materially on weakness.",
-            "Add aggressively while liquidity permits.",
-        ),
-        InvestmentRating.BUY: (
-            "Accumulate on pullbacks.",
-            "Add gradually within risk limits.",
-        ),
-        InvestmentRating.HOLD: (
-            "Maintain sizing; reassess on new data.",
-            "Hold pending clearer catalysts.",
-        ),
-        InvestmentRating.SELL: (
-            "Trim exposure into strength.",
-            "Reduce position size.",
-        ),
-        InvestmentRating.STRONG_SELL: (
-            "Exit or hedge promptly.",
-            "Close the position.",
-        ),
-    }
-    recommended_action = random.choice(action_by_rating[rating])
-
-    base = round(random.uniform(1.5, 120.0), 2)
-    bear = round(base * random.uniform(0.55, 0.92), 2)
-    bull = round(base * random.uniform(1.05, 1.45), 2)
-    current = round(base * random.uniform(0.78, 1.12), 2)
-    mos_pct = round((base - current) / base * 100.0, 1) if base else 0.0
-
-    substantial: MarginOfSafetyVerdict = (
-        "Substantial — price implies significant downside in market expectations"
-    )
-    moderate: MarginOfSafetyVerdict = "Moderate — meaningful upside but not exceptional"
-    thin: MarginOfSafetyVerdict = "Thin — limited margin for error"
-    none_mos: MarginOfSafetyVerdict = "None — stock appears fairly valued or overvalued"
-    if mos_pct >= 12:
-        mos_verdict = substantial
-    elif mos_pct >= 3:
-        mos_verdict = random.choice((substantial, moderate))
-    elif mos_pct >= -5:
-        mos_verdict = random.choice((moderate, thin))
-    else:
-        mos_verdict = random.choice((thin, none_mos))
-
-    return ArbiterDecision(
+def mock_rating_table_gate_evaluation(
+    candidate: SurveyorCandidate,
+    *,
+    thesis_verdict: ThesisVerdict = ThesisVerdict.INTACT_PROCEED_TO_VALUATION,
+) -> EvaluationReport:
+    """Minimal Sentinel output for deterministic mock rating-table rows."""
+    return EvaluationReport(
         ticker=candidate.ticker,
         company_name=candidate.company_name,
-        decision_date=date.today().isoformat(),
-        is_existing_position=is_existing_position,
-        rating=rating,
-        recommended_action=recommended_action,
-        conviction=conviction,
-        margin_of_safety=MarginOfSafetyAssessment(
-            current_price=current,
-            bear_intrinsic_value=bear,
-            base_intrinsic_value=base,
-            bull_intrinsic_value=bull,
-            margin_of_safety_base_pct=mos_pct,
-            margin_of_safety_verdict=mos_verdict,
-        ),
-        rationale=ArbiterRationale(
-            primary_driver=random.choice(
-                (
-                    "Valuation versus revised intrinsic range.",
-                    "Thesis durability after latest operating evidence.",
-                    "Balance sheet optionality versus peer set.",
-                )
-            ),
-            supporting_factors=random.sample(
-                (
-                    "Cash conversion remains supportive.",
-                    "Narrative dislocation still evident in multiples.",
-                    "Catalyst path within a sensible horizon.",
-                ),
-                k=random.randint(1, 3),
-            ),
-            mitigating_factors=random.sample(
-                (
-                    "Macro sensitivity is non-trivial.",
-                    "Execution risk on key initiatives.",
-                    "Disclosure gaps on segment economics.",
-                ),
-                k=random.randint(1, 3),
-            ),
-            red_flag_disposition=random.choice(
-                ("Acceptable", "Manageable with monitoring", "Elevated but priced")
-            ),
-            data_gap_disposition=random.choice(
-                ("Monitor", "Close before sizing up", "Immaterial for the decision")
-            ),
-        ),
-        thesis_expiry_note=random.choice(
-            (
-                "Revisit after the next two reporting periods.",
-                "Mock expiry note: refresh thesis if guidance changes materially.",
-                "Mock expiry note: reassess if the red-flag screen worsens.",
+        question_assessments=[
+            QuestionAssessment(
+                question="Q1",
+                evidence="Mock evidence.",
+                verdict="Supports thesis",
+                confidence="High",
             )
+        ],
+        red_flag_screen=RedFlagScreen(
+            governance_concerns="",
+            balance_sheet_stress="",
+            customer_or_supplier_concentration="",
+            accounting_quality="",
+            related_party_transactions="",
+            litigation_or_regulatory_risk="",
+            overall_red_flag_verdict=OverallRedFlagVerdict.CLEAR,
         ),
+        thesis_verdict=thesis_verdict,
+        verdict_rationale="Mock sentinel verdict.",
+        material_data_gaps="",
+        caveats=[],
+    )
+
+
+def mock_rating_table_decision(
+    candidate: SurveyorCandidate,
+    *,
+    is_existing_position: bool,
+    thesis: MispricingThesis | None = None,
+    evaluation: EvaluationReport | None = None,
+) -> RatingTableDecision:
+    """Deterministic post-DCF decision for mock dashboard runs (no LLM)."""
+    th = thesis or mock_thesis(candidate)
+    ev = evaluation or mock_rating_table_gate_evaluation(candidate)
+    appraiser_out = mock_appraiser_output(candidate)
+    dcf = mock_dcf_result()
+    sd = appraiser_out.stock_data
+    mos = MarginOfSafetyAssessment.from_market_cap(
+        market_cap=sd.market_cap,
+        n_shares_outstanding=sd.n_shares_outstanding,
+        intrinsic_value_base=dcf.intrinsic_share_price,
+    )
+    return build_rating_table_decision(
+        candidate=candidate,
+        thesis=th,
+        evaluation=ev,
+        margin_of_safety=mos,
+        is_existing_position=is_existing_position,
+        decision_date=date.today().isoformat(),
     )

@@ -92,7 +92,7 @@ The `disable-model-invocation: true` flag prevents the model from automatically 
 
 ### [P0] Extract area-specific content from root AGENTS.md
 
-> The root AGENTS.md contains 45 lines of Alembic migration conventions (lines 87–131). This loads on every request but is only relevant when working with migration files.
+> The root AGENTS.md contains 45 lines of Alembic migration conventions (lines 87-131). This loads on every request but is only relevant when working with migration files.
 >
 > **Create** `.cursor/rules/alembic-migrations.mdc`:
 >
@@ -105,7 +105,7 @@ The `disable-model-invocation: true` flag prevents the model from automatically 
 > [extracted migration content]
 > ```
 >
-> **Remove** lines 87–131 from `AGENTS.md` and replace with a one-line pointer: `| backend/alembic/ | Database migrations (see alembic-migrations rule) |`
+> **Remove** lines 87-131 from `AGENTS.md` and replace with a one-line pointer: `| backend/alembic/ | Database migrations (see alembic-migrations rule) |`
 >
 > **Why:** Reduces always-on context by ~45 lines while preserving the guidance where it's needed.
 

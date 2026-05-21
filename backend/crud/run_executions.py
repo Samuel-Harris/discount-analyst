@@ -48,9 +48,12 @@ from backend.db.models import (
     WorkflowAgentExecution,
     WorkflowRunStatusDb,
 )
-from discount_analyst.agents.arbiter.schema import ArbiterDecision
+from discount_analyst.pipeline.schema import (
+    RatingTableDecision,
+    SentinelRejection,
+    Verdict,
+)
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
-from discount_analyst.pipeline.schema import SentinelRejection, Verdict
 from discount_analyst.valuation.data_types import DCFAnalysisResult
 
 _ACTIVE_RUN_STATUSES = frozenset({WorkflowRunStatusDb.RUNNING.value})
@@ -67,7 +70,6 @@ _AGENT_LANE_ORDER = {
     AgentNameDb.STRATEGIST: 2,
     AgentNameDb.SENTINEL: 3,
     AgentNameDb.APPRAISER: 4,
-    AgentNameDb.ARBITER: 5,
 }
 
 
@@ -662,18 +664,18 @@ def persist_ticker_run_final_verdict(
     if not final_verdict_json or not decision_type:
         return
     verdict = Verdict.model_validate_json(final_verdict_json)
-    if decision_type == DecisionTypeDb.ARBITER.value:
+    if decision_type == DecisionTypeDb.RATING_TABLE.value:
         source_execution_id = get_agent_execution_id_by_run_and_agent(
-            session, run_id=run_id, agent_name=AgentNameDb.ARBITER.value
+            session, run_id=run_id, agent_name=AgentNameDb.APPRAISER.value
         )
         if source_execution_id is None:
             return
-        decision = ArbiterDecision.model_validate(verdict.decision)
+        decision = RatingTableDecision.model_validate(verdict.decision)
         upsert_run_final_decision(
             session,
             run_id=run_id,
             source_agent_execution_id=source_execution_id,
-            decision_type=DecisionTypeDb.ARBITER,
+            decision_type=DecisionTypeDb.RATING_TABLE,
             decision_date=date.fromisoformat(decision.decision_date),
             is_existing_position=decision.is_existing_position,
             rating=decision.rating.value,
@@ -681,9 +683,9 @@ def persist_ticker_run_final_verdict(
             conviction=decision.conviction,
             rejection_reason=None,
             current_price=decision.margin_of_safety.current_price,
-            bear_intrinsic_value=decision.margin_of_safety.bear_intrinsic_value,
-            base_intrinsic_value=decision.margin_of_safety.base_intrinsic_value,
-            bull_intrinsic_value=decision.margin_of_safety.bull_intrinsic_value,
+            bear_intrinsic_value=decision.margin_of_safety.intrinsic_value_bear,
+            base_intrinsic_value=decision.margin_of_safety.intrinsic_value_base,
+            bull_intrinsic_value=decision.margin_of_safety.intrinsic_value_bull,
             margin_of_safety_base_pct=decision.margin_of_safety.margin_of_safety_base_pct,
             margin_of_safety_verdict=decision.margin_of_safety.margin_of_safety_verdict,
             primary_driver=decision.rationale.primary_driver,

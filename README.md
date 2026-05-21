@@ -58,7 +58,7 @@ Review the DCF outputs across all analysed stocks. Buy the stocks with the great
 2. Configure environment variables for the agents you run (see [Environment variables](#environment-variables))
 3. Install dependencies: `uv sync`
 4. Run the Surveyor to find candidates: `uv run python scripts/agents/run_surveyor.py`, or run survey → research → strategy in one command: `uv run python scripts/workflows/run_surveyor_researcher_strategist.py`
-5. After Researcher/Strategist/Sentinel (step 2 above — or `scripts/workflows/run_full_workflow.py` for the full gated pipeline through Arbiter and verdicts JSON), run DCF analysis: `uv run python scripts/agents/run_appraiser.py --sentinel-report-and-ticker scripts/outputs/<sentinel>.json --risk-free-rate <decimal e.g. 0.045>`
+5. After Researcher/Strategist/Sentinel (step 2 above — or `scripts/workflows/run_full_workflow.py` for the full gated pipeline through deterministic rating and verdicts JSON), run DCF analysis: `uv run python scripts/agents/run_appraiser.py --sentinel-report-and-ticker scripts/outputs/<sentinel>.json --risk-free-rate <decimal e.g. 0.045>`
 
 ## Environment variables
 
@@ -79,10 +79,10 @@ Nested groups use double underscores, for example `PERPLEXITY__API_KEY`, `LOGGIN
 | `FMP__API_KEY`                      | Financial Modeling Prep                                                                |
 | `EODHD__API_KEY`                    | EODHD                                                                                  |
 | `EODHD__DISABLED`                   | Set to `true` to skip EODHD MCP (FMP unchanged)                                        |
-| `LOGGING__LOG_LEVEL`                | Logfire console minimum for the dashboard process (`DEBUG`–`CRITICAL`; default `INFO`) |
+| `LOGGING__LOG_LEVEL`                | Logfire console minimum for the dashboard process (`DEBUG`-`CRITICAL`; default `INFO`) |
 | `DASHBOARD_DATABASE_PATH`           | SQLite path for workflow runs (default `data/dashboard.sqlite`)                        |
 | `DASHBOARD_DEFAULT_MODEL`           | Default LLM for dashboard-driven runs                                                  |
-| `DASHBOARD_RISK_FREE_RATE`          | Risk-free rate for valuation stages                                                    |
+| `DASHBOARD_RISK_FREE_RATE`          | Risk-free rate as a percentage for valuation stages (e.g. `3.7` means 3.7%)            |
 | `DASHBOARD_USE_PERPLEXITY`          | Toggle Perplexity-backed behaviour where wired                                         |
 | `DASHBOARD_USE_MCP_FINANCIAL_DATA`  | Toggle MCP financial data in dashboard runs                                            |
 | `ENV` or `DASHBOARD_DEPLOY_ENV`     | `DEV` or `PROD` (mock vs live server behaviour)                                        |
