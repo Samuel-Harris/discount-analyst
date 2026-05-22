@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 from pydantic_ai import AbstractToolset, Agent, WebFetchTool, WebSearchTool
-from pydantic_ai.builtin_tools import AbstractBuiltinTool
+from pydantic_ai.capabilities import AgentCapability, NativeTool
 
 from discount_analyst.agents.common.agent_names import AgentName
 from discount_analyst.agents.common.model import create_model_from_config
@@ -39,18 +39,18 @@ def create_agent[OutT](
     Set ``enable_web_research_tools=False`` for interpretation-only agents
     (for example, Strategist and Sentinel).
     """
-    builtin_tools: list[AbstractBuiltinTool] = []
+    capabilities: list[AgentCapability[None]] = []
     toolsets: list[AbstractToolset[None]] = []
 
     if enable_web_research_tools:
         if not use_perplexity:
-            builtin_tools.append(WebSearchTool())
+            capabilities.append(NativeTool(WebSearchTool()))
 
             supports_web_fetch = ai_models_config.model.supports_feature(
                 ProviderFeature.WEB_FETCH
             )
             if supports_web_fetch:
-                builtin_tools.append(WebFetchTool())
+                capabilities.append(NativeTool(WebFetchTool()))
         else:
             toolsets.append(create_perplexity_toolset(spec.name))
 
@@ -67,6 +67,6 @@ def create_agent[OutT](
         output_type=spec.output_type,
         model_settings=ai_models_config.model.model_settings,
         system_prompt=spec.system_prompt,
-        builtin_tools=builtin_tools,
+        capabilities=capabilities,
         toolsets=toolsets,
     )
