@@ -19,10 +19,10 @@ from pydantic_ai.agent.abstract import AbstractAgent
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.messages import (
     AgentStreamEvent,
-    BuiltinToolCallPart,
     ModelMessage,
     ModelRequest,
     ModelResponse,
+    NativeToolCallPart,
     PartDeltaEvent,
     PartStartEvent,
     TextPart,
@@ -207,7 +207,7 @@ def _stringify_partial_output(output: Any) -> str | None:
     return text or None
 
 
-def _tool_args_as_text(part: ToolCallPart | BuiltinToolCallPart) -> str | None:
+def _tool_args_as_text(part: ToolCallPart | NativeToolCallPart) -> str | None:
     if not part.has_content():
         return None
     return part.args_as_json_str()
@@ -218,7 +218,7 @@ def _model_response_partial_output(response: ModelResponse) -> str | None:
     for part in response.parts:
         if isinstance(part, TextPart) and part.content.strip():
             parts.append(part.content.strip())
-        elif isinstance(part, ToolCallPart | BuiltinToolCallPart):
+        elif isinstance(part, ToolCallPart | NativeToolCallPart):
             if args := _tool_args_as_text(part):
                 parts.append(args)
     text = "\n\n".join(parts).strip()
@@ -230,7 +230,7 @@ def _event_partial_output(event: AgentStreamEvent) -> str | None:
         part = event.part
         if isinstance(part, TextPart):
             return part.content
-        if isinstance(part, ToolCallPart | BuiltinToolCallPart):
+        if isinstance(part, ToolCallPart | NativeToolCallPart):
             return _tool_args_as_text(part)
     if isinstance(event, PartDeltaEvent):
         delta = event.delta
