@@ -53,6 +53,8 @@ from backend.pipeline.ports import ProfilerStagePort
 from backend.pipeline.stages.profiler_stage import ProfilerStage
 from backend.dev import mock_conversation_messages, mock_outputs
 from common.config import Settings
+from discount_analyst.agents.common.terminal_run import run_agent_with_terminal
+from discount_analyst.integrations.terminal import TerminalRuntimeConfig
 from backend.db.session import SessionFactory
 from discount_analyst.agents.appraiser.appraiser import create_appraiser_agent
 from discount_analyst.agents.appraiser.schema import AppraiserInput, AppraiserOutput
@@ -62,7 +64,6 @@ from discount_analyst.agents.appraiser.system_prompt import (
 from discount_analyst.agents.appraiser.user_prompt import (
     create_user_prompt as create_appraiser_user_prompt,
 )
-from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
 from discount_analyst.agents.researcher.researcher import create_researcher_agent
 from discount_analyst.agents.researcher.schema import DeepResearchReport
 from discount_analyst.agents.researcher.system_prompt import (
@@ -147,6 +148,7 @@ class DashboardPipelineRunner:
         self._settings = settings
         self._lock = asyncio.Lock()
         self._profiler_stage = ProfilerStage()
+        self._terminal_runtime: TerminalRuntimeConfig | None = None
 
         async def _profiler_port_get_agent_execution_id(
             run_id: str, agent_name: str
@@ -211,6 +213,11 @@ class DashboardPipelineRunner:
         )
         self._background_tasks: set[asyncio.Task[None]] = set()
         self._workflow_tasks: dict[str, asyncio.Task[None]] = {}
+
+    def _cached_terminal_runtime(self) -> TerminalRuntimeConfig:
+        if self._terminal_runtime is None:
+            self._terminal_runtime = TerminalRuntimeConfig.from_settings(self._settings)
+        return self._terminal_runtime
 
     def has_active_workflow_task(self, workflow_run_id: str) -> bool:
         task = self._workflow_tasks.get(workflow_run_id)
@@ -508,13 +515,16 @@ class DashboardPipelineRunner:
                 )
             else:
                 ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
-                agent = create_surveyor_agent(
-                    ai_models_config=ai_cfg,
-                    use_perplexity=self._settings.use_perplexity,
-                    use_mcp_financial_data=self._settings.use_mcp_financial_data,
-                )
-                outcome = await run_streamed_agent(
-                    agent=agent,
+                outcome = await run_agent_with_terminal(
+                    settings=self._settings,
+                    session_id=surveyor_exec_id,
+                    runtime=self._cached_terminal_runtime(),
+                    build_agent=lambda t: create_surveyor_agent(
+                        ai_models_config=ai_cfg,
+                        use_perplexity=self._settings.use_perplexity,
+                        use_mcp_financial_data=self._settings.use_mcp_financial_data,
+                        terminal=t,
+                    ),
                     user_prompt=SURVEYOR_USER_PROMPT,
                     usage_limits=ai_cfg.model.usage_limits,
                 )
@@ -842,13 +852,16 @@ class DashboardPipelineRunner:
                 )
             else:
                 ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
-                agent = create_researcher_agent(
-                    ai_cfg,
-                    use_perplexity=self._settings.use_perplexity,
-                    use_mcp_financial_data=self._settings.use_mcp_financial_data,
-                )
-                outcome = await run_streamed_agent(
-                    agent=agent,
+                outcome = await run_agent_with_terminal(
+                    settings=self._settings,
+                    session_id=research_exec_id,
+                    runtime=self._cached_terminal_runtime(),
+                    build_agent=lambda t: create_researcher_agent(
+                        ai_cfg,
+                        use_perplexity=self._settings.use_perplexity,
+                        use_mcp_financial_data=self._settings.use_mcp_financial_data,
+                        terminal=t,
+                    ),
                     user_prompt=create_researcher_user_prompt(
                         surveyor_candidate=candidate
                     ),
@@ -917,9 +930,11 @@ class DashboardPipelineRunner:
                 )
             else:
                 ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
-                agent = create_strategist_agent(ai_cfg)
-                outcome = await run_streamed_agent(
-                    agent=agent,
+                outcome = await run_agent_with_terminal(
+                    settings=self._settings,
+                    session_id=strategist_exec_id,
+                    runtime=self._cached_terminal_runtime(),
+                    build_agent=lambda t: create_strategist_agent(ai_cfg, terminal=t),
                     user_prompt=create_strategist_user_prompt(
                         surveyor_candidate=candidate, deep_research=research_out
                     ),
@@ -991,9 +1006,11 @@ class DashboardPipelineRunner:
                 )
             else:
                 ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
-                agent = create_sentinel_agent(ai_cfg)
-                outcome = await run_streamed_agent(
-                    agent=agent,
+                outcome = await run_agent_with_terminal(
+                    settings=self._settings,
+                    session_id=sentinel_exec_id,
+                    runtime=self._cached_terminal_runtime(),
+                    build_agent=lambda t: create_sentinel_agent(ai_cfg, terminal=t),
                     user_prompt=create_sentinel_user_prompt(
                         surveyor_candidate=candidate,
                         deep_research=research_out,
@@ -1126,13 +1143,16 @@ class DashboardPipelineRunner:
                 )
             else:
                 ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
-                agent = create_appraiser_agent(
-                    ai_cfg,
-                    use_perplexity=self._settings.use_perplexity,
-                    use_mcp_financial_data=self._settings.use_mcp_financial_data,
-                )
-                outcome = await run_streamed_agent(
-                    agent=agent,
+                outcome = await run_agent_with_terminal(
+                    settings=self._settings,
+                    session_id=appraiser_exec_id,
+                    runtime=self._cached_terminal_runtime(),
+                    build_agent=lambda t: create_appraiser_agent(
+                        ai_cfg,
+                        use_perplexity=self._settings.use_perplexity,
+                        use_mcp_financial_data=self._settings.use_mcp_financial_data,
+                        terminal=t,
+                    ),
                     user_prompt=create_appraiser_user_prompt(
                         appraiser_input=appraiser_input
                     ),

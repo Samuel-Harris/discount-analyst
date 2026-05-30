@@ -24,6 +24,7 @@ from discount_analyst.valuation.dcf_analysis import DCFAnalysis
 from discount_analyst.config.ai_models_config import AIModelsConfig, ModelName
 from discount_analyst.agents.common.agent_names import AgentName
 from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
+from discount_analyst.agents.common.terminal_run import TerminalRunOptions
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
 
 from backend.contracts.stock_run_args import StockRunArgs
@@ -32,6 +33,8 @@ from scripts.shared.cli import (
     DEFAULT_AGENT_CLI_DEFAULTS,
     add_agent_cli_model_argument,
     add_agent_cli_web_search_arguments,
+    add_agent_terminal_argument,
+    terminal_run_options_for_cli,
 )
 from scripts.shared.artefacts import write_agent_json
 from scripts.shared.run_outputs import (
@@ -69,6 +72,7 @@ class SharedArgs:
     model: ModelName
     use_perplexity: bool
     use_mcp_financial_data: bool
+    terminal: TerminalRunOptions
 
 
 class AppraiserCliArgs(BaseModel):
@@ -77,6 +81,7 @@ class AppraiserCliArgs(BaseModel):
     risk_free_rate_pct: float
     use_perplexity: bool
     use_mcp_financial_data: bool
+    use_terminal: bool
 
 
 @dataclass
@@ -167,6 +172,7 @@ def parse_args() -> AppraiserCliArgs:
             "optional for Anthropic/OpenAI)."
         ),
     )
+    add_agent_terminal_argument(parser)
 
     raw = parser.parse_args()
 
@@ -183,6 +189,7 @@ def parse_args() -> AppraiserCliArgs:
         risk_free_rate_pct=raw.risk_free_rate_pct,
         use_perplexity=raw.use_perplexity,
         use_mcp_financial_data=not raw.no_mcp,
+        use_terminal=not raw.no_terminal,
     )
 
 
@@ -315,6 +322,7 @@ async def run_agent(
     *,
     use_perplexity: bool = DEFAULT_AGENT_CLI_DEFAULTS.use_perplexity,
     use_mcp_financial_data: bool = True,
+    terminal: TerminalRunOptions,
 ) -> AgentRunResult:
     """Run the Appraiser agent and return output with usage stats."""
     ai_models_config = AIModelsConfig(model_name=args.model)
@@ -322,6 +330,7 @@ async def run_agent(
         ai_models_config,
         use_perplexity=use_perplexity,
         use_mcp_financial_data=use_mcp_financial_data,
+        terminal=terminal,
     )
     user_prompt = create_user_prompt(appraiser_input=appraiser_input)
 
@@ -331,6 +340,7 @@ async def run_agent(
         user_prompt=user_prompt,
         usage_limits=ai_models_config.model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
+        terminal=terminal,
     )
     agent_output = outcome.output
     usage = outcome.usage
@@ -549,6 +559,9 @@ async def main() -> None:
         model=cli.model,
         use_perplexity=cli.use_perplexity,
         use_mcp_financial_data=cli.use_mcp_financial_data,
+        terminal=terminal_run_options_for_cli(
+            no_terminal=not cli.use_terminal
+        ).bind_session_id(),
     )
     targets = resolve_targets(cli.selectors, risk_free_rate_pct=cli.risk_free_rate_pct)
     if not targets:
@@ -580,6 +593,7 @@ async def main() -> None:
             target.appraiser_input,
             use_perplexity=shared.use_perplexity,
             use_mcp_financial_data=shared.use_mcp_financial_data,
+            terminal=shared.terminal,
         )
 
         display_agent_output(agent_result.output)

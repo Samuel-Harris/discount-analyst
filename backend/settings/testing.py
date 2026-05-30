@@ -45,5 +45,6 @@ def dashboard_settings_for_tests(
         risk_free_rate_pct=3.7,
         use_perplexity=False,
         use_mcp_financial_data=True,
+        use_terminal=False,
         deploy_env=deploy_env,
     )

@@ -50,6 +50,8 @@ dev = [
     "pyright>=1.1.408",
     "basedpyright>=1.38.2",
     "opentelemetry-instrumentation-fastapi>=0.49b0",
+    "docker>=7.1.0",
+    "types-docker>=7.1.0.20260518",
 ]
 
 [tool.uv]

@@ -56,9 +56,12 @@ from scripts.agents.run_appraiser import (
     run_dcf_and_display,
     save_run_output,
 )
+from discount_analyst.agents.common.terminal_run import TerminalRunOptions
 from scripts.shared.cli import (
     add_agent_cli_model_argument,
     add_agent_cli_web_search_arguments,
+    add_agent_terminal_argument,
+    terminal_run_options_for_cli,
 )
 from scripts.shared.artefacts import write_agent_json, write_verdicts_json
 from scripts.shared.run_outputs import (
@@ -152,6 +155,7 @@ class WorkflowArgs(BaseModel):
     model: ModelName
     use_perplexity: bool
     use_mcp_financial_data: bool
+    use_terminal: bool
     risk_free_rate_pct: float
     is_existing_position: bool
     profiler_tickers: list[str] | None = None
@@ -192,6 +196,7 @@ def parse_args() -> WorkflowArgs:
             "optional for Anthropic/OpenAI)."
         ),
     )
+    add_agent_terminal_argument(parser)
     parser.add_argument(
         "--profiler-tickers",
         nargs="+",
@@ -217,6 +222,7 @@ def parse_args() -> WorkflowArgs:
         model=raw.model,
         use_perplexity=raw.use_perplexity,
         use_mcp_financial_data=not raw.no_mcp,
+        use_terminal=not raw.no_terminal,
         risk_free_rate_pct=raw.risk_free_rate_pct,
         is_existing_position=raw.is_existing_position,
         profiler_tickers=profiler_tickers,
@@ -432,6 +438,7 @@ async def run_profiler_once(
     ticker: str,
     use_perplexity: bool,
     use_mcp_financial_data: bool,
+    terminal: TerminalRunOptions,
     filename_suffix: str,
 ) -> tuple[ProfilerRunOutput, str]:
     ai_models_config = AIModelsConfig(model_name=model_name)
@@ -439,6 +446,7 @@ async def run_profiler_once(
         ai_models_config=ai_models_config,
         use_perplexity=use_perplexity,
         use_mcp_financial_data=use_mcp_financial_data,
+        terminal=terminal,
     )
     user_prompt = create_profiler_user_prompt(ticker)
     console.log(f"Running Profiler agent for {ticker!r} (model: {model_name})...")
@@ -447,6 +455,7 @@ async def run_profiler_once(
         user_prompt=user_prompt,
         usage_limits=ai_models_config.model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
+        terminal=terminal,
     )
     output = outcome.output
     usage = outcome.usage
@@ -476,12 +485,14 @@ async def run_surveyor_once(
     model_name: ModelName,
     use_perplexity: bool,
     use_mcp_financial_data: bool,
+    terminal: TerminalRunOptions,
 ) -> tuple[SurveyorRunOutput, str]:
     ai_models_config = AIModelsConfig(model_name=model_name)
     agent = create_surveyor_agent(
         ai_models_config=ai_models_config,
         use_perplexity=use_perplexity,
         use_mcp_financial_data=use_mcp_financial_data,
+        terminal=terminal,
     )
     console.log(f"Running Surveyor agent (model: {model_name})...")
 
@@ -490,6 +501,7 @@ async def run_surveyor_once(
         user_prompt=USER_PROMPT,
         usage_limits=ai_models_config.model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
+        terminal=terminal,
     )
     output = outcome.output
     usage = outcome.usage
@@ -519,12 +531,14 @@ async def run_researcher_once(
     candidate: SurveyorCandidate,
     use_perplexity: bool,
     use_mcp_financial_data: bool,
+    terminal: TerminalRunOptions,
 ) -> AgentRunResult:
     ai_models_config = AIModelsConfig(model_name=model_name)
     agent = create_researcher_agent(
         ai_models_config,
         use_perplexity=use_perplexity,
         use_mcp_financial_data=use_mcp_financial_data,
+        terminal=terminal,
     )
     user_prompt = create_researcher_user_prompt(surveyor_candidate=candidate)
 
@@ -533,6 +547,7 @@ async def run_researcher_once(
         user_prompt=user_prompt,
         usage_limits=ai_models_config.model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
+        terminal=terminal,
     )
     output = outcome.output
     usage = outcome.usage
@@ -559,9 +574,10 @@ async def run_strategist_once(
     model_name: ModelName,
     surveyor_candidate: SurveyorCandidate,
     deep_research: DeepResearchReport,
+    terminal: TerminalRunOptions,
 ) -> StrategistAgentRunResult:
     ai_models_config = AIModelsConfig(model_name=model_name)
-    agent = create_strategist_agent(ai_models_config)
+    agent = create_strategist_agent(ai_models_config, terminal=terminal)
     user_prompt = create_strategist_user_prompt(
         surveyor_candidate=surveyor_candidate,
         deep_research=deep_research,
@@ -572,6 +588,7 @@ async def run_strategist_once(
         user_prompt=user_prompt,
         usage_limits=ai_models_config.model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
+        terminal=terminal,
     )
     output = outcome.output
     usage = outcome.usage
@@ -596,9 +613,10 @@ async def run_sentinel_once(
     surveyor_candidate: SurveyorCandidate,
     deep_research: DeepResearchReport,
     thesis: MispricingThesis,
+    terminal: TerminalRunOptions,
 ) -> SentinelAgentRunResult:
     ai_models_config = AIModelsConfig(model_name=model_name)
-    agent = create_sentinel_agent(ai_models_config)
+    agent = create_sentinel_agent(ai_models_config, terminal=terminal)
     user_prompt = create_sentinel_user_prompt(
         surveyor_candidate=surveyor_candidate,
         deep_research=deep_research,
@@ -610,6 +628,7 @@ async def run_sentinel_once(
         user_prompt=user_prompt,
         usage_limits=ai_models_config.model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
+        terminal=terminal,
     )
     output = outcome.output
     usage = outcome.usage
@@ -733,6 +752,7 @@ def save_sentinel_output(
 async def _run_appraiser_dcf_final_rating_for_candidate(
     *,
     args: WorkflowArgs,
+    terminal: TerminalRunOptions,
     candidate: SurveyorCandidate,
     index: int,
     source_entry_report_path: str,
@@ -762,6 +782,7 @@ async def _run_appraiser_dcf_final_rating_for_candidate(
         appraiser_input,
         use_perplexity=args.use_perplexity,
         use_mcp_financial_data=args.use_mcp_financial_data,
+        terminal=terminal,
     )
     display_agent_output(agent_result.output)
     dcf_result, dcf_error = run_dcf_and_display(stock_args, agent_result.output)
@@ -808,6 +829,9 @@ async def _run_appraiser_dcf_final_rating_for_candidate(
 
 async def main() -> None:
     args = parse_args()
+    terminal = terminal_run_options_for_cli(
+        no_terminal=not args.use_terminal
+    ).bind_session_id()
     profiler_failures: list[FailedProfilerRun] = []
 
     if args.profiler_tickers:
@@ -825,6 +849,7 @@ async def main() -> None:
                     ticker=raw_ticker,
                     use_perplexity=args.use_perplexity,
                     use_mcp_financial_data=args.use_mcp_financial_data,
+                    terminal=terminal,
                     filename_suffix=raw_ticker,
                 )
             except Exception as exc:
@@ -855,6 +880,7 @@ async def main() -> None:
             model_name=args.model,
             use_perplexity=args.use_perplexity,
             use_mcp_financial_data=args.use_mcp_financial_data,
+            terminal=terminal,
         )
         candidates = surveyor_run_output.output.candidates
         display_candidate_table(
@@ -899,6 +925,7 @@ async def main() -> None:
                 candidate=candidate,
                 use_perplexity=args.use_perplexity,
                 use_mcp_financial_data=args.use_mcp_financial_data,
+                terminal=terminal,
             )
         except Exception as exc:
             failures.append(
@@ -932,6 +959,7 @@ async def main() -> None:
                 model_name=args.model,
                 surveyor_candidate=candidate,
                 deep_research=run_result.output,
+                terminal=terminal,
             )
         except Exception as exc:
             strategist_failures.append(
@@ -967,6 +995,7 @@ async def main() -> None:
                 surveyor_candidate=candidate,
                 deep_research=run_result.output,
                 thesis=strat_result.output,
+                terminal=terminal,
             )
         except Exception as exc:
             sentinel_failures.append(
@@ -1023,6 +1052,7 @@ async def main() -> None:
         try:
             await _run_appraiser_dcf_final_rating_for_candidate(
                 args=args,
+                terminal=terminal,
                 candidate=candidate,
                 index=index,
                 source_entry_report_path=entry_path,

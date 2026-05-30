@@ -4,6 +4,7 @@
   "include": [
     "backend/**/*.py",
     "discount_analyst/**/*.py",
+    "docker/agent-terminal/**/*.py",
     "scripts/**/*.py",
     "tests/**/*.py"
   ],

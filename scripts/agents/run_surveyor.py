@@ -17,6 +17,8 @@ from discount_analyst.agents.surveyor.user_prompt import USER_PROMPT
 from scripts.shared.cli import (
     add_agent_cli_model_argument,
     add_agent_cli_web_search_arguments,
+    add_agent_terminal_argument,
+    terminal_run_options_for_cli,
 )
 from scripts.shared.artefacts import write_agent_json
 from scripts.shared.run_outputs import SurveyorRunOutput
@@ -33,6 +35,7 @@ class SurveyorArgs(BaseModel):
     model: ModelName
     use_perplexity: bool
     use_mcp_financial_data: bool
+    use_terminal: bool
 
 
 def parse_args() -> SurveyorArgs:
@@ -49,11 +52,13 @@ def parse_args() -> SurveyorArgs:
             "optional for Anthropic/OpenAI)."
         ),
     )
+    add_agent_terminal_argument(parser)
     raw = parser.parse_args()
     return SurveyorArgs(
         model=raw.model,
         use_perplexity=raw.use_perplexity,
         use_mcp_financial_data=not raw.no_mcp,
+        use_terminal=not raw.no_terminal,
     )
 
 
@@ -94,10 +99,14 @@ async def main() -> None:
     args = parse_args()
 
     ai_models_config = AIModelsConfig(model_name=args.model)
+    terminal = terminal_run_options_for_cli(
+        no_terminal=not args.use_terminal
+    ).bind_session_id()
     agent = create_surveyor_agent(
         ai_models_config=ai_models_config,
         use_perplexity=args.use_perplexity,
         use_mcp_financial_data=args.use_mcp_financial_data,
+        terminal=terminal,
     )
 
     console.log(f"Running Surveyor agent (model: {args.model})...")
@@ -107,6 +116,7 @@ async def main() -> None:
         user_prompt=USER_PROMPT,
         usage_limits=ai_models_config.model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
+        terminal=terminal,
     )
     output = outcome.output
     usage = outcome.usage

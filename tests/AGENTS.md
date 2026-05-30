@@ -15,6 +15,7 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | `tests/dcf_analysis/test_dcf_analysis.py`                         | Comprehensive unit tests for the DCF calculation engine using real-world stock data scenarios.                                         |
 | `tests/discount_analyst/http/test_streaming_retries.py`           | Unit tests for agent streaming retry helpers (`stream_with_retries`, sleep parsing).                                                   |
 | `tests/discount_analyst/integrations/test_financial_data_mcp.py`  | EODHD MCP optional registration (`EODHD__DISABLED`).                                                                                   |
+| `tests/discount_analyst/integrations/test_terminal.py`            | Terminal HTTP client mocks; optional `@pytest.mark.docker` orchestrator integration.                                                   |
 | `tests/discount_analyst/agents/common/test_streamed_agent_run.py` | Tests for `run_streamed_agent`.                                                                                                        |
 | `tests/discount_analyst/agents/sentinel/test_sentinel_gate.py`    | Tests for `sentinel_proceeds_to_valuation` (thesis + red-flag gate).                                                                   |
 | `tests/discount_analyst/pipeline/test_builders.py`                | Tests for `build_sentinel_rejection` and `verdict_from_decision`.                                                                      |

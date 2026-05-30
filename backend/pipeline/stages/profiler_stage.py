@@ -9,7 +9,7 @@ from backend.db.models import AgentNameDb
 from backend.dev import mock_conversation_messages, mock_outputs
 from discount_analyst.agents.common.ai_logging import AI_LOGFIRE
 from backend.pipeline.ports import ProfilerStagePort
-from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
+from discount_analyst.agents.common.terminal_run import run_agent_with_terminal
 from discount_analyst.agents.profiler.profiler import create_profiler_agent
 from discount_analyst.agents.profiler.system_prompt import (
     SYSTEM_PROMPT as PROFILER_SYSTEM_PROMPT,
@@ -62,13 +62,15 @@ class ProfilerStage:
             )
         else:
             ai_cfg = AIModelsConfig(model_name=settings.default_model)
-            agent = create_profiler_agent(
-                ai_models_config=ai_cfg,
-                use_perplexity=settings.use_perplexity,
-                use_mcp_financial_data=settings.use_mcp_financial_data,
-            )
-            outcome = await run_streamed_agent(
-                agent=agent,
+            outcome = await run_agent_with_terminal(
+                settings=settings,
+                session_id=profiler_exec_id,
+                build_agent=lambda t: create_profiler_agent(
+                    ai_models_config=ai_cfg,
+                    use_perplexity=settings.use_perplexity,
+                    use_mcp_financial_data=settings.use_mcp_financial_data,
+                    terminal=t,
+                ),
                 user_prompt=create_profiler_user_prompt(ticker),
                 usage_limits=ai_cfg.model.usage_limits,
             )

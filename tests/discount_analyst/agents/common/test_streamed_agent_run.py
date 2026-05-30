@@ -11,6 +11,12 @@ from discount_analyst.agents.common.streamed_agent_run import (
     StreamedAgentRunOutcome,
     run_streamed_agent,
 )
+from common.config import settings
+from discount_analyst.agents.common.terminal_run import (
+    TerminalRunOptions,
+    terminal_run_options,
+)
+from discount_analyst.integrations.terminal import TerminalRuntimeConfig
 
 
 class _FakeStreamedRunResult:
@@ -190,3 +196,118 @@ async def test_run_streamed_agent_raises_when_name_is_none(
         )
 
     assert fake_logfire.with_tags_calls == []
+
+
+@pytest.mark.anyio
+async def test_run_streamed_agent_deletes_terminal_session_on_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _no_wait(exc: BaseException, attempt: int) -> float:
+        del exc, attempt
+        return 0.0
+
+    monkeypatch.setattr(
+        streaming_retries,
+        "streaming_retry_sleep_seconds",
+        _no_wait,
+    )
+    fake_logfire = _FakeLogfire()
+    monkeypatch.setattr(streamed_agent_run_mod, "AI_LOGFIRE", fake_logfire)
+
+    deleted: list[tuple[str, str]] = []
+
+    async def _fake_delete(service_url: str, session_id: str) -> None:
+        deleted.append((service_url, session_id))
+
+    closed: list[bool] = []
+
+    async def _fake_close(session_state: Any) -> None:
+        del session_state
+        closed.append(True)
+
+    monkeypatch.setattr(
+        streamed_agent_run_mod,
+        "delete_terminal_session",
+        _fake_delete,
+    )
+    monkeypatch.setattr(streamed_agent_run_mod, "close_terminal_http", _fake_close)
+
+    agent = _FakeAgent(name="surveyor")
+    runtime = TerminalRuntimeConfig(
+        service_url="http://terminal.test",
+        command_timeout_s=30,
+        max_output_bytes=1024,
+    )
+    terminal = terminal_run_options(
+        settings,
+        enabled=True,
+        session_id="fixed-session-id",
+        runtime=runtime,
+    )
+
+    outcome = await run_streamed_agent(
+        agent=cast(Any, agent),
+        user_prompt="hi",
+        usage_limits=UsageLimits(request_limit=2),
+        terminal=terminal,
+    )
+
+    assert outcome.output == "done"
+    assert deleted == [("http://terminal.test", "fixed-session-id")]
+    assert closed == [True]
+
+
+@pytest.mark.anyio
+async def test_run_streamed_agent_skips_terminal_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _no_wait(exc: BaseException, attempt: int) -> float:
+        del exc, attempt
+        return 0.0
+
+    monkeypatch.setattr(
+        streaming_retries,
+        "streaming_retry_sleep_seconds",
+        _no_wait,
+    )
+    monkeypatch.setattr(streamed_agent_run_mod, "AI_LOGFIRE", _FakeLogfire())
+
+    deleted: list[tuple[str, str]] = []
+
+    async def _fake_delete(service_url: str, session_id: str) -> None:
+        deleted.append((service_url, session_id))
+
+    monkeypatch.setattr(
+        streamed_agent_run_mod,
+        "delete_terminal_session",
+        _fake_delete,
+    )
+
+    agent = _FakeAgent(name="surveyor")
+    terminal = TerminalRunOptions(
+        enabled=False,
+        runtime=TerminalRuntimeConfig(
+            service_url="http://terminal.test",
+            command_timeout_s=30,
+            max_output_bytes=1024,
+        ),
+        session_id="unused",
+    )
+
+    closed: list[bool] = []
+
+    async def _fake_close(session_state: Any) -> None:
+        del session_state
+        closed.append(True)
+
+    monkeypatch.setattr(streamed_agent_run_mod, "close_terminal_http", _fake_close)
+
+    await run_streamed_agent(
+        agent=cast(Any, agent),
+        user_prompt="hi",
+        usage_limits=UsageLimits(request_limit=2),
+        terminal=terminal,
+    )
+
+    assert deleted == []
+    assert closed == []

@@ -127,20 +127,14 @@ async def test_profiler_stage_raises_when_profiler_execution_missing() -> None:
 
 
 @pytest.mark.asyncio
-async def test_profiler_stage_non_mock_path_uses_streamed_agent() -> None:
+async def test_profiler_stage_non_mock_path_uses_run_agent_with_terminal() -> None:
     port = FakeProfilerPort(profiler_exec_id="exec-p")
     settings = dashboard_settings_for_tests()
     profiler_output = mock_outputs.mock_profiler_output(ticker="X.L")
     fake_outcome = SimpleNamespace(output=profiler_output, all_messages=[object()])
-    with (
-        patch(
-            "backend.pipeline.stages.profiler_stage.run_streamed_agent",
-            new=AsyncMock(return_value=fake_outcome),
-        ),
-        patch(
-            "backend.pipeline.stages.profiler_stage.create_profiler_agent",
-            return_value="fake-agent",
-        ),
+    with patch(
+        "backend.pipeline.stages.profiler_stage.run_agent_with_terminal",
+        new=AsyncMock(return_value=fake_outcome),
     ):
         candidate = await ProfilerStage().run(
             port,

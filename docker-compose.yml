@@ -3,11 +3,32 @@
 # Open http://localhost:8080
 
 services:
+  # Orchestrator: creates per-run gVisor sandboxes via Docker socket (not mounted on backend).
+  agent-terminal:
+    build:
+      context: .
+      dockerfile: docker/agent-terminal/Dockerfile.service
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      TERMINAL_SANDBOX_IMAGE: discount-analyst-terminal-sandbox:local
+      # Default runc for local Docker Desktop; set DOCKER_RUNTIME=runsc when gVisor is installed.
+      DOCKER_RUNTIME: ${DOCKER_RUNTIME:-runc}
+      TERMINAL_COMMAND_TIMEOUT_S: "300"
+      TERMINAL_MAX_OUTPUT_BYTES: "2097152"
+      # Optional: host path to repo root so sandboxes can read project files (read-only).
+      # Example: TERMINAL_WORKSPACE_HOST_PATH="$(pwd)" docker compose up
+      TERMINAL_WORKSPACE_HOST_PATH: ${TERMINAL_WORKSPACE_HOST_PATH:-}
+    ports:
+      - "8001:8001"
+
   # Backend image entrypoint runs `alembic upgrade head` then uvicorn (see backend/docker/entrypoint.sh).
   backend:
     build:
       context: .
       dockerfile: backend/docker/Dockerfile
+    depends_on:
+      - agent-terminal
     expose:
       - "8000"
     volumes:
@@ -19,6 +40,8 @@ services:
       DASHBOARD_DATABASE_PATH: /data/dashboard.sqlite
       ENV: PROD
       PYTHONUNBUFFERED: "1"
+      TERMINAL_SERVICE_URL: http://agent-terminal:8001
+      DASHBOARD_USE_TERMINAL: "true"
 
   web:
     build:
