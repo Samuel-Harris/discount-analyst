@@ -42,11 +42,15 @@ class PhaseResult:
     detail: str = ""
 
 
+def _empty_phase_results() -> list[PhaseResult]:
+    return []
+
+
 @dataclass
 class VerifyState:
     base_url: str
     session_id: str
-    results: list[PhaseResult] = field(default_factory=list)
+    results: list[PhaseResult] = field(default_factory=_empty_phase_results)
     host_pydantic: str | None = None
 
     def ok(self, name: str, detail: str = "") -> None:

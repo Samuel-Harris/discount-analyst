@@ -93,7 +93,7 @@ async def test_sandbox_library_matrix() -> None:
         create.raise_for_status()
 
         exec_resp = await client.post(
-            f"/sessions/{session_id}/exec",
+            f"{base}/sessions/{session_id}/exec",
             json={"command": _matrix_command()},
         )
         exec_resp.raise_for_status()
@@ -101,4 +101,4 @@ async def test_sandbox_library_matrix() -> None:
         assert payload["exit_code"] == 0, payload.get("stderr", "")
         assert "MATRIX_OK" in payload["stdout"]
 
-        await client.delete(f"/sessions/{session_id}")
+        await client.delete(f"{base}/sessions/{session_id}")
