@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
@@ -13,7 +13,6 @@ from pydantic_ai.capabilities.abstract import AbstractCapability
 from pydantic_ai.toolsets import AgentToolset
 
 from common.config import Settings
-from discount_analyst.agents.common.terminal_context import get_terminal_session_id
 from discount_analyst.integrations.infallible_toolset import InfallibleToolset
 
 logger = logging.getLogger(__name__)
@@ -66,9 +65,10 @@ class TerminalRuntimeConfig:
 
 @dataclass
 class TerminalSessionState:
-    """Per-toolset lazy session create flag (one orchestrator container per agent run)."""
+    """Per-run HTTP client and lazy orchestrator session create flag."""
 
     ready: bool = False
+    client: httpx.AsyncClient | None = None
 
 
 class TerminalExecPayload(BaseModel):
@@ -106,6 +106,23 @@ def format_terminal_exec_response(payload: TerminalExecPayload | dict[str, Any])
     )
 
 
+def _terminal_http_timeout(limits: TerminalLimits) -> httpx.Timeout:
+    return httpx.Timeout(
+        connect=30.0,
+        read=float(limits.command_timeout_s) + 30.0,
+        write=30.0,
+        pool=30.0,
+    )
+
+
+async def _client_for_state(
+    state: TerminalSessionState, limits: TerminalLimits
+) -> httpx.AsyncClient:
+    if state.client is None:
+        state.client = httpx.AsyncClient(timeout=_terminal_http_timeout(limits))
+    return state.client
+
+
 async def execute_terminal_command(
     *,
     service_url: str,
@@ -117,29 +134,31 @@ async def execute_terminal_command(
     """POST session (once) then exec; used by the tool and unit tests."""
     base = service_url.rstrip("/")
     state = session_state or TerminalSessionState()
-    timeout = httpx.Timeout(
-        connect=30.0,
-        read=float(limits.command_timeout_s) + 30.0,
-        write=30.0,
-        pool=30.0,
+    client = await _client_for_state(state, limits)
+    if not state.ready:
+        resp = await client.post(
+            f"{base}/sessions",
+            json={"session_id": session_id},
+            timeout=120.0,
+        )
+        resp.raise_for_status()
+        state.ready = True
+    exec_resp = await client.post(
+        f"{base}/sessions/{session_id}/exec",
+        json={"command": command},
     )
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        if not state.ready:
-            resp = await client.post(
-                f"{base}/sessions",
-                json={"session_id": session_id},
-                timeout=120.0,
-            )
-            resp.raise_for_status()
-            state.ready = True
-        exec_resp = await client.post(
-            f"{base}/sessions/{session_id}/exec",
-            json={"command": command},
-        )
-        exec_resp.raise_for_status()
-        return format_terminal_exec_response(
-            TerminalExecPayload.model_validate(exec_resp.json())
-        )
+    exec_resp.raise_for_status()
+    return format_terminal_exec_response(
+        TerminalExecPayload.model_validate(exec_resp.json())
+    )
+
+
+async def close_terminal_http(session_state: TerminalSessionState | None) -> None:
+    """Close the per-run shared HTTP client, if one was opened."""
+    if session_state is None or session_state.client is None:
+        return
+    await session_state.client.aclose()
+    session_state.client = None
 
 
 @dataclass
@@ -148,11 +167,14 @@ class Terminal(AbstractCapability[None]):
 
     service_url: str
     limits: TerminalLimits
+    session_id: str
+    session_state: TerminalSessionState = field(default_factory=TerminalSessionState)
 
     def get_toolset(self) -> AgentToolset[None] | None:
         service_url = self.service_url.rstrip("/")
         limits = self.limits
-        session_state = TerminalSessionState()
+        session_id = self.session_id
+        session_state = self.session_state
 
         async def terminal_exec(command: str) -> str:
             """Run a shell command in the per-run sandbox container.
@@ -163,13 +185,6 @@ class Terminal(AbstractCapability[None]):
             Returns:
                 Text block with exit code, stdout, stderr, and truncation note if applicable.
             """
-            session_id = get_terminal_session_id()
-            if not session_id:
-                return (
-                    "Tool 'terminal_exec' failed: no terminal session id is bound for this "
-                    "agent run (internal configuration error). Try other tools or proceed "
-                    "without sandbox execution."
-                )
             return await execute_terminal_command(
                 service_url=service_url,
                 limits=limits,

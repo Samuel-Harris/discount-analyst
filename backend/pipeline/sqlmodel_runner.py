@@ -53,10 +53,7 @@ from backend.pipeline.ports import ProfilerStagePort
 from backend.pipeline.stages.profiler_stage import ProfilerStage
 from backend.dev import mock_conversation_messages, mock_outputs
 from common.config import Settings
-from discount_analyst.agents.common.terminal_run import (
-    TerminalRunOptions,
-    terminal_run_options,
-)
+from discount_analyst.agents.common.terminal_run import run_agent_with_terminal
 from discount_analyst.integrations.terminal import TerminalRuntimeConfig
 from backend.db.session import SessionFactory
 from discount_analyst.agents.appraiser.appraiser import create_appraiser_agent
@@ -67,7 +64,6 @@ from discount_analyst.agents.appraiser.system_prompt import (
 from discount_analyst.agents.appraiser.user_prompt import (
     create_user_prompt as create_appraiser_user_prompt,
 )
-from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
 from discount_analyst.agents.researcher.researcher import create_researcher_agent
 from discount_analyst.agents.researcher.schema import DeepResearchReport
 from discount_analyst.agents.researcher.system_prompt import (
@@ -222,13 +218,6 @@ class DashboardPipelineRunner:
         if self._terminal_runtime is None:
             self._terminal_runtime = TerminalRuntimeConfig.from_settings(self._settings)
         return self._terminal_runtime
-
-    def _terminal_for(self, session_id: str) -> TerminalRunOptions:
-        return terminal_run_options(
-            self._settings,
-            session_id=session_id,
-            runtime=self._cached_terminal_runtime(),
-        )
 
     def has_active_workflow_task(self, workflow_run_id: str) -> bool:
         task = self._workflow_tasks.get(workflow_run_id)
@@ -526,19 +515,18 @@ class DashboardPipelineRunner:
                 )
             else:
                 ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
-                terminal = self._terminal_for(surveyor_exec_id)
-                agent = create_surveyor_agent(
-                    ai_models_config=ai_cfg,
-                    use_perplexity=self._settings.use_perplexity,
-                    use_mcp_financial_data=self._settings.use_mcp_financial_data,
-                    terminal=terminal,
-                )
-                outcome = await run_streamed_agent(
-                    agent=agent,
+                outcome = await run_agent_with_terminal(
+                    settings=self._settings,
+                    session_id=surveyor_exec_id,
+                    runtime=self._cached_terminal_runtime(),
+                    build_agent=lambda t: create_surveyor_agent(
+                        ai_models_config=ai_cfg,
+                        use_perplexity=self._settings.use_perplexity,
+                        use_mcp_financial_data=self._settings.use_mcp_financial_data,
+                        terminal=t,
+                    ),
                     user_prompt=SURVEYOR_USER_PROMPT,
                     usage_limits=ai_cfg.model.usage_limits,
-                    terminal=terminal,
-                    run_settings=self._settings,
                 )
                 surveyor_output = outcome.output
                 messages = list(outcome.all_messages)
@@ -864,21 +852,20 @@ class DashboardPipelineRunner:
                 )
             else:
                 ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
-                terminal = self._terminal_for(research_exec_id)
-                agent = create_researcher_agent(
-                    ai_cfg,
-                    use_perplexity=self._settings.use_perplexity,
-                    use_mcp_financial_data=self._settings.use_mcp_financial_data,
-                    terminal=terminal,
-                )
-                outcome = await run_streamed_agent(
-                    agent=agent,
+                outcome = await run_agent_with_terminal(
+                    settings=self._settings,
+                    session_id=research_exec_id,
+                    runtime=self._cached_terminal_runtime(),
+                    build_agent=lambda t: create_researcher_agent(
+                        ai_cfg,
+                        use_perplexity=self._settings.use_perplexity,
+                        use_mcp_financial_data=self._settings.use_mcp_financial_data,
+                        terminal=t,
+                    ),
                     user_prompt=create_researcher_user_prompt(
                         surveyor_candidate=candidate
                     ),
                     usage_limits=ai_cfg.model.usage_limits,
-                    terminal=terminal,
-                    run_settings=self._settings,
                 )
                 research_out = outcome.output
                 r_messages = list(outcome.all_messages)
@@ -943,16 +930,15 @@ class DashboardPipelineRunner:
                 )
             else:
                 ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
-                terminal = self._terminal_for(strategist_exec_id)
-                agent = create_strategist_agent(ai_cfg, terminal=terminal)
-                outcome = await run_streamed_agent(
-                    agent=agent,
+                outcome = await run_agent_with_terminal(
+                    settings=self._settings,
+                    session_id=strategist_exec_id,
+                    runtime=self._cached_terminal_runtime(),
+                    build_agent=lambda t: create_strategist_agent(ai_cfg, terminal=t),
                     user_prompt=create_strategist_user_prompt(
                         surveyor_candidate=candidate, deep_research=research_out
                     ),
                     usage_limits=ai_cfg.model.usage_limits,
-                    terminal=terminal,
-                    run_settings=self._settings,
                 )
                 thesis = outcome.output
                 s_messages = list(outcome.all_messages)
@@ -1020,18 +1006,17 @@ class DashboardPipelineRunner:
                 )
             else:
                 ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
-                terminal = self._terminal_for(sentinel_exec_id)
-                agent = create_sentinel_agent(ai_cfg, terminal=terminal)
-                outcome = await run_streamed_agent(
-                    agent=agent,
+                outcome = await run_agent_with_terminal(
+                    settings=self._settings,
+                    session_id=sentinel_exec_id,
+                    runtime=self._cached_terminal_runtime(),
+                    build_agent=lambda t: create_sentinel_agent(ai_cfg, terminal=t),
                     user_prompt=create_sentinel_user_prompt(
                         surveyor_candidate=candidate,
                         deep_research=research_out,
                         thesis=thesis,
                     ),
                     usage_limits=ai_cfg.model.usage_limits,
-                    terminal=terminal,
-                    run_settings=self._settings,
                 )
                 evaluation = outcome.output
                 n_messages = list(outcome.all_messages)
@@ -1158,21 +1143,20 @@ class DashboardPipelineRunner:
                 )
             else:
                 ai_cfg = AIModelsConfig(model_name=self._settings.default_model)
-                terminal = self._terminal_for(appraiser_exec_id)
-                agent = create_appraiser_agent(
-                    ai_cfg,
-                    use_perplexity=self._settings.use_perplexity,
-                    use_mcp_financial_data=self._settings.use_mcp_financial_data,
-                    terminal=terminal,
-                )
-                outcome = await run_streamed_agent(
-                    agent=agent,
+                outcome = await run_agent_with_terminal(
+                    settings=self._settings,
+                    session_id=appraiser_exec_id,
+                    runtime=self._cached_terminal_runtime(),
+                    build_agent=lambda t: create_appraiser_agent(
+                        ai_cfg,
+                        use_perplexity=self._settings.use_perplexity,
+                        use_mcp_financial_data=self._settings.use_mcp_financial_data,
+                        terminal=t,
+                    ),
                     user_prompt=create_appraiser_user_prompt(
                         appraiser_input=appraiser_input
                     ),
                     usage_limits=ai_cfg.model.usage_limits,
-                    terminal=terminal,
-                    run_settings=self._settings,
                 )
                 appraiser_out = outcome.output
                 a_messages = list(outcome.all_messages)

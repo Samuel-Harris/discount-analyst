@@ -368,7 +368,9 @@ async def main() -> None:
     suffixes = _build_suffixes(targets)
     failures: list[FailedSentinelRun] = []
     successes = 0
-    terminal = terminal_run_options_for_cli(no_terminal=not args.use_terminal)
+    terminal = terminal_run_options_for_cli(
+        no_terminal=not args.use_terminal
+    ).bind_session_id()
 
     for i, target in enumerate(targets):
         if i > 0:

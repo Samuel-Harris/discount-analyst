@@ -15,15 +15,14 @@ from pydantic_ai.usage import RunUsage, UsageLimits
 from common.config import Settings, settings as process_settings
 from discount_analyst.agents.common.ai_logging import AI_LOGFIRE
 from discount_analyst.agents.common.streaming_retries import stream_with_retries
-from discount_analyst.agents.common.terminal_context import (
-    reset_terminal_session_id,
-    set_terminal_session_id,
-)
 from discount_analyst.agents.common.terminal_run import (
     TerminalRunOptions,
     terminal_run_options,
 )
-from discount_analyst.integrations.terminal import delete_terminal_session
+from discount_analyst.integrations.terminal import (
+    close_terminal_http,
+    delete_terminal_session,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,12 +60,6 @@ async def run_streamed_agent[T](
     cfg = run_settings or process_settings
     terminal_opts = terminal or terminal_run_options(cfg)
 
-    terminal_token = None
-    active_terminal_sid: str | None = None
-    if terminal_opts.enabled:
-        active_terminal_sid = terminal_opts.resolved_session_id()
-        terminal_token = set_terminal_session_id(active_terminal_sid)
-
     start = perf_counter()
     output: T
     usage: RunUsage
@@ -90,12 +83,12 @@ async def run_streamed_agent[T](
                     usage = result.usage()
                     all_messages = result.all_messages()
             finally:
-                if terminal_token is not None:
-                    reset_terminal_session_id(terminal_token)
-                if active_terminal_sid is not None and terminal_opts.enabled:
+                if terminal_opts.enabled:
                     await delete_terminal_session(
-                        terminal_opts.runtime.service_url, active_terminal_sid
+                        terminal_opts.runtime.service_url,
+                        terminal_opts.require_session_id(),
                     )
+                    await close_terminal_http(terminal_opts.session_state)
     elapsed_s = perf_counter() - start
     return StreamedAgentRunOutcome(
         output=output,

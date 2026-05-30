@@ -559,7 +559,9 @@ async def main() -> None:
         model=cli.model,
         use_perplexity=cli.use_perplexity,
         use_mcp_financial_data=cli.use_mcp_financial_data,
-        terminal=terminal_run_options_for_cli(no_terminal=not cli.use_terminal),
+        terminal=terminal_run_options_for_cli(
+            no_terminal=not cli.use_terminal
+        ).bind_session_id(),
     )
     targets = resolve_targets(cli.selectors, risk_free_rate_pct=cli.risk_free_rate_pct)
     if not targets:

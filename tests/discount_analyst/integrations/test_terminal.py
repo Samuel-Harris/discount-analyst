@@ -157,7 +157,7 @@ def test_create_agent_with_terminal_includes_terminal_capability() -> None:
         ai_models_config=AIModelsConfig(model_name=ModelName.GPT_5_1),
         enable_web_research_tools=False,
         use_mcp_financial_data=False,
-        terminal=terminal_run_options(settings, enabled=True),
+        terminal=terminal_run_options(settings, enabled=True).bind_session_id(),
     )
     without_terminal = create_agent(
         spec=spec,

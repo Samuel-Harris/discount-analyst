@@ -829,7 +829,9 @@ async def _run_appraiser_dcf_final_rating_for_candidate(
 
 async def main() -> None:
     args = parse_args()
-    terminal = terminal_run_options_for_cli(no_terminal=not args.use_terminal)
+    terminal = terminal_run_options_for_cli(
+        no_terminal=not args.use_terminal
+    ).bind_session_id()
     profiler_failures: list[FailedProfilerRun] = []
 
     if args.profiler_tickers:

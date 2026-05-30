@@ -99,7 +99,9 @@ async def main() -> None:
     args = parse_args()
 
     ai_models_config = AIModelsConfig(model_name=args.model)
-    terminal = terminal_run_options_for_cli(no_terminal=not args.use_terminal)
+    terminal = terminal_run_options_for_cli(
+        no_terminal=not args.use_terminal
+    ).bind_session_id()
     agent = create_surveyor_agent(
         ai_models_config=ai_models_config,
         use_perplexity=args.use_perplexity,

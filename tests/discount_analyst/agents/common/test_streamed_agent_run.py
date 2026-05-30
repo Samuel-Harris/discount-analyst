@@ -11,8 +11,11 @@ from discount_analyst.agents.common.streamed_agent_run import (
     StreamedAgentRunOutcome,
     run_streamed_agent,
 )
-from discount_analyst.agents.common.terminal_context import get_terminal_session_id
-from discount_analyst.agents.common.terminal_run import TerminalRunOptions
+from common.config import settings
+from discount_analyst.agents.common.terminal_run import (
+    TerminalRunOptions,
+    terminal_run_options,
+)
 from discount_analyst.integrations.terminal import TerminalRuntimeConfig
 
 
@@ -196,7 +199,7 @@ async def test_run_streamed_agent_raises_when_name_is_none(
 
 
 @pytest.mark.anyio
-async def test_run_streamed_agent_binds_terminal_session_and_deletes(
+async def test_run_streamed_agent_deletes_terminal_session_on_success(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def _no_wait(exc: BaseException, attempt: int) -> float:
@@ -216,38 +219,30 @@ async def test_run_streamed_agent_binds_terminal_session_and_deletes(
     async def _fake_delete(service_url: str, session_id: str) -> None:
         deleted.append((service_url, session_id))
 
+    closed: list[bool] = []
+
+    async def _fake_close(session_state: Any) -> None:
+        del session_state
+        closed.append(True)
+
     monkeypatch.setattr(
         streamed_agent_run_mod,
         "delete_terminal_session",
         _fake_delete,
     )
+    monkeypatch.setattr(streamed_agent_run_mod, "close_terminal_http", _fake_close)
 
-    seen_session_ids: list[str | None] = []
-
-    class _SessionCapturingAgent(_FakeAgent):
-        def run_stream(
-            self,
-            user_prompt: str | None,
-            *,
-            message_history: list[Any] | None = None,
-            usage_limits: UsageLimits | None = None,
-            usage: RunUsage | None = None,
-            event_stream_handler: Any | None = None,
-        ) -> _FakeRunStreamContextManager:
-            del user_prompt, message_history, usage_limits, usage, event_stream_handler
-            seen_session_ids.append(get_terminal_session_id())
-            return _FakeRunStreamContextManager(self.streamed_result)
-
-    agent = _SessionCapturingAgent(name="surveyor")
+    agent = _FakeAgent(name="surveyor")
     runtime = TerminalRuntimeConfig(
         service_url="http://terminal.test",
         command_timeout_s=30,
         max_output_bytes=1024,
     )
-    terminal = TerminalRunOptions(
+    terminal = terminal_run_options(
+        settings,
         enabled=True,
-        runtime=runtime,
         session_id="fixed-session-id",
+        runtime=runtime,
     )
 
     outcome = await run_streamed_agent(
@@ -258,9 +253,8 @@ async def test_run_streamed_agent_binds_terminal_session_and_deletes(
     )
 
     assert outcome.output == "done"
-    assert seen_session_ids == ["fixed-session-id"]
-    assert get_terminal_session_id() is None
     assert deleted == [("http://terminal.test", "fixed-session-id")]
+    assert closed == [True]
 
 
 @pytest.mark.anyio
@@ -300,6 +294,14 @@ async def test_run_streamed_agent_skips_terminal_when_disabled(
         session_id="unused",
     )
 
+    closed: list[bool] = []
+
+    async def _fake_close(session_state: Any) -> None:
+        del session_state
+        closed.append(True)
+
+    monkeypatch.setattr(streamed_agent_run_mod, "close_terminal_http", _fake_close)
+
     await run_streamed_agent(
         agent=cast(Any, agent),
         user_prompt="hi",
@@ -307,5 +309,5 @@ async def test_run_streamed_agent_skips_terminal_when_disabled(
         terminal=terminal,
     )
 
-    assert get_terminal_session_id() is None
     assert deleted == []
+    assert closed == []

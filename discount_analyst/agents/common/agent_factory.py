@@ -10,7 +10,7 @@ from discount_analyst.agents.common.agent_names import AgentName
 from discount_analyst.agents.common.model import create_model_from_config
 from discount_analyst.agents.common.terminal_run import (
     TerminalRunOptions,
-    default_terminal_for_agent,
+    terminal_run_options,
 )
 from discount_analyst.agents.common.tool_support import (
     add_required_feature_to_builtin_tools,
@@ -18,7 +18,11 @@ from discount_analyst.agents.common.tool_support import (
 from discount_analyst.config.ai_models_config import AIModelsConfig
 from discount_analyst.config.provider_features import ProviderFeature
 from discount_analyst.integrations.perplexity import create_perplexity_toolset
-from discount_analyst.integrations.terminal import Terminal, TerminalLimits
+from discount_analyst.integrations.terminal import (
+    Terminal,
+    TerminalLimits,
+    TerminalSessionState,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,8 +54,11 @@ def create_agent[OutT](
     capabilities: list[AgentCapability[None]] = []
     toolsets: list[AbstractToolset[None]] = []
 
-    terminal_opts = default_terminal_for_agent(app_settings, terminal=terminal)
+    terminal_opts = (
+        terminal if terminal is not None else terminal_run_options(app_settings)
+    )
     if terminal_opts.enabled:
+        session_state = terminal_opts.session_state or TerminalSessionState()
         capabilities.append(
             Terminal(
                 service_url=terminal_opts.runtime.service_url,
@@ -59,6 +66,8 @@ def create_agent[OutT](
                     command_timeout_s=terminal_opts.runtime.command_timeout_s,
                     max_output_bytes=terminal_opts.runtime.max_output_bytes,
                 ),
+                session_id=terminal_opts.require_session_id(),
+                session_state=session_state,
             )
         )
 

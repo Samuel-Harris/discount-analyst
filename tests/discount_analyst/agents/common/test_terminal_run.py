@@ -9,7 +9,6 @@ from discount_analyst.agents.common import agent_factory as agent_factory_module
 from discount_analyst.agents.common.agent_factory import AgentSpec, create_agent
 from discount_analyst.agents.common.agent_names import AgentName
 from discount_analyst.agents.common.terminal_run import (
-    default_terminal_for_agent,
     terminal_run_options,
 )
 from discount_analyst.config.ai_models_config import AIModelsConfig, ModelName
@@ -45,11 +44,16 @@ def test_default_terminal_follows_settings_for_interpretation_agents(
         output_type=_MinimalOutput,
         system_prompt="test",
     )
+    terminal = terminal_run_options(
+        agent_factory_module.app_settings,
+        enabled=True,
+    ).bind_session_id()
     agent = create_agent(
         spec=spec,
         ai_models_config=AIModelsConfig(model_name=ModelName.GPT_5_1),
         enable_web_research_tools=False,
         use_mcp_financial_data=False,
+        terminal=terminal,
     )
     assert _capability_tree_contains_terminal(agent.root_capability)
 
@@ -59,7 +63,7 @@ def test_default_terminal_off_when_settings_disabled(
 ) -> None:
     monkeypatch.setenv("DASHBOARD_USE_TERMINAL", "false")
     cfg = load_settings()
-    opts = default_terminal_for_agent(cfg, terminal=None)
+    opts = terminal_run_options(cfg)
     assert opts.enabled is False
 
 
