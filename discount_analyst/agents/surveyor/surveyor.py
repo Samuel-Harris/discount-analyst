@@ -6,6 +6,7 @@ from discount_analyst.agents.common.agent_factory import (
     create_agent,
 )
 from discount_analyst.agents.common.agent_names import AgentName
+from discount_analyst.agents.common.terminal_run import TerminalRunOptions
 from discount_analyst.agents.surveyor.schema import SurveyorOutput
 from discount_analyst.config.ai_models_config import AIModelsConfig
 
@@ -21,6 +22,7 @@ def create_surveyor_agent(
     ai_models_config: AIModelsConfig,
     use_perplexity: bool = False,
     use_mcp_financial_data: bool = True,
+    terminal: TerminalRunOptions | None = None,
 ) -> Agent[None, SurveyorOutput]:
     """Create and configure the surveyor agent.
 
@@ -35,6 +37,7 @@ def create_surveyor_agent(
         use_mcp_financial_data: When True (default), registers EODHD and FMP
             MCP toolsets for providers that support MCP (Anthropic, OpenAI).
             Use False or ``--no-mcp`` for Google or when MCP should be omitted.
+        terminal: Per-run terminal sandbox options; defaults from process settings.
 
     Returns:
         A configured Agent instance for discovering cheap small-cap stock candidates.
@@ -44,4 +47,5 @@ def create_surveyor_agent(
         ai_models_config=ai_models_config,
         use_perplexity=use_perplexity,
         use_mcp_financial_data=use_mcp_financial_data,
+        terminal=terminal,
     )

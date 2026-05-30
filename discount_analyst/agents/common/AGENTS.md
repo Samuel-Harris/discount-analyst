@@ -9,18 +9,20 @@ Shared **agent runtime** only: model construction from config, streaming runs wi
 
 ## Key Files
 
-| File                    | Description                                            |
-| ----------------------- | ------------------------------------------------------ |
-| `agent_factory.py`      | `AgentSpec`, `create_agent`.                           |
-| `model.py`              | `create_model_from_config`.                            |
-| `ai_logging.py`         | Shared AI-tagged Logfire instance (`AI_LOGFIRE`).      |
-| `logging_constants.py`  | Shared observability constants (e.g. `AI_LOG_TAG`).    |
-| `streamed_agent_run.py` | `run_streamed_agent`, `StreamedAgentRunOutcome`.       |
-| `streaming_retries.py`  | `stream_with_retries`, streaming error classification. |
-| `tool_support.py`       | `add_required_feature_to_builtin_tools` (MCP, etc.).   |
-| `tool_descriptions.py`  | Perplexity tool docstrings per `AgentName`.            |
-| `agent_names.py`        | `AgentName` enum.                                      |
-| `creed.py`              | `INVESTING_CREED` for system prompts.                  |
+| File                    | Description                                                                |
+| ----------------------- | -------------------------------------------------------------------------- |
+| `agent_factory.py`      | `AgentSpec`, `create_agent` (optional `terminal: TerminalRunOptions`).       |
+| `terminal_run.py`       | `TerminalRunOptions`, `terminal_run_options`, `default_terminal_for_agent`. |
+| `terminal_context.py`   | `ContextVar` for per-run terminal `session_id` (orchestrator sandbox).     |
+| `model.py`              | `create_model_from_config`.                                                |
+| `ai_logging.py`         | Shared AI-tagged Logfire instance (`AI_LOGFIRE`).                          |
+| `logging_constants.py`  | Shared observability constants (e.g. `AI_LOG_TAG`).                        |
+| `streamed_agent_run.py` | `run_streamed_agent` (single `terminal` arg: bind + cleanup).              |
+| `streaming_retries.py`  | `stream_with_retries`, streaming error classification.                     |
+| `tool_support.py`       | `add_required_feature_to_builtin_tools` (MCP, etc.).                       |
+| `tool_descriptions.py`  | Perplexity tool docstrings per `AgentName`.                                |
+| `agent_names.py`        | `AgentName` enum.                                                          |
+| `creed.py`              | `INVESTING_CREED` for system prompts.                                      |
 
 ## For AI Agents
 

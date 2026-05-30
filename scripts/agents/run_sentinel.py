@@ -25,7 +25,12 @@ from discount_analyst.agents.strategist.schema import MispricingThesis
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
 from discount_analyst.config.ai_models_config import AIModelsConfig, ModelName
 from scripts.shared.artefacts import write_agent_json
-from scripts.shared.cli import add_agent_cli_model_argument
+from discount_analyst.agents.common.terminal_run import TerminalRunOptions
+from scripts.shared.cli import (
+    add_agent_cli_model_argument,
+    add_agent_terminal_argument,
+    terminal_run_options_for_cli,
+)
 from scripts.shared.run_outputs import (
     SentinelRunOutput,
     ResearcherRunOutput,
@@ -76,6 +81,7 @@ class FailedSentinelRun:
 
 class SentinelArgs(BaseModel):
     model: ModelName
+    use_terminal: bool
     selectors: list[Selector]
 
 
@@ -139,9 +145,14 @@ def parse_args() -> SentinelArgs:
         ),
     )
     add_agent_cli_model_argument(parser)
+    add_agent_terminal_argument(parser)
     raw = parser.parse_args()
     selectors = [_parse_selector(value, parser) for value in raw.selectors]
-    return SentinelArgs(model=raw.model, selectors=selectors)
+    return SentinelArgs(
+        model=raw.model,
+        use_terminal=not raw.no_terminal,
+        selectors=selectors,
+    )
 
 
 def load_strategist_run_output(path: Path) -> StrategistRunOutput:
@@ -260,10 +271,11 @@ async def run_agent(
     surveyor_candidate: SurveyorCandidate,
     deep_research: DeepResearchReport,
     thesis: MispricingThesis,
+    terminal: TerminalRunOptions,
 ) -> AgentRunResult:
     """Run the Sentinel agent and return output with usage stats."""
     ai_models_config = AIModelsConfig(model_name=model_name)
-    agent = create_sentinel_agent(ai_models_config)
+    agent = create_sentinel_agent(ai_models_config, terminal=terminal)
     user_prompt = create_user_prompt(
         surveyor_candidate=surveyor_candidate,
         deep_research=deep_research,
@@ -275,6 +287,7 @@ async def run_agent(
         user_prompt=user_prompt,
         usage_limits=ai_models_config.model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
+        terminal=terminal,
     )
     output = outcome.output
     usage = outcome.usage
@@ -355,6 +368,7 @@ async def main() -> None:
     suffixes = _build_suffixes(targets)
     failures: list[FailedSentinelRun] = []
     successes = 0
+    terminal = terminal_run_options_for_cli(no_terminal=not args.use_terminal)
 
     for i, target in enumerate(targets):
         if i > 0:
@@ -377,6 +391,7 @@ async def main() -> None:
                 surveyor_candidate=target.surveyor_candidate,
                 deep_research=target.deep_research,
                 thesis=so.output,
+                terminal=terminal,
             )
             display_output(run_result.output)
             out_path = save_run_output(

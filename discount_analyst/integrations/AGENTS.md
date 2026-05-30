@@ -5,7 +5,7 @@
 
 ## Purpose
 
-Named external service adapters: Perplexity search tools and EODHD/FMP MCP `MCPServerStreamableHTTP` factories.
+Named external service adapters: Perplexity search tools, EODHD/FMP MCP `MCPServerStreamableHTTP` factories, and the Docker-backed **terminal** sandbox (`terminal_exec`).
 
 ## Key Files
 
@@ -13,6 +13,7 @@ Named external service adapters: Perplexity search tools and EODHD/FMP MCP `MCPS
 | ----------------------- | ----------------------------------------------------------------------------------------------- |
 | `perplexity.py`         | `create_perplexity_toolset(AgentName)` for web/SEC search.                                      |
 | `financial_data_mcp.py` | `create_financial_data_mcp_servers()` (EODHD + FMP URLs; EODHD omitted if `EODHD__DISABLED`).   |
+| `terminal.py`           | `Terminal` capability (`terminal_exec`), `TerminalRuntimeConfig`, `TerminalExecPayload`, `delete_terminal_session`. |
 | `infallible_toolset.py` | `InfallibleToolset` wrapper that catches tool errors and returns them as messages to the model. |
 
 ## Dependencies

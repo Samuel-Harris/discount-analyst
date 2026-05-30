@@ -16,6 +16,7 @@ from discount_analyst.agents.profiler.system_prompt import (
 )
 from discount_analyst.agents.profiler.user_prompt import create_profiler_user_prompt
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
+from discount_analyst.agents.common.terminal_run import terminal_run_options
 from discount_analyst.config.ai_models_config import AIModelsConfig
 
 if TYPE_CHECKING:
@@ -62,15 +63,19 @@ class ProfilerStage:
             )
         else:
             ai_cfg = AIModelsConfig(model_name=settings.default_model)
+            terminal = terminal_run_options(settings, session_id=profiler_exec_id)
             agent = create_profiler_agent(
                 ai_models_config=ai_cfg,
                 use_perplexity=settings.use_perplexity,
                 use_mcp_financial_data=settings.use_mcp_financial_data,
+                terminal=terminal,
             )
             outcome = await run_streamed_agent(
                 agent=agent,
                 user_prompt=create_profiler_user_prompt(ticker),
                 usage_limits=ai_cfg.model.usage_limits,
+                terminal=terminal,
+                run_settings=settings,
             )
             profiler_output = outcome.output
             messages = list(outcome.all_messages)

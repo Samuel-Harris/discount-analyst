@@ -20,7 +20,12 @@ from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
 from discount_analyst.agents.researcher.schema import DeepResearchReport
 from discount_analyst.agents.strategist.schema import MispricingThesis
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
-from scripts.shared.cli import add_agent_cli_model_argument
+from discount_analyst.agents.common.terminal_run import TerminalRunOptions
+from scripts.shared.cli import (
+    add_agent_cli_model_argument,
+    add_agent_terminal_argument,
+    terminal_run_options_for_cli,
+)
 from scripts.shared.artefacts import write_agent_json
 from scripts.shared.run_outputs import (
     ResearcherRunOutput,
@@ -70,6 +75,7 @@ class FailedStrategistRun:
 
 class StrategistArgs(BaseModel):
     model: ModelName
+    use_terminal: bool
     selectors: list[Selector]
 
 
@@ -133,9 +139,14 @@ def parse_args() -> StrategistArgs:
         ),
     )
     add_agent_cli_model_argument(parser)
+    add_agent_terminal_argument(parser)
     raw = parser.parse_args()
     selectors = [_parse_selector(value, parser) for value in raw.selectors]
-    return StrategistArgs(model=raw.model, selectors=selectors)
+    return StrategistArgs(
+        model=raw.model,
+        use_terminal=not raw.no_terminal,
+        selectors=selectors,
+    )
 
 
 def load_researcher_run_output(path: Path) -> ResearcherRunOutput:
@@ -239,10 +250,11 @@ async def run_agent(
     model_name: ModelName,
     surveyor_candidate: SurveyorCandidate,
     deep_research: DeepResearchReport,
+    terminal: TerminalRunOptions,
 ) -> AgentRunResult:
     """Run the Strategist agent and return output with usage stats."""
     ai_models_config = AIModelsConfig(model_name=model_name)
-    agent = create_strategist_agent(ai_models_config)
+    agent = create_strategist_agent(ai_models_config, terminal=terminal)
     user_prompt = create_user_prompt(
         surveyor_candidate=surveyor_candidate,
         deep_research=deep_research,
@@ -253,6 +265,7 @@ async def run_agent(
         user_prompt=user_prompt,
         usage_limits=ai_models_config.model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
+        terminal=terminal,
     )
     output = outcome.output
     usage = outcome.usage
@@ -332,6 +345,7 @@ async def main() -> None:
     suffixes = _build_suffixes(targets)
     failures: list[FailedStrategistRun] = []
     successes = 0
+    terminal = terminal_run_options_for_cli(no_terminal=not args.use_terminal)
 
     for i, target in enumerate(targets):
         if i > 0:
@@ -353,6 +367,7 @@ async def main() -> None:
                 model_name=args.model,
                 surveyor_candidate=target.surveyor_candidate,
                 deep_research=ro.output,
+                terminal=terminal,
             )
             display_output(run_result.output)
             out_path = save_run_output(

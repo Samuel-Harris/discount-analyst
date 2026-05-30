@@ -19,9 +19,12 @@ from discount_analyst.agents.common.agent_names import AgentName
 from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
 from discount_analyst.agents.researcher.schema import DeepResearchReport
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
+from discount_analyst.agents.common.terminal_run import TerminalRunOptions
 from scripts.shared.cli import (
     add_agent_cli_model_argument,
     add_agent_cli_web_search_arguments,
+    add_agent_terminal_argument,
+    terminal_run_options_for_cli,
 )
 from scripts.shared.artefacts import write_agent_json
 from scripts.shared.run_outputs import (
@@ -74,6 +77,7 @@ class ResearcherArgs(BaseModel):
     model: ModelName
     use_perplexity: bool
     use_mcp_financial_data: bool
+    use_terminal: bool
     selectors: list[Selector]
 
 
@@ -147,12 +151,14 @@ def parse_args() -> ResearcherArgs:
             "optional for Anthropic/OpenAI)."
         ),
     )
+    add_agent_terminal_argument(parser)
     raw = parser.parse_args()
     selectors = [_parse_selector(value, parser) for value in raw.selectors]
     return ResearcherArgs(
         model=raw.model,
         use_perplexity=raw.use_perplexity,
         use_mcp_financial_data=not raw.no_mcp,
+        use_terminal=not raw.no_terminal,
         selectors=selectors,
     )
 
@@ -277,6 +283,7 @@ async def run_agent(
     candidate: SurveyorCandidate,
     use_perplexity: bool,
     use_mcp_financial_data: bool,
+    terminal: TerminalRunOptions,
 ) -> AgentRunResult:
     """Run the Researcher agent and return output with usage stats."""
     ai_models_config = AIModelsConfig(model_name=model_name)
@@ -284,6 +291,7 @@ async def run_agent(
         ai_models_config,
         use_perplexity=use_perplexity,
         use_mcp_financial_data=use_mcp_financial_data,
+        terminal=terminal,
     )
     user_prompt = create_user_prompt(surveyor_candidate=candidate)
 
@@ -292,6 +300,7 @@ async def run_agent(
         user_prompt=user_prompt,
         usage_limits=ai_models_config.model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
+        terminal=terminal,
     )
     output = outcome.output
     usage = outcome.usage
@@ -375,6 +384,7 @@ async def main() -> None:
     suffixes = _build_suffixes(targets)
     failures: list[FailedCandidateRun] = []
     successes = 0
+    terminal = terminal_run_options_for_cli(no_terminal=not args.use_terminal)
 
     for i, target in enumerate(targets):
         if i > 0:
@@ -397,6 +407,7 @@ async def main() -> None:
                 candidate=target.candidate,
                 use_perplexity=args.use_perplexity,
                 use_mcp_financial_data=args.use_mcp_financial_data,
+                terminal=terminal,
             )
             display_output(run_result.output, candidate=target.candidate)
             out_path = save_run_output(

@@ -11,7 +11,7 @@ Shared helpers for `scripts/` entry points: CLI defaults, output paths, JSON art
 
 | File             | Description                                                                                |
 | ---------------- | ------------------------------------------------------------------------------------------ |
-| `cli.py`         | `DEFAULT_AGENT_CLI_DEFAULTS`, argparse helpers.                                            |
+| `cli.py`         | `DEFAULT_AGENT_CLI_DEFAULTS`, `add_agent_terminal_argument`, `terminal_run_options_for_cli`. |
 | `constants.py`   | `SCRIPTS_OUTPUTS_DIR`.                                                                     |
 | `artefacts.py`   | `write_agent_json`, `write_verdicts_json` (`list[Verdict]` → `*-VERDICTS.json`).           |
 | `run_outputs.py` | `SurveyorRunOutput`, `ResearcherRunOutput`, `AppraiserRunOutput`, `ArbiterRunOutput`, etc. |

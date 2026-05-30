@@ -30,6 +30,7 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 | `config/ai_models_config.py`          | Configuration for LLM models, including token budgets and thinking parameters.                                     |
 | `http/retrying_client.py`             | Tenacity-backed async HTTP client for provider APIs.                                                               |
 | `integrations/perplexity.py`          | Perplexity-backed toolset factory for agents.                                                                      |
+| `integrations/terminal.py`            | Docker-backed `terminal_exec` capability (orchestrator HTTP).                                                      |
 | `rating/investment_rating.py`         | `InvestmentRating` (`StrEnum`) shared by verdict models, Sentinel rejections, and the rating table.                |
 | `rating/margin_of_safety.py`          | `MarginOfSafetyAssessment` and verdict literals derived from DCF base intrinsic vs price.                          |
 | `rating/valuation_result.py`          | `ValuationResult` bundle (`AppraiserOutput` + `DCFAnalysisResult`) for post-DCF steps.                             |

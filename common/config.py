@@ -108,6 +108,36 @@ class Settings(BaseSettings):
         default=True,
         validation_alias=AliasChoices("DASHBOARD_USE_MCP_FINANCIAL_DATA"),
     )
+    use_terminal: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("DASHBOARD_USE_TERMINAL"),
+        description="When True, pipeline agents may call the docker-backed terminal_exec tool.",
+    )
+    terminal_service_url: str = Field(
+        default="http://agent-terminal:8001",
+        validation_alias=AliasChoices(
+            "TERMINAL_SERVICE_URL", "DASHBOARD_TERMINAL_SERVICE_URL"
+        ),
+        description="Base URL for the agent-terminal orchestrator (Compose service).",
+    )
+    terminal_command_timeout_s: int = Field(
+        default=300,
+        ge=1,
+        le=3600,
+        validation_alias=AliasChoices(
+            "TERMINAL_COMMAND_TIMEOUT_S", "DASHBOARD_TERMINAL_COMMAND_TIMEOUT_S"
+        ),
+        description="Per-command wall-clock timeout forwarded to the orchestrator.",
+    )
+    terminal_max_output_bytes: int = Field(
+        default=2_097_152,
+        ge=4096,
+        le=16_777_216,
+        validation_alias=AliasChoices(
+            "TERMINAL_MAX_OUTPUT_BYTES", "DASHBOARD_TERMINAL_MAX_OUTPUT_BYTES"
+        ),
+        description="Maximum combined stdout+stderr bytes returned per terminal_exec.",
+    )
     deploy_env: Literal["DEV", "PROD"] = Field(
         default="DEV",
         validation_alias=AliasChoices("ENV", "DASHBOARD_DEPLOY_ENV"),

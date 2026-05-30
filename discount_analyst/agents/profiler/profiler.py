@@ -2,6 +2,7 @@ from pydantic_ai import Agent
 
 from discount_analyst.agents.common.agent_factory import AgentSpec, create_agent
 from discount_analyst.agents.common.agent_names import AgentName
+from discount_analyst.agents.common.terminal_run import TerminalRunOptions
 from discount_analyst.agents.profiler.schema import ProfilerOutput
 from discount_analyst.agents.profiler.system_prompt import SYSTEM_PROMPT
 from discount_analyst.config.ai_models_config import AIModelsConfig
@@ -18,6 +19,7 @@ def create_profiler_agent(
     ai_models_config: AIModelsConfig,
     use_perplexity: bool = False,
     use_mcp_financial_data: bool = True,
+    terminal: TerminalRunOptions | None = None,
 ) -> Agent[None, ProfilerOutput]:
     """Create and configure the Profiler agent for single-ticker deep profiling."""
     return create_agent(
@@ -26,4 +28,5 @@ def create_profiler_agent(
         enable_web_research_tools=True,
         use_perplexity=use_perplexity,
         use_mcp_financial_data=use_mcp_financial_data,
+        terminal=terminal,
     )

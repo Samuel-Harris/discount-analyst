@@ -3,6 +3,11 @@
 import argparse
 from dataclasses import dataclass
 
+from common.config import settings
+from discount_analyst.agents.common.terminal_run import (
+    TerminalRunOptions,
+    terminal_run_options,
+)
 from discount_analyst.config.ai_models_config import ModelName
 
 
@@ -34,6 +39,20 @@ def add_agent_cli_model_argument(
         default=resolved_defaults.model,
         help=f"AI model to use (default: {resolved_defaults.model})",
     )
+
+
+def add_agent_terminal_argument(parser: argparse.ArgumentParser) -> None:
+    """Register ``--no-terminal`` (namespace attribute: ``no_terminal``)."""
+    parser.add_argument(
+        "--no-terminal",
+        action="store_true",
+        help="Do not register the docker-backed terminal_exec tool for this run.",
+    )
+
+
+def terminal_run_options_for_cli(*, no_terminal: bool) -> TerminalRunOptions:
+    """Build :class:`TerminalRunOptions` from process settings and CLI flags."""
+    return terminal_run_options(settings, enabled=not no_terminal)
 
 
 def add_agent_cli_web_search_arguments(
