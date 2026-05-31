@@ -91,10 +91,10 @@ Optional provider blocks can be omitted when unused; consult the settings model 
 
 ### Frontend (Vite)
 
-| Variable                | Default                 | Purpose                                                                                                   |
-| ----------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------- |
-| `VITE_API_PREFIX`       | `/api`                  | Prefix for browser `fetch` calls (see [`frontend/src/api/client.ts`](frontend/src/api/client.ts))         |
-| `VITE_DEV_PROXY_TARGET` | `http://127.0.0.1:8000` | **Dev only:** Vite proxy target for `/api` (set to `http://backend:8000` under Docker Compose, see below) |
+| Variable                | Default                 | Purpose                                                                                           |
+| ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------- |
+| `VITE_API_PREFIX`       | `/api`                  | Prefix for browser `fetch` calls (see [`frontend/src/api/client.ts`](frontend/src/api/client.ts)) |
+| `VITE_DEV_PROXY_TARGET` | `http://127.0.0.1:8000` | Vite dev/preview proxy target for `/api` (host API on **8000**)                                   |
 
 ## Local dashboard (API and UI)
 
@@ -156,6 +156,10 @@ cd frontend && npm run dev
 
 Open the printed dev server URL (by default port **5173**). Browser calls go to `/api`, which Vite proxies to `VITE_DEV_PROXY_TARGET`.
 
+For a **production-like** local stack (static UI, production uvicorn, terminal in Docker), use the VS Code launch configuration **Dashboard: PROD stack** (see [Docker Compose](#docker-compose) below). That runs `pnpm build` + `vite preview` on **8080**, a background production API on **8000**, and `agent-terminal` in Compose on **8001**. Use **Dashboard: API + Frontend** when you need debugpy breakpoints and hot reload on **5173**.
+
+Stopping the PROD debug session ends Vite preview only; background API and terminal tasks keep running until you tear them down (`docker compose down`, and stop uvicorn on port **8000** if needed).
+
 ### Tests and static checks
 
 From the repository root:
@@ -170,26 +174,39 @@ Continuous integration runs `uv run pre-commit run --all-files`, `uv run pytest`
 
 ## Docker Compose
 
-Compose is a **local convenience** for running the dashboard stack; it does not change the product boundary of “no cloud deployment”.
+Compose runs only the **agent-terminal** orchestrator (sandbox containers via the Docker socket). The dashboard API and UI run on the **host** for day-to-day work; this does not change the product boundary of “no cloud deployment”.
 
-**Prerequisites:** Docker Engine or Docker Desktop with [Compose V2](https://docs.docker.com/compose/) (`docker compose`).
+**Prerequisites:** Docker Engine or Docker Desktop with [Compose V2](https://docs.docker.com/compose/) (`docker compose`). Build the sandbox image once: `make build-terminal-sandbox`.
 
-### Dashboard stack (nginx + static UI)
-
-[`docker-compose.yml`](docker-compose.yml) runs a **production-like** smoke stack:
-
-- **backend** — image from [`backend/docker/Dockerfile`](backend/docker/Dockerfile), exposed on **8000** inside the Compose network only, SQLite on a named volume at `DASHBOARD_DATABASE_PATH=/data/dashboard.sqlite`, with **`ENV=PROD`** so mock mode is not forced server-side (this matches the static UI image, which is built with `ENV=PROD`).
-- **web** — static assets from [`frontend/Dockerfile`](frontend/Dockerfile) `production`, served by nginx using [`docker/nginx.dashboard.conf`](docker/nginx.dashboard.conf), which reverse-proxies `/api` to the backend. Published port **8080** maps to nginx port **80**.
-
-Add a repository root `.env` with at least **`LOGGING__LOGFIRE_API_KEY`** (and other keys required by [`common/config.py`](common/config.py)); Compose references it when present (`env_file` with `required: false` in [`docker-compose.yml`](docker-compose.yml)).
+### Terminal service
 
 From the repository root (foreground; pass `-d` for detached):
 
 ```bash
-docker compose -f docker-compose.yml up --build
+docker compose up --build
 ```
 
-Open **http://localhost:8080**. SQLite uses the volume `dashboard_sqlite_prod` until you remove it (`docker compose down -v`).
+Optional bind-mount of the repo into sandboxes:
+
+```bash
+TERMINAL_WORKSPACE_HOST_PATH="$(pwd)" docker compose up --build
+```
+
+The terminal listens on **http://127.0.0.1:8001**.
+
+### Production-like local dashboard (host + terminal)
+
+| Component                            | Where                                                       | URL / port                |
+| ------------------------------------ | ----------------------------------------------------------- | ------------------------- |
+| UI (built static assets)             | Host — `vite preview` via VS Code **Dashboard: PROD stack** | **http://127.0.0.1:8080** |
+| API (`ENV=PROD`, production uvicorn) | Host — background task `dashboard:api-prod`                 | **http://127.0.0.1:8000** |
+| Terminal                             | Docker — `agent-terminal`                                   | **http://127.0.0.1:8001** |
+
+Launch **Dashboard: PROD stack** from [`.vscode/launch.json`](.vscode/launch.json). The `preLaunchTask` `dashboard:prod-stack-prep` (see [`.vscode/tasks.json`](.vscode/tasks.json)) starts terminal + alembic + API + `pnpm build` with `ENV=PROD`, then opens preview. SQLite defaults to **`data/dashboard.sqlite`** on the host ([`common/config.py`](common/config.py)). Add a repository root `.env` with at least **`LOGGING__LOGFIRE_API_KEY`** and other keys required by settings.
+
+For **DEV** debugging (reload, debugpy, Vite dev server), use **Dashboard: API + Frontend** on **5173** / **8000** instead.
+
+**Teardown:** Stopping the PROD debug session does not stop background tasks. Run `docker compose down` and stop the uvicorn process on port **8000** if needed (`lsof -i :8000` or Activity Monitor).
 
 ### Building images without Compose
 

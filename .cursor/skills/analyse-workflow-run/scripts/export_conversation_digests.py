@@ -95,7 +95,7 @@ def main() -> None:
         "--sqlite-path",
         required=True,
         type=Path,
-        help="Path to dashboard SQLite (e.g. from_compose_dashboard.sqlite)",
+        help="Path to dashboard SQLite (e.g. data/dashboard.sqlite or artefact copy)",
     )
     parser.add_argument(
         "--output-dir",

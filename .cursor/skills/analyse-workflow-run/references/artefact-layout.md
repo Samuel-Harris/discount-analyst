@@ -6,17 +6,16 @@ All artefacts for one analysis share:
 
 Do not place run-specific SQLite copies, digests, or final reports beside each other at the parent `.cursor/artefacts/analyse-workflow-run/` level — always nest by UUID.
 
-## Copying SQLite from Compose
+## Copying SQLite from the host dashboard
 
-From repo root (requires running backend container):
+The dashboard API uses host SQLite by default (`data/dashboard.sqlite`, overridable via `DASHBOARD_DATABASE_PATH` in `.env`). Copy the live file before analysis:
 
 ```bash
-docker compose -f docker-compose.yml ps
-docker cp "<compose_project>-backend-1:/data/dashboard.sqlite" \
-  ".cursor/artefacts/analyse-workflow-run/<workflow-run-id>/from_compose_dashboard.sqlite"
+cp data/dashboard.sqlite \
+  ".cursor/artefacts/analyse-workflow-run/<workflow-run-id>/dashboard.sqlite"
 ```
 
-Container name may differ; use `docker compose ps -q backend` to resolve the backend service container id.
+Stop the API first if you need a consistent snapshot while writes are in flight.
 
 ## Digest export
 
