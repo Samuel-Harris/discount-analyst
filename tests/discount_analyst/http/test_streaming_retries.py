@@ -740,6 +740,58 @@ async def test_stream_with_retries_repairs_structured_output_validation_failure(
 
 
 @pytest.mark.anyio
+async def test_stream_with_retries_repairs_validation_failure_during_stream() -> None:
+    validation_error = UnexpectedModelBehavior(
+        "Output validation failed during streaming, and retries are not supported "
+        "in `run_stream()`: Invalid JSON: EOF while parsing an object"
+    )
+    first_messages = [{"turn": {"text": "truncated-structured-output"}}]
+    first_result = _FakeStreamedRunResult(
+        outputs=["partial-invalid"],
+        final_output="unused",
+        messages=first_messages,
+        usage=RunUsage(input_tokens=20, output_tokens=10),
+        stream_error=validation_error,
+    )
+    repaired_result = _FakeStreamedRunResult(
+        outputs=["repaired-stream"],
+        final_output="repaired",
+        messages=[{"turn": {"text": "repaired-structured-output"}}],
+        usage=RunUsage(input_tokens=24, output_tokens=12),
+    )
+    first_cm = _FakeRunStreamContextManager(result=first_result)
+    repaired_cm = _FakeRunStreamContextManager(result=repaired_result)
+    agent_impl = _FakeAgent([first_cm, repaired_cm])
+
+    outputs: list[str] = []
+    async with stream_with_retries(
+        agent=cast(Any, agent_impl),
+        user_prompt="hello",
+        usage_limits=UsageLimits(request_limit=5),
+    ) as result:
+        async for chunk in result.stream_output(debounce_by=None):
+            outputs.append(chunk)
+        output = await result.get_output()
+
+    assert outputs == ["partial-invalid", "repaired-stream"]
+    assert output == "repaired"
+    assert len(agent_impl.calls) == 2
+    second_call = agent_impl.calls[1]
+    assert second_call["user_prompt"] is None
+    assert second_call["message_history"][:1] == [
+        {"turn": {"text": "truncated-structured-output"}}
+    ]
+    repair_prompt = _user_prompt_text(second_call["message_history"][1])
+    assert "could not be validated" in repair_prompt
+    assert "Invalid JSON" in repair_prompt
+    assert second_call["usage"].input_tokens == 20
+    assert len(first_cm.exit_calls) == 1
+    assert first_cm.exit_calls[0][0] is UnexpectedModelBehavior
+    assert len(repaired_cm.exit_calls) == 1
+    assert repaired_cm.exit_calls[0] == (None, None)
+
+
+@pytest.mark.anyio
 async def test_stream_with_retries_does_not_retry_non_retryable_interrupt() -> None:
     non_retryable = _api_error("Invalid API key")
     first_result = _FakeStreamedRunResult(

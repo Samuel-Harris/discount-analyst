@@ -503,7 +503,7 @@ class StreamedResultWrapper[T]:
     async def stream_output(
         self, *, debounce_by: float | None = 0.1
     ) -> AsyncIterator[T]:
-        for _ in range(MAX_STREAM_RETRY_ATTEMPTS):
+        for _ in range(MAX_STREAM_RETRY_ATTEMPTS + MAX_STRUCTURED_OUTPUT_COMPLETIONS):
             try:
                 async for output in self._active_result.stream_output(
                     debounce_by=debounce_by
@@ -511,6 +511,11 @@ class StreamedResultWrapper[T]:
                     self._retries_context.record_partial_output(output)
                     yield output
             except BaseException as exc:
+                if should_repair_structured_output_error(exc):
+                    await self._retries_context.reopen_after_output_validation_failure(
+                        exc
+                    )
+                    continue
                 await self._retries_context.reopen_after_stream_interrupt(exc)
                 continue
             return
