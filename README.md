@@ -68,24 +68,24 @@ All configuration lives in a single [`common/config.py`](common/config.py) model
 
 Nested groups use double underscores, for example `PERPLEXITY__API_KEY`, `LOGGING__LOGFIRE_API_KEY`, `EODHD__DISABLED`.
 
-| Variable                            | Purpose                                                                                |
-| ----------------------------------- | -------------------------------------------------------------------------------------- |
-| `LOGGING__LOGFIRE_API_KEY`          | Logfire ingest token (CLI agents and dashboard; non-empty)                             |
-| `PERPLEXITY__API_KEY`               | Perplexity API key                                                                     |
-| `PERPLEXITY__RATE_LIMIT_PER_MINUTE` | Perplexity rate limit                                                                  |
-| `ANTHROPIC__API_KEY`                | Optional Anthropic key                                                                 |
-| `OPENAI__API_KEY`                   | Optional OpenAI key                                                                    |
-| `GOOGLE__API_KEY`                   | Optional Google GenAI key                                                              |
-| `FMP__API_KEY`                      | Financial Modeling Prep                                                                |
-| `EODHD__API_KEY`                    | EODHD                                                                                  |
-| `EODHD__DISABLED`                   | Set to `true` to skip EODHD MCP (FMP unchanged)                                        |
-| `LOGGING__LOG_LEVEL`                | Logfire console minimum for the dashboard process (`DEBUG`-`CRITICAL`; default `INFO`) |
-| `DASHBOARD_DATABASE_PATH`           | SQLite path for workflow runs (default `data/dashboard.sqlite`)                        |
-| `DASHBOARD_DEFAULT_MODEL`           | Default LLM for dashboard-driven runs                                                  |
-| `DASHBOARD_RISK_FREE_RATE`          | Risk-free rate as a percentage for valuation stages (e.g. `3.7` means 3.7%)            |
-| `DASHBOARD_USE_PERPLEXITY`          | Toggle Perplexity-backed behaviour where wired                                         |
-| `DASHBOARD_USE_MCP_FINANCIAL_DATA`  | Toggle MCP financial data in dashboard runs                                            |
-| `ENV` or `DASHBOARD_DEPLOY_ENV`     | `DEV` or `PROD` (mock vs live server behaviour)                                        |
+| Variable                            | Purpose                                                                                                                                                   |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LOGGING__LOGFIRE_API_KEY`          | Logfire ingest token (CLI agents and dashboard; non-empty)                                                                                                |
+| `PERPLEXITY__API_KEY`               | Perplexity API key                                                                                                                                        |
+| `PERPLEXITY__RATE_LIMIT_PER_MINUTE` | Perplexity rate limit                                                                                                                                     |
+| `ANTHROPIC__API_KEY`                | Optional Anthropic key                                                                                                                                    |
+| `OPENAI__API_KEY`                   | Optional OpenAI key                                                                                                                                       |
+| `GOOGLE__API_KEY`                   | Optional Google GenAI key                                                                                                                                 |
+| `FMP__API_KEY`                      | Financial Modeling Prep                                                                                                                                   |
+| `EODHD__API_KEY`                    | EODHD                                                                                                                                                     |
+| `EODHD__DISABLED`                   | Set to `true` to skip EODHD MCP (FMP unchanged)                                                                                                           |
+| `LOGGING__LOG_LEVEL`                | Logfire console minimum for the dashboard process (`DEBUG`-`CRITICAL`; default `INFO`)                                                                    |
+| `DASHBOARD_DATABASE_PATH`           | SQLite path for workflow runs (default `data/dashboard.sqlite`; VS Code uses separate `data/dashboard.dev.sqlite` and `data/dashboard.prod.sqlite` files) |
+| `DASHBOARD_DEFAULT_MODEL`           | Default LLM for dashboard-driven runs                                                                                                                     |
+| `DASHBOARD_RISK_FREE_RATE`          | Risk-free rate as a percentage for valuation stages (e.g. `3.7` means 3.7%)                                                                               |
+| `DASHBOARD_USE_PERPLEXITY`          | Toggle Perplexity-backed behaviour where wired                                                                                                            |
+| `DASHBOARD_USE_MCP_FINANCIAL_DATA`  | Toggle MCP financial data in dashboard runs                                                                                                               |
+| `ENV` or `DASHBOARD_DEPLOY_ENV`     | `DEV` or `PROD` (mock vs live server behaviour)                                                                                                           |
 
 Optional provider blocks can be omitted when unused; consult the settings model for required combinations.
 
@@ -158,6 +158,8 @@ Open the printed dev server URL (by default port **5173**). Browser calls go to 
 
 For a **production-like** local stack (static UI, production uvicorn, terminal in Docker), use the VS Code launch configuration **Dashboard: PROD stack** (see [Docker Compose](#docker-compose) below). That runs `pnpm build` + `vite preview` on **8080**, a background production API on **8000**, and `agent-terminal` in Compose on **8001**. Use **Dashboard: API + Frontend** when you need debugpy breakpoints and hot reload on **5173**.
 
+The VS Code dashboard launches keep local data separate: DEV uses `data/dashboard.dev.sqlite`, while PROD uses `data/dashboard.prod.sqlite`. The historical Docker Compose production database lived in the `dashboard_sqlite_prod` volume at `/data/dashboard.sqlite`; copy it to `data/dashboard.prod.sqlite` before running the host PROD stack if you need those saved workflow runs.
+
 Stopping the PROD debug session ends Vite preview only; background API and terminal tasks keep running until you tear them down (`docker compose down`, and stop uvicorn on port **8000** if needed).
 
 ### Tests and static checks
@@ -192,17 +194,17 @@ Optional bind-mount of the repo into sandboxes:
 TERMINAL_WORKSPACE_HOST_PATH="$(pwd)" docker compose up --build
 ```
 
-The terminal listens on **http://127.0.0.1:8001**.
+The terminal listens on **<http://127.0.0.1:8001>**.
 
 ### Production-like local dashboard (host + terminal)
 
-| Component                            | Where                                                       | URL / port                |
-| ------------------------------------ | ----------------------------------------------------------- | ------------------------- |
-| UI (built static assets)             | Host — `vite preview` via VS Code **Dashboard: PROD stack** | **http://127.0.0.1:8080** |
-| API (`ENV=PROD`, production uvicorn) | Host — background task `dashboard:api-prod`                 | **http://127.0.0.1:8000** |
-| Terminal                             | Docker — `agent-terminal`                                   | **http://127.0.0.1:8001** |
+| Component                            | Where                                                       | Port     |
+| ------------------------------------ | ----------------------------------------------------------- | -------- |
+| UI (built static assets)             | Host — `vite preview` via VS Code **Dashboard: PROD stack** | **8080** |
+| API (`ENV=PROD`, production uvicorn) | Host — background task `dashboard:api-prod`                 | **8000** |
+| Terminal                             | Docker — `agent-terminal`                                   | **8001** |
 
-Launch **Dashboard: PROD stack** from [`.vscode/launch.json`](.vscode/launch.json). The `preLaunchTask` `dashboard:prod-stack-prep` (see [`.vscode/tasks.json`](.vscode/tasks.json)) starts terminal + alembic + API + `pnpm build` with `ENV=PROD`, then opens preview. SQLite defaults to **`data/dashboard.sqlite`** on the host ([`common/config.py`](common/config.py)). Add a repository root `.env` with at least **`LOGGING__LOGFIRE_API_KEY`** and other keys required by settings.
+Launch **Dashboard: PROD stack** from [`.vscode/launch.json`](.vscode/launch.json). The `preLaunchTask` `dashboard:prod-stack-prep` (see [`.vscode/tasks.json`](.vscode/tasks.json)) starts terminal + alembic + API + `pnpm build` with `ENV=PROD` and `DASHBOARD_DATABASE_PATH=data/dashboard.prod.sqlite`, then opens preview. The DEV debug compound uses `DASHBOARD_DATABASE_PATH=data/dashboard.dev.sqlite`; the application default remains **`data/dashboard.sqlite`** on the host ([`common/config.py`](common/config.py)) for direct commands that do not override it. Add a repository root `.env` with at least **`LOGGING__LOGFIRE_API_KEY`** and other keys required by settings.
 
 For **DEV** debugging (reload, debugpy, Vite dev server), use **Dashboard: API + Frontend** on **5173** / **8000** instead.
 
