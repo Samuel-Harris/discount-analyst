@@ -1,7 +1,8 @@
 """Tests for optional valuation toolkit helpers."""
 
 from dataclasses import dataclass
-from typing import Any
+from math import isclose
+from typing import cast
 
 import pytest
 
@@ -14,6 +15,8 @@ from discount_analyst.valuation.toolkit.sanity_checks import (
 from discount_analyst.valuation.toolkit.scenarios import (
     combine_scenarios_to_distribution,
 )
+
+REL_TOL = 1e-6
 
 
 @dataclass(frozen=True)
@@ -146,8 +149,8 @@ def test_dcf_value_per_share_returns_json_serialisable_result() -> None:
         shares_outstanding=10.0,
     )
 
-    assert result["value_per_share"] == pytest.approx(18.288662)
-    assert len(result["projection"]) == 3
+    assert isclose(cast(float, result["value_per_share"]), 18.288662, rel_tol=REL_TOL)
+    assert len(cast(list[dict[str, float]], result["projection"])) == 3
 
 
 @pytest.mark.parametrize(
@@ -157,7 +160,7 @@ def test_dcf_value_per_share_returns_json_serialisable_result() -> None:
 def test_dcf_value_per_share_matches_ported_real_world_scenarios(
     scenario: DcfScenario,
 ) -> None:
-    result: dict[str, Any] = dcf_value_per_share(
+    result = dcf_value_per_share(
         revenue=scenario.revenue,
         revenue_growth_pct=scenario.revenue_growth_pct,
         ebit_margin_pct=scenario.ebit_margin_pct,
@@ -172,12 +175,22 @@ def test_dcf_value_per_share_matches_ported_real_world_scenarios(
         shares_outstanding=scenario.shares_outstanding,
     )
 
-    assert result["value_per_share"] == pytest.approx(scenario.expected_value_per_share)
-    assert result["enterprise_value"] == pytest.approx(
-        scenario.expected_enterprise_value
+    assert isclose(
+        cast(float, result["value_per_share"]),
+        scenario.expected_value_per_share,
+        rel_tol=REL_TOL,
     )
-    assert result["equity_value"] == pytest.approx(scenario.expected_equity_value)
-    assert len(result["projection"]) == scenario.years
+    assert isclose(
+        cast(float, result["enterprise_value"]),
+        scenario.expected_enterprise_value,
+        rel_tol=REL_TOL,
+    )
+    assert isclose(
+        cast(float, result["equity_value"]),
+        scenario.expected_equity_value,
+        rel_tol=REL_TOL,
+    )
+    assert len(cast(list[dict[str, float]], result["projection"])) == scenario.years
 
 
 def test_peer_multiple_valuation_uses_median_when_no_selected_multiple() -> None:

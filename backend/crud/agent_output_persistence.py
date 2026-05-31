@@ -409,31 +409,13 @@ def replace_evaluation_report(
         )
 
 
-def _valuation_distribution_fields(
-    output: AppraiserOutput,
-) -> dict[str, float | str]:
-    distribution = output.valuation_distribution
-    return {
-        "currency": distribution.currency,
-        "current_share_price": distribution.current_share_price,
-        "expected_intrinsic_value": distribution.expected_intrinsic_value,
-        "p10_intrinsic_value": distribution.p10_intrinsic_value,
-        "p25_intrinsic_value": distribution.p25_intrinsic_value,
-        "p50_intrinsic_value": distribution.p50_intrinsic_value,
-        "p75_intrinsic_value": distribution.p75_intrinsic_value,
-        "p90_intrinsic_value": distribution.p90_intrinsic_value,
-        "distribution_method": distribution.distribution_method,
-        "distribution_reasoning": distribution.distribution_reasoning,
-    }
-
-
 def replace_appraiser_output(
     session: Session,
     execution: AgentExecution,
     output_json: str,
 ) -> None:
     output = AppraiserOutput.model_validate_json(output_json)
-    distribution_fields = _valuation_distribution_fields(output)
+    distribution = output.valuation_distribution
     existing = session.scalars(
         select(AppraiserReport).where(
             col(AppraiserReport.agent_execution_id) == execution.id
@@ -449,7 +431,16 @@ def replace_appraiser_output(
         company_name=output.company_name,
         valuation_date=output.valuation_date,
         summary=output.summary,
-        **distribution_fields,
+        currency=distribution.currency,
+        current_share_price=distribution.current_share_price,
+        expected_intrinsic_value=distribution.expected_intrinsic_value,
+        p10_intrinsic_value=distribution.p10_intrinsic_value,
+        p25_intrinsic_value=distribution.p25_intrinsic_value,
+        p50_intrinsic_value=distribution.p50_intrinsic_value,
+        p75_intrinsic_value=distribution.p75_intrinsic_value,
+        p90_intrinsic_value=distribution.p90_intrinsic_value,
+        distribution_method=distribution.distribution_method,
+        distribution_reasoning=distribution.distribution_reasoning,
         methods_json=json.dumps(
             [method.model_dump(mode="json") for method in output.methods],
             separators=(",", ":"),
@@ -479,7 +470,16 @@ def replace_appraiser_output(
             id=new_id(),
             run_id=execution.run_id,
             appraiser_agent_execution_id=execution.id,
-            **distribution_fields,
+            currency=distribution.currency,
+            current_share_price=distribution.current_share_price,
+            expected_intrinsic_value=distribution.expected_intrinsic_value,
+            p10_intrinsic_value=distribution.p10_intrinsic_value,
+            p25_intrinsic_value=distribution.p25_intrinsic_value,
+            p50_intrinsic_value=distribution.p50_intrinsic_value,
+            p75_intrinsic_value=distribution.p75_intrinsic_value,
+            p90_intrinsic_value=distribution.p90_intrinsic_value,
+            distribution_method=distribution.distribution_method,
+            distribution_reasoning=distribution.distribution_reasoning,
         )
     )
 
