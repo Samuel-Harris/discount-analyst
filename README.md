@@ -6,7 +6,7 @@ An AI-powered stock analysis tool for identifying and valuing promising small-ca
 
 ## Investment Workflow
 
-The tool supports a five-stage pipeline: Surveyor, Researcher, and Strategist run in-repo; you still use an external AI model to weigh the buy case after DCF, then decide trades yourself.
+The tool supports a five-stage pipeline: Surveyor, Researcher, Strategist, Sentinel, and Appraiser run in-repo; you can still use an external AI model to weigh the buy case after valuation, then decide trades yourself.
 
 **1. Survey — discover candidates**
 Run the Surveyor agent to screen for promising small-cap stocks across UK and US markets:
@@ -35,8 +35,8 @@ uv run python scripts/agents/run_strategist.py --researcher-report-and-ticker <s
 
 You can still narrow scope by passing a single-ticker selector instead of treating “shortlist” and “categorise” as separate manual stages.
 
-**3. Value — DCF analysis**
-Pass names that are ready for valuation to the Appraiser agent for a full Discounted Cash Flow analysis:
+**3. Value — intrinsic-value distribution**
+Pass names that are ready for valuation to the Appraiser agent for a method-agnostic intrinsic-value distribution:
 
 ```bash
 uv run python scripts/agents/run_appraiser.py \
@@ -47,10 +47,10 @@ uv run python scripts/agents/run_appraiser.py \
 Use the Sentinel artefact written under `scripts/outputs/` after `run_sentinel.py` (or the full pipeline). The script follows the same `path.json` / `path.json:TICKER` selector pattern as Sentinel; it loads Surveyor, Researcher, and Strategist JSON paths from fields inside the Sentinel run record.
 
 **4. Evaluate — AI buy recommendation**
-Use an AI model (Claude, Gemini, or ChatGPT) to evaluate whether to buy each stock based on the research report, Strategist thesis, and the DCF analysis output.
+Use an AI model (Claude, Gemini, or ChatGPT) to evaluate whether to buy each stock based on the research report, Strategist thesis, Sentinel review, and Appraiser valuation output.
 
 **5. Buy — act on the margin of safety**
-Review the DCF outputs across all analysed stocks. Buy the stocks with the greatest margin of safety — i.e. where the current market price is furthest below the intrinsic value estimated by the Appraiser.
+Review the Appraiser distributions across all analysed stocks. Buy the stocks with the greatest margin of safety — i.e. where the current market price is furthest below the expected intrinsic value estimated by the Appraiser.
 
 ## Quick Start
 
@@ -58,7 +58,7 @@ Review the DCF outputs across all analysed stocks. Buy the stocks with the great
 2. Configure environment variables for the agents you run (see [Environment variables](#environment-variables))
 3. Install dependencies: `uv sync`
 4. Run the Surveyor to find candidates: `uv run python scripts/agents/run_surveyor.py`, or run survey → research → strategy in one command: `uv run python scripts/workflows/run_surveyor_researcher_strategist.py`
-5. After Researcher/Strategist/Sentinel (step 2 above — or `scripts/workflows/run_full_workflow.py` for the full gated pipeline through deterministic rating and verdicts JSON), run DCF analysis: `uv run python scripts/agents/run_appraiser.py --sentinel-report-and-ticker scripts/outputs/<sentinel>.json --risk-free-rate <decimal e.g. 0.045>`
+5. After Researcher/Strategist/Sentinel (step 2 above — or `scripts/workflows/run_full_workflow.py` for the full gated pipeline through deterministic rating and verdicts JSON), run Appraiser valuation: `uv run python scripts/agents/run_appraiser.py --sentinel-report-and-ticker scripts/outputs/<sentinel>.json --risk-free-rate <percentage e.g. 4.5>`
 
 ## Environment variables
 

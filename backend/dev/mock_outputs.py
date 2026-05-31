@@ -5,7 +5,12 @@ from __future__ import annotations
 import random
 from datetime import date
 
-from discount_analyst.agents.appraiser.schema import AppraiserOutput
+from discount_analyst.agents.appraiser.schema import (
+    AppraiserOutput,
+    IntrinsicValueDistribution,
+    ValuationMethod,
+    ValuationMethodResult,
+)
 from discount_analyst.agents.profiler.schema import ProfilerOutput
 from discount_analyst.agents.researcher.schema import (
     BusinessModel,
@@ -33,8 +38,6 @@ from discount_analyst.agents.surveyor.schema import (
 from discount_analyst.pipeline.builders import build_rating_table_decision
 from discount_analyst.pipeline.schema import RatingTableDecision
 from discount_analyst.rating.margin_of_safety import MarginOfSafetyAssessment
-from discount_analyst.valuation.data_types import DCFAnalysisResult
-from discount_analyst.valuation.schema import StockAssumptions, StockData
 
 # Fifteen distinct discovery names for mock surveyor output (LSE-style tickers).
 _DEFAULT_DISCOVERY: list[tuple[str, str]] = [
@@ -338,49 +341,56 @@ def mock_sentinel_evaluation(
     )
 
 
-def mock_stock_data(candidate: SurveyorCandidate) -> StockData:
-    return StockData(
-        ticker=candidate.ticker,
-        name=candidate.company_name,
-        ebit=12_000_000.0,
-        revenue=80_000_000.0,
-        capital_expenditure=4_000_000.0,
-        n_shares_outstanding=50_000_000.0,
-        market_cap=150_000_000.0,
-        gross_debt=20_000_000.0,
-        gross_debt_last_year=22_000_000.0,
-        net_debt=10_000_000.0,
-        total_interest_expense=1_000_000.0,
-        beta=1.1,
-    )
-
-
-def mock_stock_assumptions() -> StockAssumptions:
-    return StockAssumptions(
-        reasoning="Mock assumptions for dashboard DCF.",
-        forecast_period_years=5,
-        assumed_tax_rate_pct=21.0,
-        assumed_forecast_period_annual_revenue_growth_rate_pct=8.0,
-        assumed_perpetuity_cash_flow_growth_rate_pct=2.5,
-        assumed_ebit_margin_pct=18.0,
-        assumed_depreciation_and_amortization_rate_pct=4.0,
-        assumed_capex_rate_pct=5.0,
-        assumed_change_in_working_capital_rate_pct=2.0,
-    )
-
-
 def mock_appraiser_output(candidate: SurveyorCandidate) -> AppraiserOutput:
+    current_price = 3.0
     return AppraiserOutput(
-        stock_data=mock_stock_data(candidate),
-        stock_assumptions=mock_stock_assumptions(),
-    )
-
-
-def mock_dcf_result() -> DCFAnalysisResult:
-    return DCFAnalysisResult(
-        intrinsic_share_price=3.2,
-        enterprise_value=180_000_000.0,
-        equity_value=160_000_000.0,
+        ticker=candidate.ticker,
+        company_name=candidate.company_name,
+        valuation_date=date.today().isoformat(),
+        summary="Mock Appraiser distribution for dashboard testing.",
+        valuation_distribution=IntrinsicValueDistribution(
+            currency=candidate.currency.value,
+            current_share_price=current_price,
+            expected_intrinsic_value=3.8,
+            p10_intrinsic_value=2.6,
+            p25_intrinsic_value=3.1,
+            p50_intrinsic_value=3.6,
+            p75_intrinsic_value=4.2,
+            p90_intrinsic_value=5.0,
+            distribution_method="mock_scenario_weighting",
+            distribution_reasoning="Mock downside/base/upside range.",
+        ),
+        methods=[
+            ValuationMethodResult(
+                method=ValuationMethod.SCENARIO_WEIGHTING,
+                role="primary",
+                value_per_share=3.8,
+                low_value_per_share=2.6,
+                high_value_per_share=5.0,
+                weight_pct=70.0,
+                key_assumptions=["Mock growth and margin assumptions."],
+                evidence_summary=["Mock research evidence."],
+                sanity_checks=["Mock distribution is monotonic."],
+                limitations=["Mock output only."],
+            ),
+            ValuationMethodResult(
+                method=ValuationMethod.COMPARABLE_MULTIPLES,
+                role="cross_check",
+                value_per_share=3.5,
+                low_value_per_share=3.0,
+                high_value_per_share=4.1,
+                weight_pct=30.0,
+                key_assumptions=["Mock peer multiple range."],
+                evidence_summary=["Mock peer set."],
+                sanity_checks=["Mock selected multiple within peer range."],
+                limitations=["Peer set is illustrative."],
+            ),
+        ],
+        key_value_drivers=["Mock revenue growth", "Mock margin expansion"],
+        downside_risks_to_value=["Mock execution risk"],
+        upside_drivers_to_value=["Mock catalyst delivery"],
+        data_quality="Medium",
+        caveats=["Mock valuation only."],
     )
 
 
@@ -428,12 +438,15 @@ def mock_rating_table_decision(
     th = thesis or mock_thesis(candidate)
     ev = evaluation or mock_rating_table_gate_evaluation(candidate)
     appraiser_out = mock_appraiser_output(candidate)
-    dcf = mock_dcf_result()
-    sd = appraiser_out.stock_data
-    mos = MarginOfSafetyAssessment.from_market_cap(
-        market_cap=sd.market_cap,
-        n_shares_outstanding=sd.n_shares_outstanding,
-        intrinsic_value_base=dcf.intrinsic_share_price,
+    distribution = appraiser_out.valuation_distribution
+    mos = MarginOfSafetyAssessment.from_distribution(
+        current_price=distribution.current_share_price,
+        expected_intrinsic_value=distribution.expected_intrinsic_value,
+        p10_intrinsic_value=distribution.p10_intrinsic_value,
+        p25_intrinsic_value=distribution.p25_intrinsic_value,
+        p50_intrinsic_value=distribution.p50_intrinsic_value,
+        p75_intrinsic_value=distribution.p75_intrinsic_value,
+        p90_intrinsic_value=distribution.p90_intrinsic_value,
     )
     return build_rating_table_decision(
         candidate=candidate,

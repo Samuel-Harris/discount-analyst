@@ -1,18 +1,19 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-23 | Updated: 2026-04-16 -->
+<!-- Generated: 2026-02-23 | Updated: 2026-05-31 (canonical toolkit DCF tests) -->
 
 # tests
 
 ## Purpose
 
-The `tests/` directory contains the automated test suite for the Discount Analyst project. Its primary role is to ensure the reliability and mathematical accuracy of the core financial analysis logic, particularly the Discounted Cash Flow (DCF) model. It serves as a regression suite to maintain code quality as the project's AI-driven data gathering and analysis components evolve.
+The `tests/` directory contains the automated test suite for the Discount Analyst project. Its primary role is to ensure the reliability and mathematical accuracy of core financial analysis logic, particularly deterministic valuation toolkit helpers. It serves as a regression suite to maintain code quality as the project's AI-driven data gathering and analysis components evolve.
 
 ## Key Files
 
 | File                                                              | Description                                                                                                                            |
 | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `tests/conftest.py`                                               | Suite-wide defaults so `common.config.settings` can import during collection (sets `LOGGING__LOGFIRE_API_KEY` unless already present). |
-| `tests/dcf_analysis/test_dcf_analysis.py`                         | Comprehensive unit tests for the DCF calculation engine using real-world stock data scenarios.                                         |
+| `tests/discount_analyst/agents/appraiser/test_schema.py`          | Tests for method-agnostic Appraiser output validation and percentile rules.                                                            |
+| `tests/discount_analyst/valuation/test_toolkit.py`                | Tests for deterministic valuation toolkit helpers, including DCF real-world scenarios.                                                 |
 | `tests/discount_analyst/http/test_streaming_retries.py`           | Unit tests for agent streaming retry helpers (`stream_with_retries`, sleep parsing).                                                   |
 | `tests/discount_analyst/integrations/test_financial_data_mcp.py`  | EODHD MCP optional registration (`EODHD__DISABLED`).                                                                                   |
 | `tests/discount_analyst/integrations/test_terminal.py`            | Terminal HTTP client mocks; optional `@pytest.mark.docker` orchestrator integration.                                                   |
@@ -30,23 +31,24 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 
 ## Subdirectories
 
-| Directory                           | Purpose                                                                                              |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `dcf_analysis/`                     | Tests for the DCF engine (`discount_analyst.valuation`).                                             |
-| `discount_analyst/http/`            | Tests for streaming retry behaviour (`discount_analyst.agents.common.streaming_retries`).            |
-| `discount_analyst/integrations/`    | Tests for MCP adapter wiring (`financial_data_mcp`).                                                 |
-| `discount_analyst/agents/common/`   | Tests for streamed agent orchestration.                                                              |
-| `discount_analyst/agents/sentinel/` | Tests for Sentinel schema helpers.                                                                   |
-| `discount_analyst/pipeline/`        | Tests for programmatic verdict builders and the deterministic rating table.                          |
-| `scripts/`                          | Tests for script helpers where present.                                                              |
-| `backend/`                          | Tests for the FastAPI `backend` package (`unit/`, `integration/`); shared fixtures in `conftest.py`. |
+| Directory                            | Purpose                                                                                              |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `discount_analyst/http/`             | Tests for streaming retry behaviour (`discount_analyst.agents.common.streaming_retries`).            |
+| `discount_analyst/integrations/`     | Tests for MCP adapter wiring (`financial_data_mcp`).                                                 |
+| `discount_analyst/agents/common/`    | Tests for streamed agent orchestration.                                                              |
+| `discount_analyst/agents/appraiser/` | Tests for Appraiser schema contracts.                                                                |
+| `discount_analyst/agents/sentinel/`  | Tests for Sentinel schema helpers.                                                                   |
+| `discount_analyst/pipeline/`         | Tests for programmatic verdict builders and the deterministic rating table.                          |
+| `discount_analyst/valuation/`        | Tests for deterministic valuation toolkit helpers (`discount_analyst.valuation.toolkit`).            |
+| `scripts/`                           | Tests for script helpers where present.                                                              |
+| `backend/`                           | Tests for the FastAPI `backend` package (`unit/`, `integration/`); shared fixtures in `conftest.py`. |
 
 ## For AI Agents
 
 ### Working In This Directory
 
-- Follow the established pattern of using `Pydantic` models (e.g., `TestCase`) to define structured test data and expected results.
-- When adding tests for new financial analysis logic, ensure they are added to the corresponding subdirectory (e.g., `dcf_analysis/`).
+- Follow the established pattern of using small typed fixtures (dataclasses, Pydantic models, or local helpers) to define structured test data and expected results.
+- When adding tests for new financial analysis logic, ensure they are added to the corresponding package subdirectory (e.g., `discount_analyst/valuation/`).
 - Use `pytest.mark.parametrize` for data-driven testing to cover multiple scenarios efficiently.
 
 ### Testing Requirements
@@ -66,7 +68,7 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 ### Internal
 
 - `backend`: FastAPI app, DB layer, and pipeline runner (see `tests/backend/`).
-- `discount_analyst.valuation`: DCF calculation logic under test.
+- `discount_analyst.valuation.toolkit`: Deterministic valuation helpers under test.
 - `discount_analyst.valuation.schema`: Stock data and assumptions models.
 - `discount_analyst.agents.common.streaming_retries`, `discount_analyst.agents.common.streamed_agent_run`: Streaming behaviour.
 

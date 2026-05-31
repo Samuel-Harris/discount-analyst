@@ -88,7 +88,7 @@ def build_rating_table_decision(
     is_existing_position: bool,
     decision_date: str,
 ) -> RatingTableDecision:
-    """Assemble the deterministic post-DCF decision row for persistence and JSON."""
+    """Assemble the deterministic post-Appraiser decision row for persistence and JSON."""
     if thesis.ticker.casefold() != evaluation.ticker.casefold():
         msg = (
             f"Thesis ticker {thesis.ticker!r} does not match evaluation "

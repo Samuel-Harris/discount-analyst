@@ -11,7 +11,6 @@ from pydantic_ai.exceptions import UnexpectedModelBehavior
 
 from discount_analyst.agents.common.ai_logging import AI_LOGFIRE
 
-from backend.crud.agent_output_persistence import insert_dcf_valuation
 from backend.db.models import (
     AgentNameDb,
     EntryPathDb,
@@ -30,7 +29,6 @@ from backend.crud.run_executions import (
     get_agent_execution_status_by_run_and_agent,
     get_candidate_for_run,
     get_completed_agent_output_json,
-    get_dcf_valuation_for_run,
     get_workflow_candidate_snapshot_id,
     get_workflow_surveyor_execution_id,
     get_workflow_surveyor_execution_status,
@@ -106,13 +104,6 @@ from discount_analyst.pipeline.builders import (
     verdict_from_decision,
 )
 from discount_analyst.rating.margin_of_safety import MarginOfSafetyAssessment
-from discount_analyst.valuation.data_types import (
-    DCFAnalysisParameters,
-    DCFAnalysisResult,
-)
-from discount_analyst.valuation.dcf_analysis import DCFAnalysis
-
-from backend.contracts.stock_run_args import StockRunArgs
 
 
 def extract_agent_error_message(exc: BaseException) -> str:
@@ -310,9 +301,6 @@ class DashboardPipelineRunner:
             run_id=run_id,
             agent_name=agent_name,
         )
-
-    async def _load_dcf_valuation(self, *, run_id: str) -> DCFAnalysisResult | None:
-        return await self._db(get_dcf_valuation_for_run, run_id=run_id)
 
     async def _mark_exec(
         self,
@@ -785,12 +773,12 @@ class DashboardPipelineRunner:
             )
             return
         AI_LOGFIRE.info(
-            "Sentinel gate passed; continuing to appraiser and DCF",
+            "Sentinel gate passed; continuing to appraiser",
             workflow_run_id=workflow_run_id,
             run_id=run_id,
             ticker=candidate.ticker,
         )
-        await self._run_appraiser_dcf_final_rating(
+        await self._run_appraiser_final_rating(
             workflow_run_id=workflow_run_id,
             run_id=run_id,
             candidate=candidate,
@@ -1076,7 +1064,7 @@ class DashboardPipelineRunner:
         )
         await self._recompute(workflow_run_id)
 
-    async def _run_appraiser_dcf_final_rating(
+    async def _run_appraiser_final_rating(
         self,
         *,
         workflow_run_id: str,
@@ -1091,11 +1079,6 @@ class DashboardPipelineRunner:
         appraiser_exec_id = await self._get_exec_id(run_id, AgentNameDb.APPRAISER.value)
         if appraiser_exec_id is None:
             return
-        stock_args = StockRunArgs(
-            surveyor_candidate=candidate,
-            risk_free_rate_pct=self._settings.risk_free_rate_pct,
-            model=self._settings.default_model,
-        )
         appraiser_status = await self._get_agent_status(
             run_id, AgentNameDb.APPRAISER.value
         )
@@ -1169,54 +1152,11 @@ class DashboardPipelineRunner:
                 messages_json=a_mock_json,
             )
             AI_LOGFIRE.info(
-                "Appraiser stage completed; running DCF",
+                "Appraiser stage completed",
                 agent_name=AgentNameDb.APPRAISER,
                 workflow_run_id=workflow_run_id,
                 run_id=run_id,
                 ticker=candidate.ticker,
-            )
-
-        dcf_result = (
-            await self._load_dcf_valuation(run_id=run_id)
-            if appraiser_status == ExecutionStatusDb.COMPLETED.value
-            else None
-        )
-        persist_dcf_result = dcf_result is None
-        dcf_error: str | None = None
-        if dcf_result is None:
-            dcf_result, dcf_error = await self._run_dcf(
-                stock_args,
-                appraiser_out,
-                workflow_run_id=workflow_run_id,
-                run_id=run_id,
-                ticker=candidate.ticker,
-            )
-        if dcf_result is None:
-            AI_LOGFIRE.warning(
-                "DCF valuation failed or produced no result; no final verdict",
-                workflow_run_id=workflow_run_id,
-                run_id=run_id,
-                ticker=candidate.ticker,
-                error=dcf_error,
-            )
-            await self._db(
-                update_ticker_run_completion,
-                run_id=run_id,
-                status="failed",
-                final_rating=None,
-                decision_type=None,
-                recommended_action=None,
-                final_verdict_json=None,
-                error_message=dcf_error or "DCF failed",
-            )
-            await self._recompute(workflow_run_id)
-            return
-        if persist_dcf_result:
-            await self._db(
-                insert_dcf_valuation,
-                run_id=run_id,
-                appraiser_agent_execution_id=appraiser_exec_id,
-                dcf_result=dcf_result,
             )
 
         if is_mock:
@@ -1228,11 +1168,15 @@ class DashboardPipelineRunner:
                 evaluation=evaluation,
             )
         else:
-            sd = appraiser_out.stock_data
-            mos = MarginOfSafetyAssessment.from_market_cap(
-                market_cap=sd.market_cap,
-                n_shares_outstanding=sd.n_shares_outstanding,
-                intrinsic_value_base=dcf_result.intrinsic_share_price,
+            distribution = appraiser_out.valuation_distribution
+            mos = MarginOfSafetyAssessment.from_distribution(
+                current_price=distribution.current_share_price,
+                expected_intrinsic_value=distribution.expected_intrinsic_value,
+                p10_intrinsic_value=distribution.p10_intrinsic_value,
+                p25_intrinsic_value=distribution.p25_intrinsic_value,
+                p50_intrinsic_value=distribution.p50_intrinsic_value,
+                p75_intrinsic_value=distribution.p75_intrinsic_value,
+                p90_intrinsic_value=distribution.p90_intrinsic_value,
             )
             rating_decision = build_rating_table_decision(
                 candidate=candidate,
@@ -1261,31 +1205,3 @@ class DashboardPipelineRunner:
             run_id=run_id,
             ticker=candidate.ticker,
         )
-
-    async def _run_dcf(
-        self,
-        stock_args: StockRunArgs,
-        appraiser_out: Any,
-        *,
-        workflow_run_id: str,
-        run_id: str,
-        ticker: str,
-    ) -> tuple[Any, str | None]:
-        def _sync_dcf() -> tuple[Any, str | None]:
-            params = DCFAnalysisParameters(
-                stock_data=appraiser_out.stock_data,
-                stock_assumptions=appraiser_out.stock_assumptions,
-                risk_free_rate_pct=stock_args.risk_free_rate_pct,
-            )
-            try:
-                return DCFAnalysis(params).dcf_analysis(), None
-            except Exception as exc:  # noqa: BLE001
-                AI_LOGFIRE.exception(
-                    "DCF analysis raised",
-                    workflow_run_id=workflow_run_id,
-                    run_id=run_id,
-                    ticker=ticker,
-                )
-                return None, str(exc)
-
-        return await asyncio.to_thread(_sync_dcf)

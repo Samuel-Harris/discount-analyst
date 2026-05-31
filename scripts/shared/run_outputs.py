@@ -8,7 +8,6 @@ from discount_analyst.agents.researcher.schema import DeepResearchReport
 from discount_analyst.agents.strategist.schema import MispricingThesis
 from discount_analyst.agents.profiler.schema import ProfilerOutput
 from discount_analyst.agents.surveyor.schema import SurveyorOutput
-from discount_analyst.valuation.data_types import DCFAnalysisResult
 
 
 class TurnUsage(BaseModel):
@@ -36,8 +35,6 @@ class AppraiserRunOutput(BaseModel):
     model_name: str
     risk_free_rate_pct: float
     appraiser: AppraiserOutput
-    dcf_result: DCFAnalysisResult | None = None
-    dcf_error: str | None = None
     elapsed_s: float
     input_tokens: int
     output_tokens: int

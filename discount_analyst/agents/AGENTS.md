@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-04-02 | Updated: 2026-04-03 -->
+<!-- Generated: 2026-04-02 | Updated: 2026-05-31 -->
 
 # agents
 
@@ -22,7 +22,7 @@ Contains AI agent packages used by the project workflows. This directory groups 
 | `researcher/` | Researcher agent implementation and prompts for structured deep-research evidence output (see `researcher/AGENTS.md`) |
 | `strategist/` | Strategist agent implementation and prompts for `MispricingThesis` output (see `strategist/AGENTS.md`)                |
 | `sentinel/`   | Sentinel agent implementation and prompts for `EvaluationReport` output (see `sentinel/AGENTS.md`)                    |
-| `appraiser/`  | Appraiser agent implementation and prompts for DCF workflows (see `appraiser/AGENTS.md`)                              |
+| `appraiser/`  | Appraiser agent implementation and prompts for method-agnostic valuation distributions (see `appraiser/AGENTS.md`)    |
 
 ## For AI Agents
 
