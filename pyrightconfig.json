@@ -6,7 +6,8 @@
     "discount_analyst/**/*.py",
     "docker/agent-terminal/**/*.py",
     "scripts/**/*.py",
-    "tests/**/*.py"
+    "tests/**/*.py",
+    ".cursor/**/*.py"
   ],
   "exclude": [
     "**/__pycache__/**",
