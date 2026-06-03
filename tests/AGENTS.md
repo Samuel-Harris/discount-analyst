@@ -9,25 +9,26 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 
 ## Key Files
 
-| File                                                              | Description                                                                                                                            |
-| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `tests/conftest.py`                                               | Suite-wide defaults so `common.config.settings` can import during collection (sets `LOGGING__LOGFIRE_API_KEY` unless already present). |
-| `tests/discount_analyst/agents/appraiser/test_schema.py`          | Tests for method-agnostic Appraiser output validation and percentile rules.                                                            |
-| `tests/discount_analyst/valuation/test_toolkit.py`                | Tests for deterministic valuation toolkit helpers, including DCF real-world scenarios.                                                 |
-| `tests/discount_analyst/http/test_streaming_retries.py`           | Unit tests for agent streaming retry helpers (`stream_with_retries`, sleep parsing).                                                   |
-| `tests/discount_analyst/integrations/test_financial_data_mcp.py`  | EODHD MCP optional registration (`EODHD__DISABLED`).                                                                                   |
-| `tests/discount_analyst/integrations/test_terminal.py`            | Terminal HTTP client mocks; optional `@pytest.mark.docker` orchestrator integration.                                                   |
-| `tests/discount_analyst/agents/common/test_streamed_agent_run.py` | Tests for `run_streamed_agent`.                                                                                                        |
-| `tests/discount_analyst/agents/sentinel/test_sentinel_gate.py`    | Tests for `sentinel_proceeds_to_valuation` (thesis + red-flag gate).                                                                   |
-| `tests/discount_analyst/pipeline/test_builders.py`                | Tests for `build_sentinel_rejection` and `verdict_from_decision`.                                                                      |
-| `tests/backend/unit/test_dashboard_settings.py`                   | Unified ``Settings`` validation (e.g. non-empty ``LOGGING__LOGFIRE_API_KEY``).                                                         |
-| `tests/backend/unit/test_workflow_api.py`                         | HTTP contract tests for the FastAPI dashboard (`backend`) with isolated SQLite.                                                        |
-| `tests/backend/unit/test_agent_lane_order_sync.py`                | Keeps `backend/contracts/agent_lane_order.py` aligned with `frontend/src/graph/agentLaneOrder.ts`.                                     |
-| `tests/backend/unit/test_profiler_stage.py`                       | Unit tests for the extracted dashboard `ProfilerStage` and its persistence port.                                                       |
-| `tests/backend/unit/test_mock_surveyor_discoveries.py`            | Mock Surveyor discovery helpers and deterministic mock Sentinel pass/fail parity for the dashboard.                                    |
-| `tests/backend/unit/test_mock_rating_table_dashboard.py`          | Deterministic mock `RatingTableDecision` helpers for dashboard payloads.                                                               |
-| `tests/backend/integration/test_mock_workflow.py`                 | Mock pipeline persistence for `DashboardPipelineRunner` (no live LLM calls); mixed Sentinel lanes.                                     |
-| `tests/backend/integration/test_dashboard_http_e2e.py`            | Async HTTP path: create mock workflow run, poll until completed, assert detail and conversations.                                      |
+| File                                                               | Description                                                                                                                            |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/conftest.py`                                                | Suite-wide defaults so `common.config.settings` can import during collection (sets `LOGGING__LOGFIRE_API_KEY` unless already present). |
+| `tests/discount_analyst/agents/appraiser/test_appraiser_schema.py` | Tests for method-agnostic Appraiser output validation and percentile rules.                                                            |
+| `tests/discount_analyst/agents/surveyor/test_surveyor_schema.py`   | Tests for Surveyor output validation (unique candidate tickers).                                                                       |
+| `tests/discount_analyst/valuation/test_toolkit.py`                 | Tests for deterministic valuation toolkit helpers, including DCF real-world scenarios.                                                 |
+| `tests/discount_analyst/http/test_streaming_retries.py`            | Unit tests for agent streaming retry helpers (`stream_with_retries`, sleep parsing).                                                   |
+| `tests/discount_analyst/integrations/test_financial_data_mcp.py`   | EODHD MCP optional registration (`EODHD__DISABLED`).                                                                                   |
+| `tests/discount_analyst/integrations/test_terminal.py`             | Terminal HTTP client mocks; optional `@pytest.mark.docker` orchestrator integration.                                                   |
+| `tests/discount_analyst/agents/common/test_streamed_agent_run.py`  | Tests for `run_streamed_agent`.                                                                                                        |
+| `tests/discount_analyst/agents/sentinel/test_sentinel_gate.py`     | Tests for `sentinel_proceeds_to_valuation` (thesis + red-flag gate).                                                                   |
+| `tests/discount_analyst/pipeline/test_builders.py`                 | Tests for `build_sentinel_rejection` and `verdict_from_decision`.                                                                      |
+| `tests/backend/unit/test_dashboard_settings.py`                    | Unified ``Settings`` validation (e.g. non-empty ``LOGGING__LOGFIRE_API_KEY``).                                                         |
+| `tests/backend/unit/test_workflow_api.py`                          | HTTP contract tests for the FastAPI dashboard (`backend`) with isolated SQLite.                                                        |
+| `tests/backend/unit/test_agent_lane_order_sync.py`                 | Keeps `backend/contracts/agent_lane_order.py` aligned with `frontend/src/graph/agentLaneOrder.ts`.                                     |
+| `tests/backend/unit/test_profiler_stage.py`                        | Unit tests for the extracted dashboard `ProfilerStage` and its persistence port.                                                       |
+| `tests/backend/unit/test_mock_surveyor_discoveries.py`             | Mock Surveyor discovery helpers and deterministic mock Sentinel pass/fail parity for the dashboard.                                    |
+| `tests/backend/unit/test_mock_rating_table_dashboard.py`           | Deterministic mock `RatingTableDecision` helpers for dashboard payloads.                                                               |
+| `tests/backend/integration/test_mock_workflow.py`                  | Mock pipeline persistence for `DashboardPipelineRunner` (no live LLM calls); mixed Sentinel lanes.                                     |
+| `tests/backend/integration/test_dashboard_http_e2e.py`             | Async HTTP path: create mock workflow run, poll until completed, assert detail and conversations.                                      |
 
 ## Subdirectories
 
