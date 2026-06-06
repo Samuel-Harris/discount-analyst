@@ -1,10 +1,10 @@
-"""Persist structured agent outputs (research, thesis, evaluation, appraiser, verdicts, DCF)."""
+"""Persist structured agent outputs (research, thesis, evaluation, appraiser, verdicts)."""
 
 from __future__ import annotations
 
 import json
 from datetime import date
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from sqlalchemy import delete, select
 from sqlmodel import Session, col
@@ -36,10 +36,13 @@ from backend.db.models import (
     RunFinalDecision,
     RunFinalDecisionMitigatingFactor,
     RunFinalDecisionSupportingFactor,
-    ValuationDistribution,
     WorkflowAgentExecution,
 )
-from discount_analyst.agents.appraiser.schema import AppraiserOutput
+from discount_analyst.agents.appraiser.schema import (
+    AppraiserOutput,
+    IntrinsicValueDistribution,
+    ValuationMethodResult,
+)
 from discount_analyst.agents.profiler.schema import ProfilerOutput
 from discount_analyst.agents.researcher.schema import (
     DeepResearchReport,
@@ -409,6 +412,36 @@ def replace_evaluation_report(
         )
 
 
+def appraiser_output_from_report(row: AppraiserReport) -> AppraiserOutput:
+    return AppraiserOutput(
+        ticker=row.ticker,
+        company_name=row.company_name,
+        valuation_date=row.valuation_date,
+        summary=row.summary,
+        valuation_distribution=IntrinsicValueDistribution(
+            currency=row.currency,
+            current_share_price=row.current_share_price,
+            expected_intrinsic_value=row.expected_intrinsic_value,
+            p10_intrinsic_value=row.p10_intrinsic_value,
+            p25_intrinsic_value=row.p25_intrinsic_value,
+            p50_intrinsic_value=row.p50_intrinsic_value,
+            p75_intrinsic_value=row.p75_intrinsic_value,
+            p90_intrinsic_value=row.p90_intrinsic_value,
+            distribution_method=row.distribution_method,
+            distribution_reasoning=row.distribution_reasoning,
+        ),
+        methods=[
+            ValuationMethodResult.model_validate(method)
+            for method in json.loads(row.methods_json)
+        ],
+        key_value_drivers=json.loads(row.key_value_drivers_json),
+        downside_risks_to_value=json.loads(row.downside_risks_to_value_json),
+        upside_drivers_to_value=json.loads(row.upside_drivers_to_value_json),
+        data_quality=cast(Literal["High", "Medium", "Low"], row.data_quality),
+        caveats=json.loads(row.caveats_json),
+    )
+
+
 def replace_appraiser_output(
     session: Session,
     execution: AgentExecution,
@@ -458,30 +491,6 @@ def replace_appraiser_output(
         caveats_json=json.dumps(output.caveats, separators=(",", ":")),
     )
     session.add(row)
-    session.exec(
-        delete(ValuationDistribution).where(
-            (col(ValuationDistribution.run_id) == execution.run_id)
-            | (col(ValuationDistribution.appraiser_agent_execution_id) == execution.id)
-        )
-    )
-    session.flush()
-    session.add(
-        ValuationDistribution(
-            id=new_id(),
-            run_id=execution.run_id,
-            appraiser_agent_execution_id=execution.id,
-            currency=distribution.currency,
-            current_share_price=distribution.current_share_price,
-            expected_intrinsic_value=distribution.expected_intrinsic_value,
-            p10_intrinsic_value=distribution.p10_intrinsic_value,
-            p25_intrinsic_value=distribution.p25_intrinsic_value,
-            p50_intrinsic_value=distribution.p50_intrinsic_value,
-            p75_intrinsic_value=distribution.p75_intrinsic_value,
-            p90_intrinsic_value=distribution.p90_intrinsic_value,
-            distribution_method=distribution.distribution_method,
-            distribution_reasoning=distribution.distribution_reasoning,
-        )
-    )
 
 
 def upsert_run_final_decision(

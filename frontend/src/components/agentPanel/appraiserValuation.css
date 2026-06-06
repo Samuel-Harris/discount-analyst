@@ -1,0 +1,197 @@
+.appraiser-valuation-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.appraiser-valuation-headline h4 {
+  margin: 0 0 0.35rem;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.appraiser-ticker {
+  color: var(--text-dim);
+  font-weight: normal;
+}
+
+.appraiser-meta {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-dim);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+}
+
+.appraiser-quality {
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+}
+
+.appraiser-quality--high {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
+
+.appraiser-quality--medium {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+.appraiser-quality--low {
+  color: var(--err);
+  border-color: var(--err);
+}
+
+.appraiser-summary {
+  margin: 0.5rem 0 0;
+  color: var(--text);
+}
+
+.valuation-distribution-chart {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.valuation-chart-legend dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0;
+}
+
+.valuation-chart-legend dt {
+  margin: 0;
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.valuation-chart-legend dd {
+  margin: 0.15rem 0 0;
+  font-size: 12px;
+}
+
+.valuation-mos-positive {
+  color: var(--accent);
+}
+
+.valuation-mos-negative {
+  color: var(--err);
+}
+
+.valuation-chart-track {
+  position: relative;
+  height: 2.25rem;
+  margin: 0.25rem 0;
+  border-radius: 2px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-dim);
+}
+
+.valuation-chart-band {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 0.65rem;
+  background: rgba(57, 255, 122, 0.18);
+  border: 1px solid var(--accent-dim);
+  border-radius: 1px;
+}
+
+.valuation-chart-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  margin-left: -0.5px;
+  background: var(--border);
+  opacity: 0.55;
+}
+
+.valuation-chart-marker {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  margin-top: -5px;
+  border-radius: 50%;
+  border: 2px solid var(--bg);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.valuation-chart-marker--market {
+  background: var(--warn);
+  z-index: 2;
+}
+
+.valuation-chart-marker--expected {
+  background: var(--accent);
+  z-index: 3;
+}
+
+.valuation-chart-caption {
+  margin: 0;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.appraiser-methods h4,
+.appraiser-distribution-note h4 {
+  margin: 0 0 0.35rem;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.appraiser-methods-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.appraiser-methods-table th,
+.appraiser-methods-table td {
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--border-dim);
+  text-align: left;
+}
+
+.appraiser-methods-table th {
+  color: var(--text-dim);
+  font-weight: normal;
+}
+
+.appraiser-distribution-reasoning {
+  margin: 0.35rem 0 0;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.assistant-response-raw details {
+  margin-top: 0.75rem;
+}
+
+.assistant-response-raw summary {
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 11px;
+  margin-bottom: 0.35rem;
+}
+
+.assistant-response-parse-notice {
+  margin: 0 0 0.5rem;
+  font-size: 11px;
+  color: var(--warn);
+}

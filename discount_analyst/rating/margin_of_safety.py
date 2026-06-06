@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from typing import Literal, Self
 
-from pydantic import AliasChoices, BaseModel, Field, model_validator
+from pydantic import AliasChoices, BaseModel, Field
 from pydantic.fields import computed_field
+
+from discount_analyst.agents.appraiser.schema import IntrinsicValueDistribution
 
 MarginOfSafetyVerdict = Literal[
     "Substantial — price implies significant downside in market expectations",
@@ -35,52 +37,15 @@ class MarginOfSafetyAssessment(BaseModel):
         ),
     )
     p10_intrinsic_value: float = Field(gt=0)
-    p25_intrinsic_value: float = Field(gt=0)
-    p50_intrinsic_value: float = Field(gt=0)
-    p75_intrinsic_value: float = Field(gt=0)
     p90_intrinsic_value: float = Field(gt=0)
 
-    @model_validator(mode="after")
-    def validate_percentiles(self) -> "MarginOfSafetyAssessment":
-        values = [
-            self.p10_intrinsic_value,
-            self.p25_intrinsic_value,
-            self.p50_intrinsic_value,
-            self.p75_intrinsic_value,
-            self.p90_intrinsic_value,
-        ]
-        if values != sorted(values):
-            msg = "Intrinsic value percentiles must be monotonic."
-            raise ValueError(msg)
-        if (
-            not self.p10_intrinsic_value
-            <= self.expected_intrinsic_value
-            <= self.p90_intrinsic_value
-        ):
-            msg = "expected_intrinsic_value must lie between p10 and p90."
-            raise ValueError(msg)
-        return self
-
     @classmethod
-    def from_distribution(
-        cls,
-        *,
-        current_price: float,
-        expected_intrinsic_value: float,
-        p10_intrinsic_value: float,
-        p25_intrinsic_value: float,
-        p50_intrinsic_value: float,
-        p75_intrinsic_value: float,
-        p90_intrinsic_value: float,
-    ) -> Self:
+    def from_distribution(cls, distribution: IntrinsicValueDistribution) -> Self:
         return cls(
-            current_price=current_price,
-            expected_intrinsic_value=expected_intrinsic_value,
-            p10_intrinsic_value=p10_intrinsic_value,
-            p25_intrinsic_value=p25_intrinsic_value,
-            p50_intrinsic_value=p50_intrinsic_value,
-            p75_intrinsic_value=p75_intrinsic_value,
-            p90_intrinsic_value=p90_intrinsic_value,
+            current_price=distribution.current_share_price,
+            expected_intrinsic_value=distribution.expected_intrinsic_value,
+            p10_intrinsic_value=distribution.p10_intrinsic_value,
+            p90_intrinsic_value=distribution.p90_intrinsic_value,
         )
 
     @computed_field  # type: ignore[prop-decorator]

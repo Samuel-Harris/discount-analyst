@@ -166,9 +166,6 @@ def test_verdict_from_decision_hoists_rating_table_fields() -> None:
         current_price=10.0,
         expected_intrinsic_value=12.0,
         p10_intrinsic_value=8.0,
-        p25_intrinsic_value=10.0,
-        p50_intrinsic_value=12.0,
-        p75_intrinsic_value=14.0,
         p90_intrinsic_value=16.0,
     )
     rtd = RatingTableDecision(

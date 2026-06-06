@@ -1168,15 +1168,8 @@ class DashboardPipelineRunner:
                 evaluation=evaluation,
             )
         else:
-            distribution = appraiser_out.valuation_distribution
             mos = MarginOfSafetyAssessment.from_distribution(
-                current_price=distribution.current_share_price,
-                expected_intrinsic_value=distribution.expected_intrinsic_value,
-                p10_intrinsic_value=distribution.p10_intrinsic_value,
-                p25_intrinsic_value=distribution.p25_intrinsic_value,
-                p50_intrinsic_value=distribution.p50_intrinsic_value,
-                p75_intrinsic_value=distribution.p75_intrinsic_value,
-                p90_intrinsic_value=distribution.p90_intrinsic_value,
+                appraiser_out.valuation_distribution
             )
             rating_decision = build_rating_table_decision(
                 candidate=candidate,

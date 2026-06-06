@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlmodel import Session, col
 
 from backend.crud.agent_output_persistence import (
+    appraiser_output_from_report,
     persist_profiler_output,
     persist_surveyor_output,
     replace_appraiser_output,
@@ -42,13 +43,13 @@ from backend.db.models import (
     DecisionTypeDb,
     EntryPathDb,
     ExecutionStatusDb,
+    AppraiserReport,
     Run,
-    ValuationDistribution,
     WorkflowRun,
     WorkflowAgentExecution,
     WorkflowRunStatusDb,
 )
-from discount_analyst.agents.appraiser.schema import IntrinsicValueDistribution
+from discount_analyst.agents.appraiser.schema import AppraiserOutput
 from discount_analyst.pipeline.schema import (
     RatingTableDecision,
     SentinelRejection,
@@ -349,28 +350,33 @@ def get_completed_agent_output_json(
     return output_json
 
 
-def get_valuation_distribution_for_run(
+def get_appraiser_report_for_run(
     session: Session,
     *,
     run_id: str,
-) -> IntrinsicValueDistribution | None:
-    row = session.scalars(
-        select(ValuationDistribution).where(col(ValuationDistribution.run_id) == run_id)
+) -> AppraiserReport | None:
+    return session.scalars(
+        select(AppraiserReport)
+        .join(
+            AgentExecution,
+            col(AppraiserReport.agent_execution_id) == col(AgentExecution.id),
+        )
+        .where(
+            col(AgentExecution.run_id) == run_id,
+            col(AgentExecution.agent_name) == AgentNameDb.APPRAISER,
+        )
     ).first()
+
+
+def get_appraiser_output_for_run(
+    session: Session,
+    *,
+    run_id: str,
+) -> AppraiserOutput | None:
+    row = get_appraiser_report_for_run(session, run_id=run_id)
     if row is None:
         return None
-    return IntrinsicValueDistribution(
-        currency=row.currency,
-        current_share_price=row.current_share_price,
-        expected_intrinsic_value=row.expected_intrinsic_value,
-        p10_intrinsic_value=row.p10_intrinsic_value,
-        p25_intrinsic_value=row.p25_intrinsic_value,
-        p50_intrinsic_value=row.p50_intrinsic_value,
-        p75_intrinsic_value=row.p75_intrinsic_value,
-        p90_intrinsic_value=row.p90_intrinsic_value,
-        distribution_method=row.distribution_method,
-        distribution_reasoning=row.distribution_reasoning,
-    )
+    return appraiser_output_from_report(row)
 
 
 def apply_workflow_agent_execution_status(

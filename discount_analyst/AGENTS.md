@@ -9,31 +9,31 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 
 ## Key Files
 
-| File                                  | Description                                                                                                         |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `agents/appraiser/appraiser.py`       | Factory for the Appraiser agent with model-native or optional Perplexity-backed search tools.                       |
-| `agents/surveyor/surveyor.py`         | Factory for the Surveyor agent for discovering cheap small-cap stock candidates.                                    |
-| `agents/researcher/researcher.py`     | Factory for the Researcher agent that produces structured `DeepResearchReport` output from `SurveyorCandidate`.     |
-| `agents/strategist/strategist.py`     | Factory for the Strategist agent that produces `MispricingThesis` from `SurveyorCandidate` + `DeepResearchReport`.  |
-| `agents/sentinel/sentinel.py`         | Factory for the Sentinel agent that produces `EvaluationReport` from candidate + deep research + thesis.            |
-| `agents/appraiser/appraiser.py`       | Factory for the Appraiser agent with model-native or optional Perplexity-backed search tools.                       |
-| `agents/common/agent_factory.py`      | Shared `AgentSpec` + `create_agent` factory used by pipeline agents (Strategist and Sentinel use no-tools mode).    |
-| `agents/common/streamed_agent_run.py` | Streaming helper wrapping `stream_with_retries` and returning output, usage, and elapsed time.                      |
-| `agents/common/streaming_retries.py`  | Retry/resume logic for `AbstractAgent.run_stream()` / `stream_output()`.                                            |
-| `valuation/schema.py`                 | Shared financial schemas: `StockData` and `StockAssumptions`.                                                       |
-| `valuation/toolkit/dcf.py`            | Canonical deterministic DCF primitives for Appraiser terminal calculations.                                         |
-| `agents/surveyor/schema.py`           | Surveyor enums and schemas: `SurveyorCandidate`, `SurveyorOutput`, and `KeyMetrics`.                                |
-| `agents/researcher/schema.py`         | Researcher report schemas: `DeepResearchReport` plus nested neutral-evidence sections and data-gap progression.     |
-| `agents/strategist/schema.py`         | Strategist output schema: `MispricingThesis`.                                                                       |
-| `agents/sentinel/schema.py`           | Sentinel output schema: `EvaluationReport` and nested assessment models.                                            |
-| `agents/appraiser/schema.py`          | Appraiser I/O: `AppraiserInput` (pipeline inputs) and method-agnostic `AppraiserOutput` distribution/method models. |
-| `config/ai_models_config.py`          | Configuration for LLM models, including token budgets and thinking parameters.                                      |
-| `http/retrying_client.py`             | Tenacity-backed async HTTP client for provider APIs.                                                                |
-| `integrations/perplexity.py`          | Perplexity-backed toolset factory for agents.                                                                       |
-| `integrations/terminal.py`            | Docker-backed `terminal_exec` capability (orchestrator HTTP).                                                       |
-| `rating/investment_rating.py`         | `InvestmentRating` (`StrEnum`) shared by verdict models, Sentinel rejections, and the rating table.                 |
-| `rating/margin_of_safety.py`          | `MarginOfSafetyAssessment` and verdict literals derived from Appraiser expected intrinsic value vs price.           |
-| `rating/valuation_result.py`          | `ValuationResult` bundle around `AppraiserOutput` for downstream rating steps.                                      |
+| File                                  | Description                                                                                                           |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `agents/appraiser/appraiser.py`       | Factory for the Appraiser agent with model-native or optional Perplexity-backed search tools.                         |
+| `agents/surveyor/surveyor.py`         | Factory for the Surveyor agent for discovering cheap small-cap stock candidates.                                      |
+| `agents/researcher/researcher.py`     | Factory for the Researcher agent that produces structured `DeepResearchReport` output from `SurveyorCandidate`.       |
+| `agents/strategist/strategist.py`     | Factory for the Strategist agent that produces `MispricingThesis` from `SurveyorCandidate` + `DeepResearchReport`.    |
+| `agents/sentinel/sentinel.py`         | Factory for the Sentinel agent that produces `EvaluationReport` from candidate + deep research + thesis.              |
+| `agents/appraiser/appraiser.py`       | Factory for the Appraiser agent with model-native or optional Perplexity-backed search tools.                         |
+| `agents/common/agent_factory.py`      | Shared `AgentSpec` + `create_agent` factory used by pipeline agents (Strategist and Sentinel use no-tools mode).      |
+| `agents/common/streamed_agent_run.py` | Streaming helper wrapping `stream_with_retries` and returning output, usage, and elapsed time.                        |
+| `agents/common/streaming_retries.py`  | Retry/resume logic for `AbstractAgent.run_stream()` / `stream_output()`.                                              |
+| `valuation/schema.py`                 | Shared financial schemas: `StockData` and `StockAssumptions`.                                                         |
+| `valuation/toolkit/dcf.py`            | Canonical deterministic DCF primitives for Appraiser terminal calculations.                                           |
+| `agents/surveyor/schema.py`           | Surveyor enums and schemas: `SurveyorCandidate`, `SurveyorOutput`, and `KeyMetrics`.                                  |
+| `agents/researcher/schema.py`         | Researcher report schemas: `DeepResearchReport` plus nested neutral-evidence sections and data-gap progression.       |
+| `agents/strategist/schema.py`         | Strategist output schema: `MispricingThesis`.                                                                         |
+| `agents/sentinel/schema.py`           | Sentinel output schema: `EvaluationReport` and nested assessment models.                                              |
+| `agents/appraiser/schema.py`          | Appraiser I/O: `AppraiserInput` (pipeline inputs) and method-agnostic `AppraiserOutput` distribution/method models.   |
+| `config/ai_models_config.py`          | Configuration for LLM models, including token budgets and thinking parameters.                                        |
+| `http/retrying_client.py`             | Tenacity-backed async HTTP client for provider APIs.                                                                  |
+| `integrations/perplexity.py`          | Perplexity-backed toolset factory for agents.                                                                         |
+| `integrations/terminal.py`            | Docker-backed `terminal_exec` capability (orchestrator HTTP).                                                         |
+| `rating/investment_rating.py`         | `InvestmentRating` (`StrEnum`) shared by verdict models, Sentinel rejections, and the rating table.                   |
+| `rating/margin_of_safety.py`          | `MarginOfSafetyAssessment` (price, expected intrinsic, p10, p90) and verdict literals; built via `from_distribution`. |
+| `rating/valuation_result.py`          | `ValuationResult` bundle around `AppraiserOutput` for downstream rating steps.                                        |
 
 ## Subdirectories
 

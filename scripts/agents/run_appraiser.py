@@ -22,7 +22,7 @@ from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
 from discount_analyst.agents.common.terminal_run import TerminalRunOptions
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
 
-from backend.contracts.stock_run_args import StockRunArgs
+from scripts.shared.appraiser_run_context import AppraiserRunContext
 
 from scripts.shared.cli import (
     DEFAULT_AGENT_CLI_DEFAULTS,
@@ -303,8 +303,10 @@ def _build_suffixes(targets: list[AppraiserTarget]) -> list[str]:
     return suffixes
 
 
-def _stock_run_args(candidate: SurveyorCandidate, shared: SharedArgs) -> StockRunArgs:
-    return StockRunArgs(
+def _appraiser_run_context(
+    candidate: SurveyorCandidate, shared: SharedArgs
+) -> AppraiserRunContext:
+    return AppraiserRunContext(
         surveyor_candidate=candidate,
         risk_free_rate_pct=shared.risk_free_rate_pct,
         model=shared.model,
@@ -312,7 +314,7 @@ def _stock_run_args(candidate: SurveyorCandidate, shared: SharedArgs) -> StockRu
 
 
 async def run_agent(
-    args: StockRunArgs,
+    args: AppraiserRunContext,
     appraiser_input: AppraiserInput,
     *,
     use_perplexity: bool = DEFAULT_AGENT_CLI_DEFAULTS.use_perplexity,
@@ -458,7 +460,7 @@ def display_agent_output(output: AppraiserOutput) -> None:
 
 
 def save_run_output(
-    args: StockRunArgs,
+    args: AppraiserRunContext,
     agent_output: AppraiserOutput,
     agent_result: AgentRunResult,
     *,
@@ -526,7 +528,7 @@ async def main() -> None:
             )
 
         candidate = target.appraiser_input.stock_candidate
-        stock_args = _stock_run_args(candidate, shared)
+        run_context = _appraiser_run_context(candidate, shared)
 
         console.log(
             f"Initializing Appraiser Agent for {candidate.ticker} "
@@ -534,7 +536,7 @@ async def main() -> None:
         )
         console.log("Running agent...")
         agent_result = await run_agent(
-            stock_args,
+            run_context,
             target.appraiser_input,
             use_perplexity=shared.use_perplexity,
             use_mcp_financial_data=shared.use_mcp_financial_data,
@@ -544,7 +546,7 @@ async def main() -> None:
         display_agent_output(agent_result.output)
 
         out_path = save_run_output(
-            stock_args,
+            run_context,
             agent_result.output,
             agent_result,
             source_surveyor_report=sent.source_surveyor_report,
