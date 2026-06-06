@@ -412,31 +412,6 @@ class AppraiserReport(SQLModel, table=True):
     caveats_json: str
 
 
-class ValuationDistribution(SQLModel, table=True):
-    __tablename__ = "valuation_distributions"  # pyright: ignore[reportAssignmentType]
-    __table_args__ = (
-        UniqueConstraint("run_id"),
-        UniqueConstraint("appraiser_agent_execution_id"),
-    )
-
-    id: str = Field(primary_key=True)
-    run_id: str = Field(foreign_key="runs.id", index=True)
-    appraiser_agent_execution_id: str = Field(
-        foreign_key="agent_executions.id",
-        index=True,
-    )
-    currency: str
-    current_share_price: float
-    expected_intrinsic_value: float
-    p10_intrinsic_value: float
-    p25_intrinsic_value: float
-    p50_intrinsic_value: float
-    p75_intrinsic_value: float
-    p90_intrinsic_value: float
-    distribution_method: str
-    distribution_reasoning: str
-
-
 class RunFinalDecision(SQLModel, table=True):
     __tablename__ = "run_final_decisions"  # pyright: ignore[reportAssignmentType]
     __table_args__ = (

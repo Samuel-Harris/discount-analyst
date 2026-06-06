@@ -434,19 +434,12 @@ def mock_rating_table_decision(
     thesis: MispricingThesis | None = None,
     evaluation: EvaluationReport | None = None,
 ) -> RatingTableDecision:
-    """Deterministic post-DCF decision for mock dashboard runs (no LLM)."""
+    """Deterministic rating-table decision for mock dashboard runs (no LLM)."""
     th = thesis or mock_thesis(candidate)
     ev = evaluation or mock_rating_table_gate_evaluation(candidate)
     appraiser_out = mock_appraiser_output(candidate)
-    distribution = appraiser_out.valuation_distribution
     mos = MarginOfSafetyAssessment.from_distribution(
-        current_price=distribution.current_share_price,
-        expected_intrinsic_value=distribution.expected_intrinsic_value,
-        p10_intrinsic_value=distribution.p10_intrinsic_value,
-        p25_intrinsic_value=distribution.p25_intrinsic_value,
-        p50_intrinsic_value=distribution.p50_intrinsic_value,
-        p75_intrinsic_value=distribution.p75_intrinsic_value,
-        p90_intrinsic_value=distribution.p90_intrinsic_value,
+        appraiser_out.valuation_distribution
     )
     return build_rating_table_decision(
         candidate=candidate,

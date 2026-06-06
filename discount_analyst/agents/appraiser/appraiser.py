@@ -41,7 +41,7 @@ def create_appraiser_agent(
         terminal: Per-run terminal sandbox options; defaults from process settings.
 
     Returns:
-        A configured Agent instance for making stock assumptions.
+        A configured Agent instance for method-agnostic valuation output.
     """
     return create_agent(
         spec=APPRAISER_AGENT_SPEC,

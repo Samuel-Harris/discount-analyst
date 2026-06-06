@@ -10,6 +10,7 @@ from pydantic_ai import ModelMessagesTypeAdapter
 from pydantic_ai.messages import ModelMessage
 from sqlmodel import Session, col, delete, select
 
+from backend.crud.agent_output_persistence import appraiser_output_from_report
 from backend.crud.candidate_snapshots import snapshot_to_candidate
 from backend.crud.db_utils import dump_json_string, new_id
 from backend.db.models import (
@@ -40,11 +41,6 @@ from backend.db.models import (
     ResearchReportSourceNote,
     Run,
     WorkflowAgentExecution,
-)
-from discount_analyst.agents.appraiser.schema import (
-    AppraiserOutput,
-    IntrinsicValueDistribution,
-    ValuationMethodResult,
 )
 from discount_analyst.agents.profiler.schema import ProfilerOutput
 from discount_analyst.agents.researcher.schema import (
@@ -640,34 +636,7 @@ def assistant_response_for_run_agent(
         ).first()
         if row is None:
             return "{}"
-        payload = AppraiserOutput(
-            ticker=row.ticker,
-            company_name=row.company_name,
-            valuation_date=row.valuation_date,
-            summary=row.summary,
-            valuation_distribution=IntrinsicValueDistribution(
-                currency=row.currency,
-                current_share_price=row.current_share_price,
-                expected_intrinsic_value=row.expected_intrinsic_value,
-                p10_intrinsic_value=row.p10_intrinsic_value,
-                p25_intrinsic_value=row.p25_intrinsic_value,
-                p50_intrinsic_value=row.p50_intrinsic_value,
-                p75_intrinsic_value=row.p75_intrinsic_value,
-                p90_intrinsic_value=row.p90_intrinsic_value,
-                distribution_method=row.distribution_method,
-                distribution_reasoning=row.distribution_reasoning,
-            ),
-            methods=[
-                ValuationMethodResult.model_validate(method)
-                for method in json.loads(row.methods_json)
-            ],
-            key_value_drivers=json.loads(row.key_value_drivers_json),
-            downside_risks_to_value=json.loads(row.downside_risks_to_value_json),
-            upside_drivers_to_value=json.loads(row.upside_drivers_to_value_json),
-            data_quality=cast(Literal["High", "Medium", "Low"], row.data_quality),
-            caveats=json.loads(row.caveats_json),
-        )
-        return payload.model_dump_json()
+        return appraiser_output_from_report(row).model_dump_json()
 
     return "{}"
 
