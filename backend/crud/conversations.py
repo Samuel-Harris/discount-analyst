@@ -20,7 +20,6 @@ from backend.db.models import (
     AgentNameDb,
     AppraiserReport,
     CandidateSnapshot,
-    DecisionTypeDb,
     EvaluationCaveat,
     EvaluationQuestionAssessment,
     EvaluationReport,
@@ -40,13 +39,13 @@ from backend.db.models import (
     ResearchReportRisk,
     ResearchReportSourceNote,
     Run,
-    RunFinalDecision,
-    RunFinalDecisionMitigatingFactor,
-    RunFinalDecisionSupportingFactor,
     WorkflowAgentExecution,
 )
-from discount_analyst.agents.appraiser.schema import AppraiserOutput
-from discount_analyst.pipeline.schema import RatingTableDecision, RatingTableRationale
+from discount_analyst.agents.appraiser.schema import (
+    AppraiserOutput,
+    IntrinsicValueDistribution,
+    ValuationMethodResult,
+)
 from discount_analyst.agents.profiler.schema import ProfilerOutput
 from discount_analyst.agents.researcher.schema import (
     BusinessModel,
@@ -67,9 +66,6 @@ from discount_analyst.agents.strategist.schema import (
     MispricingThesis as MispricingThesisSchema,
 )
 from discount_analyst.agents.surveyor.schema import KeyMetrics, SurveyorOutput
-from discount_analyst.rating.investment_rating import InvestmentRating
-from discount_analyst.rating.margin_of_safety import MarginOfSafetyAssessment
-from discount_analyst.valuation.schema import StockAssumptions, StockData
 
 logger = logging.getLogger(__name__)
 
@@ -637,99 +633,39 @@ def assistant_response_for_run_agent(
         return payload.model_dump_json()
 
     if execution.agent_name == AgentNameDb.APPRAISER:
-        run_final = session.scalars(
-            select(RunFinalDecision).where(
-                col(RunFinalDecision.run_id) == execution.run_id,
-                col(RunFinalDecision.source_agent_execution_id) == execution.id,
-                col(RunFinalDecision.decision_type) == DecisionTypeDb.RATING_TABLE,
-            )
-        ).first()
-        run = session.get(Run, execution.run_id)
-        if run_final is not None and run is not None:
-            supporting = [
-                r.factor_text
-                for r in session.scalars(
-                    select(RunFinalDecisionSupportingFactor)
-                    .where(
-                        col(RunFinalDecisionSupportingFactor.run_final_decision_id)
-                        == run_final.id
-                    )
-                    .order_by(col(RunFinalDecisionSupportingFactor.sort_order))
-                )
-            ]
-            mitigating = [
-                r.factor_text
-                for r in session.scalars(
-                    select(RunFinalDecisionMitigatingFactor)
-                    .where(
-                        col(RunFinalDecisionMitigatingFactor.run_final_decision_id)
-                        == run_final.id
-                    )
-                    .order_by(col(RunFinalDecisionMitigatingFactor.sort_order))
-                )
-            ]
-            conviction_lit: Literal["Low", "Medium", "High"] = cast(
-                Literal["Low", "Medium", "High"],
-                run_final.conviction or "Medium",
-            )
-            mos = MarginOfSafetyAssessment(
-                current_price=run_final.current_price or 0.0,
-                intrinsic_value_base=run_final.base_intrinsic_value or 0.0,
-            )
-            payload = RatingTableDecision(
-                decision_rule_id="rating_table_v1",
-                ticker=run.ticker,
-                company_name=run.company_name,
-                decision_date=run_final.decision_date.isoformat(),
-                is_existing_position=run_final.is_existing_position,
-                rating=InvestmentRating(run_final.rating),
-                recommended_action=run_final.recommended_action,
-                conviction=conviction_lit,
-                margin_of_safety=mos,
-                rationale=RatingTableRationale(
-                    primary_driver=run_final.primary_driver or "",
-                    supporting_factors=supporting,
-                    mitigating_factors=mitigating,
-                    red_flag_disposition=run_final.red_flag_disposition or "",
-                    data_gap_disposition=run_final.data_gap_disposition or "",
-                ),
-                thesis_expiry_note=run_final.thesis_expiry_note or "",
-            )
-            return payload.model_dump_json()
-
         row = session.scalars(
             select(AppraiserReport).where(
                 col(AppraiserReport.agent_execution_id) == execution.id
             )
         ).first()
-        if row is None or run is None:
+        if row is None:
             return "{}"
         payload = AppraiserOutput(
-            stock_data=StockData(
-                ticker=run.ticker,
-                name=run.company_name,
-                ebit=row.ebit,
-                revenue=row.revenue,
-                capital_expenditure=row.capital_expenditure,
-                n_shares_outstanding=row.n_shares_outstanding,
-                market_cap=row.market_cap,
-                gross_debt=row.gross_debt,
-                gross_debt_last_year=row.gross_debt_last_year,
-                net_debt=row.net_debt,
-                total_interest_expense=row.total_interest_expense,
-                beta=row.beta,
+            ticker=row.ticker,
+            company_name=row.company_name,
+            valuation_date=row.valuation_date,
+            summary=row.summary,
+            valuation_distribution=IntrinsicValueDistribution(
+                currency=row.currency,
+                current_share_price=row.current_share_price,
+                expected_intrinsic_value=row.expected_intrinsic_value,
+                p10_intrinsic_value=row.p10_intrinsic_value,
+                p25_intrinsic_value=row.p25_intrinsic_value,
+                p50_intrinsic_value=row.p50_intrinsic_value,
+                p75_intrinsic_value=row.p75_intrinsic_value,
+                p90_intrinsic_value=row.p90_intrinsic_value,
+                distribution_method=row.distribution_method,
+                distribution_reasoning=row.distribution_reasoning,
             ),
-            stock_assumptions=StockAssumptions(
-                reasoning=row.reasoning,
-                forecast_period_years=row.forecast_period_years,
-                assumed_tax_rate_pct=row.assumed_tax_rate_pct,
-                assumed_forecast_period_annual_revenue_growth_rate_pct=row.assumed_forecast_period_annual_revenue_growth_rate_pct,
-                assumed_perpetuity_cash_flow_growth_rate_pct=row.assumed_perpetuity_cash_flow_growth_rate_pct,
-                assumed_ebit_margin_pct=row.assumed_ebit_margin_pct,
-                assumed_depreciation_and_amortization_rate_pct=row.assumed_depreciation_and_amortization_rate_pct,
-                assumed_capex_rate_pct=row.assumed_capex_rate_pct,
-                assumed_change_in_working_capital_rate_pct=row.assumed_change_in_working_capital_rate_pct,
-            ),
+            methods=[
+                ValuationMethodResult.model_validate(method)
+                for method in json.loads(row.methods_json)
+            ],
+            key_value_drivers=json.loads(row.key_value_drivers_json),
+            downside_risks_to_value=json.loads(row.downside_risks_to_value_json),
+            upside_drivers_to_value=json.loads(row.upside_drivers_to_value_json),
+            data_quality=cast(Literal["High", "Medium", "Low"], row.data_quality),
+            caveats=json.loads(row.caveats_json),
         )
         return payload.model_dump_json()
 

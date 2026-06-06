@@ -1,52 +1,55 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-23 | Updated: 2026-04-16 -->
+<!-- Generated: 2026-02-23 | Updated: 2026-05-31 (canonical toolkit DCF tests) -->
 
 # tests
 
 ## Purpose
 
-The `tests/` directory contains the automated test suite for the Discount Analyst project. Its primary role is to ensure the reliability and mathematical accuracy of the core financial analysis logic, particularly the Discounted Cash Flow (DCF) model. It serves as a regression suite to maintain code quality as the project's AI-driven data gathering and analysis components evolve.
+The `tests/` directory contains the automated test suite for the Discount Analyst project. Its primary role is to ensure the reliability and mathematical accuracy of core financial analysis logic, particularly deterministic valuation toolkit helpers. It serves as a regression suite to maintain code quality as the project's AI-driven data gathering and analysis components evolve.
 
 ## Key Files
 
-| File                                                              | Description                                                                                                                            |
-| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `tests/conftest.py`                                               | Suite-wide defaults so `common.config.settings` can import during collection (sets `LOGGING__LOGFIRE_API_KEY` unless already present). |
-| `tests/dcf_analysis/test_dcf_analysis.py`                         | Comprehensive unit tests for the DCF calculation engine using real-world stock data scenarios.                                         |
-| `tests/discount_analyst/http/test_streaming_retries.py`           | Unit tests for agent streaming retry helpers (`stream_with_retries`, sleep parsing).                                                   |
-| `tests/discount_analyst/integrations/test_financial_data_mcp.py`  | EODHD MCP optional registration (`EODHD__DISABLED`).                                                                                   |
-| `tests/discount_analyst/integrations/test_terminal.py`            | Terminal HTTP client mocks; optional `@pytest.mark.docker` orchestrator integration.                                                   |
-| `tests/discount_analyst/agents/common/test_streamed_agent_run.py` | Tests for `run_streamed_agent`.                                                                                                        |
-| `tests/discount_analyst/agents/sentinel/test_sentinel_gate.py`    | Tests for `sentinel_proceeds_to_valuation` (thesis + red-flag gate).                                                                   |
-| `tests/discount_analyst/pipeline/test_builders.py`                | Tests for `build_sentinel_rejection` and `verdict_from_decision`.                                                                      |
-| `tests/backend/unit/test_dashboard_settings.py`                   | Unified ``Settings`` validation (e.g. non-empty ``LOGGING__LOGFIRE_API_KEY``).                                                         |
-| `tests/backend/unit/test_workflow_api.py`                         | HTTP contract tests for the FastAPI dashboard (`backend`) with isolated SQLite.                                                        |
-| `tests/backend/unit/test_agent_lane_order_sync.py`                | Keeps `backend/contracts/agent_lane_order.py` aligned with `frontend/src/graph/agentLaneOrder.ts`.                                     |
-| `tests/backend/unit/test_profiler_stage.py`                       | Unit tests for the extracted dashboard `ProfilerStage` and its persistence port.                                                       |
-| `tests/backend/unit/test_mock_surveyor_discoveries.py`            | Mock Surveyor discovery helpers and deterministic mock Sentinel pass/fail parity for the dashboard.                                    |
-| `tests/backend/unit/test_mock_rating_table_dashboard.py`          | Deterministic mock `RatingTableDecision` helpers for dashboard payloads.                                                               |
-| `tests/backend/integration/test_mock_workflow.py`                 | Mock pipeline persistence for `DashboardPipelineRunner` (no live LLM calls); mixed Sentinel lanes.                                     |
-| `tests/backend/integration/test_dashboard_http_e2e.py`            | Async HTTP path: create mock workflow run, poll until completed, assert detail and conversations.                                      |
+| File                                                               | Description                                                                                                                            |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/conftest.py`                                                | Suite-wide defaults so `common.config.settings` can import during collection (sets `LOGGING__LOGFIRE_API_KEY` unless already present). |
+| `tests/discount_analyst/agents/appraiser/test_appraiser_schema.py` | Tests for method-agnostic Appraiser output validation and percentile rules.                                                            |
+| `tests/discount_analyst/agents/surveyor/test_surveyor_schema.py`   | Tests for Surveyor output validation (unique candidate tickers).                                                                       |
+| `tests/discount_analyst/valuation/test_toolkit.py`                 | Tests for deterministic valuation toolkit helpers, including DCF real-world scenarios.                                                 |
+| `tests/discount_analyst/http/test_streaming_retries.py`            | Unit tests for agent streaming retry helpers (`stream_with_retries`, sleep parsing).                                                   |
+| `tests/discount_analyst/integrations/test_financial_data_mcp.py`   | EODHD MCP optional registration (`EODHD__DISABLED`).                                                                                   |
+| `tests/discount_analyst/integrations/test_terminal.py`             | Terminal HTTP client mocks; optional `@pytest.mark.docker` orchestrator integration.                                                   |
+| `tests/discount_analyst/agents/common/test_streamed_agent_run.py`  | Tests for `run_streamed_agent`.                                                                                                        |
+| `tests/discount_analyst/agents/sentinel/test_sentinel_gate.py`     | Tests for `sentinel_proceeds_to_valuation` (thesis + red-flag gate).                                                                   |
+| `tests/discount_analyst/pipeline/test_builders.py`                 | Tests for `build_sentinel_rejection` and `verdict_from_decision`.                                                                      |
+| `tests/backend/unit/test_dashboard_settings.py`                    | Unified ``Settings`` validation (e.g. non-empty ``LOGGING__LOGFIRE_API_KEY``).                                                         |
+| `tests/backend/unit/test_workflow_api.py`                          | HTTP contract tests for the FastAPI dashboard (`backend`) with isolated SQLite.                                                        |
+| `tests/backend/unit/test_agent_lane_order_sync.py`                 | Keeps `backend/contracts/agent_lane_order.py` aligned with `frontend/src/graph/agentLaneOrder.ts`.                                     |
+| `tests/backend/unit/test_profiler_stage.py`                        | Unit tests for the extracted dashboard `ProfilerStage` and its persistence port.                                                       |
+| `tests/backend/unit/test_mock_surveyor_discoveries.py`             | Mock Surveyor discovery helpers and deterministic mock Sentinel pass/fail parity for the dashboard.                                    |
+| `tests/backend/unit/test_mock_rating_table_dashboard.py`           | Deterministic mock `RatingTableDecision` helpers for dashboard payloads.                                                               |
+| `tests/backend/integration/test_mock_workflow.py`                  | Mock pipeline persistence for `DashboardPipelineRunner` (no live LLM calls); mixed Sentinel lanes.                                     |
+| `tests/backend/integration/test_dashboard_http_e2e.py`             | Async HTTP path: create mock workflow run, poll until completed, assert detail and conversations.                                      |
 
 ## Subdirectories
 
-| Directory                           | Purpose                                                                                              |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `dcf_analysis/`                     | Tests for the DCF engine (`discount_analyst.valuation`).                                             |
-| `discount_analyst/http/`            | Tests for streaming retry behaviour (`discount_analyst.agents.common.streaming_retries`).            |
-| `discount_analyst/integrations/`    | Tests for MCP adapter wiring (`financial_data_mcp`).                                                 |
-| `discount_analyst/agents/common/`   | Tests for streamed agent orchestration.                                                              |
-| `discount_analyst/agents/sentinel/` | Tests for Sentinel schema helpers.                                                                   |
-| `discount_analyst/pipeline/`        | Tests for programmatic verdict builders and the deterministic rating table.                          |
-| `scripts/`                          | Tests for script helpers where present.                                                              |
-| `backend/`                          | Tests for the FastAPI `backend` package (`unit/`, `integration/`); shared fixtures in `conftest.py`. |
+| Directory                            | Purpose                                                                                              |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `discount_analyst/http/`             | Tests for streaming retry behaviour (`discount_analyst.agents.common.streaming_retries`).            |
+| `discount_analyst/integrations/`     | Tests for MCP adapter wiring (`financial_data_mcp`).                                                 |
+| `discount_analyst/agents/common/`    | Tests for streamed agent orchestration.                                                              |
+| `discount_analyst/agents/appraiser/` | Tests for Appraiser schema contracts.                                                                |
+| `discount_analyst/agents/sentinel/`  | Tests for Sentinel schema helpers.                                                                   |
+| `discount_analyst/pipeline/`         | Tests for programmatic verdict builders and the deterministic rating table.                          |
+| `discount_analyst/valuation/`        | Tests for deterministic valuation toolkit helpers (`discount_analyst.valuation.toolkit`).            |
+| `scripts/`                           | Tests for script helpers where present.                                                              |
+| `backend/`                           | Tests for the FastAPI `backend` package (`unit/`, `integration/`); shared fixtures in `conftest.py`. |
 
 ## For AI Agents
 
 ### Working In This Directory
 
-- Follow the established pattern of using `Pydantic` models (e.g., `TestCase`) to define structured test data and expected results.
-- When adding tests for new financial analysis logic, ensure they are added to the corresponding subdirectory (e.g., `dcf_analysis/`).
+- Follow the established pattern of using small typed fixtures (dataclasses, Pydantic models, or local helpers) to define structured test data and expected results.
+- When adding tests for new financial analysis logic, ensure they are added to the corresponding package subdirectory (e.g., `discount_analyst/valuation/`).
 - Use `pytest.mark.parametrize` for data-driven testing to cover multiple scenarios efficiently.
 
 ### Testing Requirements
@@ -66,7 +69,7 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 ### Internal
 
 - `backend`: FastAPI app, DB layer, and pipeline runner (see `tests/backend/`).
-- `discount_analyst.valuation`: DCF calculation logic under test.
+- `discount_analyst.valuation.toolkit`: Deterministic valuation helpers under test.
 - `discount_analyst.valuation.schema`: Stock data and assumptions models.
 - `discount_analyst.agents.common.streaming_retries`, `discount_analyst.agents.common.streamed_agent_run`: Streaming behaviour.
 

@@ -1,4 +1,4 @@
-"""Run the Appraiser agent and DCF from Sentinel run output JSON selectors."""
+"""Run the Appraiser agent from Sentinel run output JSON selectors."""
 
 import argparse
 import asyncio
@@ -16,11 +16,6 @@ from rich.table import Table
 from discount_analyst.agents.appraiser.appraiser import create_appraiser_agent
 from discount_analyst.agents.appraiser.schema import AppraiserInput, AppraiserOutput
 from discount_analyst.agents.appraiser.user_prompt import create_user_prompt
-from discount_analyst.valuation.data_types import (
-    DCFAnalysisParameters,
-    DCFAnalysisResult,
-)
-from discount_analyst.valuation.dcf_analysis import DCFAnalysis
 from discount_analyst.config.ai_models_config import AIModelsConfig, ModelName
 from discount_analyst.agents.common.agent_names import AgentName
 from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
@@ -140,7 +135,7 @@ def _parse_selector(raw: str, parser: argparse.ArgumentParser) -> Selector:
 def parse_args() -> AppraiserCliArgs:
     parser = argparse.ArgumentParser(
         description=(
-            "Run Appraiser agent and DCF for one or more Sentinel run output JSON files."
+            "Run Appraiser agent for one or more Sentinel run output JSON files."
         )
     )
     parser.add_argument(
@@ -367,16 +362,11 @@ async def run_agent(
     )
 
 
-def build_stock_table(output: AppraiserOutput) -> Table:
-    """Build a Rich table from the agent's stock data."""
-    stock_data = output.stock_data
-    current_price = stock_data.market_cap / stock_data.n_shares_outstanding
-    market_cap_b = stock_data.market_cap / 1e9
-    revenue_m = stock_data.revenue / 1e6
-    ebit_m = stock_data.ebit / 1e6
-
+def build_distribution_table(output: AppraiserOutput) -> Table:
+    """Build a Rich table from the agent's intrinsic-value distribution."""
+    distribution = output.valuation_distribution
     table = Table(
-        title=f"📈 {stock_data.name} ({stock_data.ticker}) - {stock_data.company_scale}",
+        title=f"{output.company_name} ({output.ticker}) - Valuation Distribution",
         show_header=True,
         header_style="bold magenta",
     )
@@ -384,136 +374,93 @@ def build_stock_table(output: AppraiserOutput) -> Table:
     table.add_column("Value", style="green", justify="right")
     table.add_column("Notes")
     table.add_row(
-        "Current Share Price", f"${current_price:.2f}", "Implied from market cap"
+        "Current Share Price",
+        f"{distribution.current_share_price:.2f} {distribution.currency}",
+        "Market reference",
     )
     table.add_row(
-        "Market Cap",
-        f"${market_cap_b:.2f}B",
-        f"Based on {stock_data.n_shares_outstanding:,.0f} shares outstanding",
+        "Expected Intrinsic Value",
+        f"{distribution.expected_intrinsic_value:.2f} {distribution.currency}",
+        "Deterministic policy anchor",
     )
     table.add_row(
-        "Revenue (TTM)",
-        f"${revenue_m:.2f}M",
-        f"EBIT Margin: {stock_data.ebit_margin_pct:.1f}%",
+        "P10 / P25",
+        f"{distribution.p10_intrinsic_value:.2f} / "
+        f"{distribution.p25_intrinsic_value:.2f}",
+        "Downside range",
     )
-    table.add_row("EBIT (TTM)", f"${ebit_m:.2f}M", "Earnings Before Interest & Taxes")
     table.add_row(
-        "Enterprise Value",
-        f"${stock_data.enterprise_value / 1e9:.2f}B",
-        "Market Cap + Net Debt",
+        "P50",
+        f"{distribution.p50_intrinsic_value:.2f} {distribution.currency}",
+        "Median / central case",
     )
-    table.add_row("Beta", f"{stock_data.beta:.2f}", "Volatility relative to market")
     table.add_row(
-        "Interest Rate",
-        f"{stock_data.implied_interest_rate_pct:.1f}%",
-        "Implied cost of debt",
+        "P75 / P90",
+        f"{distribution.p75_intrinsic_value:.2f} / "
+        f"{distribution.p90_intrinsic_value:.2f}",
+        "Upside range",
     )
+    table.add_row(
+        "Distribution Method",
+        distribution.distribution_method,
+        distribution.distribution_reasoning,
+    )
+    return table
+
+
+def build_methods_table(output: AppraiserOutput) -> Table:
+    """Build a Rich table from method evidence summaries."""
+    table = Table(
+        title="Valuation Methods",
+        show_header=True,
+        header_style="bold yellow",
+    )
+    table.add_column("Method", style="cyan")
+    table.add_column("Role", style="yellow")
+    table.add_column("Value/share", justify="right")
+    table.add_column("Range", justify="right")
+    table.add_column("Weight", justify="right")
+    for method in output.methods:
+        value = (
+            "" if method.value_per_share is None else f"{method.value_per_share:.2f}"
+        )
+        value_range = (
+            ""
+            if method.low_value_per_share is None or method.high_value_per_share is None
+            else f"{method.low_value_per_share:.2f}-{method.high_value_per_share:.2f}"
+        )
+        weight = "" if method.weight_pct is None else f"{method.weight_pct:.1f}%"
+        table.add_row(method.method.value, method.role, value, value_range, weight)
     return table
 
 
 def display_agent_output(output: AppraiserOutput) -> None:
     """Print the Appraiser agent output section."""
-    stock_table = build_stock_table(output)
-    assumptions_panel = Panel.fit(
-        output.stock_assumptions.reasoning,
-        title="🧠 Assumptions Reasoning",
+    distribution_table = build_distribution_table(output)
+    methods_table = build_methods_table(output)
+    summary_panel = Panel.fit(
+        output.summary,
+        title="Appraiser Summary",
         border_style="blue",
         padding=(1, 2),
     )
     console.print("\n")
     console.print(
         Panel.fit(
-            "[bold green]🤖 APPRAISER AGENT OUTPUT[/bold green]",
+            "[bold green]APPRAISER AGENT OUTPUT[/bold green]",
             border_style="green",
             padding=(1, 2),
         )
     )
-    console.print(stock_table)
-    console.print(assumptions_panel)
-
-
-def run_dcf_and_display(
-    args: StockRunArgs, agent_output: AppraiserOutput
-) -> tuple[DCFAnalysisResult | None, str | None]:
-    """Run DCF analysis and display results. Returns (dcf_result, dcf_error)."""
-    stock_data = agent_output.stock_data
-    stock_assumptions = agent_output.stock_assumptions
-
-    console.print("\n")
-    console.print(
-        Panel.fit(
-            "[bold yellow]💰 DISCOUNTED CASH FLOW ANALYSIS[/bold yellow]",
-            border_style="yellow",
-            padding=(1, 2),
-        )
-    )
-    dcf_details_panel = Panel.fit(
-        f"Risk-free Rate: {args.risk_free_rate_pct:.1f}%\n"
-        f"Forecast Period: {stock_assumptions.forecast_period_years} years\n"
-        f"Terminal Growth: {stock_assumptions.assumed_perpetuity_cash_flow_growth_rate_pct:.1f}%\n"
-        f"Tax Rate: {stock_assumptions.assumed_tax_rate_pct:.1f}%",
-        title="📊 DCF Model Parameters",
-        border_style="cyan",
-        padding=(1, 2),
-    )
-    console.print(dcf_details_panel)
-
-    dcf_params = DCFAnalysisParameters(
-        stock_data=stock_data,
-        stock_assumptions=stock_assumptions,
-        risk_free_rate_pct=args.risk_free_rate_pct,
-    )
-
-    dcf_error: str | None = None
-    dcf_result: DCFAnalysisResult | None = None
-    try:
-        dcf_analysis = DCFAnalysis(dcf_params)
-        dcf_result = dcf_analysis.dcf_analysis()
-    except Exception as exc:
-        dcf_error = str(exc)
-        console.print(f"[yellow]DCF error: {dcf_error}[/yellow]")
-
-    if dcf_result is not None:
-        current_price = stock_data.market_cap / stock_data.n_shares_outstanding
-        intrinsic_price = dcf_result.intrinsic_share_price
-        premium_discount = ((intrinsic_price - current_price) / current_price) * 100
-        status_emoji = "📈" if premium_discount > 0 else "📉"
-        status_color = "green" if premium_discount > 0 else "red"
-        status_text = f"{status_emoji} [{status_color}]{premium_discount:+.1f}%[/{status_color}] vs current price"
-
-        dcf_table = Table(
-            title="💎 VALUATION RESULTS", show_header=True, header_style="bold yellow"
-        )
-        dcf_table.add_column("Metric", style="cyan", no_wrap=True)
-        dcf_table.add_column("Value", style="green", justify="right")
-        dcf_table.add_column("Analysis")
-        dcf_table.add_row(
-            "Enterprise Value",
-            f"${dcf_result.enterprise_value / 1e6:.2f}M",
-            "Present value of projected unlevered free cash flows plus the discounted terminal value",
-        )
-        dcf_table.add_row(
-            "Equity Value",
-            f"${dcf_result.equity_value / 1e6:.2f}M",
-            "Total value of shareholder equity",
-        )
-        dcf_table.add_row(
-            "Current Market Price", f"${current_price:.2f}", "Implied from market cap"
-        )
-        dcf_table.add_row(
-            "Intrinsic Share Value", f"${intrinsic_price:.2f}", status_text
-        )
-        console.print(dcf_table)
-
-    return dcf_result, dcf_error
+    console.print(distribution_table)
+    console.print(methods_table)
+    console.print(summary_panel)
 
 
 def save_run_output(
     args: StockRunArgs,
     agent_output: AppraiserOutput,
     agent_result: AgentRunResult,
-    dcf_result: DCFAnalysisResult | None,
-    dcf_error: str | None,
     *,
     source_surveyor_report: str,
     source_candidate_index: int,
@@ -529,8 +476,6 @@ def save_run_output(
         model_name=args.model.value,
         risk_free_rate_pct=args.risk_free_rate_pct,
         appraiser=agent_output,
-        dcf_result=dcf_result,
-        dcf_error=dcf_error,
         elapsed_s=agent_result.elapsed_s,
         input_tokens=agent_result.input_tokens,
         output_tokens=agent_result.output_tokens,
@@ -597,14 +542,11 @@ async def main() -> None:
         )
 
         display_agent_output(agent_result.output)
-        dcf_result, dcf_error = run_dcf_and_display(stock_args, agent_result.output)
 
         out_path = save_run_output(
             stock_args,
             agent_result.output,
             agent_result,
-            dcf_result,
-            dcf_error,
             source_surveyor_report=sent.source_surveyor_report,
             source_candidate_index=sent.source_candidate_index,
             source_researcher_report=sent.source_researcher_report,

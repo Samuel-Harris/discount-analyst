@@ -1,10 +1,10 @@
-"""Pre-DCF margin-of-safety verdict derived from base-case intrinsic vs price."""
+"""Margin-of-safety verdict derived from Appraiser expected intrinsic value."""
 
 from __future__ import annotations
 
 from typing import Literal, Self
 
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field, model_validator
 from pydantic.fields import computed_field
 
 MarginOfSafetyVerdict = Literal[
@@ -23,49 +23,88 @@ MOS_NONE: MarginOfSafetyVerdict = "None — stock appears fairly valued or overv
 
 
 class MarginOfSafetyAssessment(BaseModel):
-    """Quantitative margin-of-safety view anchored on the DCF base intrinsic."""
+    """Quantitative margin-of-safety view anchored on expected intrinsic value."""
 
     current_price: float = Field(gt=0)
-    intrinsic_value_base: float = Field(
+    expected_intrinsic_value: float = Field(
         gt=0,
-        validation_alias=AliasChoices("intrinsic_value_base", "base_intrinsic_value"),
-        serialization_alias="intrinsic_value_base",
+        validation_alias=AliasChoices(
+            "expected_intrinsic_value",
+            "intrinsic_value_base",
+            "base_intrinsic_value",
+        ),
     )
+    p10_intrinsic_value: float = Field(gt=0)
+    p25_intrinsic_value: float = Field(gt=0)
+    p50_intrinsic_value: float = Field(gt=0)
+    p75_intrinsic_value: float = Field(gt=0)
+    p90_intrinsic_value: float = Field(gt=0)
+
+    @model_validator(mode="after")
+    def validate_percentiles(self) -> "MarginOfSafetyAssessment":
+        values = [
+            self.p10_intrinsic_value,
+            self.p25_intrinsic_value,
+            self.p50_intrinsic_value,
+            self.p75_intrinsic_value,
+            self.p90_intrinsic_value,
+        ]
+        if values != sorted(values):
+            msg = "Intrinsic value percentiles must be monotonic."
+            raise ValueError(msg)
+        if (
+            not self.p10_intrinsic_value
+            <= self.expected_intrinsic_value
+            <= self.p90_intrinsic_value
+        ):
+            msg = "expected_intrinsic_value must lie between p10 and p90."
+            raise ValueError(msg)
+        return self
 
     @classmethod
-    def from_market_cap(
+    def from_distribution(
         cls,
         *,
-        market_cap: float,
-        n_shares_outstanding: float,
-        intrinsic_value_base: float,
+        current_price: float,
+        expected_intrinsic_value: float,
+        p10_intrinsic_value: float,
+        p25_intrinsic_value: float,
+        p50_intrinsic_value: float,
+        p75_intrinsic_value: float,
+        p90_intrinsic_value: float,
     ) -> Self:
-        """Derive per-share price from market cap and shares; reject non-positive share count."""
-        if n_shares_outstanding <= 0:
-            msg = f"n_shares_outstanding must be positive, got {n_shares_outstanding}."
-            raise ValueError(msg)
         return cls(
-            current_price=market_cap / n_shares_outstanding,
-            intrinsic_value_base=intrinsic_value_base,
+            current_price=current_price,
+            expected_intrinsic_value=expected_intrinsic_value,
+            p10_intrinsic_value=p10_intrinsic_value,
+            p25_intrinsic_value=p25_intrinsic_value,
+            p50_intrinsic_value=p50_intrinsic_value,
+            p75_intrinsic_value=p75_intrinsic_value,
+            p90_intrinsic_value=p90_intrinsic_value,
         )
 
     @computed_field  # type: ignore[prop-decorator]
     @property
+    def intrinsic_value_base(self) -> float:
+        return self.expected_intrinsic_value
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
     def intrinsic_value_bear(self) -> float:
-        # TODO: CODE-35 Use a dynamic bear case
-        return self.intrinsic_value_base * 0.70
+        return self.p10_intrinsic_value
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def intrinsic_value_bull(self) -> float:
-        # TODO: CODE-35 Use a dynamic bull case
-        return self.intrinsic_value_base * 1.40
+        return self.p90_intrinsic_value
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def margin_of_safety_base_pct(self) -> float:
         return (
-            (self.intrinsic_value_base - self.current_price) / self.current_price * 100
+            (self.expected_intrinsic_value - self.current_price)
+            / self.current_price
+            * 100
         )
 
     @computed_field  # type: ignore[prop-decorator]

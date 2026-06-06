@@ -1,6 +1,7 @@
-# Production-like smoke stack: nginx serves the built SPA and proxies /api to the backend.
-# Run (repo root): docker compose -f docker-compose.yml up --build
-# Open http://localhost:8080
+# Terminal orchestrator only (backend + UI run on host — see .vscode/launch.json)
+# docker compose up --build
+# Optional repo bind for sandboxes:
+# TERMINAL_WORKSPACE_HOST_PATH="$(pwd)" docker compose up --build
 
 services:
   # Orchestrator: creates per-run gVisor sandboxes via Docker socket (not mounted on backend).
@@ -21,39 +22,3 @@ services:
       TERMINAL_WORKSPACE_HOST_PATH: ${TERMINAL_WORKSPACE_HOST_PATH:-}
     ports:
       - "8001:8001"
-
-  # Backend image entrypoint runs `alembic upgrade head` then uvicorn (see backend/docker/entrypoint.sh).
-  backend:
-    build:
-      context: .
-      dockerfile: backend/docker/Dockerfile
-    depends_on:
-      - agent-terminal
-    expose:
-      - "8000"
-    volumes:
-      - dashboard_sqlite_prod:/data
-    env_file:
-      - path: .env
-        required: false
-    environment:
-      DASHBOARD_DATABASE_PATH: /data/dashboard.sqlite
-      ENV: PROD
-      PYTHONUNBUFFERED: "1"
-      TERMINAL_SERVICE_URL: http://agent-terminal:8001
-      DASHBOARD_USE_TERMINAL: "true"
-
-  web:
-    build:
-      context: .
-      dockerfile: frontend/Dockerfile
-      target: production
-      args:
-        ENV: PROD
-    ports:
-      - "8080:80"
-    depends_on:
-      - backend
-
-volumes:
-  dashboard_sqlite_prod:

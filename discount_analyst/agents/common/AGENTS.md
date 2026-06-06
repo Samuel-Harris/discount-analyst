@@ -9,19 +9,19 @@ Shared **agent runtime** only: model construction from config, streaming runs wi
 
 ## Key Files
 
-| File                    | Description                                                                |
-| ----------------------- | -------------------------------------------------------------------------- |
-| `agent_factory.py`      | `AgentSpec`, `create_agent` (optional `terminal: TerminalRunOptions`).       |
+| File                    | Description                                                                                 |
+| ----------------------- | ------------------------------------------------------------------------------------------- |
+| `agent_factory.py`      | `AgentSpec`, `create_agent` (optional `terminal: TerminalRunOptions`).                      |
 | `terminal_run.py`       | `TerminalRunOptions`, `terminal_run_options`, `bind_session_id`, `run_agent_with_terminal`. |
-| `model.py`              | `create_model_from_config`.                                                |
-| `ai_logging.py`         | Shared AI-tagged Logfire instance (`AI_LOGFIRE`).                          |
-| `logging_constants.py`  | Shared observability constants (e.g. `AI_LOG_TAG`).                        |
-| `streamed_agent_run.py` | `run_streamed_agent` (terminal session delete + HTTP client cleanup).       |
-| `streaming_retries.py`  | `stream_with_retries`, streaming error classification.                     |
-| `tool_support.py`       | `add_required_feature_to_builtin_tools` (MCP, etc.).                       |
-| `tool_descriptions.py`  | Perplexity tool docstrings per `AgentName`.                                |
-| `agent_names.py`        | `AgentName` enum.                                                          |
-| `creed.py`              | `INVESTING_CREED` for system prompts.                                      |
+| `model.py`              | `create_model_from_config`.                                                                 |
+| `ai_logging.py`         | Shared AI-tagged Logfire instance (`AI_LOGFIRE`).                                           |
+| `logging_constants.py`  | Shared observability constants (e.g. `AI_LOG_TAG`).                                         |
+| `streamed_agent_run.py` | `run_streamed_agent` (terminal session delete + HTTP client cleanup).                       |
+| `streaming_retries.py`  | `stream_with_retries`, streaming error classification.                                      |
+| `tool_support.py`       | `add_required_feature_to_builtin_tools` (MCP, etc.).                                        |
+| `tool_descriptions.py`  | Perplexity tool docstrings per `AgentName`.                                                 |
+| `agent_names.py`        | `AgentName` enum.                                                                           |
+| `creed.py`              | `INVESTING_CREED` for system prompts.                                                       |
 
 ## For AI Agents
 

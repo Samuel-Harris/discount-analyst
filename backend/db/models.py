@@ -390,29 +390,30 @@ class AppraiserReport(SQLModel, table=True):
 
     id: str = Field(primary_key=True)
     agent_execution_id: str = Field(foreign_key="agent_executions.id", index=True)
-    ebit: float
-    revenue: float
-    capital_expenditure: float
-    n_shares_outstanding: float
-    market_cap: float
-    gross_debt: float
-    gross_debt_last_year: float
-    net_debt: float
-    total_interest_expense: float
-    beta: float
-    reasoning: str
-    forecast_period_years: int
-    assumed_tax_rate_pct: float
-    assumed_forecast_period_annual_revenue_growth_rate_pct: float
-    assumed_perpetuity_cash_flow_growth_rate_pct: float
-    assumed_ebit_margin_pct: float
-    assumed_depreciation_and_amortization_rate_pct: float
-    assumed_capex_rate_pct: float
-    assumed_change_in_working_capital_rate_pct: float
+    ticker: str
+    company_name: str
+    valuation_date: str
+    summary: str
+    currency: str
+    current_share_price: float
+    expected_intrinsic_value: float
+    p10_intrinsic_value: float
+    p25_intrinsic_value: float
+    p50_intrinsic_value: float
+    p75_intrinsic_value: float
+    p90_intrinsic_value: float
+    distribution_method: str
+    distribution_reasoning: str
+    methods_json: str
+    key_value_drivers_json: str
+    downside_risks_to_value_json: str
+    upside_drivers_to_value_json: str
+    data_quality: str
+    caveats_json: str
 
 
-class DcfValuation(SQLModel, table=True):
-    __tablename__ = "dcf_valuations"  # pyright: ignore[reportAssignmentType]
+class ValuationDistribution(SQLModel, table=True):
+    __tablename__ = "valuation_distributions"  # pyright: ignore[reportAssignmentType]
     __table_args__ = (
         UniqueConstraint("run_id"),
         UniqueConstraint("appraiser_agent_execution_id"),
@@ -424,9 +425,16 @@ class DcfValuation(SQLModel, table=True):
         foreign_key="agent_executions.id",
         index=True,
     )
-    intrinsic_share_price: float
-    enterprise_value: float
-    equity_value: float
+    currency: str
+    current_share_price: float
+    expected_intrinsic_value: float
+    p10_intrinsic_value: float
+    p25_intrinsic_value: float
+    p50_intrinsic_value: float
+    p75_intrinsic_value: float
+    p90_intrinsic_value: float
+    distribution_method: str
+    distribution_reasoning: str
 
 
 class RunFinalDecision(SQLModel, table=True):

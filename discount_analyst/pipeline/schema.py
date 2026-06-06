@@ -37,7 +37,7 @@ class RatingTableRationale(BaseModel):
 
 
 class RatingTableDecision(BaseModel):
-    """Deterministic valuation-gated rating (replaces LLM ``ArbiterDecision``)."""
+    """Deterministic valuation-gated rating built from Appraiser distribution."""
 
     decision_rule_id: Literal["rating_table_v1"]
     ticker: str

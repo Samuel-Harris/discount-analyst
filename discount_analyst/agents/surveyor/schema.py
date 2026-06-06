@@ -1,6 +1,6 @@
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class Exchange(StrEnum):
@@ -145,3 +145,23 @@ class SurveyorOutput(BaseModel):
             "better than a diluted one."
         ),
     )
+
+    @field_validator("candidates", mode="after")
+    @classmethod
+    def _candidate_tickers_are_unique(
+        cls, candidates: list[SurveyorCandidate]
+    ) -> list[SurveyorCandidate]:
+        seen: set[str] = set()
+        duplicates: list[str] = []
+        for candidate in candidates:
+            key = candidate.ticker.strip().casefold()
+            if key in seen:
+                duplicates.append(candidate.ticker)
+                continue
+            seen.add(key)
+        if duplicates:
+            duplicate_list = ", ".join(sorted(set(duplicates), key=str.casefold))
+            raise ValueError(
+                f"Duplicate Surveyor candidate ticker(s): {duplicate_list}"
+            )
+        return candidates

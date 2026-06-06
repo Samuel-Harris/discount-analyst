@@ -1,11 +1,11 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-04-05 | Updated: 2026-05-17 -->
+<!-- Generated: 2026-04-05 | Updated: 2026-05-31 -->
 
 # pipeline
 
 ## Purpose
 
-Non-LLM pipeline contracts for **human-facing verdicts**: `SentinelRejection` (programmatic short-circuit when Sentinel blocks valuation), `RatingTableDecision` (deterministic post-DCF rating from `rating_decision_table.py`), and **`Verdict`** (hoisted summary fields plus typed `decision: RatingTableDecision | SentinelRejection`). Builders live in `builders.py`.
+Non-LLM pipeline contracts for **human-facing verdicts**: `SentinelRejection` (programmatic short-circuit when Sentinel blocks valuation), `RatingTableDecision` (deterministic post-Appraiser rating from `rating_decision_table.py`), and **`Verdict`** (hoisted summary fields plus typed `decision: RatingTableDecision | SentinelRejection`). Builders live in `builders.py`.
 
 ## Key Files
 

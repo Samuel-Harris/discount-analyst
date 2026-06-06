@@ -1,4 +1,4 @@
-"""Run Surveyor or Profiler entry, then Researcher through Sentinel, gated Appraiser + DCF, deterministic rating, Verdicts."""
+"""Run Surveyor or Profiler entry, then Researcher through Sentinel, gated Appraiser, deterministic rating, Verdicts."""
 
 import argparse
 import asyncio
@@ -53,7 +53,6 @@ from backend.contracts.stock_run_args import StockRunArgs
 from scripts.agents.run_appraiser import (
     display_agent_output,
     run_agent,
-    run_dcf_and_display,
     save_run_output,
 )
 from discount_analyst.agents.common.terminal_run import TerminalRunOptions
@@ -167,7 +166,7 @@ def parse_args() -> WorkflowArgs:
             "Run Surveyor once (default) or Profiler per ticker (--profiler-tickers), "
             "then Researcher sequentially for each candidate, "
             "then Strategist and Sentinel for each successful Researcher and Strategist run, "
-            "then Appraiser and DCF when the Sentinel valuation gate passes, "
+            "then Appraiser when the Sentinel valuation gate passes, "
             "then deterministic rating; writes Verdict rows and a verdicts JSON artefact."
         )
     )
@@ -178,7 +177,10 @@ def parse_args() -> WorkflowArgs:
         type=float,
         required=True,
         dest="risk_free_rate_pct",
-        help="Risk-free rate as a percentage for DCF (e.g. 4.5 means 4.5%).",
+        help=(
+            "Risk-free rate as a percentage for valuation helpers "
+            "(e.g. 4.5 means 4.5%)."
+        ),
     )
     parser.add_argument(
         "--is-existing-position",
@@ -749,7 +751,7 @@ def save_sentinel_output(
     return str(out_path)
 
 
-async def _run_appraiser_dcf_final_rating_for_candidate(
+async def _run_appraiser_final_rating_for_candidate(
     *,
     args: WorkflowArgs,
     terminal: TerminalRunOptions,
@@ -785,13 +787,10 @@ async def _run_appraiser_dcf_final_rating_for_candidate(
         terminal=terminal,
     )
     display_agent_output(agent_result.output)
-    dcf_result, dcf_error = run_dcf_and_display(stock_args, agent_result.output)
     appraiser_out_path = save_run_output(
         stock_args,
         agent_result.output,
         agent_result,
-        dcf_result,
-        dcf_error,
         source_surveyor_report=source_entry_report_path,
         source_candidate_index=index,
         source_researcher_report=researcher_out_path,
@@ -801,20 +800,15 @@ async def _run_appraiser_dcf_final_rating_for_candidate(
     )
     console.print(f"Saved Appraiser output: [dim]{appraiser_out_path}[/dim]")
 
-    if dcf_result is None:
-        console.print(
-            f"[yellow]Warning: DCF did not produce a result for "
-            f"{candidate.ticker}; omitting a Verdict for this candidate.[/yellow]"
-        )
-        if dcf_error:
-            console.print(f"[dim]{dcf_error}[/dim]")
-        return
-
-    sd = agent_result.output.stock_data
-    margin_of_safety = MarginOfSafetyAssessment.from_market_cap(
-        market_cap=sd.market_cap,
-        n_shares_outstanding=sd.n_shares_outstanding,
-        intrinsic_value_base=dcf_result.intrinsic_share_price,
+    distribution = agent_result.output.valuation_distribution
+    margin_of_safety = MarginOfSafetyAssessment.from_distribution(
+        current_price=distribution.current_share_price,
+        expected_intrinsic_value=distribution.expected_intrinsic_value,
+        p10_intrinsic_value=distribution.p10_intrinsic_value,
+        p25_intrinsic_value=distribution.p25_intrinsic_value,
+        p50_intrinsic_value=distribution.p50_intrinsic_value,
+        p75_intrinsic_value=distribution.p75_intrinsic_value,
+        p90_intrinsic_value=distribution.p90_intrinsic_value,
     )
     rating_decision = build_rating_table_decision(
         candidate=candidate,
@@ -1047,10 +1041,10 @@ async def main() -> None:
 
         console.log(
             f"Sentinel valuation gate passed; "
-            f"running Appraiser + DCF for {candidate.ticker}..."
+            f"running Appraiser for {candidate.ticker}..."
         )
         try:
-            await _run_appraiser_dcf_final_rating_for_candidate(
+            await _run_appraiser_final_rating_for_candidate(
                 args=args,
                 terminal=terminal,
                 candidate=candidate,

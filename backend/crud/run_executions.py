@@ -17,7 +17,7 @@ from sqlmodel import Session, col
 from backend.crud.agent_output_persistence import (
     persist_profiler_output,
     persist_surveyor_output,
-    replace_appraiser_report,
+    replace_appraiser_output,
     replace_evaluation_report,
     replace_mispricing_thesis,
     replace_research_report,
@@ -39,22 +39,22 @@ from backend.db.models import (
     AgentExecution,
     AgentNameDb,
     CandidateSnapshot,
-    DcfValuation,
     DecisionTypeDb,
     EntryPathDb,
     ExecutionStatusDb,
     Run,
+    ValuationDistribution,
     WorkflowRun,
     WorkflowAgentExecution,
     WorkflowRunStatusDb,
 )
+from discount_analyst.agents.appraiser.schema import IntrinsicValueDistribution
 from discount_analyst.pipeline.schema import (
     RatingTableDecision,
     SentinelRejection,
     Verdict,
 )
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
-from discount_analyst.valuation.data_types import DCFAnalysisResult
 
 _ACTIVE_RUN_STATUSES = frozenset({WorkflowRunStatusDb.RUNNING.value})
 _TERMINAL_RUN_STATUSES = frozenset(
@@ -349,20 +349,27 @@ def get_completed_agent_output_json(
     return output_json
 
 
-def get_dcf_valuation_for_run(
+def get_valuation_distribution_for_run(
     session: Session,
     *,
     run_id: str,
-) -> DCFAnalysisResult | None:
+) -> IntrinsicValueDistribution | None:
     row = session.scalars(
-        select(DcfValuation).where(col(DcfValuation.run_id) == run_id)
+        select(ValuationDistribution).where(col(ValuationDistribution.run_id) == run_id)
     ).first()
     if row is None:
         return None
-    return DCFAnalysisResult(
-        intrinsic_share_price=row.intrinsic_share_price,
-        enterprise_value=row.enterprise_value,
-        equity_value=row.equity_value,
+    return IntrinsicValueDistribution(
+        currency=row.currency,
+        current_share_price=row.current_share_price,
+        expected_intrinsic_value=row.expected_intrinsic_value,
+        p10_intrinsic_value=row.p10_intrinsic_value,
+        p25_intrinsic_value=row.p25_intrinsic_value,
+        p50_intrinsic_value=row.p50_intrinsic_value,
+        p75_intrinsic_value=row.p75_intrinsic_value,
+        p90_intrinsic_value=row.p90_intrinsic_value,
+        distribution_method=row.distribution_method,
+        distribution_reasoning=row.distribution_reasoning,
     )
 
 
@@ -519,7 +526,7 @@ def persist_agent_execution_structured_output(
         case AgentNameDb.SENTINEL:
             replace_evaluation_report(session, execution, output_json)
         case AgentNameDb.APPRAISER:
-            replace_appraiser_report(session, execution, output_json)
+            replace_appraiser_output(session, execution, output_json)
         case _:
             pass
 
@@ -684,7 +691,7 @@ def persist_ticker_run_final_verdict(
             rejection_reason=None,
             current_price=decision.margin_of_safety.current_price,
             bear_intrinsic_value=decision.margin_of_safety.intrinsic_value_bear,
-            base_intrinsic_value=decision.margin_of_safety.intrinsic_value_base,
+            base_intrinsic_value=decision.margin_of_safety.expected_intrinsic_value,
             bull_intrinsic_value=decision.margin_of_safety.intrinsic_value_bull,
             margin_of_safety_base_pct=decision.margin_of_safety.margin_of_safety_base_pct,
             margin_of_safety_verdict=decision.margin_of_safety.margin_of_safety_verdict,

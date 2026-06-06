@@ -21,6 +21,9 @@ import argparse
 import re
 import sqlite3
 from pathlib import Path
+from typing import cast
+
+ConversationSection = tuple[str, str, str, str]
 
 PER_TICKER_AGENTS = (
     "PROFILER",
@@ -323,7 +326,7 @@ def _render_file_text(
     agent: str,
     workflow_id: str,
     sqlite_path: Path,
-    sections: list[tuple[str, str, str, str]],
+    sections: list[ConversationSection],
     curated: bool,
     line_budget: int | None = None,
     dropped_tickers: list[str] | None = None,
@@ -380,15 +383,15 @@ def _line_count(s: str) -> int:
 
 def _apply_line_budget(
     agent: str,
-    sections: list[tuple[str, str, str, str]],
+    sections: list[ConversationSection],
     *,
     max_lines: int,
     workflow_id: str,
     sqlite_path: Path,
-) -> tuple[list[tuple[str, str, str, str]], list[str]]:
+) -> tuple[list[ConversationSection], list[str]]:
     """Drop lowest-scoring ticker bodies until the rendered file fits ``max_lines``."""
 
-    def count(sec: list[tuple[str, str, str, str]]) -> int:
+    def count(sec: list[ConversationSection]) -> int:
         text = _render_file_text(
             agent=agent,
             workflow_id=workflow_id,
@@ -431,7 +434,7 @@ def _write_file(
     agent: str,
     workflow_id: str,
     sqlite_path: Path,
-    sections: list[tuple[str, str, str, str]],
+    sections: list[ConversationSection],
     full_transcripts: bool,
     max_lines: int,
 ) -> tuple[int, int]:
@@ -447,7 +450,7 @@ def _write_file(
         path.write_text(text, encoding="utf-8")
         return len(sections), _line_count(text)
 
-    compressed: list[tuple[str, str, str, str]] = []
+    compressed: list[ConversationSection] = []
     for ticker, conv_id, exec_id, body in sections:
         b2 = _compress_conversation_body(agent, body, full=False)
         compressed.append((ticker, conv_id, exec_id, b2))
@@ -492,7 +495,7 @@ def main() -> None:
         "--sqlite-path",
         required=True,
         type=Path,
-        help="Path to dashboard SQLite (e.g. from_compose_dashboard.sqlite)",
+        help="Path to dashboard SQLite (e.g. data/dashboard.sqlite or artefact copy)",
     )
     parser.add_argument(
         "--output-dir",
@@ -539,7 +542,7 @@ def main() -> None:
         body = _format_conversation(
             con, surveyor["conversation_id"], surveyor["system_prompt"]
         )
-        sections = [
+        surveyor_sections: list[ConversationSection] = [
             (
                 "__workflow__",
                 surveyor["conversation_id"],
@@ -552,7 +555,7 @@ def main() -> None:
             agent="SURVEYOR",
             workflow_id=workflow_id,
             sqlite_path=db_path,
-            sections=sections,
+            sections=surveyor_sections,
             full_transcripts=full,
             max_lines=max_lines,
         )
@@ -575,14 +578,14 @@ def main() -> None:
             """,
             (agent, workflow_id),
         ).fetchall()
-        sections = []
+        per_ticker_sections: list[ConversationSection] = []
         for r in rows:
             body = _format_conversation(con, r["conversation_id"], r["system_prompt"])
-            sections.append(
+            per_ticker_sections.append(
                 (
-                    r["ticker"],
-                    r["conversation_id"],
-                    r["agent_execution_id"],
+                    cast(str, r["ticker"]),
+                    cast(str, r["conversation_id"]),
+                    cast(str, r["agent_execution_id"]),
                     body,
                 )
             )
@@ -592,11 +595,14 @@ def main() -> None:
             agent=agent,
             workflow_id=workflow_id,
             sqlite_path=db_path,
-            sections=sections,
+            sections=per_ticker_sections,
             full_transcripts=full,
             max_lines=max_lines,
         )
-        print(f"Wrote {out} ({n_conv}/{len(sections)} conversations, {n_lines} lines)")
+        print(
+            f"Wrote {out} "
+            f"({n_conv}/{len(per_ticker_sections)} conversations, {n_lines} lines)"
+        )
 
     con.close()
     mode = "full transcripts" if full else f"issue-focused (≤{max_lines} lines)"
