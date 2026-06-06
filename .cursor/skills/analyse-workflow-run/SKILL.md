@@ -4,7 +4,7 @@ description: >-
   End-to-end analysis of a Discount Analyst dashboard workflow run: telemetry
   (Logfire), SQLite conversation digests (host `data/dashboard.prod.sqlite` for
   saved production runs), per-agent qualitative review via subagents, and a single
-  markdown report. Writes all artefacts under
+  HTML report. Writes all artefacts under
   `.cursor/artefacts/analyse-workflow-run/<workflow-run-id>/`. Use when the user
   asks to analyse, review, or audit a workflow run, agent conversations for a
   run, or `workflow_run_id` / UUID from the dashboard pipeline.
@@ -27,7 +27,7 @@ All outputs for a single run live under:
 | `dashboard.sqlite` (or copy renamed e.g. `from_run_dashboard.sqlite`) | Dashboard SQLite — copy from host `data/dashboard.prod.sqlite` into this folder for analysis — **do not commit** (parent `.gitignore` ignores `.cursor/artefacts/`).                                                                              |
 | `conversation_digests/`                                               | Per-ticker `.md` digests + `_MERGED_<AGENT>.md` for subagent input.                                                                                                                                                                               |
 | `aggregated_conversations/`                                           | Transcripts: one `*.md` per agent (`SURVEYOR.md`, `PROFILER.md`, …). **Default:** issue-focused export (≤6,000 lines per file, compressed prompts + heuristic ticker prioritisation). **`--full-transcripts`:** uncapped verbatim message stream. |
-| `<workflow-run-id>_agent_review.md`                                   | Final report: data sources, qualitative sections, Logfire appendix.                                                                                                                                                                               |
+| `<workflow-run-id>_agent_review.html`                                 | Final report (self-contained HTML): data sources, qualitative sections, Logfire appendix. Open in a browser.                                                                                                                                      |
 
 Never place run-specific artefacts loose under `.cursor/artefacts/analyse-workflow-run/` — always nest each run in its own `<workflow-run-id>/` subdirectory.
 
@@ -105,14 +105,25 @@ Historical Docker Compose production data was migrated into `data/dashboard.prod
 
    Agents: `SURVEYOR`, `PROFILER`, `RESEARCHER`, `STRATEGIST`, `SENTINEL`, `APPRAISER`. Skip any agent with no merged file for this run.
 
-7. **Write report:** `<uuid>_agent_review.md` in the **same** `<uuid>/` folder. Link paths relative to that folder (`./dashboard.sqlite`, `./conversation_digests/`, `./aggregated_conversations/`, script paths as above).
+7. **Write report:** `<uuid>_agent_review.html` in the **same** `<uuid>/` folder. **Do not** write a markdown report — the deliverable is HTML only.
+
+## Report format (HTML)
+
+Write a **single self-contained HTML file** (no external CSS/JS/fonts). Requirements:
+
+- `<!DOCTYPE html>`, `<meta charset="utf-8">`, `<meta name="viewport" content="width=device-width, initial-scale=1">`, `<title>` including the workflow UUID.
+- Embedded `<style>` for readable typography, section spacing, and styled `<table>` elements (borders, zebra rows optional).
+- Semantic structure: `<header>`, `<main>`, `<section>` per major part, `<h1>`–`<h3>` hierarchy.
+- Relative links to sibling artefacts where useful (`./conversation_digests/`, `./aggregated_conversations/`, `./dashboard.sqlite`).
+- Telemetry and per-ticker summaries as HTML `<table>` elements, not markdown pipe tables.
+- Escape user- and agent-generated text (`&`, `<`, `>`) in HTML body content.
 
 ## Report structure (suggested)
 
 1. **Data sources** — SQLite path + copy command; Logfire window; note whether `data/dashboard.prod.sqlite` was copied fresh or may be stale.
 2. **Executive summary** — tickers (`workflow_run_portfolio_tickers` / `runs`), profiler coverage if `< 25` conversations, sentinel pass count, runs with `run_final_decisions` / `final_rating` when present.
-3. **Qualitative conversation review** — one subsection per agent from subagents.
-4. **Appendix: telemetry** — Logfire table + any pipeline-only notes.
+3. **Qualitative conversation review** — one `<section>` per agent from subagents.
+4. **Appendix: telemetry** — Logfire tables + any pipeline-only notes.
 
 ## Codebase pointers
 
