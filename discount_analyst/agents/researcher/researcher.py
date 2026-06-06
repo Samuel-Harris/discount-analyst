@@ -31,12 +31,12 @@ def create_researcher_agent(
         ai_models_config: Model and caching configuration.
         use_perplexity: When True, registers Perplexity-backed
             ``web_search`` and ``sec_filings_search`` tools. When False (default),
-            those tools are omitted and pydantic-ai's built-in
-            ``WebSearchTool`` is used instead (model-native web search).
-            When Perplexity is disabled, ``WebFetchTool`` is also added for
-            Anthropic and Gemini so the agent can fetch content from URLs.
+            uses pydantic-ai's ``WebSearch`` and ``WebFetch`` capabilities,
+            which use provider-native tools where supported and Pydantic AI
+            local fallbacks otherwise.
         use_mcp_financial_data: When True (default), registers EODHD and FMP
-            MCP toolsets for providers that support MCP (Anthropic, OpenAI).
+            MCP toolsets for providers that support MCP (Anthropic, OpenAI,
+            DeepSeek).
             Use False or ``--no-mcp`` for Google or when MCP should be omitted.
         terminal: Per-run terminal sandbox options; defaults from process settings.
 

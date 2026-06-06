@@ -5,7 +5,7 @@
 
 ## Purpose
 
-Named external service adapters: Perplexity search tools, EODHD/FMP MCP `MCPServerStreamableHTTP` factories, and the Docker-backed **terminal** sandbox (`terminal_exec`).
+Named external service adapters: Perplexity search tools, EODHD/FMP MCP `MCPServerStreamableHTTP` factories, and the Docker-backed **terminal** sandbox (`terminal_exec`). Default web search/fetch is wired directly through Pydantic AI capabilities in `agents/common/agent_factory.py`.
 
 ## Key Files
 

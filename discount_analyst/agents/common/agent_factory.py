@@ -2,8 +2,8 @@
 
 from dataclasses import dataclass
 
-from pydantic_ai import AbstractToolset, Agent, WebFetchTool, WebSearchTool
-from pydantic_ai.capabilities import AgentCapability, NativeTool
+from pydantic_ai import AbstractToolset, Agent
+from pydantic_ai.capabilities import AgentCapability, WebFetch, WebSearch
 
 from common.config import settings as app_settings
 from discount_analyst.agents.common.agent_names import AgentName
@@ -34,6 +34,29 @@ class AgentSpec[OutT]:
     system_prompt: str
 
 
+@dataclass(frozen=True, slots=True)
+class AgentTooling:
+    """Capabilities and toolsets that will be registered on an agent."""
+
+    capabilities: tuple[AgentCapability[None], ...] = ()
+    toolsets: tuple[AbstractToolset[None], ...] = ()
+
+
+def create_web_research_tooling(
+    *, agent_name: AgentName, use_perplexity: bool
+) -> AgentTooling:
+    """Build web-research tooling without leaking Pydantic AI agent internals."""
+    if use_perplexity:
+        return AgentTooling(toolsets=(create_perplexity_toolset(agent_name),))
+
+    return AgentTooling(
+        capabilities=(
+            WebSearch(native=True, local="duckduckgo"),
+            WebFetch(native=True, local=True),
+        )
+    )
+
+
 def create_agent[OutT](
     *,
     spec: AgentSpec[OutT],
@@ -45,8 +68,9 @@ def create_agent[OutT](
 ) -> Agent[None, OutT]:
     """Build a pydantic-ai agent from a spec.
 
-    By default, the factory enables model-native web search (+ optional fetch),
-    optional Perplexity search, and optional financial MCP toolsets.
+    By default, the factory enables Pydantic AI's native-or-local web search
+    and fetch capabilities, optional Perplexity search, and optional financial
+    MCP toolsets.
     Set ``enable_web_research_tools=False`` for interpretation-only agents
     (for example, Strategist and Sentinel). When ``terminal`` is omitted, terminal
     follows ``settings.use_terminal`` only (independent of web/MCP flags).
@@ -72,16 +96,12 @@ def create_agent[OutT](
         )
 
     if enable_web_research_tools:
-        if not use_perplexity:
-            capabilities.append(NativeTool(WebSearchTool()))
-
-            supports_web_fetch = ai_models_config.model.supports_feature(
-                ProviderFeature.WEB_FETCH
-            )
-            if supports_web_fetch:
-                capabilities.append(NativeTool(WebFetchTool()))
-        else:
-            toolsets.append(create_perplexity_toolset(spec.name))
+        web_tooling = create_web_research_tooling(
+            agent_name=spec.name,
+            use_perplexity=use_perplexity,
+        )
+        capabilities.extend(web_tooling.capabilities)
+        toolsets.extend(web_tooling.toolsets)
 
     if use_mcp_financial_data:
         add_required_feature_to_builtin_tools(

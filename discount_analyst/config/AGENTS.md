@@ -5,7 +5,7 @@
 
 ## Purpose
 
-Application and AI model configuration: API keys via `pydantic-settings`, LLM model selection and provider-specific parameters, and provider feature flags (`WEB_FETCH`, `MCP`). Unified `Settings` and `settings` are defined in [`common/config.py`](../../common/config.py); import `common.config` in code.
+Application and AI model configuration: API keys via `pydantic-settings`, LLM model selection and provider-specific parameters, and provider feature flags (`MCP`). Unified `Settings` and `settings` are defined in [`common/config.py`](../../common/config.py); import `common.config` in code.
 
 ## Key Files
 

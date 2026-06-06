@@ -26,6 +26,10 @@ class Google(BaseModel):
     api_key: str
 
 
+class DeepSeek(BaseModel):
+    api_key: str
+
+
 class FMP(BaseModel):
     api_key: str
 
@@ -81,6 +85,7 @@ class Settings(BaseSettings):
     anthropic: Anthropic | None = None
     openai: OpenAI | None = None
     google: Google | None = None
+    deepseek: DeepSeek | None = None
     fmp: FMP
     eodhd: EODHD
     logging: Logging

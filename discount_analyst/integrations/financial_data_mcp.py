@@ -5,7 +5,7 @@ exposes each server's tools as native function tools in the agent's tool registr
 This avoids the MCPServerTool builtin pattern where the model must call list_tools
 first (injecting hundreds of tool schemas into the conversation as messages).
 
-Supported providers: Anthropic, OpenAI. Not supported: Google (causes 400).
+Supported providers: Anthropic, OpenAI, DeepSeek. Not supported: Google (causes 400).
 Use --no-mcp when running with Google models.
 """
 

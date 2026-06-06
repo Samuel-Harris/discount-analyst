@@ -107,20 +107,23 @@ and ratios. Piotroski and Altman will be null for most UK names — note this in
 
 For each candidate still in contention after Step 2, run the following in order:
 
-1. Call `web_search` with a query for recent news, business model context, and any known
-   controversies for that ticker (e.g. `"Company Name" TICKER short seller fraud 2024`).
-   Read the snippets. If a result looks material and the snippet is insufficient, call
-   `web_fetch` on that specific URL — one fetch per search at most. Do not open pages
-   speculatively.
+1. Call the registered web search tool (`web_search` for native/Perplexity search or
+   `duckduckgo_search` for Pydantic AI's local fallback) with a query for recent news,
+   business model context, and any known controversies for that ticker (e.g.
+   `"Company Name" TICKER short seller fraud 2024`). Read the snippets. If a result
+   looks material and the snippet is insufficient, call `web_fetch` on that specific
+   URL — one fetch per search at most. Do not open pages speculatively.
 
-2. For US tickers only, call `web_search` with a query targeting SEC filings
-   (e.g. `site:sec.gov TICKER form 4 insider 2024`). If a direct filing URL is returned,
-   call `web_fetch` on it. If no useful result is returned, record "SEC insider data not
-   retrieved via web search" in data_gaps and move to the next ticker.
+2. For US tickers only, call the registered web search tool with a query targeting SEC
+   filings (e.g. `site:sec.gov TICKER form 4 insider 2024`). If a direct filing URL is
+   returned, call `web_fetch` on it. If no useful result is returned, record
+   "SEC insider data not retrieved via web search" in data_gaps and move to the next
+   ticker.
 
-3. For UK tickers only, call `web_search` targeting RNS director/PDMR dealing announcements
-   (e.g. `"Company Name" RNS director dealing 2024 site:londonstockexchange.com OR
-   site:investegate.co.uk`). If no result is found, record it in data_gaps.
+3. For UK tickers only, call the registered web search tool targeting RNS director/PDMR
+   dealing announcements (e.g. `"Company Name" RNS director dealing 2024
+   site:londonstockexchange.com OR site:investegate.co.uk`). If no result is found,
+   record it in data_gaps.
 
 Do not loop back to Steps 1 or 2 during this step. Do not open a page simply because it
 exists — only fetch when the snippet is insufficient to assess a material risk or signal.
@@ -136,14 +139,14 @@ output call. Do not produce a JSON block in free text as a substitute.
 |---|---|
 | FMP screener / financial data | `fmp_search` |
 | EODHD screener / fundamentals | `eodhd_screener` / `eodhd_fundamentals` (use whichever is registered) |
-| Web search (snippets) | `web_search` |
+| Web search (snippets) | `web_search` or `duckduckgo_search` — use whichever is registered |
 | Web fetch (full page) | `web_fetch` |
 | Structured output | `final_result` |
 
 There is no SEC-specific search tool. For US insider transactions and filing verification, use
-`web_search` with queries targeting sec.gov (e.g. `site:sec.gov TICKER form 4 2024`), then
-`web_fetch` on any specific filing URL returned. If a filing URL is not returned, note the gap in
-data_gaps and move on — do not loop.
+the registered web search tool with queries targeting sec.gov (e.g.
+`site:sec.gov TICKER form 4 2024`), then `web_fetch` on any specific filing URL returned.
+If a filing URL is not returned, note the gap in data_gaps and move on — do not loop.
 
 Do not use any other tool not listed above. If you find yourself reasoning about whether a tool
 is permitted, the answer is no unless it appears in this table.

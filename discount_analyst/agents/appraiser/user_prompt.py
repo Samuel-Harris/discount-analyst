@@ -12,7 +12,7 @@ def create_user_prompt(*, appraiser_input: AppraiserInput) -> str:
     return f"""
 Analyze **{ticker}** and produce a method-agnostic intrinsic value distribution.
 
-**Upstream contract:** You receive **structured screening context** (`stock_candidate`), **neutral deep research** (`deep_research`), the **mispricing thesis** (`thesis`), and the Sentinel **evaluation** (`evaluation`). Screening is **“worth modelling” framing**, not verified financials — **validate** flags and gaps against filings and your own `web_search` work. The thesis and evaluation are claims and stress-test results to respect when building assumptions; they do not replace live financial facts.
+**Upstream contract:** You receive **structured screening context** (`stock_candidate`), **neutral deep research** (`deep_research`), the **mispricing thesis** (`thesis`), and the Sentinel **evaluation** (`evaluation`). Screening is **“worth modelling” framing**, not verified financials — **validate** flags and gaps against filings and your own web-search work. The thesis and evaluation are claims and stress-test results to respect when building assumptions; they do not replace live financial facts.
 
 **Downstream contract:** Return **valuation-only** `AppraiserOutput` JSON containing:
 - `valuation_distribution` with current price, expected intrinsic value, p10/p25/p50/p75/p90 intrinsic values, currency, method, and reasoning
