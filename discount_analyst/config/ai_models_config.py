@@ -12,7 +12,10 @@ from pydantic import BaseModel, Field, computed_field
 from pydantic_ai import UsageLimits
 from pydantic_ai.models.anthropic import AnthropicModelSettings
 from pydantic_ai.models.google import GoogleModelSettings
-from pydantic_ai.models.openai import OpenAIChatModelSettings, OpenAIResponsesModelSettings
+from pydantic_ai.models.openai import (
+    OpenAIChatModelSettings,
+    OpenAIResponsesModelSettings,
+)
 
 _MAX_TOOL_CALLS = 60
 _MAX_TOKENS = 30_000

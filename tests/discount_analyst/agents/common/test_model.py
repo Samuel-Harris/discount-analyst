@@ -46,7 +46,9 @@ def test_create_deepseek_model_uses_deepseek_provider(
     )
     monkeypatch.setattr(model_module, "OpenAIChatModel", FakeOpenAIChatModel)
     monkeypatch.setattr(model_module, "DeepSeekProvider", FakeDeepSeekProvider)
-    monkeypatch.setattr(model_module, "create_rate_limit_client", fake_rate_limit_client)
+    monkeypatch.setattr(
+        model_module, "create_rate_limit_client", fake_rate_limit_client
+    )
 
     created_model = model_module.create_model_from_config(
         AIModelsConfig(model_name=ModelName.DEEPSEEK_V4_PRO).model

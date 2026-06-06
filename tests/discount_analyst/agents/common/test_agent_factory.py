@@ -8,7 +8,11 @@ from discount_analyst.agents.common.agent_factory import (
     create_web_research_tooling,
 )
 from discount_analyst.agents.common.agent_names import AgentName
-from discount_analyst.config.ai_models_config import AIModelConfig, AIModelsConfig, ModelName
+from discount_analyst.config.ai_models_config import (
+    AIModelConfig,
+    AIModelsConfig,
+    ModelName,
+)
 
 
 def test_create_web_research_tooling_uses_pydantic_web_capabilities(
