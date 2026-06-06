@@ -36,6 +36,7 @@ def dashboard_settings_for_tests(
         anthropic=None,
         openai=None,
         google=None,
+        deepseek=None,
         logging=Logging(
             logfire_api_key=logfire_api_key,
             log_level=log_level,

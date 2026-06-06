@@ -76,6 +76,7 @@ Nested groups use double underscores, for example `PERPLEXITY__API_KEY`, `LOGGIN
 | `ANTHROPIC__API_KEY`                | Optional Anthropic key                                                                                                                                    |
 | `OPENAI__API_KEY`                   | Optional OpenAI key                                                                                                                                       |
 | `GOOGLE__API_KEY`                   | Optional Google GenAI key                                                                                                                                 |
+| `DEEPSEEK__API_KEY`                 | Optional DeepSeek key                                                                                                                                     |
 | `FMP__API_KEY`                      | Financial Modeling Prep                                                                                                                                   |
 | `EODHD__API_KEY`                    | EODHD                                                                                                                                                     |
 | `EODHD__DISABLED`                   | Set to `true` to skip EODHD MCP (FMP unchanged)                                                                                                           |
@@ -88,6 +89,8 @@ Nested groups use double underscores, for example `PERPLEXITY__API_KEY`, `LOGGIN
 | `ENV` or `DASHBOARD_DEPLOY_ENV`     | `DEV` or `PROD` (mock vs live server behaviour)                                                                                                           |
 
 Optional provider blocks can be omitted when unused; consult the settings model for required combinations.
+
+When `--perplexity` is not set, agents use Pydantic AI's `WebSearch` and `WebFetch` capabilities. Providers with native support use provider-native tools; providers without native support, such as DeepSeek, use Pydantic AI's local DuckDuckGo search and web-fetch fallbacks.
 
 ### Frontend (Vite)
 

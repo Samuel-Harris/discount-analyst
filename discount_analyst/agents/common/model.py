@@ -1,14 +1,16 @@
 from pydantic_ai.models import Model
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.google import GoogleModel
-from pydantic_ai.models.openai import OpenAIResponsesModel
+from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
 from pydantic_ai.providers.anthropic import AnthropicProvider
+from pydantic_ai.providers.deepseek import DeepSeekProvider
 from pydantic_ai.providers.google import GoogleProvider
 from pydantic_ai.providers.openai import OpenAIProvider
 
 from discount_analyst.config.ai_models_config import (
     AIModelConfig,
     AnthropicAIModelConfig,
+    DeepSeekAIModelConfig,
     GoogleAIModelConfig,
     OpenAIAIModelConfig,
 )
@@ -57,5 +59,20 @@ def create_model_from_config(config: AIModelConfig, /) -> Model:
                 provider=GoogleProvider(
                     api_key=settings.google.api_key,
                     http_client=create_rate_limit_client(),
+                ),
+            )
+        case DeepSeekAIModelConfig():
+            if settings.deepseek is None:
+                raise ValueError(
+                    "DeepSeek model selected but DEEPSEEK__API_KEY is not set. "
+                    "Add DEEPSEEK__API_KEY to your environment or .env file."
+                )
+            return OpenAIChatModel(
+                config.model_name,
+                provider=DeepSeekProvider(
+                    api_key=settings.deepseek.api_key,
+                    http_client=create_rate_limit_client(
+                        timeout=1200
+                    ),  # 20 min for long runs
                 ),
             )

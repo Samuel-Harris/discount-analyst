@@ -60,7 +60,7 @@ def add_agent_cli_web_search_arguments(
     *,
     default_override: AgentCliDefaults | None = None,
 ) -> None:
-    """Register optional ``--perplexity`` (default: model-native web search).
+    """Register optional ``--perplexity`` (default: Pydantic AI web capabilities).
 
     Namespace attribute: ``use_perplexity``.
     """
@@ -72,6 +72,6 @@ def add_agent_cli_web_search_arguments(
         dest="use_perplexity",
         help=(
             "Use Perplexity API for web_search and sec_filings_search "
-            "(default: model-native web search)."
+            "(default: Pydantic AI WebSearch/WebFetch)."
         ),
     )
