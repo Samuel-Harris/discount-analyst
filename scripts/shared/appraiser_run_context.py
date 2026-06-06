@@ -1,4 +1,4 @@
-"""Shared pipeline inputs for Appraiser-stage DCF (dashboard + CLI)."""
+"""CLI/workflow metadata for a single Appraiser run."""
 
 from __future__ import annotations
 
@@ -8,8 +8,10 @@ from discount_analyst.agents.surveyor.schema import SurveyorCandidate
 from discount_analyst.config.ai_models_config import ModelName
 
 
-@dataclass
-class StockRunArgs:
+@dataclass(frozen=True)
+class AppraiserRunContext:
+    """CLI/workflow metadata for a single Appraiser run (model + RFR + candidate)."""
+
     surveyor_candidate: SurveyorCandidate
     risk_free_rate_pct: float
     model: ModelName

@@ -64,7 +64,8 @@ The `scripts/` directory contains utility and entry-point scripts for the Discou
 - `discount_analyst.agents.appraiser`: AI agent logic and prompt creation.
 - `discount_analyst.agents.surveyor`: Surveyor agent for stock candidate discovery.
 - `discount_analyst.valuation`: Valuation contracts and optional toolkit helpers.
-- `scripts.common.cli`, `scripts.common.constants`, `scripts.common.artefacts`, `scripts.common.usage`, `scripts.common.run_outputs`: CLI defaults, output paths, JSON writers, usage extraction, run-output models (used by `agents/` and `workflows/`).
+- `scripts.shared.appraiser_run_context`: `AppraiserRunContext` for Appraiser CLI/workflow runs (no `backend` import).
+- `scripts.shared.cli`, `scripts.shared.constants`, `scripts.shared.artefacts`, `scripts.shared.usage`, `scripts.shared.run_outputs`: CLI defaults, output paths, JSON writers, usage extraction, run-output models (used by `agents/` and `workflows/`).
 
 ### External
 

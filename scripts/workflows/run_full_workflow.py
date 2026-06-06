@@ -49,7 +49,7 @@ from discount_analyst.pipeline.schema import (
 )
 from discount_analyst.rating.margin_of_safety import MarginOfSafetyAssessment
 
-from backend.contracts.stock_run_args import StockRunArgs
+from scripts.shared.appraiser_run_context import AppraiserRunContext
 from scripts.agents.run_appraiser import (
     display_agent_output,
     run_agent,
@@ -774,13 +774,13 @@ async def _run_appraiser_final_rating_for_candidate(
         evaluation=sent_result.output,
         risk_free_rate_pct=args.risk_free_rate_pct,
     )
-    stock_args = StockRunArgs(
+    run_context = AppraiserRunContext(
         surveyor_candidate=candidate,
         risk_free_rate_pct=args.risk_free_rate_pct,
         model=args.model,
     )
     agent_result = await run_agent(
-        stock_args,
+        run_context,
         appraiser_input,
         use_perplexity=args.use_perplexity,
         use_mcp_financial_data=args.use_mcp_financial_data,
@@ -788,7 +788,7 @@ async def _run_appraiser_final_rating_for_candidate(
     )
     display_agent_output(agent_result.output)
     appraiser_out_path = save_run_output(
-        stock_args,
+        run_context,
         agent_result.output,
         agent_result,
         source_surveyor_report=source_entry_report_path,
@@ -800,15 +800,8 @@ async def _run_appraiser_final_rating_for_candidate(
     )
     console.print(f"Saved Appraiser output: [dim]{appraiser_out_path}[/dim]")
 
-    distribution = agent_result.output.valuation_distribution
     margin_of_safety = MarginOfSafetyAssessment.from_distribution(
-        current_price=distribution.current_share_price,
-        expected_intrinsic_value=distribution.expected_intrinsic_value,
-        p10_intrinsic_value=distribution.p10_intrinsic_value,
-        p25_intrinsic_value=distribution.p25_intrinsic_value,
-        p50_intrinsic_value=distribution.p50_intrinsic_value,
-        p75_intrinsic_value=distribution.p75_intrinsic_value,
-        p90_intrinsic_value=distribution.p90_intrinsic_value,
+        agent_result.output.valuation_distribution
     )
     rating_decision = build_rating_table_decision(
         candidate=candidate,

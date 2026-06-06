@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { cancelWorkflowRun, deleteWorkflowRun, retryFailedAgents } from "../api";
+import {
+  AgentNameSlug,
+  cancelWorkflowRun,
+  deleteWorkflowRun,
+  retryFailedAgents,
+} from "../api";
 import {
   invalidateWorkflowRunDetail,
   invalidateWorkflowRunsList,
@@ -38,7 +43,8 @@ export function DashboardShell() {
     null,
   );
   const [cancelPending, setCancelPending] = useState(false);
-  const [retryFailedAgentsPending, setRetryFailedAgentsPending] = useState(false);
+  const [retryFailedAgentsPending, setRetryFailedAgentsPending] =
+    useState(false);
 
   useEffect(() => {
     setWorkflowActionError(null);
@@ -47,15 +53,22 @@ export function DashboardShell() {
   const conversation = useConversation();
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelTitle, setPanelTitle] = useState("");
+  const [panelAgentName, setPanelAgentName] = useState<AgentNameSlug | null>(
+    null,
+  );
 
   const closePanel = useCallback(() => {
     setPanelOpen(false);
+    setPanelAgentName(null);
     conversation.clear();
   }, [conversation]);
 
   const openConversation = useCallback(
     (target: ConversationTarget, title: string) => {
       setPanelTitle(title);
+      setPanelAgentName(
+        target.kind === "run_agent" ? target.agentName : AgentNameSlug.surveyor,
+      );
       setPanelOpen(true);
       void conversation.load(target);
     },
@@ -163,6 +176,7 @@ export function DashboardShell() {
       <AgentPanel
         open={panelOpen}
         title={panelTitle}
+        agentName={panelAgentName}
         loading={conversation.loading}
         error={conversation.error}
         data={conversation.data}
