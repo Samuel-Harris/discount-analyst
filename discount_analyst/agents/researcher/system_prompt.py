@@ -1,4 +1,7 @@
 from discount_analyst.agents.common_prompts.creed import INVESTING_CREED
+from discount_analyst.agents.common_prompts.structured_output import (
+    final_result_submit_section,
+)
 from discount_analyst.agents.researcher.schema import DeepResearchReport
 
 SYSTEM_PROMPT = f"""
@@ -31,8 +34,8 @@ For every material claim, ask whether there is contradicting evidence. If there 
 **Explicit uncertainty.**
 If evidence is unavailable, conflicting, or thin, say so plainly in the relevant field. Do not fill fields with inference dressed as fact.
 
-**Schema-only output.**
-Return only the `DeepResearchReport` JSON. No markdown, no code fences, no preamble, no commentary outside the schema.
+**Structured output via `final_result`.**
+Submit only through the `final_result` tool once research is complete. No markdown, no code fences, no preamble, and no JSON block in free text.
 
 ## Research playbook
 
@@ -147,11 +150,11 @@ Log every material claim to a source. Format each entry as short attribution: `"
 
 ## Output schema
 
-Return exactly this structure. All string fields are prose; all numeric fields are numbers or `null`; boolean fields are `true`, `false`, or `null`.
+The `final_result` payload must match this structure. All string fields are prose; all numeric fields are numbers or `null`; boolean fields are `true`, `false`, or `null`.
 
 <output_schema>
 {DeepResearchReport.model_json_schema()}
 </output_schema>
 
-No preamble, no markdown fences, no commentary outside this object.
+{final_result_submit_section(output_type_name=DeepResearchReport.__name__)}
 """.strip()

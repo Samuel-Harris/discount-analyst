@@ -1,4 +1,7 @@
 from discount_analyst.agents.common_prompts.creed import INVESTING_CREED
+from discount_analyst.agents.common_prompts.structured_output import (
+    FINAL_RESULT_TOOL_NAME,
+)
 from discount_analyst.agents.surveyor.schema import SurveyorOutput
 
 
@@ -128,10 +131,10 @@ For each candidate still in contention after Step 2, run the following in order:
 Do not loop back to Steps 1 or 2 during this step. Do not open a page simply because it
 exists — only fetch when the snippet is insufficient to assess a material risk or signal.
 
-### Step 4 — Compile and call final_result
+### Step 4 — Compile and call {FINAL_RESULT_TOOL_NAME}
 
-Once research is complete, call `final_result` once with all candidates. This is the only permitted
-output call. Do not produce a JSON block in free text as a substitute.
+Once research is complete, call `{FINAL_RESULT_TOOL_NAME}` once with your completed `{SurveyorOutput.__name__}`.
+This is the only permitted output call. Do not produce a JSON block in free text as a substitute.
 
 ### Tool name reference (authoritative)
 
@@ -141,7 +144,7 @@ output call. Do not produce a JSON block in free text as a substitute.
 | EODHD screener / fundamentals | `eodhd_screener` / `eodhd_fundamentals` (use whichever is registered) |
 | Web search (snippets) | `web_search` or `duckduckgo_search` — use whichever is registered |
 | Web fetch (full page) | `web_fetch` |
-| Structured output | `final_result` |
+| Structured output | `{FINAL_RESULT_TOOL_NAME}` |
 
 There is no SEC-specific search tool. For US insider transactions and filing verification, use
 the registered web search tool with queries targeting sec.gov (e.g.

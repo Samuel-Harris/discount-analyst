@@ -1,3 +1,7 @@
+from discount_analyst.agents.common_prompts.structured_output import (
+    final_result_user_step,
+)
+from discount_analyst.agents.researcher.schema import DeepResearchReport
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
 
 
@@ -19,5 +23,5 @@ The `ticker` field uses the exchange's native format (e.g. `GLE.L` for LSE, `AVN
 
 Use the Surveyor candidate as input context only. Do not copy it into the output object. Populate `data_gaps_update.original_data_gaps` from the candidate's `data_gaps` field verbatim.
 
-Return only the `DeepResearchReport` JSON object. No preamble, no markdown.
+{final_result_user_step(output_type_name=DeepResearchReport.__name__)}
 """.strip()

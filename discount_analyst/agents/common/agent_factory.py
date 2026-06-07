@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from pydantic_ai import AbstractToolset, Agent
+from pydantic_ai import AbstractToolset, Agent, ToolOutput
 from pydantic_ai.capabilities import AgentCapability, WebFetch, WebSearch
 
 from common.config import settings as app_settings
@@ -74,6 +74,9 @@ def create_agent[OutT](
     Set ``enable_web_research_tools=False`` for interpretation-only agents
     (for example, Strategist and Sentinel). When ``terminal`` is omitted, terminal
     follows ``settings.use_terminal`` only (independent of web/MCP flags).
+
+    Structured output is always registered via ``ToolOutput`` (tool mode, ``final_result``)
+    for cross-provider uniformity.
     """
     capabilities: list[AgentCapability[None]] = []
     toolsets: list[AbstractToolset[None]] = []
@@ -112,7 +115,7 @@ def create_agent[OutT](
 
     return Agent(
         name=spec.name,
-        output_type=spec.output_type,
+        output_type=ToolOutput(spec.output_type),
         model=create_model_from_config(ai_models_config.model),
         model_settings=ai_models_config.model.model_settings,
         system_prompt=spec.system_prompt,

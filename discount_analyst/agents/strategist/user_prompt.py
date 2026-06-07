@@ -1,4 +1,8 @@
+from discount_analyst.agents.common_prompts.structured_output import (
+    final_result_user_step,
+)
 from discount_analyst.agents.researcher.schema import DeepResearchReport
+from discount_analyst.agents.strategist.schema import MispricingThesis
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
 
 
@@ -53,5 +57,5 @@ Be rigorous, be honest, and be specific. **Clarity and falsifiability matter mor
 
 **Action Items:**
 1. First, provide your concise, human-readable reasoning. You must include the exact sentence: "This thesis hangs on [specific field/claim from the deep research]."
-2. Then, return the completed `MispricingThesis` JSON object strictly adhering to the schema provided in your system instructions.
+2. {final_result_user_step(output_type_name=MispricingThesis.__name__)} Use the schema from your system instructions.
 """.strip()

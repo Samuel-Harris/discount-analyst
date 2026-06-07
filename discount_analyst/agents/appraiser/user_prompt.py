@@ -1,4 +1,7 @@
-from discount_analyst.agents.appraiser.schema import AppraiserInput
+from discount_analyst.agents.appraiser.schema import AppraiserInput, AppraiserOutput
+from discount_analyst.agents.common_prompts.structured_output import (
+    final_result_user_step,
+)
 
 
 def create_user_prompt(*, appraiser_input: AppraiserInput) -> str:
@@ -65,7 +68,7 @@ Step 1: Establish current market data for {ticker}: share price, currency, marke
 Step 2: Identify the most appropriate primary valuation method for the business and thesis.
 Step 3: Use at least one cross-check method. If the evidence for a cross-check is weak, include it with clear limitations rather than omitting it.
 Step 4: Triangulate the method results into a single intrinsic-value distribution.
-Step 5: Return only the final `AppraiserOutput` JSON.
+Step 5: {final_result_user_step(output_type_name=AppraiserOutput.__name__)}
 
 Use the JSON blocks alongside each other to:
 - Use **sector and industry** from the candidate to ground **peers, competitive context, and structural economics** — do **not** label the stock “value” or “growth” or choose assumptions from a style bucket; derive projections from **evidence and the mispricing story**, not from market-style categories
