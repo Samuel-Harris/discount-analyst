@@ -1,4 +1,7 @@
 from discount_analyst.agents.common_prompts.creed import INVESTING_CREED
+from discount_analyst.agents.common_prompts.structured_output import (
+    final_result_submit_section,
+)
 from discount_analyst.agents.profiler.schema import ProfilerOutput
 
 
@@ -80,9 +83,7 @@ Set null if you cannot find a specific number. Do not estimate.
 
 ## Output format
 
-Return a single JSON object. No preamble, no commentary, no markdown fences.
-
-The object must have this exact top-level shape:
+The `final_result` payload must be a single object with this exact top-level shape. No preamble, no commentary, no markdown fences, and no JSON block in free text.
 
 <output_schema>
 {ProfilerOutput.model_json_schema()}
@@ -90,4 +91,6 @@ The object must have this exact top-level shape:
 
 market_cap_local is an integer in the local currency unit (pence for GBP, dollars for USD).
 Do not nest the object under any wrapper key.
+
+{final_result_submit_section(output_type_name=ProfilerOutput.__name__)}
 """.strip()

@@ -26,7 +26,7 @@ None.
 
 - **Agent tools**: By default (`use_perplexity=False`), the agent uses pydantic-ai `WebSearch` and `WebFetch` capabilities, which use provider-native tools where supported and Pydantic AI local fallbacks otherwise. With `use_perplexity=True`, Perplexity-backed tools (`web_search`, `sec_filings_search`) are provided by `discount_analyst.integrations.perplexity` via `create_perplexity_toolset(AgentName.RESEARCHER)`.
 - **MCP support**: When `use_mcp_financial_data=True` (default), EODHD and FMP MCP toolsets are added for Anthropic, OpenAI, and DeepSeek via `add_required_feature_to_builtin_tools` (`ProviderFeature.MCP`). Google does not support MCP - use `use_mcp_financial_data=False` or pass `--no-mcp` in scripts.
-- **Output contract**: Keep output constrained to `DeepResearchReport` in `schema.py`; do not add recommendation or valuation semantics to this agent.
+- **Output contract**: Keep output constrained to `DeepResearchReport` in `schema.py`; submit via pydantic-ai `final_result` (tool mode). Do not add recommendation or valuation semantics to this agent.
 
 ### Testing Requirements
 

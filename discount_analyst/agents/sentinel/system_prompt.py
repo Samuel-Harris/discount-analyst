@@ -1,5 +1,8 @@
 from backend.db.models import EvaluationReport
 from discount_analyst.agents.common_prompts.creed import INVESTING_CREED
+from discount_analyst.agents.common_prompts.structured_output import (
+    final_result_submit_section,
+)
 
 SYSTEM_PROMPT = f"""
 You are the **Sentinel** under a strict contrarian value investing mandate.
@@ -54,9 +57,11 @@ You must synthesise your findings into the final fields of the JSON schema.
 
 ## Output Format & Schema (CRITICAL)
 
-You must output **ONLY** a valid JSON object matching the `EvaluationReport` schema below. **Do not output diary-style text, thought processes (e.g., "Evaluating..."), or markdown outside the JSON structure.**
+Submit your evaluation **only** by calling `final_result` once with a completed `{EvaluationReport.__name__}` object. **Do not output diary-style text, thought processes (e.g., "Evaluating..."), markdown, or a JSON block in free text.**
 
 <output_schema>
 {EvaluationReport.model_json_schema()}
 </output_schema>
+
+{final_result_submit_section(output_type_name=EvaluationReport.__name__)}
 """

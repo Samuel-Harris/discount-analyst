@@ -1,3 +1,7 @@
+from discount_analyst.agents.common_prompts.structured_output import (
+    final_result_user_step,
+)
+from backend.db.models import EvaluationReport
 from discount_analyst.agents.researcher.schema import DeepResearchReport
 from discount_analyst.agents.strategist.schema import MispricingThesis
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
@@ -52,5 +56,5 @@ Work through the evaluation in the sequence defined in your instructions.
 
 Your verdict must be **earned by your analysis** — not assumed from the thesis's stated conviction. If conviction is "High" and your assessment breaks the thesis, say so. If conviction is "Low" and your assessment supports the thesis, say so.
 
-**CRITICAL:** Return your output as a purely populated JSON object conforming to the `EvaluationReport` schema provided in your system instructions. Do NOT include any conversational scaffolding, thought process, or markdown text before or after the JSON.
+**CRITICAL:** {final_result_user_step(output_type_name=EvaluationReport.__name__)} Do NOT include conversational scaffolding or markdown outside the tool call.
 """.strip()

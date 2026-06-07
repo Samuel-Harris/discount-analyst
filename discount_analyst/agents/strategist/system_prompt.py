@@ -1,4 +1,7 @@
 from discount_analyst.agents.common_prompts.creed import INVESTING_CREED
+from discount_analyst.agents.common_prompts.structured_output import (
+    final_result_submit_section,
+)
 from discount_analyst.agents.strategist.schema import MispricingThesis
 
 SYSTEM_PROMPT = f"""
@@ -65,7 +68,7 @@ Before any position can be considered, you must identify the concrete scenarios 
 
 ## Pre-Output Reasoning (Mandatory)
 
-Before returning your JSON output, you MUST provide a short, human-readable summary of your logic. This ensures your thought process is reviewable.
+Before calling `final_result`, you MUST provide a short, human-readable summary of your logic. This ensures your thought process is reviewable. The completed thesis must still be submitted **only** via `final_result` — not as a JSON block in free text.
 
 Within this brief reasoning block, you **MUST** include one explicit sentence in the following format to clearly link your thesis to the upstream research:
 **"This thesis hangs on [specific field/claim from the deep research report]."**
@@ -74,9 +77,11 @@ Within this brief reasoning block, you **MUST** include one explicit sentence in
 
 ## Output Format
 
-You must return a valid `MispricingThesis` JSON object with all fields populated. Sparse or placeholder responses are not acceptable. Your output must conform to this schema:
+The `final_result` payload must be a valid `{MispricingThesis.__name__}` object with all fields populated. Sparse or placeholder responses are not acceptable. Your output must conform to this schema:
 
 <output_schema>
 {MispricingThesis.model_json_schema()}
 </output_schema>
+
+{final_result_submit_section(output_type_name=MispricingThesis.__name__)}
 """.strip()

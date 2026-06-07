@@ -5,13 +5,15 @@
 
 ## Purpose
 
-Shared **agent runtime** only: model construction from config, streaming runs with retries, declarative `AgentSpec` / `create_agent`, Perplexity + MCP tool wiring helpers, investing creed, and `AgentName` / tool description maps. Does not own stage output schemas (those live beside each agent).
+Shared **agent runtime** only: model construction from config, streaming runs with retries, declarative `AgentSpec` / `create_agent`, Perplexity + MCP tool wiring helpers, investing creed, structured-output prompt helpers, and `AgentName` / tool description maps. Does not own stage output schemas (those live beside each agent).
+
+All pipeline agents register structured output via **tool mode** (`ToolOutput` → pydantic-ai `final_result`) for cross-provider uniformity.
 
 ## Key Files
 
 | File                    | Description                                                                                 |
 | ----------------------- | ------------------------------------------------------------------------------------------- |
-| `agent_factory.py`      | `AgentSpec`, `create_agent` (optional `terminal: TerminalRunOptions`).                      |
+| `agent_factory.py`      | `AgentSpec`, `create_agent`, `tool_mode_output_type` (`ToolOutput` / `final_result`).       |
 | `terminal_run.py`       | `TerminalRunOptions`, `terminal_run_options`, `bind_session_id`, `run_agent_with_terminal`. |
 | `model.py`              | `create_model_from_config`.                                                                 |
 | `ai_logging.py`         | Shared AI-tagged Logfire instance (`AI_LOGFIRE`).                                           |
