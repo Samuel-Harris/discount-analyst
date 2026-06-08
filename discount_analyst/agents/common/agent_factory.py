@@ -7,6 +7,7 @@ from pydantic_ai.capabilities import AgentCapability, WebFetch, WebSearch
 
 from common.config import settings as app_settings
 from discount_analyst.agents.common.agent_names import AgentName
+from discount_analyst.agents.common_prompts.current_date import with_current_date
 from discount_analyst.agents.common.model import create_model_from_config
 from discount_analyst.agents.common.terminal_run import (
     TerminalRunOptions,
@@ -118,7 +119,7 @@ def create_agent[OutT](
         output_type=ToolOutput(spec.output_type),
         model=create_model_from_config(ai_models_config.model),
         model_settings=ai_models_config.model.model_settings,
-        system_prompt=spec.system_prompt,
+        system_prompt=with_current_date(spec.system_prompt),
         capabilities=capabilities,
         toolsets=toolsets,
     )

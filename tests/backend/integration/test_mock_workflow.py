@@ -30,6 +30,7 @@ from backend.settings.testing import dashboard_settings_for_tests
 from discount_analyst.agents.appraiser.system_prompt import (
     SYSTEM_PROMPT as APPRAISER_SYSTEM_PROMPT,
 )
+from discount_analyst.agents.common_prompts.current_date import with_current_date
 from discount_analyst.agents.surveyor.schema import SurveyorOutput
 
 
@@ -280,7 +281,7 @@ async def test_appraiser_conversation_failure_does_not_leave_appraiser_completed
         assistant_response: str | None = None,
         messages: list[object] | None = None,
     ) -> None:
-        if system_prompt == APPRAISER_SYSTEM_PROMPT:
+        if system_prompt == with_current_date(APPRAISER_SYSTEM_PROMPT):
             raise KeyError("builtin-tool-call")
         original_insert(
             session,

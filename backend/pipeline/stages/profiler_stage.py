@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from backend.db.models import AgentNameDb
 from backend.dev import mock_conversation_messages, mock_outputs
 from discount_analyst.agents.common.ai_logging import AI_LOGFIRE
+from discount_analyst.agents.common_prompts.current_date import with_current_date
 from backend.pipeline.ports import ProfilerStagePort
 from discount_analyst.agents.common.terminal_run import run_agent_with_terminal
 from discount_analyst.agents.profiler.profiler import create_profiler_agent
@@ -86,7 +87,7 @@ class ProfilerStage:
         await port.store_agent_conversation(
             run_id=run_id,
             agent_name=_PROFILER_AGENT,
-            system_prompt=PROFILER_SYSTEM_PROMPT,
+            system_prompt=with_current_date(PROFILER_SYSTEM_PROMPT),
             messages=messages,
             messages_json=mock_msgs_json,
         )
