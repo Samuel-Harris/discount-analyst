@@ -4,7 +4,8 @@ from typing import Any
 import pytest
 
 from discount_analyst.agents.common import model as model_module
-from discount_analyst.config.ai_models_config import AIModelsConfig, ModelName
+from discount_analyst.config.ai_models_config import AIModelsConfig
+from discount_analyst.models.model_name import ModelName
 
 
 def test_create_deepseek_model_requires_api_key(

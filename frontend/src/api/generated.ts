@@ -7,12 +7,15 @@
 import { dashboardMutator } from './orval-mutator';
 export type AgentExecutionSummaryCompletedAt = string | null;
 
+export type AgentExecutionSummaryModelName = ModelName | null;
+
 export type AgentExecutionSummaryStartedAt = string | null;
 
 export interface AgentExecutionSummary {
   agent_name: AgentNameSlug;
   completed_at: AgentExecutionSummaryCompletedAt;
   id: string;
+  model_name?: AgentExecutionSummaryModelName;
   started_at: AgentExecutionSummaryStartedAt;
   status: ExecutionStatusApi;
 }
@@ -84,6 +87,25 @@ export interface HTTPValidationError {
   detail?: ValidationError[];
 }
 
+export type ModelName = typeof ModelName[keyof typeof ModelName];
+
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const ModelName = {
+  'claude-opus-4-5': 'claude-opus-4-5',
+  'claude-sonnet-4-5': 'claude-sonnet-4-5',
+  'claude-opus-4-6': 'claude-opus-4-6',
+  'claude-sonnet-4-6': 'claude-sonnet-4-6',
+  'claude-haiku-4-6': 'claude-haiku-4-6',
+  'gpt-51': 'gpt-5.1',
+  'gpt-52': 'gpt-5.2',
+  'gpt-54': 'gpt-5.4',
+  'gemini-3-pro-preview': 'gemini-3-pro-preview',
+  'gemini-31-pro-preview': 'gemini-3.1-pro-preview',
+  'deepseek-v4-flash': 'deepseek-v4-flash',
+  'deepseek-v4-pro': 'deepseek-v4-pro',
+} as const;
+
 export interface PortfolioResponse {
   portfolio_tickers: string[];
 }
@@ -95,12 +117,15 @@ export interface ProfilerRunCreated {
 
 export type SurveyorExecutionSummaryCompletedAt = string | null;
 
+export type SurveyorExecutionSummaryModelName = ModelName | null;
+
 export type SurveyorExecutionSummaryStartedAt = string | null;
 
 export interface SurveyorExecutionSummary {
   agent_name: AgentNameSlug;
   completed_at: SurveyorExecutionSummaryCompletedAt;
   id: string;
+  model_name?: SurveyorExecutionSummaryModelName;
   started_at: SurveyorExecutionSummaryStartedAt;
   status: ExecutionStatusApi;
 }

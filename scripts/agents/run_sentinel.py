@@ -23,7 +23,8 @@ from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
 from discount_analyst.agents.researcher.schema import DeepResearchReport
 from discount_analyst.agents.strategist.schema import MispricingThesis
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
-from discount_analyst.config.ai_models_config import AIModelsConfig, ModelName
+from discount_analyst.config.ai_models_config import AIModelsConfig
+from discount_analyst.models.model_name import ModelName
 from scripts.shared.artefacts import write_agent_json
 from discount_analyst.agents.common.terminal_run import TerminalRunOptions
 from scripts.shared.cli import (

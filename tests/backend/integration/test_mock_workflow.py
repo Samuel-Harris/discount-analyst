@@ -83,6 +83,7 @@ async def test_mock_workflow_completes_profiler_and_surveyor(
     surveyor_execution = detail["surveyor_execution"]
     assert surveyor_execution is not None
     assert surveyor_execution["status"] == "completed"
+    assert surveyor_execution["model_name"] is None
     surveyor_lanes = [r for r in detail["runs"] if r["entry_path"] == "surveyor"]
     profiler_lanes = [r for r in detail["runs"] if r["entry_path"] == "profiler"]
     assert len(profiler_lanes) == 1
@@ -95,6 +96,7 @@ async def test_mock_workflow_completes_profiler_and_surveyor(
     assert profiler_run["status"] == "completed"
     for a in profiler_run["agent_executions"]:
         assert a["status"] in ("completed", "skipped")
+        assert a["model_name"] is None
 
     with session_factory() as session:
         surveyor_conv = conv.get_conversation_for_workflow_surveyor(
@@ -143,9 +145,9 @@ async def test_surveyor_failure_stops_workflow_before_profiler_branches(
 
     runner = DashboardPipelineRunner(session_factory, settings)
     with (
-        patch("backend.pipeline.sqlmodel_runner.asyncio.sleep", new=AsyncMock()),
+        patch("asyncio.sleep", new=AsyncMock()),
         patch(
-            "backend.pipeline.sqlmodel_runner.mock_outputs.mock_surveyor_dashboard_discoveries",
+            "backend.pipeline.stages.surveyor_stage.mock_outputs.mock_surveyor_dashboard_discoveries",
             side_effect=RuntimeError("surveyor provider failure"),
         ),
     ):
@@ -211,7 +213,7 @@ async def test_manual_cancel_marks_workflow_and_children_cancelled(
         await asyncio.Event().wait()
 
     runner = DashboardPipelineRunner(session_factory, settings)
-    with patch("backend.pipeline.sqlmodel_runner.asyncio.sleep", new=_blocking_sleep):
+    with patch("asyncio.sleep", new=_blocking_sleep):
         task = runner.schedule_workflow_execution(workflow_run_id)
         await asyncio.wait_for(sleep_started.wait(), timeout=1.0)
         assert await runner.cancel_workflow_execution(workflow_run_id) is True
@@ -295,13 +297,13 @@ async def test_appraiser_conversation_failure_does_not_leave_appraiser_completed
 
     runner = DashboardPipelineRunner(session_factory, settings)
     with (
-        patch("backend.pipeline.sqlmodel_runner.asyncio.sleep", new=AsyncMock()),
+        patch("asyncio.sleep", new=AsyncMock()),
         patch(
-            "backend.pipeline.sqlmodel_runner.mock_outputs.mock_surveyor_dashboard_discoveries",
+            "backend.pipeline.stages.surveyor_stage.mock_outputs.mock_surveyor_dashboard_discoveries",
             return_value=SurveyorOutput.model_construct(candidates=[]),
         ),
         patch(
-            "backend.pipeline.sqlmodel_runner.mock_outputs.mock_sentinel_proceed_for_dashboard_lane",
+            "backend.pipeline.stages.ticker_lane_stage.mock_outputs.mock_sentinel_proceed_for_dashboard_lane",
             return_value=True,
         ),
         patch(
@@ -368,9 +370,9 @@ async def test_lane_abort_marks_unreached_downstream_agents_skipped(
 
     runner = DashboardPipelineRunner(session_factory, settings)
     with (
-        patch("backend.pipeline.sqlmodel_runner.asyncio.sleep", new=AsyncMock()),
+        patch("asyncio.sleep", new=AsyncMock()),
         patch(
-            "backend.pipeline.sqlmodel_runner.mock_outputs.mock_surveyor_dashboard_discoveries",
+            "backend.pipeline.stages.surveyor_stage.mock_outputs.mock_surveyor_dashboard_discoveries",
             return_value=SurveyorOutput.model_construct(candidates=[]),
         ),
         patch.object(
@@ -437,7 +439,7 @@ async def test_retry_resume_skips_completed_surveyor_without_duplicate_lanes(
         session.commit()
 
     runner = DashboardPipelineRunner(session_factory, settings)
-    with patch("backend.pipeline.sqlmodel_runner.asyncio.sleep", new=AsyncMock()):
+    with patch("asyncio.sleep", new=AsyncMock()):
         await runner.execute_workflow(workflow_run_id)
 
     with session_factory() as session:
@@ -480,9 +482,9 @@ async def test_retry_resume_skips_completed_surveyor_without_duplicate_lanes(
         session.commit()
 
     with (
-        patch("backend.pipeline.sqlmodel_runner.asyncio.sleep", new=AsyncMock()),
+        patch("asyncio.sleep", new=AsyncMock()),
         patch(
-            "backend.pipeline.sqlmodel_runner.mock_outputs.mock_surveyor_dashboard_discoveries",
+            "backend.pipeline.stages.surveyor_stage.mock_outputs.mock_surveyor_dashboard_discoveries",
             side_effect=AssertionError("surveyor should not rerun on lane retry"),
         ),
     ):

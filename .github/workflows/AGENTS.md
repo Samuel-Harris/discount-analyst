@@ -11,7 +11,7 @@ The `workflows/` directory contains GitHub Actions workflow definitions that aut
 
 | File     | Description                                                                                                                                                                                                                                                         |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ci.yml` | The primary Continuous Integration workflow: pre-commit, pytest (with coverage for `discount_analyst/` and `backend/`), pyright, a Node-only frontend build and Vitest job, and an OpenAPI/Orval drift check that rebuilds the dashboard client after regeneration. |
+| `ci.yml` | The primary Continuous Integration workflow: pre-commit, pytest (with coverage for `discount_analyst/` and `backend/`), pyright, Alembic schema drift check (`scripts/check_alembic_schema.py`), a Node-only frontend build and Vitest job, and an OpenAPI/Orval drift check that rebuilds the dashboard client after regeneration. |
 
 ## Subdirectories
 

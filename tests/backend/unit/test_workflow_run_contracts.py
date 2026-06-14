@@ -65,6 +65,7 @@ def test_workflow_run_detail_matches_contract_after_post(client: TestClient) -> 
     assert m.id == wf_id
     assert m.surveyor_execution is not None
     assert m.surveyor_execution.agent_name == "surveyor"
+    assert m.surveyor_execution.model_name is None
     assert len(m.runs) == 1
     run0 = m.runs[0]
     assert run0.entry_path == "profiler"
@@ -78,6 +79,7 @@ def test_workflow_run_detail_matches_contract_after_post(client: TestClient) -> 
             "sentinel",
             "appraiser",
         )
+        assert ex.model_name is None
 
 
 def test_workflow_run_detail_seed_profiler_and_surveyor_lanes(

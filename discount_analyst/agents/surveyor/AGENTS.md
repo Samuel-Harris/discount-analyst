@@ -46,7 +46,7 @@ None.
 - `discount_analyst.agents.common.model`: For creating the LLM model instance.
 - `discount_analyst.integrations.perplexity`: For Perplexity-backed search tools via `create_perplexity_toolset(AgentName.SURVEYOR)`.
 - `discount_analyst.agents.common.tool_support`: MCP toolset wiring via `add_required_feature_to_builtin_tools`.
-- `discount_analyst.integrations.financial_data_mcp`: EODHD/FMP `MCPServerStreamableHTTP` factories.
+- `discount_analyst.integrations.financial_data_mcp`: EODHD/FMP `MCPToolset` factories.
 
 ### External
 

@@ -300,6 +300,7 @@ def fetch_workflow_detail(
             "status": se.status.value,
             "started_at": se.started_at,
             "completed_at": se.completed_at,
+            "model_name": se.model_name,
         }
 
     agent_order = {
@@ -318,10 +319,10 @@ def fetch_workflow_detail(
         )
     )
     runs_out: list[TickerRunRow] = []
-    for rr in runs:
+    for run in runs:
         agents = list(
             session.scalars(
-                select(AgentExecution).where(col(AgentExecution.run_id) == rr.id)
+                select(AgentExecution).where(col(AgentExecution.run_id) == run.id)
             )
         )
         agents_sorted = sorted(
@@ -329,23 +330,24 @@ def fetch_workflow_detail(
         )
         agent_rows: list[AgentExecutionRow] = [
             {
-                "id": a.id,
-                "agent_name": a.agent_name.value,
-                "status": a.status.value,
-                "started_at": a.started_at,
-                "completed_at": a.completed_at,
+                "id": agent.id,
+                "agent_name": agent.agent_name.value,
+                "status": agent.status.value,
+                "started_at": agent.started_at,
+                "completed_at": agent.completed_at,
+                "model_name": agent.model_name,
             }
-            for a in agents_sorted
+            for agent in agents_sorted
         ]
         runs_out.append(
             {
-                "id": rr.id,
-                "ticker": rr.ticker,
-                "company_name": rr.company_name,
-                "entry_path": rr.entry_path.value,
-                "status": rr.status.value,
-                "final_rating": rr.final_rating,
-                "decision_type": rr.decision_type.value if rr.decision_type else None,
+                "id": run.id,
+                "ticker": run.ticker,
+                "company_name": run.company_name,
+                "entry_path": run.entry_path.value,
+                "status": run.status.value,
+                "final_rating": run.final_rating,
+                "decision_type": run.decision_type.value if run.decision_type else None,
                 "agent_executions": agent_rows,
             }
         )

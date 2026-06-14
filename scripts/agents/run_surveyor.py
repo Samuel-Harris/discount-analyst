@@ -8,7 +8,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from discount_analyst.config.ai_models_config import AIModelsConfig, ModelName
+from discount_analyst.config.ai_models_config import AIModelsConfig
+from discount_analyst.models.model_name import ModelName
 from discount_analyst.agents.common.agent_names import AgentName
 from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
 from discount_analyst.agents.surveyor.schema import SurveyorOutput

@@ -29,6 +29,7 @@ export interface LayoutNode {
   label: string;
   agentName: AgentNameSlug;
   status: AgentExecutionSummary["status"];
+  modelName: AgentExecutionSummary["model_name"];
   runId: string | null;
   ticker: string | null;
   entryPath: EntryPathApi | null;
@@ -195,6 +196,7 @@ export function buildGraphLayout(detail: WorkflowRunDetailResponse): {
       label: agentDisplayLabel("surveyor"),
       agentName: "surveyor",
       status: detail.surveyor_execution.status,
+      modelName: detail.surveyor_execution.model_name ?? null,
       runId: null,
       ticker: null,
       entryPath: null,
@@ -229,6 +231,7 @@ export function buildGraphLayout(detail: WorkflowRunDetailResponse): {
         label: agentDisplayLabel(exec.agent_name),
         agentName: exec.agent_name,
         status: exec.status,
+        modelName: exec.model_name ?? null,
         runId: run.id,
         ticker: run.ticker,
         entryPath: run.entry_path,

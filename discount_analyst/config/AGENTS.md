@@ -11,7 +11,7 @@ Application and AI model configuration: API keys via `pydantic-settings`, LLM mo
 
 | File                   | Description                                                                                           |
 | ---------------------- | ----------------------------------------------------------------------------------------------------- |
-| `ai_models_config.py`  | `ModelName`, `AIModelsConfig`, discriminated `AIModelConfig` union and `model_settings` per provider. |
+| `ai_models_config.py`  | `AIModelsConfig`, discriminated `AIModelConfig` union and `model_settings` per provider (imports `ModelName` from `models/`). |
 | `provider_features.py` | `Provider`, `ProviderFeature`, `PROVIDERS_BY_FEATURE` mapping.                                        |
 
 ## Subdirectories
@@ -20,7 +20,7 @@ None.
 
 ## For AI Agents
 
-- Add new models to `ModelName` and extend the `AIModelsConfig.model` computed field with a matching branch.
+- Add new models to `ModelName` in `discount_analyst/models/model_name.py` and extend the `AIModelsConfig.model` computed field with a matching branch.
 - Use `settings` from `common.config`; do not read `os.environ` directly in application code.
 
 ## Dependencies

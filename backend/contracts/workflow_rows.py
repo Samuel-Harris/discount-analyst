@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TypedDict
 
+from discount_analyst.models.model_name import ModelName
+
 
 class WorkflowRunListRow(TypedDict):
     id: str
@@ -34,6 +36,7 @@ class SurveyorExecutionRow(TypedDict):
     status: str
     started_at: datetime | None
     completed_at: datetime | None
+    model_name: ModelName | None
 
 
 class AgentExecutionRow(TypedDict):
@@ -42,6 +45,7 @@ class AgentExecutionRow(TypedDict):
     status: str
     started_at: datetime | None
     completed_at: datetime | None
+    model_name: ModelName | None
 
 
 class TickerRunRow(TypedDict):

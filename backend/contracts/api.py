@@ -12,6 +12,7 @@ from backend.contracts.enums import (
     TickerRunStatusApi,
     WorkflowRunStatusApi,
 )
+from discount_analyst.models.model_name import ModelName
 
 
 class WorkflowRunListItem(BaseModel):
@@ -32,6 +33,7 @@ class AgentExecutionSummary(BaseModel):
     status: ExecutionStatusApi
     started_at: datetime | None
     completed_at: datetime | None
+    model_name: ModelName | None = None
 
 
 class TickerRunDetail(BaseModel):
@@ -51,6 +53,7 @@ class SurveyorExecutionSummary(BaseModel):
     status: ExecutionStatusApi
     started_at: datetime | None
     completed_at: datetime | None
+    model_name: ModelName | None = None
 
 
 class WorkflowRunDetailResponse(BaseModel):

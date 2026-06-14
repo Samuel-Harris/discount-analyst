@@ -122,6 +122,12 @@ To run Alembic manually against the same revision bundle, set `sqlalchemy.url` i
 uv run alembic -c backend/db/alembic.ini upgrade head
 ```
 
+After changing ORM models in [`backend/db/models.py`](backend/db/models.py), autogenerate a revision, review it manually, then verify metadata matches the migration head:
+
+```bash
+uv run python scripts/check_alembic_schema.py
+```
+
 ### Seeding mock workflow data
 
 There is no first-party CLI wrapper: tests and local experiments call `seed` from [`backend/db/seed.py`](backend/db/seed.py) with an open `sqlmodel.Session`. Example one-off:

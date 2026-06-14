@@ -4,7 +4,7 @@ from typing import Literal
 from pydantic import AliasChoices, BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from discount_analyst.config.ai_models_config import ModelName
+from discount_analyst.models.model_name import ModelName
 
 DashboardLogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
@@ -95,7 +95,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("DASHBOARD_DATABASE_PATH", "DATABASE_PATH"),
     )
     default_model: ModelName = Field(
-        default=ModelName.GPT_5_1,
+        default=ModelName.DEEPSEEK_V4_PRO,
         validation_alias=AliasChoices("DASHBOARD_DEFAULT_MODEL"),
     )
     risk_free_rate_pct: float = Field(
