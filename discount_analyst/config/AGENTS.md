@@ -9,10 +9,10 @@ Application and AI model configuration: API keys via `pydantic-settings`, LLM mo
 
 ## Key Files
 
-| File                   | Description                                                                                           |
-| ---------------------- | ----------------------------------------------------------------------------------------------------- |
+| File                   | Description                                                                                                                   |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `ai_models_config.py`  | `AIModelsConfig`, discriminated `AIModelConfig` union and `model_settings` per provider (imports `ModelName` from `models/`). |
-| `provider_features.py` | `Provider`, `ProviderFeature`, `PROVIDERS_BY_FEATURE` mapping.                                        |
+| `provider_features.py` | `Provider`, `ProviderFeature` (`MCP`, `TEXT_ONLY_WEB_FETCH`), `PROVIDERS_BY_FEATURE` mapping.                                 |
 
 ## Subdirectories
 

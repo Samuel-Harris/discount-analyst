@@ -1,8 +1,9 @@
 """Shared factory for pipeline agents that use web search, fetch, and financial MCP."""
 
 from dataclasses import dataclass
+from typing import Any
 
-from pydantic_ai import AbstractToolset, Agent, ToolOutput
+from pydantic_ai import AbstractToolset, Agent, Tool, ToolOutput
 from pydantic_ai.capabilities import AgentCapability, WebFetch, WebSearch
 
 from common.config import settings as app_settings
@@ -17,8 +18,15 @@ from discount_analyst.agents.common.tool_support import (
     add_required_feature_to_builtin_tools,
 )
 from discount_analyst.config.ai_models_config import AIModelsConfig
-from discount_analyst.config.provider_features import ProviderFeature
+from discount_analyst.config.provider_features import (
+    PROVIDERS_BY_FEATURE,
+    Provider,
+    ProviderFeature,
+)
 from discount_analyst.integrations.perplexity import create_perplexity_toolset
+from discount_analyst.integrations.text_only_web_fetch import (
+    create_text_only_web_fetch_tool,
+)
 from discount_analyst.integrations.terminal import (
     Terminal,
     TerminalLimits,
@@ -44,16 +52,20 @@ class AgentTooling:
 
 
 def create_web_research_tooling(
-    *, agent_name: AgentName, use_perplexity: bool
+    *, agent_name: AgentName, use_perplexity: bool, provider: Provider
 ) -> AgentTooling:
     """Build web-research tooling without leaking Pydantic AI agent internals."""
     if use_perplexity:
         return AgentTooling(toolsets=(create_perplexity_toolset(agent_name),))
 
+    web_fetch_local: bool | Tool[Any] = True
+    if provider in PROVIDERS_BY_FEATURE[ProviderFeature.TEXT_ONLY_WEB_FETCH]:
+        web_fetch_local = create_text_only_web_fetch_tool()
+
     return AgentTooling(
         capabilities=(
             WebSearch(native=True, local="duckduckgo"),
-            WebFetch(native=True, local=True),
+            WebFetch(native=True, local=web_fetch_local),
         )
     )
 
@@ -103,6 +115,7 @@ def create_agent[OutT](
         web_tooling = create_web_research_tooling(
             agent_name=spec.name,
             use_perplexity=use_perplexity,
+            provider=ai_models_config.model.provider,
         )
         capabilities.extend(web_tooling.capabilities)
         toolsets.extend(web_tooling.toolsets)

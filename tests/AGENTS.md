@@ -17,6 +17,8 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | `tests/discount_analyst/valuation/test_toolkit.py`                 | Tests for deterministic valuation toolkit helpers, including DCF real-world scenarios.                                                 |
 | `tests/discount_analyst/http/test_streaming_retries.py`            | Unit tests for agent streaming retry helpers (`stream_with_retries`, sleep parsing).                                                   |
 | `tests/discount_analyst/integrations/test_financial_data_mcp.py`   | EODHD MCP optional registration (`EODHD__DISABLED`).                                                                                   |
+| `tests/discount_analyst/integrations/test_text_only_web_fetch.py`  | Text-only local web fetch (markitdown binary conversion, DeepSeek wiring).                                                             |
+| `tests/fixtures/web_fetch/`                                        | Minimal PDF and DOCX fixtures with known extractable strings for markitdown integration tests.                                         |
 | `tests/discount_analyst/integrations/test_terminal.py`             | Terminal HTTP client mocks; optional `@pytest.mark.docker` orchestrator integration.                                                   |
 | `tests/discount_analyst/agents/common/test_streamed_agent_run.py`  | Tests for `run_streamed_agent`.                                                                                                        |
 | `tests/discount_analyst/agents/sentinel/test_sentinel_gate.py`     | Tests for `sentinel_proceeds_to_valuation` (thesis + red-flag gate).                                                                   |
