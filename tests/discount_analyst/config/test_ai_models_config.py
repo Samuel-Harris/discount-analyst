@@ -1,8 +1,8 @@
 from discount_analyst.config.ai_models_config import (
     AIModelsConfig,
     DeepSeekAIModelConfig,
-    ModelName,
 )
+from discount_analyst.models.model_name import ModelName
 from discount_analyst.config.provider_features import Provider, ProviderFeature
 
 

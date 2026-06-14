@@ -36,6 +36,7 @@ class FakeProfilerPort:
         started: bool = False,
         completed: bool = False,
         error_message: str | None = None,
+        model_name: object = None,
     ) -> None:
         self._log(
             "mark_agent_execution",
@@ -45,6 +46,7 @@ class FakeProfilerPort:
             started=started,
             completed=completed,
             error_message=error_message,
+            model_name=model_name,
         )
 
     async def recompute_workflow_status(self, workflow_run_id: str) -> None:
@@ -104,6 +106,7 @@ async def test_profiler_stage_mock_path_records_expected_port_sequence() -> None
     ]
     assert port.calls[1][1]["status"] == "running"
     assert port.calls[1][1]["started"] is True
+    assert port.calls[1][1]["model_name"] is None
     assert port.calls[3][1]["status"] == "completed"
     assert port.calls[3][1]["completed"] is True
     assert port.calls[3][1]["output_json"] is not None
@@ -145,4 +148,5 @@ async def test_profiler_stage_non_mock_path_uses_run_agent_with_terminal() -> No
             is_mock=False,
         )
     assert candidate.ticker == "X.L"
+    assert port.calls[1][1]["model_name"] == settings.default_model
     assert port.calls[4][1]["messages"] == fake_outcome.all_messages

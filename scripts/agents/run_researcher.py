@@ -14,7 +14,8 @@ from rich.table import Table
 
 from discount_analyst.agents.researcher.researcher import create_researcher_agent
 from discount_analyst.agents.researcher.user_prompt import create_user_prompt
-from discount_analyst.config.ai_models_config import AIModelsConfig, ModelName
+from discount_analyst.config.ai_models_config import AIModelsConfig
+from discount_analyst.models.model_name import ModelName
 from discount_analyst.agents.common.agent_names import AgentName
 from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
 from discount_analyst.agents.researcher.schema import DeepResearchReport

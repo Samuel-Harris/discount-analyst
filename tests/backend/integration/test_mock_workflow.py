@@ -83,6 +83,7 @@ async def test_mock_workflow_completes_profiler_and_surveyor(
     surveyor_execution = detail["surveyor_execution"]
     assert surveyor_execution is not None
     assert surveyor_execution["status"] == "completed"
+    assert surveyor_execution["model_name"] is None
     surveyor_lanes = [r for r in detail["runs"] if r["entry_path"] == "surveyor"]
     profiler_lanes = [r for r in detail["runs"] if r["entry_path"] == "profiler"]
     assert len(profiler_lanes) == 1
@@ -95,6 +96,7 @@ async def test_mock_workflow_completes_profiler_and_surveyor(
     assert profiler_run["status"] == "completed"
     for a in profiler_run["agent_executions"]:
         assert a["status"] in ("completed", "skipped")
+        assert a["model_name"] is None
 
     with session_factory() as session:
         surveyor_conv = conv.get_conversation_for_workflow_surveyor(

@@ -37,7 +37,8 @@ from discount_analyst.agents.researcher.schema import DeepResearchReport
 from discount_analyst.agents.strategist.schema import MispricingThesis
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
 from discount_analyst.agents.appraiser.schema import AppraiserInput
-from discount_analyst.config.ai_models_config import AIModelsConfig, ModelName
+from discount_analyst.config.ai_models_config import AIModelsConfig
+from discount_analyst.models.model_name import ModelName
 from discount_analyst.pipeline.builders import (
     build_rating_table_decision,
     build_sentinel_rejection,

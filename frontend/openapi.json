@@ -22,6 +22,16 @@
             "title": "Id",
             "type": "string"
           },
+          "model_name": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelName"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "started_at": {
             "anyOf": [
               {
@@ -173,6 +183,24 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "ModelName": {
+        "enum": [
+          "claude-opus-4-5",
+          "claude-sonnet-4-5",
+          "claude-opus-4-6",
+          "claude-sonnet-4-6",
+          "claude-haiku-4-6",
+          "gpt-5.1",
+          "gpt-5.2",
+          "gpt-5.4",
+          "gemini-3-pro-preview",
+          "gemini-3.1-pro-preview",
+          "deepseek-v4-flash",
+          "deepseek-v4-pro"
+        ],
+        "title": "ModelName",
+        "type": "string"
+      },
       "PortfolioResponse": {
         "properties": {
           "portfolio_tickers": {
@@ -227,6 +255,16 @@
           "id": {
             "title": "Id",
             "type": "string"
+          },
+          "model_name": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelName"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "started_at": {
             "anyOf": [

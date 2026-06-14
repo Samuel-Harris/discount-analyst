@@ -99,6 +99,7 @@ from discount_analyst.agents.surveyor.user_prompt import (
     USER_PROMPT as SURVEYOR_USER_PROMPT,
 )
 from discount_analyst.config.ai_models_config import AIModelsConfig
+from discount_analyst.models.model_name import ModelName
 from discount_analyst.pipeline.builders import (
     build_rating_table_decision,
     build_sentinel_rejection,
@@ -155,6 +156,7 @@ class DashboardPipelineRunner:
             started: bool = False,
             completed: bool = False,
             error_message: str | None = None,
+            model_name: ModelName | None = None,
         ) -> None:
             await self._mark_exec(
                 execution_id=execution_id,
@@ -163,6 +165,7 @@ class DashboardPipelineRunner:
                 started=started,
                 completed=completed,
                 error_message=error_message,
+                model_name=model_name,
             )
 
         async def _profiler_port_recompute(workflow_run_id: str) -> None:
@@ -303,6 +306,11 @@ class DashboardPipelineRunner:
             agent_name=agent_name,
         )
 
+    def _llm_model_name_for_execution(self, *, is_mock: bool) -> ModelName | None:
+        if is_mock:
+            return None
+        return self._settings.default_model
+
     async def _mark_exec(
         self,
         *,
@@ -312,6 +320,7 @@ class DashboardPipelineRunner:
         started: bool = False,
         completed: bool = False,
         error_message: str | None = None,
+        model_name: ModelName | None = None,
     ) -> None:
         await self._db(
             update_agent_execution,
@@ -321,6 +330,7 @@ class DashboardPipelineRunner:
             started_at=utc_now_iso() if started else None,
             completed_at=utc_now_iso() if completed else None,
             error_message=error_message,
+            model_name=model_name,
         )
 
     async def _complete_exec_with_conversation(
@@ -490,6 +500,7 @@ class DashboardPipelineRunner:
                 execution_id=surveyor_exec_id,
                 status="running",
                 started_at=utc_now_iso(),
+                model_name=self._llm_model_name_for_execution(is_mock=is_mock),
             )
             await self._recompute(workflow_run_id)
             surveyor_messages_json: str | None = None
@@ -820,7 +831,10 @@ class DashboardPipelineRunner:
             )
         else:
             await self._mark_exec(
-                execution_id=research_exec_id, status="running", started=True
+                execution_id=research_exec_id,
+                status="running",
+                started=True,
+                model_name=self._llm_model_name_for_execution(is_mock=is_mock),
             )
             await self._recompute(workflow_run_id)
             AI_LOGFIRE.info(
@@ -898,7 +912,10 @@ class DashboardPipelineRunner:
             )
         else:
             await self._mark_exec(
-                execution_id=strategist_exec_id, status="running", started=True
+                execution_id=strategist_exec_id,
+                status="running",
+                started=True,
+                model_name=self._llm_model_name_for_execution(is_mock=is_mock),
             )
             await self._recompute(workflow_run_id)
             AI_LOGFIRE.info(
@@ -969,7 +986,10 @@ class DashboardPipelineRunner:
             )
         else:
             await self._mark_exec(
-                execution_id=sentinel_exec_id, status="running", started=True
+                execution_id=sentinel_exec_id,
+                status="running",
+                started=True,
+                model_name=self._llm_model_name_for_execution(is_mock=is_mock),
             )
             await self._recompute(workflow_run_id)
             AI_LOGFIRE.info(
@@ -1099,7 +1119,10 @@ class DashboardPipelineRunner:
             )
         else:
             await self._mark_exec(
-                execution_id=appraiser_exec_id, status="running", started=True
+                execution_id=appraiser_exec_id,
+                status="running",
+                started=True,
+                model_name=self._llm_model_name_for_execution(is_mock=is_mock),
             )
             await self._recompute(workflow_run_id)
             AI_LOGFIRE.info(

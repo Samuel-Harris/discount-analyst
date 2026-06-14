@@ -8,7 +8,7 @@ from discount_analyst.agents.common.terminal_run import (
     TerminalRunOptions,
     terminal_run_options,
 )
-from discount_analyst.config.ai_models_config import ModelName
+from discount_analyst.models.model_name import ModelName
 
 
 @dataclass(frozen=True, slots=True)

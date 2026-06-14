@@ -9,6 +9,8 @@ from sqlalchemy import CheckConstraint, Column, UniqueConstraint
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, SQLModel  # pyright: ignore[reportUnknownVariableType]
 
+from discount_analyst.models.model_name import ModelName
+
 
 def _str_enum_sql_values(enum_cls: type[StrEnum]) -> list[str]:
     return [member.value for member in enum_cls.__members__.values()]
@@ -97,6 +99,7 @@ class WorkflowAgentExecution(SQLModel, table=True):
     started_at: datetime | None = None
     completed_at: datetime | None = None
     error_message: str | None = None
+    model_name: ModelName | None = None
 
 
 class Run(SQLModel, table=True):
@@ -134,6 +137,7 @@ class AgentExecution(SQLModel, table=True):
     started_at: datetime | None = None
     completed_at: datetime | None = None
     error_message: str | None = None
+    model_name: ModelName | None = None
 
 
 class CandidateSnapshot(SQLModel, table=True):

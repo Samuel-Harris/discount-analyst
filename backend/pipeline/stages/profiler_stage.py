@@ -42,7 +42,10 @@ class ProfilerStage:
         if profiler_exec_id is None:
             raise RuntimeError(f"Missing profiler execution for run {run_id}")
         await port.mark_agent_execution(
-            execution_id=profiler_exec_id, status="running", started=True
+            execution_id=profiler_exec_id,
+            status="running",
+            started=True,
+            model_name=None if is_mock else settings.default_model,
         )
         await port.recompute_workflow_status(workflow_run_id)
         AI_LOGFIRE.info(

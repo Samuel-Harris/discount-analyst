@@ -56,6 +56,7 @@ from discount_analyst.pipeline.schema import (
     Verdict,
 )
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
+from discount_analyst.models.model_name import ModelName
 
 _ACTIVE_RUN_STATUSES = frozenset({WorkflowRunStatusDb.RUNNING.value})
 _TERMINAL_RUN_STATUSES = frozenset(
@@ -103,6 +104,7 @@ def _reset_workflow_agent_execution(execution: WorkflowAgentExecution) -> None:
     execution.started_at = None
     execution.completed_at = None
     execution.error_message = None
+    execution.model_name = None
 
 
 def _reset_agent_execution(execution: AgentExecution) -> None:
@@ -110,6 +112,7 @@ def _reset_agent_execution(execution: AgentExecution) -> None:
     execution.started_at = None
     execution.completed_at = None
     execution.error_message = None
+    execution.model_name = None
 
 
 def _clear_run_completion_fields(run: Run) -> None:
@@ -387,6 +390,7 @@ def apply_workflow_agent_execution_status(
     started_at: str | None = None,
     completed_at: str | None = None,
     error_message: str | None = None,
+    model_name: ModelName | None = None,
 ) -> WorkflowAgentExecution | None:
     """Update workflow-level execution status and timestamps only (no output rows)."""
     execution = session.get(WorkflowAgentExecution, execution_id)
@@ -412,6 +416,8 @@ def apply_workflow_agent_execution_status(
         )
     if error_message is not None:
         execution.error_message = error_message
+    if model_name is not None:
+        execution.model_name = model_name
     session.add(execution)
     return execution
 
@@ -435,6 +441,7 @@ def update_workflow_agent_execution(
     started_at: str | None = None,
     completed_at: str | None = None,
     error_message: str | None = None,
+    model_name: ModelName | None = None,
 ) -> None:
     execution = apply_workflow_agent_execution_status(
         session,
@@ -443,6 +450,7 @@ def update_workflow_agent_execution(
         started_at=started_at,
         completed_at=completed_at,
         error_message=error_message,
+        model_name=model_name,
     )
     if execution is None:
         return
@@ -485,6 +493,7 @@ def apply_agent_execution_status(
     started_at: str | None = None,
     completed_at: str | None = None,
     error_message: str | None = None,
+    model_name: ModelName | None = None,
 ) -> AgentExecution | None:
     """Update per-ticker agent execution status and timestamps only (no output rows)."""
     execution = session.get(AgentExecution, execution_id)
@@ -510,6 +519,8 @@ def apply_agent_execution_status(
         )
     if error_message is not None:
         execution.error_message = error_message
+    if model_name is not None:
+        execution.model_name = model_name
     session.add(execution)
     return execution
 
@@ -546,6 +557,7 @@ def update_agent_execution(
     started_at: str | None = None,
     completed_at: str | None = None,
     error_message: str | None = None,
+    model_name: ModelName | None = None,
 ) -> None:
     execution = apply_agent_execution_status(
         session,
@@ -554,6 +566,7 @@ def update_agent_execution(
         started_at=started_at,
         completed_at=completed_at,
         error_message=error_message,
+        model_name=model_name,
     )
     if execution is None:
         return

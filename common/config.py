@@ -4,7 +4,7 @@ from typing import Literal
 from pydantic import AliasChoices, BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from discount_analyst.config.ai_models_config import ModelName
+from discount_analyst.models.model_name import ModelName
 
 DashboardLogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 

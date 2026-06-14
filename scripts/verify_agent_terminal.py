@@ -513,7 +513,8 @@ async def phase6_live_agent(s: VerifyState) -> bool:
     from discount_analyst.agents.common.agent_names import AgentName
     from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
     from discount_analyst.agents.common.terminal_run import terminal_run_options
-    from discount_analyst.config.ai_models_config import AIModelsConfig, ModelName
+    from discount_analyst.config.ai_models_config import AIModelsConfig
+    from discount_analyst.models.model_name import ModelName
     from pydantic_ai.usage import UsageLimits
 
     class _Echo(BaseModel):

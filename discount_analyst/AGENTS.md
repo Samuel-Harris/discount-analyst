@@ -26,7 +26,8 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 | `agents/strategist/schema.py`         | Strategist output schema: `MispricingThesis`.                                                                         |
 | `agents/sentinel/schema.py`           | Sentinel output schema: `EvaluationReport` and nested assessment models.                                              |
 | `agents/appraiser/schema.py`          | Appraiser I/O: `AppraiserInput` (pipeline inputs) and method-agnostic `AppraiserOutput` distribution/method models.   |
-| `config/ai_models_config.py`          | Configuration for LLM models, including token budgets and thinking parameters.                                        |
+| `models/model_name.py`                | `ModelName` (`StrEnum`) — stdlib-only; canonical import for LLM model identifiers across backend, scripts, and config.          |
+| `config/ai_models_config.py`          | `AIModelsConfig`, discriminated `AIModelConfig` union and provider `model_settings`.                                              |
 | `http/retrying_client.py`             | Tenacity-backed async HTTP client for provider APIs.                                                                  |
 | `integrations/perplexity.py`          | Perplexity-backed toolset factory for agents.                                                                         |
 | `integrations/terminal.py`            | Docker-backed `terminal_exec` capability (orchestrator HTTP).                                                         |
@@ -44,6 +45,7 @@ The core source code for the "Discount Analyst" stock analysis engine. This dire
 | `rating/`        | `InvestmentRating`, `MarginOfSafetyAssessment`, `ValuationResult` (explicit submodule imports; package `__init__` is empty).    |
 | `agents/common/` | Agent runtime: model factory, streaming, tool wiring, creed, agent names (see `agents/common/AGENTS.md`).                       |
 | `config/`        | Settings, model config, provider capability flags (see `config/AGENTS.md`).                                                     |
+| `models/`        | Stdlib-only shared types (`ModelName`; see `models/AGENTS.md`).                                                                  |
 | `http/`          | HTTP transport retries (see `http/AGENTS.md`).                                                                                  |
 | `integrations/`  | External adapters: Perplexity, financial MCP, terminal sandbox (see `integrations/AGENTS.md`).                                  |
 
