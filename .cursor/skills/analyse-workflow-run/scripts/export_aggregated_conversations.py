@@ -99,8 +99,6 @@ _AGENT_ISSUE_KEYWORDS: dict[str, tuple[str, ...]] = {
     ),
     "APPRAISER": (
         "final_result",
-        "StockData",
-        "StockAssumptions",
         "DCF",
         "valuation",
         "EvaluationReport",
@@ -110,9 +108,6 @@ _AGENT_ISSUE_KEYWORDS: dict[str, tuple[str, ...]] = {
         "lease",
         "net debt",
         "intrinsic",
-        "bear_intrinsic",
-        "bull_intrinsic",
-        "base_intrinsic",
         "margin_of_safety",
         "STRONG BUY",
         "RatingTableDecision",
@@ -123,6 +118,15 @@ _AGENT_ISSUE_KEYWORDS: dict[str, tuple[str, ...]] = {
         "large cap",
         "small-cap",
         "conviction",
+        "valuation_distribution",
+        "expected_intrinsic_value",
+        "p10_intrinsic_value",
+        "p50_intrinsic_value",
+        "p90_intrinsic_value",
+        "primary",
+        "cross_check",
+        "data_quality",
+        "terminal_exec",
     ),
 }
 
@@ -141,15 +145,14 @@ _USER_PROMPT_BLOCK = re.compile(
     re.MULTILINE,
 )
 _UPSTREAM_BEFORE_VALUATION = re.compile(
-    r"## StockCandidate\n\n<SurveyorCandidate>[\s\S]*?</EvaluationReport>\n\n---\n\n## ValuationResult\n\n",
+    r"## Screening context\n\n[\s\S]*?(?=## Your task\n\n)",
     re.MULTILINE,
 )
 _UPSTREAM_BEFORE_VALUATION_REPL = (
-    "## Upstream payloads (redacted)\n\n"
+    "## Screening context (redacted)\n\n"
     "[Redacted — SurveyorCandidate, DeepResearchReport, MispricingThesis, and "
-    "EvaluationReport JSON. ValuationResult below is preserved because single-point "
-    "DCF outputs drive bear/base/bull behaviour in downstream MoS fields.]\n\n"
-    "---\n\n## ValuationResult\n\n"
+    "EvaluationReport JSON inputs are redacted to save line budget. "
+    "The Appraiser task description below is preserved.]\n\n"
 )
 
 
@@ -224,7 +227,7 @@ def _thin_user_prompt(
 
 
 def _redact_upstream_before_valuation(body: str) -> str:
-    if "## StockCandidate" not in body or "## ValuationResult" not in body:
+    if "## Screening context" not in body or "## Your task" not in body:
         return body
     return _UPSTREAM_BEFORE_VALUATION.sub(_UPSTREAM_BEFORE_VALUATION_REPL, body)
 
