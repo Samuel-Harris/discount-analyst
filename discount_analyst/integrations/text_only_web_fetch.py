@@ -23,6 +23,7 @@ from pydantic_ai.tools import Tool
 __all__ = ("create_text_only_web_fetch_tool",)
 
 _EXCESSIVE_NEWLINES_RE = re.compile(r"\n{3,}")
+_MARKITDOWN = MarkItDown(enable_plugins=False)
 
 
 def _clean_whitespace(text: str) -> str:
@@ -57,7 +58,7 @@ def _stream_info_for_binary(*, media_type: str, url: str) -> StreamInfo:
 
 def _binary_to_markdown(data: bytes, *, media_type: str, url: str) -> str:
     stream_info = _stream_info_for_binary(media_type=media_type, url=url)
-    result = MarkItDown(enable_plugins=False).convert_stream(
+    result = _MARKITDOWN.convert_stream(
         io.BytesIO(data),
         stream_info=stream_info,
     )

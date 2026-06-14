@@ -17,6 +17,9 @@ class ProviderFeature(StrEnum):
     """Features that may or may not be supported by each provider."""
 
     MCP = "mcp"
+    # Providers that need a text-only local web_fetch workaround (not native support).
+    # Unlike MCP, membership means the provider rejects binary tool results and needs
+    # markitdown conversion instead of the default WebFetch local implementation.
     TEXT_ONLY_WEB_FETCH = "text_only_web_fetch"
 
 
