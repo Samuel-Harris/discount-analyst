@@ -1,5 +1,6 @@
 import pytest
 from pydantic_ai.models.test import TestModel
+from types import SimpleNamespace
 
 from discount_analyst.agents.common import agent_factory
 from discount_analyst.agents.common.agent_factory import (
@@ -7,6 +8,7 @@ from discount_analyst.agents.common.agent_factory import (
     create_agent,
     create_web_research_tooling,
 )
+from discount_analyst.agents.common_prompts.current_date import format_current_date_line
 from discount_analyst.agents.common.agent_names import AgentName
 from discount_analyst.config.ai_models_config import (
     AIModelConfig,
@@ -42,6 +44,36 @@ def test_create_web_research_tooling_uses_pydantic_web_capabilities(
         ("web_search", True, "duckduckgo"),
         ("web_fetch", True, True),
     ]
+
+
+def test_create_agent_prepends_current_date_to_system_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, str] = {}
+
+    def fake_create_model_from_config(_config: AIModelConfig) -> TestModel:
+        return TestModel()
+
+    def fake_agent(*, system_prompt: str, **kwargs: object) -> SimpleNamespace:
+        captured["system_prompt"] = system_prompt
+        return SimpleNamespace(name=kwargs.get("name"))
+
+    monkeypatch.setattr(
+        agent_factory,
+        "create_model_from_config",
+        fake_create_model_from_config,
+    )
+    monkeypatch.setattr(agent_factory, "Agent", fake_agent)
+
+    agent = create_agent(
+        spec=AgentSpec(name=AgentName.SURVEYOR, output_type=str, system_prompt="test"),
+        ai_models_config=AIModelsConfig(model_name=ModelName.DEEPSEEK_V4_PRO),
+        use_mcp_financial_data=False,
+    )
+
+    assert agent.name == AgentName.SURVEYOR
+    assert captured["system_prompt"].startswith(format_current_date_line())
+    assert captured["system_prompt"].endswith("test")
 
 
 def test_create_agent_accepts_deepseek_web_research_tooling(

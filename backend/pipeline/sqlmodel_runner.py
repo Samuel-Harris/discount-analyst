@@ -52,6 +52,7 @@ from backend.pipeline.stages.profiler_stage import ProfilerStage
 from backend.dev import mock_conversation_messages, mock_outputs
 from common.config import Settings
 from discount_analyst.agents.common.terminal_run import run_agent_with_terminal
+from discount_analyst.agents.common_prompts.current_date import with_current_date
 from discount_analyst.integrations.terminal import TerminalRuntimeConfig
 from backend.db.session import SessionFactory
 from discount_analyst.agents.appraiser.appraiser import create_appraiser_agent
@@ -521,7 +522,7 @@ class DashboardPipelineRunner:
                 surveyor_messages_json = None
             await self._complete_workflow_exec_with_conversation(
                 execution_id=surveyor_exec_id,
-                system_prompt=SURVEYOR_SYSTEM_PROMPT,
+                system_prompt=with_current_date(SURVEYOR_SYSTEM_PROMPT),
                 output_json=surveyor_output.model_dump_json(),
                 messages=messages,
                 messages_json=surveyor_messages_json,
@@ -860,7 +861,7 @@ class DashboardPipelineRunner:
                 r_mock_json = None
             await self._complete_exec_with_conversation(
                 execution_id=research_exec_id,
-                system_prompt=RESEARCHER_SYSTEM_PROMPT,
+                system_prompt=with_current_date(RESEARCHER_SYSTEM_PROMPT),
                 output_json=research_out.model_dump_json(),
                 messages=r_messages,
                 messages_json=r_mock_json,
@@ -933,7 +934,7 @@ class DashboardPipelineRunner:
                 s_mock_json = None
             await self._complete_exec_with_conversation(
                 execution_id=strategist_exec_id,
-                system_prompt=STRATEGIST_SYSTEM_PROMPT,
+                system_prompt=with_current_date(STRATEGIST_SYSTEM_PROMPT),
                 output_json=thesis.model_dump_json(),
                 messages=s_messages,
                 messages_json=s_mock_json,
@@ -1011,7 +1012,7 @@ class DashboardPipelineRunner:
                 n_mock_json = None
             await self._complete_exec_with_conversation(
                 execution_id=sentinel_exec_id,
-                system_prompt=SENTINEL_SYSTEM_PROMPT,
+                system_prompt=with_current_date(SENTINEL_SYSTEM_PROMPT),
                 output_json=evaluation.model_dump_json(),
                 messages=n_messages,
                 messages_json=n_mock_json,
@@ -1146,7 +1147,7 @@ class DashboardPipelineRunner:
                 a_mock_json = None
             await self._complete_exec_with_conversation(
                 execution_id=appraiser_exec_id,
-                system_prompt=APPRAISER_SYSTEM_PROMPT,
+                system_prompt=with_current_date(APPRAISER_SYSTEM_PROMPT),
                 output_json=appraiser_out.model_dump_json(),
                 messages=a_messages,
                 messages_json=a_mock_json,
