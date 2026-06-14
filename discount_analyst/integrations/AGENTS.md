@@ -9,12 +9,13 @@ Named external service adapters: Perplexity search tools, EODHD/FMP MCP `MCPTool
 
 ## Key Files
 
-| File                    | Description                                                                                                         |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `perplexity.py`         | `create_perplexity_toolset(AgentName)` for web/SEC search.                                                          |
-| `financial_data_mcp.py` | `create_financial_data_mcp_servers()` (EODHD + FMP URLs; EODHD omitted if `EODHD__DISABLED`).                       |
-| `terminal.py`           | `Terminal` capability (`terminal_exec`), `TerminalRuntimeConfig`, `TerminalExecPayload`, `delete_terminal_session`. |
-| `infallible_toolset.py` | `InfallibleToolset` wrapper that catches tool errors and returns them as messages to the model.                     |
+| File                     | Description                                                                                                                  |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `perplexity.py`          | `create_perplexity_toolset(AgentName)` for web/SEC search.                                                                   |
+| `financial_data_mcp.py`  | `create_financial_data_mcp_servers()` (EODHD + FMP URLs; EODHD omitted if `EODHD__DISABLED`).                                |
+| `terminal.py`            | `Terminal` capability (`terminal_exec`), `TerminalRuntimeConfig`, `TerminalExecPayload`, `delete_terminal_session`.          |
+| `infallible_toolset.py`  | `InfallibleToolset` wrapper that catches tool errors and returns them as messages to the model.                              |
+| `text_only_web_fetch.py` | `create_text_only_web_fetch_tool()` — local `WebFetch` that converts binary documents to markdown via markitdown (DeepSeek). |
 
 ## Dependencies
 
@@ -24,4 +25,4 @@ Named external service adapters: Perplexity search tools, EODHD/FMP MCP `MCPTool
 
 ### External
 
-- **perplexityai**, **pydantic-ai** (`FunctionToolset`, `MCPToolset`, `WrapperToolset`).
+- **perplexityai**, **pydantic-ai** (`FunctionToolset`, `MCPToolset`, `WrapperToolset`), **markitdown** (text-only web fetch for providers that reject binary message parts).

@@ -90,7 +90,7 @@ Nested groups use double underscores, for example `PERPLEXITY__API_KEY`, `LOGGIN
 
 Optional provider blocks can be omitted when unused; consult the settings model for required combinations.
 
-When `--perplexity` is not set, agents use Pydantic AI's `WebSearch` and `WebFetch` capabilities. Providers with native support use provider-native tools; providers without native support, such as DeepSeek, use Pydantic AI's local DuckDuckGo search and web-fetch fallbacks.
+When `--perplexity` is not set, agents use Pydantic AI's `WebSearch` and `WebFetch` capabilities. Providers with native support use provider-native tools; providers without native support, such as DeepSeek, use Pydantic AI's local DuckDuckGo search and web-fetch fallbacks. For DeepSeek, the local fetch tool converts binary documents (PDF, Office, and similar) to markdown via markitdown; formats that cannot be converted return an unsupported-type message instead of binary content.
 
 ### Frontend (Vite)
 
