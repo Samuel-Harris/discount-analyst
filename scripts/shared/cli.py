@@ -20,7 +20,7 @@ class AgentCliDefaults:
 
 
 DEFAULT_AGENT_CLI_DEFAULTS = AgentCliDefaults(
-    model=ModelName.GPT_5_1,
+    model=ModelName.DEEPSEEK_V4_PRO,
     use_perplexity=False,
 )
 
