@@ -1,8 +1,8 @@
-"""Tests for extract_agent_error_message in sqlmodel_runner."""
+"""Tests for extract_agent_error_message."""
 
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 
-from backend.pipeline.sqlmodel_runner import extract_agent_error_message
+from backend.pipeline.agent_errors import extract_agent_error_message
 
 
 def test_plain_exception_returns_str() -> None:

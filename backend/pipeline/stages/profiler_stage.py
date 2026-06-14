@@ -17,7 +17,7 @@ from discount_analyst.agents.profiler.system_prompt import (
 )
 from discount_analyst.agents.profiler.user_prompt import create_profiler_user_prompt
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
-from discount_analyst.config.ai_models_config import AIModelsConfig
+from backend.pipeline.llm_config import pipeline_llm_config
 
 if TYPE_CHECKING:
     from common.config import Settings
@@ -41,11 +41,12 @@ class ProfilerStage:
         profiler_exec_id = await port.get_agent_execution_id(run_id, _PROFILER_AGENT)
         if profiler_exec_id is None:
             raise RuntimeError(f"Missing profiler execution for run {run_id}")
+        llm = pipeline_llm_config(settings, is_mock=is_mock)
         await port.mark_agent_execution(
             execution_id=profiler_exec_id,
             status="running",
             started=True,
-            model_name=None if is_mock else settings.default_model,
+            model_name=llm.model_name,
         )
         await port.recompute_workflow_status(workflow_run_id)
         AI_LOGFIRE.info(
@@ -65,7 +66,9 @@ class ProfilerStage:
                 ticker=ticker
             )
         else:
-            ai_cfg = AIModelsConfig(model_name=settings.default_model)
+            ai_cfg = llm.ai_models_config
+            if ai_cfg is None:
+                raise RuntimeError("Profiler LLM config missing for non-mock run")
             outcome = await run_agent_with_terminal(
                 settings=settings,
                 session_id=profiler_exec_id,

@@ -4,13 +4,11 @@
 from __future__ import annotations
 
 import os
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-ALEMBIC_INI = REPO_ROOT / "backend" / "db" / "alembic.ini"
 
 # Alembic env.py imports backend.db.session → common.config.settings at load time.
 # Supply minimal defaults when unset (same keys as tests/conftest.py).
@@ -26,53 +24,24 @@ _ALEMBIC_SETTINGS_DEFAULTS: dict[str, str] = {
 }
 
 
-def _alembic_subprocess_env() -> dict[str, str]:
-    env = {**os.environ}
+def _apply_env_defaults() -> Path:
     for key, value in _ALEMBIC_SETTINGS_DEFAULTS.items():
-        env.setdefault(key, value)
+        os.environ.setdefault(key, value)
     default_db = Path(tempfile.gettempdir()) / "discount-analyst-alembic-check.sqlite"
-    env.setdefault("DASHBOARD_DATABASE_PATH", str(default_db))
-    return env
-
-
-def _run(cmd: list[str], *, env: dict[str, str]) -> None:
-    result = subprocess.run(
-        cmd,
-        cwd=REPO_ROOT,
-        env=env,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        sys.stderr.write(result.stdout)
-        sys.stderr.write(result.stderr)
-        raise SystemExit(result.returncode)
+    db_path = Path(os.environ.get("DASHBOARD_DATABASE_PATH", str(default_db)))
+    os.environ.setdefault("DASHBOARD_DATABASE_PATH", str(db_path))
+    return db_path
 
 
 def main() -> int:
-    env = _alembic_subprocess_env()
+    db_path = _apply_env_defaults()
+    from backend.db.session import sqlite_url_from_path
+    from backend.db.verify_schema import AlembicSchemaError, verify_alembic_schema
 
-    alembic = ["uv", "run", "alembic", "-c", str(ALEMBIC_INI)]
-    _run([*alembic, "upgrade", "head"], env=env)
-    _run([*alembic, "check"], env=env)
-
-    heads = subprocess.run(
-        [*alembic, "heads"],
-        cwd=REPO_ROOT,
-        env=env,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    head_lines = [line for line in heads.stdout.splitlines() if line.strip()]
-    if len(head_lines) != 1:
-        print(
-            f"Expected exactly one Alembic head, found {len(head_lines)}:",
-            file=sys.stderr,
-        )
-        for line in head_lines:
-            print(line, file=sys.stderr)
+    try:
+        verify_alembic_schema(database_url=sqlite_url_from_path(db_path))
+    except AlembicSchemaError as exc:
+        print(exc, file=sys.stderr)
         return 1
 
     print("Alembic schema matches ORM metadata at head.")
