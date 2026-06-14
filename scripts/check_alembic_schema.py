@@ -12,6 +12,28 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ALEMBIC_INI = REPO_ROOT / "backend" / "db" / "alembic.ini"
 
+# Alembic env.py imports backend.db.session → common.config.settings at load time.
+# Supply minimal defaults when unset (same keys as tests/conftest.py).
+_ALEMBIC_SETTINGS_DEFAULTS: dict[str, str] = {
+    "LOGGING__LOGFIRE_API_KEY": "pytest-dummy-logfire-token",
+    "OPENAI__API_KEY": "pytest-dummy-openai",
+    "DEEPSEEK__API_KEY": "pytest-dummy-deepseek",
+    "PERPLEXITY__API_KEY": "pytest-dummy-perplexity",
+    "PERPLEXITY__RATE_LIMIT_PER_MINUTE": "60",
+    "FMP__API_KEY": "pytest-dummy-fmp",
+    "EODHD__API_KEY": "pytest-dummy-eodhd",
+    "DASHBOARD_USE_TERMINAL": "false",
+}
+
+
+def _alembic_subprocess_env() -> dict[str, str]:
+    env = {**os.environ}
+    for key, value in _ALEMBIC_SETTINGS_DEFAULTS.items():
+        env.setdefault(key, value)
+    default_db = Path(tempfile.gettempdir()) / "discount-analyst-alembic-check.sqlite"
+    env.setdefault("DASHBOARD_DATABASE_PATH", str(default_db))
+    return env
+
 
 def _run(cmd: list[str], *, env: dict[str, str]) -> None:
     result = subprocess.run(
@@ -29,9 +51,7 @@ def _run(cmd: list[str], *, env: dict[str, str]) -> None:
 
 
 def main() -> int:
-    default_db = Path(tempfile.gettempdir()) / "discount-analyst-alembic-check.sqlite"
-    db_path = Path(os.environ.get("DASHBOARD_DATABASE_PATH", str(default_db)))
-    env = {**os.environ, "DASHBOARD_DATABASE_PATH": str(db_path)}
+    env = _alembic_subprocess_env()
 
     alembic = ["uv", "run", "alembic", "-c", str(ALEMBIC_INI)]
     _run([*alembic, "upgrade", "head"], env=env)

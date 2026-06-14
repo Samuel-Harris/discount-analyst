@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -26,7 +27,7 @@ from discount_analyst.models.model_name import ModelName
 
 
 @pytest.fixture
-def session(tmp_path: Path) -> Session:
+def session(tmp_path: Path) -> Iterator[Session]:
     from backend.app.main import create_app
 
     settings = dashboard_settings_for_tests(database_path=tmp_path / "crud.sqlite")
