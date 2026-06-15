@@ -22,6 +22,7 @@ from discount_analyst.agents.common.terminal_run import (
 from discount_analyst.integrations.terminal import (
     close_terminal_http,
     delete_terminal_session,
+    ensure_terminal_ready,
 )
 
 
@@ -59,6 +60,9 @@ async def run_streamed_agent[T](
 
     cfg = run_settings or process_settings
     terminal_opts = terminal or terminal_run_options(cfg)
+
+    if terminal_opts.enabled:
+        await ensure_terminal_ready(service_url=terminal_opts.runtime.service_url)
 
     start = perf_counter()
     output: T

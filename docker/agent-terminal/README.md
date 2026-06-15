@@ -45,6 +45,8 @@ Sandboxes mount it at `/workspace/repo` (override with `TERMINAL_WORKSPACE_CONTA
 make verify-terminal   # builds sandbox image, runs scripts/verify_agent_terminal.py
 ```
 
+Agent runs with terminal enabled probe session creation at startup (`ensure_terminal_ready` in `run_streamed_agent`). If the sandbox image is missing or Docker is misconfigured, the run fails immediately with `TerminalUnavailableError` including the orchestrator error detail — use `make verify-terminal` to diagnose locally.
+
 Or from a running Compose backend:
 
 ```bash
@@ -64,15 +66,15 @@ Limits (env on orchestrator): `TERMINAL_COMMAND_TIMEOUT_S` (default 300), `TERMI
 
 ## Application settings
 
-| Variable                     | Default                      | Purpose                                  |
-| ---------------------------- | ---------------------------- | ---------------------------------------- |
-| `DASHBOARD_USE_TERMINAL`     | `true`                       | Enable `terminal_exec` on agents         |
-| `TERMINAL_SERVICE_URL`       | `http://agent-terminal:8001` | Orchestrator base URL                    |
-| `TERMINAL_COMMAND_TIMEOUT_S` | `300`                        | Per-command timeout (client read budget) |
-| `TERMINAL_MAX_OUTPUT_BYTES`  | `2097152`                    | Combined stdout+stderr cap               |
-| `TERMINAL_WORKSPACE_HOST_PATH` | (empty)                    | Host path bind-mounted read-only into sandboxes |
-| `TERMINAL_WORKSPACE_CONTAINER_PATH` | `/workspace/repo`     | Mount point inside sandboxes             |
-| `DOCKER_RUNTIME`             | `runc` (orchestrator env)    | Container runtime (`runsc` for gVisor)   |
+| Variable                            | Default                      | Purpose                                         |
+| ----------------------------------- | ---------------------------- | ----------------------------------------------- |
+| `DASHBOARD_USE_TERMINAL`            | `true`                       | Enable `terminal_exec` on agents                |
+| `TERMINAL_SERVICE_URL`              | `http://agent-terminal:8001` | Orchestrator base URL                           |
+| `TERMINAL_COMMAND_TIMEOUT_S`        | `300`                        | Per-command timeout (client read budget)        |
+| `TERMINAL_MAX_OUTPUT_BYTES`         | `2097152`                    | Combined stdout+stderr cap                      |
+| `TERMINAL_WORKSPACE_HOST_PATH`      | (empty)                      | Host path bind-mounted read-only into sandboxes |
+| `TERMINAL_WORKSPACE_CONTAINER_PATH` | `/workspace/repo`            | Mount point inside sandboxes                    |
+| `DOCKER_RUNTIME`                    | `runc` (orchestrator env)    | Container runtime (`runsc` for gVisor)          |
 
 CLI/scripts: pass `--no-terminal` to disable for a single run.
 
