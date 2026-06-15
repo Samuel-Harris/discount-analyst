@@ -48,7 +48,8 @@ async def run_streamed_agent[T](
 ) -> StreamedAgentRunOutcome[T]:
     """Stream to completion under ``stream_with_retries``, then return output and usage.
 
-    ``elapsed_s`` covers the entire ``async with stream_with_retries`` block.
+    ``elapsed_s`` covers the ``async with stream_with_retries`` block only; the
+    terminal readiness probe (when enabled) is excluded.
 
     Pass ``terminal`` to align tool registration (via ``create_agent``) with sandbox
     session binding and orchestrator cleanup. When omitted, options are derived from
