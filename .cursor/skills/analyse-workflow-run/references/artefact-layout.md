@@ -56,3 +56,10 @@ Script (stdlib only, no repo imports):
 - **Filename:** `<workflow-run-id>_agent_review.html` (self-contained HTML; not markdown).
 - Same directory as the SQLite copy and export folders; open in a browser.
 - Section layout and HTML requirements: see step 7 and **Report format (HTML)** in [`../SKILL.md`](../SKILL.md).
+- **Required Report Sections:**
+  1. **Data sources:** Details of the copied SQLite database (path, size, timestamp) and the Logfire query parameters used.
+  2. **Executive summary:** Tickers processed, success rates, profiler coverage (< 25 conversations warning), sentinel pass count, and final ratings.
+  3. **Terminal Tool Analytics:** Comprehensive summary of `terminal_exec` tool calls, success rates, timeouts, errors, and an audit of toolkit vs. ad-hoc commands used.
+  4. **Appraiser Valuation Audit:** A clear table containing method-agnostic valuation metrics extracted from `appraiser_reports` (EXPECTED, P10, P50, and P90 intrinsic values, current share price, currency, primary vs cross-check valuation methods, weights, and data quality).
+  5. **Qualitative conversation review:** Individual sections per pipeline agent (`SURVEYOR`, `PROFILER`, `RESEARCHER`, `STRATEGIST`, `SENTINEL`, `APPRAISER`) reviewing reasoning, rate limit recoveries, edge cases, and tool usage.
+  6. **Appendix: telemetry:** Raw or formatted Logfire output, span summaries, and execution metrics.

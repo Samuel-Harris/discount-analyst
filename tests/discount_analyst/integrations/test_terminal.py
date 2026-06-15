@@ -23,7 +23,9 @@ from discount_analyst.integrations.terminal import (
     Terminal,
     TerminalLimits,
     TerminalSessionState,
+    TerminalUnavailableError,
     delete_terminal_session,
+    ensure_terminal_ready,
     execute_terminal_command,
     format_terminal_exec_response,
 )
@@ -129,6 +131,100 @@ async def test_execute_terminal_command_happy_path(
         session_state=state,
     )
     assert session_post_count == 1
+
+
+_SANDBOX_MISSING_DETAIL = (
+    "Failed to start sandbox container (runtime='runc'): 404 Client Error for "
+    "http+docker://localhost/v1.49/images/create?tag=local&fromImage="
+    'discount-analyst-terminal-sandbox: Not Found ("pull access denied for '
+    "discount-analyst-terminal-sandbox, repository does not exist or may require "
+    "'docker login': denied: requested access to the resource is denied\"). "
+    "If runsc is unavailable, set DOCKER_RUNTIME=runc for development."
+)
+
+
+@pytest.mark.anyio
+async def test_ensure_terminal_ready_succeeds_and_deletes_probe_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append((request.method, request.url.path))
+        if request.method == "POST" and request.url.path == "/sessions":
+            body = json.loads(request.content.decode())
+            assert body["session_id"].startswith("terminal-probe-")
+            return httpx.Response(
+                200,
+                json={
+                    "session_id": body["session_id"],
+                    "container_id": "probe-cid",
+                    "container_name": "da-term-probe",
+                },
+            )
+        if request.method == "DELETE" and request.url.path.startswith("/sessions/"):
+            return httpx.Response(204)
+        return httpx.Response(500, text="unexpected")
+
+    monkeypatch.setattr(
+        "discount_analyst.integrations.terminal.httpx.AsyncClient",
+        _client_factory(handler),
+    )
+
+    await ensure_terminal_ready(service_url="http://orchestrator")
+
+    assert ("POST", "/sessions") in calls
+    assert any(
+        method == "DELETE" and path.startswith("/sessions/") for method, path in calls
+    )
+
+
+@pytest.mark.anyio
+async def test_ensure_terminal_ready_raises_with_http_detail_on_500(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST" and request.url.path == "/sessions":
+            return httpx.Response(500, json={"detail": _SANDBOX_MISSING_DETAIL})
+        return httpx.Response(500, text="unexpected")
+
+    monkeypatch.setattr(
+        "discount_analyst.integrations.terminal.httpx.AsyncClient",
+        _client_factory(handler),
+    )
+
+    with pytest.raises(TerminalUnavailableError) as exc_info:
+        await ensure_terminal_ready(service_url="http://orchestrator")
+
+    message = str(exc_info.value)
+    assert "http://orchestrator" in message
+    assert "HTTP 500" in message
+    assert "discount-analyst-terminal-sandbox" in message
+    assert exc_info.value.detail == _SANDBOX_MISSING_DETAIL
+
+
+@pytest.mark.anyio
+async def test_ensure_terminal_ready_raises_on_connection_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        raise httpx.ConnectError(
+            "connection refused",
+            request=httpx.Request("POST", "http://orchestrator/sessions"),
+        )
+
+    monkeypatch.setattr(
+        "discount_analyst.integrations.terminal.httpx.AsyncClient",
+        _client_factory(handler),
+    )
+
+    with pytest.raises(TerminalUnavailableError) as exc_info:
+        await ensure_terminal_ready(service_url="http://orchestrator")
+
+    message = str(exc_info.value)
+    assert "http://orchestrator" in message
+    assert "connection failed" in message
 
 
 class _MinimalOutput(BaseModel):

@@ -44,6 +44,32 @@ Further layout and script-flag detail: [`references/artefact-layout.md`](referen
 
   If this returns **0 rows**, stop — do not treat an empty digest export as success. Ask for the correct SQLite file or a fresh copy of `data/dashboard.prod.sqlite`.
 
+  You can also query the `appraiser_reports` table directly in SQLite to verify the updated method-agnostic valuation distributions:
+
+  ```sql
+  SELECT ar.ticker, ar.company_name, ar.currency, ar.current_share_price,
+         ar.expected_intrinsic_value, ar.p10_intrinsic_value, ar.p50_intrinsic_value, ar.p90_intrinsic_value,
+         ar.distribution_method, ar.data_quality
+  FROM appraiser_reports ar
+  JOIN agent_executions ae ON ar.agent_execution_id = ae.id
+  JOIN runs r ON ae.run_id = r.id
+  WHERE r.workflow_run_id = '<uuid>';
+  ```
+
+  And check for terminal tool execution returns directly:
+
+  ```sql
+  SELECT COUNT(*) as total_calls,
+         SUM(CASE WHEN p.content_text LIKE '%"exit_code": 0%' THEN 1 ELSE 0 END) as success_calls,
+         SUM(CASE WHEN p.content_text LIKE '%timeout%' OR p.content_text LIKE '%"exit_code": 124%' THEN 1 ELSE 0 END) as timeout_calls
+  FROM agent_conversation_message_parts p
+  JOIN agent_conversation_messages m ON p.conversation_message_id = m.id
+  JOIN agent_conversations ac ON m.conversation_id = ac.id
+  JOIN agent_executions ae ON ac.agent_execution_id = ae.id
+  JOIN runs r ON ae.run_id = r.id
+  WHERE r.workflow_run_id = '<uuid>' AND p.part_kind = 'tool_return' AND p.tool_name = 'terminal_exec';
+  ```
+
 - **Logfire** (optional but recommended): project token with `query_run`; queries must use a **≤ 14 day** window and `LIMIT`. See [`references/logfire-queries.md`](references/logfire-queries.md).
 
 ### Host SQLite files
@@ -105,6 +131,8 @@ Historical Docker Compose production data was migrated into `data/dashboard.prod
 
    Agents: `SURVEYOR`, `PROFILER`, `RESEARCHER`, `STRATEGIST`, `SENTINEL`, `APPRAISER`. Skip any agent with no merged file for this run.
 
+   Direct subagents to review **terminal usage (`terminal_exec`)**, checking for timeouts, shell errors, formatting, and whether they used the provided toolkits or relied on ad-hoc commands. For `APPRAISER`, have them evaluate the method-agnostic valuation distribution logic and data quality, verifying the weights and reasons for choosing primary vs cross-check methods.
+
 7. **Write report:** `<uuid>_agent_review.html` in the **same** `<uuid>/` folder. **Do not** write a markdown report — the deliverable is HTML only.
 
 ## Report format (HTML)
@@ -122,8 +150,10 @@ Write a **single self-contained HTML file** (no external CSS/JS/fonts). Requirem
 
 1. **Data sources** — SQLite path + copy command; Logfire window; note whether `data/dashboard.prod.sqlite` was copied fresh or may be stale.
 2. **Executive summary** — tickers (`workflow_run_portfolio_tickers` / `runs`), profiler coverage if `< 25` conversations, sentinel pass count, runs with `run_final_decisions` / `final_rating` when present.
-3. **Qualitative conversation review** — one `<section>` per agent from subagents.
-4. **Appendix: telemetry** — Logfire tables + any pipeline-only notes.
+3. **Terminal Tool Analytics** — A structured summary of `terminal_exec` tool usage, detailing command execution counts, overall success rate, timeouts, errors, and an audit of toolkit commands versus ad-hoc actions across agents.
+4. **Appraiser Valuation Audit** — A structured table of valuation distributions extracted from `appraiser_reports` for all appraised tickers (including EXPECTED, P10, P50, and P90 intrinsic values, current share price, currency, primary vs cross-check valuation methods, assigned weights, and data quality ratings).
+5. **Qualitative conversation review** — one `<section>` per agent from subagents (highlighting agent reasoning, rate limit recoveries, edge cases, and tool usage).
+6. **Appendix: telemetry** — Logfire tables + any pipeline-only notes.
 
 ## Codebase pointers
 

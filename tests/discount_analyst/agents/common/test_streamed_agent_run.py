@@ -1,5 +1,6 @@
 """Tests for ``run_streamed_agent``."""
 
+import asyncio
 from typing import Any, cast
 
 import pytest
@@ -16,7 +17,10 @@ from discount_analyst.agents.common.terminal_run import (
     TerminalRunOptions,
     terminal_run_options,
 )
-from discount_analyst.integrations.terminal import TerminalRuntimeConfig
+from discount_analyst.integrations.terminal import (
+    TerminalRuntimeConfig,
+    TerminalUnavailableError,
+)
 
 
 class _FakeStreamedRunResult:
@@ -232,6 +236,11 @@ async def test_run_streamed_agent_deletes_terminal_session_on_success(
     )
     monkeypatch.setattr(streamed_agent_run_mod, "close_terminal_http", _fake_close)
 
+    async def _noop_probe(*, service_url: str) -> None:
+        del service_url
+
+    monkeypatch.setattr(streamed_agent_run_mod, "ensure_terminal_ready", _noop_probe)
+
     agent = _FakeAgent(name="surveyor")
     runtime = TerminalRuntimeConfig(
         service_url="http://terminal.test",
@@ -311,3 +320,135 @@ async def test_run_streamed_agent_skips_terminal_when_disabled(
 
     assert deleted == []
     assert closed == []
+
+
+@pytest.mark.anyio
+async def test_run_streamed_agent_raises_before_stream_when_terminal_probe_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _no_wait(exc: BaseException, attempt: int) -> float:
+        del exc, attempt
+        return 0.0
+
+    monkeypatch.setattr(
+        streaming_retries,
+        "streaming_retry_sleep_seconds",
+        _no_wait,
+    )
+    fake_logfire = _FakeLogfire()
+    monkeypatch.setattr(streamed_agent_run_mod, "AI_LOGFIRE", fake_logfire)
+
+    probe_called = False
+    stream_started = False
+
+    async def _failing_probe(*, service_url: str) -> None:
+        nonlocal probe_called
+        probe_called = True
+        del service_url
+        raise TerminalUnavailableError(
+            service_url="http://terminal.test",
+            reason="session creation failed with HTTP 500",
+            detail="discount-analyst-terminal-sandbox missing",
+        )
+
+    def _stream_should_not_run(
+        *args: Any, **kwargs: Any
+    ) -> _FakeRunStreamContextManager:
+        nonlocal stream_started
+        stream_started = True
+        del args, kwargs
+        return _FakeRunStreamContextManager(_FakeStreamedRunResult())
+
+    monkeypatch.setattr(streamed_agent_run_mod, "ensure_terminal_ready", _failing_probe)
+    monkeypatch.setattr(
+        streamed_agent_run_mod,
+        "stream_with_retries",
+        _stream_should_not_run,
+    )
+
+    agent = _FakeAgent(name="surveyor")
+    terminal = terminal_run_options(
+        settings,
+        enabled=True,
+        session_id="fixed-session-id",
+        runtime=TerminalRuntimeConfig(
+            service_url="http://terminal.test",
+            command_timeout_s=30,
+            max_output_bytes=1024,
+        ),
+    )
+
+    with pytest.raises(
+        TerminalUnavailableError, match="discount-analyst-terminal-sandbox missing"
+    ):
+        await run_streamed_agent(
+            agent=cast(Any, agent),
+            user_prompt="hi",
+            usage_limits=UsageLimits(request_limit=2),
+            terminal=terminal,
+        )
+
+    assert probe_called is True
+    assert stream_started is False
+    assert fake_logfire.entered_spans == []
+
+
+@pytest.mark.anyio
+async def test_run_streamed_agent_elapsed_excludes_terminal_probe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _no_wait(exc: BaseException, attempt: int) -> float:
+        del exc, attempt
+        return 0.0
+
+    monkeypatch.setattr(
+        streaming_retries,
+        "streaming_retry_sleep_seconds",
+        _no_wait,
+    )
+    fake_logfire = _FakeLogfire()
+    monkeypatch.setattr(streamed_agent_run_mod, "AI_LOGFIRE", fake_logfire)
+
+    async def _slow_probe(*, service_url: str) -> None:
+        del service_url
+        await asyncio.sleep(0.3)
+
+    async def _noop_delete(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    async def _noop_close(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr(streamed_agent_run_mod, "ensure_terminal_ready", _slow_probe)
+    monkeypatch.setattr(
+        streamed_agent_run_mod,
+        "delete_terminal_session",
+        _noop_delete,
+    )
+    monkeypatch.setattr(
+        streamed_agent_run_mod,
+        "close_terminal_http",
+        _noop_close,
+    )
+
+    agent = _FakeAgent(name="surveyor")
+    terminal = terminal_run_options(
+        settings,
+        enabled=True,
+        session_id="fixed-session-id",
+        runtime=TerminalRuntimeConfig(
+            service_url="http://terminal.test",
+            command_timeout_s=30,
+            max_output_bytes=1024,
+        ),
+    )
+
+    outcome = await run_streamed_agent(
+        agent=cast(Any, agent),
+        user_prompt="hi",
+        usage_limits=UsageLimits(request_limit=2),
+        terminal=terminal,
+    )
+
+    assert outcome.output == "done"
+    assert outcome.elapsed_s < 0.2

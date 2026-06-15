@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
+from uuid import uuid4
 
 import httpx
 from pydantic import BaseModel
@@ -16,6 +17,98 @@ from common.config import Settings
 from discount_analyst.integrations.infallible_toolset import InfallibleToolset
 
 logger = logging.getLogger(__name__)
+
+_SESSION_CREATE_TIMEOUT_S = 120.0
+
+
+class TerminalUnavailableError(RuntimeError):
+    """Raised when the agent-terminal orchestrator cannot create a sandbox session."""
+
+    def __init__(
+        self,
+        *,
+        service_url: str,
+        reason: str,
+        detail: str | None = None,
+    ) -> None:
+        self.service_url = service_url
+        self.reason = reason
+        self.detail = detail
+        parts = [f"Terminal unavailable at {service_url}: {reason}"]
+        if detail:
+            parts.append(detail)
+        super().__init__("\n".join(parts))
+
+
+def _http_error_detail(response: httpx.Response) -> str | None:
+    try:
+        payload = response.json()
+    except ValueError:
+        return response.text.strip() or None
+    if not isinstance(payload, dict):
+        return response.text.strip() or None
+    body = cast(dict[str, Any], payload)
+    detail_value = body.get("detail")
+    if isinstance(detail_value, str):
+        return detail_value
+    if detail_value is not None:
+        return str(detail_value)
+    return response.text.strip() or None
+
+
+async def _create_terminal_session(
+    client: httpx.AsyncClient,
+    *,
+    service_url: str,
+    session_id: str,
+    timeout_s: float = _SESSION_CREATE_TIMEOUT_S,
+) -> None:
+    """POST ``/sessions``; raises :class:`TerminalUnavailableError` on failure."""
+    base = service_url.rstrip("/")
+    try:
+        response = await client.post(
+            f"{base}/sessions",
+            json={"session_id": session_id},
+            timeout=timeout_s,
+        )
+        if response.is_error:
+            raise TerminalUnavailableError(
+                service_url=service_url,
+                reason=(f"session creation failed with HTTP {response.status_code}"),
+                detail=_http_error_detail(response),
+            )
+    except httpx.RequestError as exc:
+        raise TerminalUnavailableError(
+            service_url=service_url,
+            reason=f"connection failed ({type(exc).__name__})",
+            detail=str(exc),
+        ) from exc
+
+
+async def ensure_terminal_ready(
+    *,
+    service_url: str,
+    probe_session_id: str | None = None,
+) -> None:
+    """Verify the orchestrator can create a sandbox before an agent run starts."""
+    session_id = probe_session_id or f"terminal-probe-{uuid4()}"
+    base = service_url.rstrip("/")
+    async with httpx.AsyncClient(timeout=_SESSION_CREATE_TIMEOUT_S) as client:
+        await _create_terminal_session(
+            client,
+            service_url=service_url,
+            session_id=session_id,
+            timeout_s=_SESSION_CREATE_TIMEOUT_S,
+        )
+        delete_resp = await client.delete(f"{base}/sessions/{session_id}")
+        if delete_resp.status_code not in (204, 404):
+            logger.warning(
+                "Terminal probe session delete returned %s for session_id=%s: %s",
+                delete_resp.status_code,
+                session_id,
+                delete_resp.text[:500],
+            )
+
 
 TERMINAL_EXEC_DESCRIPTION = """Run a shell command inside an isolated Linux sandbox for this agent run.
 
@@ -136,12 +229,11 @@ async def execute_terminal_command(
     state = session_state or TerminalSessionState()
     client = await _client_for_state(state, limits)
     if not state.ready:
-        resp = await client.post(
-            f"{base}/sessions",
-            json={"session_id": session_id},
-            timeout=120.0,
+        await _create_terminal_session(
+            client,
+            service_url=service_url,
+            session_id=session_id,
         )
-        resp.raise_for_status()
         state.ready = True
     exec_resp = await client.post(
         f"{base}/sessions/{session_id}/exec",
