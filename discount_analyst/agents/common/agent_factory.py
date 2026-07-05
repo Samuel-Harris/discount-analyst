@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from pydantic_ai import AbstractToolset, Agent, Tool, ToolOutput
-from pydantic_ai.capabilities import AgentCapability, WebFetch, WebSearch
+from pydantic_ai.capabilities import AgentCapability, WebFetch
 
 from common.config import settings as app_settings
 from discount_analyst.agents.common.agent_names import AgentName
@@ -24,6 +24,7 @@ from discount_analyst.config.provider_features import (
     ProviderFeature,
 )
 from discount_analyst.integrations.perplexity import create_perplexity_toolset
+from discount_analyst.integrations.bounded_web_search import BoundedWebSearch
 from discount_analyst.integrations.text_only_web_fetch import (
     create_text_only_web_fetch_tool,
 )
@@ -64,7 +65,7 @@ def create_web_research_tooling(
 
     return AgentTooling(
         capabilities=(
-            WebSearch(native=True, local="duckduckgo"),
+            BoundedWebSearch(native=True, local="duckduckgo"),
             WebFetch(native=True, local=web_fetch_local),
         )
     )

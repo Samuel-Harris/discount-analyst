@@ -1,7 +1,8 @@
+from types import SimpleNamespace
+
 import pytest
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.tools import Tool
-from types import SimpleNamespace
 
 from discount_analyst.agents.common import agent_factory
 from discount_analyst.agents.common.agent_factory import (
@@ -9,8 +10,8 @@ from discount_analyst.agents.common.agent_factory import (
     create_agent,
     create_web_research_tooling,
 )
-from discount_analyst.agents.common_prompts.current_date import format_current_date_line
 from discount_analyst.agents.common.agent_names import AgentName
+from discount_analyst.agents.common_prompts.current_date import format_current_date_line
 from discount_analyst.config.ai_models_config import (
     AIModelConfig,
     AIModelsConfig,
@@ -24,7 +25,7 @@ def test_create_web_research_tooling_uses_pydantic_web_capabilities(
 ) -> None:
     created_capabilities: list[tuple[str, bool, object]] = []
 
-    class FakeWebSearch:
+    class FakeBoundedWebSearch:
         def __init__(self, *, native: bool, local: object) -> None:
             created_capabilities.append(("web_search", native, local))
 
@@ -32,7 +33,7 @@ def test_create_web_research_tooling_uses_pydantic_web_capabilities(
         def __init__(self, *, native: bool, local: object) -> None:
             created_capabilities.append(("web_fetch", native, local))
 
-    monkeypatch.setattr(agent_factory, "WebSearch", FakeWebSearch)
+    monkeypatch.setattr(agent_factory, "BoundedWebSearch", FakeBoundedWebSearch)
     monkeypatch.setattr(agent_factory, "WebFetch", FakeWebFetch)
 
     tooling = create_web_research_tooling(
@@ -55,7 +56,7 @@ def test_create_web_research_tooling_uses_text_only_fetch_for_deepseek(
     created_capabilities: list[tuple[str, bool, object]] = []
     fake_tool = Tool(lambda url: None, name="web_fetch")
 
-    class FakeWebSearch:
+    class FakeBoundedWebSearch:
         def __init__(self, *, native: bool, local: object) -> None:
             created_capabilities.append(("web_search", native, local))
 
@@ -63,7 +64,7 @@ def test_create_web_research_tooling_uses_text_only_fetch_for_deepseek(
         def __init__(self, *, native: bool, local: object) -> None:
             created_capabilities.append(("web_fetch", native, local))
 
-    monkeypatch.setattr(agent_factory, "WebSearch", FakeWebSearch)
+    monkeypatch.setattr(agent_factory, "BoundedWebSearch", FakeBoundedWebSearch)
     monkeypatch.setattr(agent_factory, "WebFetch", FakeWebFetch)
     monkeypatch.setattr(
         agent_factory,

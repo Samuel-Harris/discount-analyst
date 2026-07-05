@@ -1,16 +1,17 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-04-05 -->
+<!-- Generated: 2026-04-05 | Updated: 2026-07-06 -->
 
 # integrations
 
 ## Purpose
 
-Named external service adapters: Perplexity search tools, EODHD/FMP MCP `MCPToolset` factories, async FMP/EODHD REST clients for pipeline data-quality gates, and the Docker-backed **terminal** sandbox (`terminal_exec`). Default web search/fetch is wired directly through Pydantic AI capabilities in `agents/common/agent_factory.py`.
+Named external service adapters: bounded Pydantic AI web search fallback, Perplexity search tools, EODHD/FMP MCP `MCPToolset` factories, async FMP/EODHD REST clients for pipeline data-quality gates, and the Docker-backed **terminal** sandbox (`terminal_exec`). Default web fetch is wired through Pydantic AI capabilities in `agents/common/agent_factory.py`.
 
 ## Key Files
 
 | File                     | Description                                                                                                                                                              |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bounded_web_search.py`  | `BoundedWebSearch` and bounded DuckDuckGo local search fallback with one-at-a-time DDGS calls, retries, fallback result, and Logfire telemetry.                          |
 | `perplexity.py`          | `create_perplexity_toolset(AgentName)` for web/SEC search.                                                                                                               |
 | `financial_data_mcp.py`  | `create_financial_data_mcp_servers()` (EODHD + FMP URLs; EODHD omitted if `EODHD__DISABLED`).                                                                            |
 | `fmp_client.py`          | Retry-backed async FMP stable REST client (`profile`, `search_symbol`, `quote_short`) for pipeline candidate gates.                                                      |
@@ -27,7 +28,7 @@ Named external service adapters: Perplexity search tools, EODHD/FMP MCP `MCPTool
 
 ### External
 
-- **perplexityai**, **pydantic-ai** (`FunctionToolset`, `MCPToolset`, `WrapperToolset`), **markitdown** (text-only web fetch for providers that reject binary message parts).
+- **perplexityai**, **pydantic-ai** (`FunctionToolset`, `MCPToolset`, `WrapperToolset`, native-or-local capabilities), **ddgs** / **duckduckgo_search** (local web search fallback), **markitdown** (text-only web fetch for providers that reject binary message parts).
 
 ### Terminal fail-fast
 
