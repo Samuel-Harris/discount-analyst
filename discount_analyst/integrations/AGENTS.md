@@ -5,7 +5,7 @@
 
 ## Purpose
 
-Named external service adapters: Perplexity search tools, EODHD/FMP MCP `MCPToolset` factories, and the Docker-backed **terminal** sandbox (`terminal_exec`). Default web search/fetch is wired directly through Pydantic AI capabilities in `agents/common/agent_factory.py`.
+Named external service adapters: Perplexity search tools, EODHD/FMP MCP `MCPToolset` factories, async FMP/EODHD REST clients for pipeline data-quality gates, and the Docker-backed **terminal** sandbox (`terminal_exec`). Default web search/fetch is wired directly through Pydantic AI capabilities in `agents/common/agent_factory.py`.
 
 ## Key Files
 
@@ -13,6 +13,8 @@ Named external service adapters: Perplexity search tools, EODHD/FMP MCP `MCPTool
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `perplexity.py`          | `create_perplexity_toolset(AgentName)` for web/SEC search.                                                                                                               |
 | `financial_data_mcp.py`  | `create_financial_data_mcp_servers()` (EODHD + FMP URLs; EODHD omitted if `EODHD__DISABLED`).                                                                            |
+| `fmp_client.py`          | Retry-backed async FMP stable REST client (`profile`, `search_symbol`, `quote_short`) for pipeline candidate gates.                                                      |
+| `eodhd_client.py`        | Retry-backed async EODHD REST client (`real_time`, `fundamentals_general`) for UK listing fallback when FMP returns 402/403.                                             |
 | `terminal.py`            | `Terminal` capability (`terminal_exec`), `TerminalRuntimeConfig`, `TerminalExecPayload`, `ensure_terminal_ready`, `TerminalUnavailableError`, `delete_terminal_session`. |
 | `infallible_toolset.py`  | `InfallibleToolset` wrapper that catches tool errors and returns them as messages to the model.                                                                          |
 | `text_only_web_fetch.py` | `create_text_only_web_fetch_tool()` — local `WebFetch` that converts binary documents to markdown via markitdown (DeepSeek).                                             |
@@ -21,7 +23,7 @@ Named external service adapters: Perplexity search tools, EODHD/FMP MCP `MCPTool
 
 ### Internal
 
-- `common.config` for API keys; `discount_analyst.agents.common.tool_descriptions` / `agent_names` for Perplexity.
+- `common.config` for API keys; `discount_analyst.http.retrying_client` for provider REST retries; `discount_analyst.agents.common.tool_descriptions` / `agent_names` for Perplexity.
 
 ### External
 

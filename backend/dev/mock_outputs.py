@@ -33,6 +33,7 @@ from discount_analyst.agents.surveyor.schema import (
     Exchange,
     KeyMetrics,
     SurveyorCandidate,
+    SurveyorLaneContext,
     SurveyorOutput,
 )
 from discount_analyst.pipeline.builders import build_rating_table_decision
@@ -154,7 +155,18 @@ def mock_profiler_output(*, ticker: str) -> ProfilerOutput:
     return ProfilerOutput(candidate=mock_surveyor_candidate(ticker=ticker))
 
 
-def mock_deep_research(candidate: SurveyorCandidate) -> DeepResearchReport:
+def _as_lane_context(
+    candidate: SurveyorCandidate | SurveyorLaneContext,
+) -> SurveyorLaneContext:
+    if isinstance(candidate, SurveyorLaneContext):
+        return candidate
+    return candidate.to_lane_context()
+
+
+def mock_deep_research(
+    candidate: SurveyorCandidate | SurveyorLaneContext,
+) -> DeepResearchReport:
+    lane_context = _as_lane_context(candidate)
     return DeepResearchReport(
         executive_overview="Mock executive overview.",
         business_model=BusinessModel(
@@ -189,7 +201,7 @@ def mock_deep_research(candidate: SurveyorCandidate) -> DeepResearchReport:
         risks=["Mock risk one"],
         potential_catalysts=["Mock catalyst"],
         data_gaps_update=DataGapsUpdate(
-            original_data_gaps=candidate.data_gaps,
+            original_data_gaps=lane_context.data_gaps,
             closed_gaps=[],
             remaining_open_gaps=["Mock remaining gap"],
             material_open_gaps=[],
@@ -198,10 +210,11 @@ def mock_deep_research(candidate: SurveyorCandidate) -> DeepResearchReport:
     )
 
 
-def mock_thesis(candidate: SurveyorCandidate) -> MispricingThesis:
+def mock_thesis(candidate: SurveyorCandidate | SurveyorLaneContext) -> MispricingThesis:
+    lane_context = _as_lane_context(candidate)
     return MispricingThesis(
-        ticker=candidate.ticker,
-        company_name=candidate.company_name,
+        ticker=lane_context.ticker,
+        company_name=lane_context.company_name,
         mispricing_type="Mock mispricing",
         market_belief="Mock market belief.",
         mispricing_argument="Mock argument.",
@@ -225,8 +238,9 @@ def mock_sentinel_proceed_for_dashboard_lane(ticker: str) -> bool:
 
 
 def mock_sentinel_evaluation(
-    *, candidate: SurveyorCandidate, proceed: bool
+    *, candidate: SurveyorCandidate | SurveyorLaneContext, proceed: bool
 ) -> EvaluationReport:
+    lane_context = _as_lane_context(candidate)
     proceed_verdicts = (
         ThesisVerdict.INTACT_PROCEED_TO_VALUATION,
         ThesisVerdict.INTACT_WITH_RESERVATIONS,
@@ -300,8 +314,8 @@ def mock_sentinel_evaluation(
     lit = random.choice(("Low", "Moderate", "Elevated"))
 
     return EvaluationReport(
-        ticker=candidate.ticker,
-        company_name=candidate.company_name,
+        ticker=lane_context.ticker,
+        company_name=lane_context.company_name,
         question_assessments=question_assessments,
         red_flag_screen=RedFlagScreen(
             governance_concerns=gov,
@@ -341,15 +355,18 @@ def mock_sentinel_evaluation(
     )
 
 
-def mock_appraiser_output(candidate: SurveyorCandidate) -> AppraiserOutput:
+def mock_appraiser_output(
+    candidate: SurveyorCandidate | SurveyorLaneContext,
+) -> AppraiserOutput:
+    lane_context = _as_lane_context(candidate)
     current_price = 3.0
     return AppraiserOutput(
-        ticker=candidate.ticker,
-        company_name=candidate.company_name,
+        ticker=lane_context.ticker,
+        company_name=lane_context.company_name,
         valuation_date=date.today().isoformat(),
         summary="Mock Appraiser distribution for dashboard testing.",
         valuation_distribution=IntrinsicValueDistribution(
-            currency=candidate.currency.value,
+            currency=lane_context.currency.value,
             current_share_price=current_price,
             expected_intrinsic_value=3.8,
             p10_intrinsic_value=2.6,
@@ -395,14 +412,15 @@ def mock_appraiser_output(candidate: SurveyorCandidate) -> AppraiserOutput:
 
 
 def mock_rating_table_gate_evaluation(
-    candidate: SurveyorCandidate,
+    candidate: SurveyorCandidate | SurveyorLaneContext,
     *,
     thesis_verdict: ThesisVerdict = ThesisVerdict.INTACT_PROCEED_TO_VALUATION,
 ) -> EvaluationReport:
     """Minimal Sentinel output for deterministic mock rating-table rows."""
+    lane_context = _as_lane_context(candidate)
     return EvaluationReport(
-        ticker=candidate.ticker,
-        company_name=candidate.company_name,
+        ticker=lane_context.ticker,
+        company_name=lane_context.company_name,
         question_assessments=[
             QuestionAssessment(
                 question="Q1",
@@ -428,13 +446,14 @@ def mock_rating_table_gate_evaluation(
 
 
 def mock_rating_table_decision(
-    candidate: SurveyorCandidate,
+    candidate: SurveyorCandidate | SurveyorLaneContext,
     *,
     is_existing_position: bool,
     thesis: MispricingThesis | None = None,
     evaluation: EvaluationReport | None = None,
 ) -> RatingTableDecision:
     """Deterministic rating-table decision for mock dashboard runs (no LLM)."""
+    lane_context = _as_lane_context(candidate)
     th = thesis or mock_thesis(candidate)
     ev = evaluation or mock_rating_table_gate_evaluation(candidate)
     appraiser_out = mock_appraiser_output(candidate)
@@ -442,7 +461,7 @@ def mock_rating_table_decision(
         appraiser_out.valuation_distribution
     )
     return build_rating_table_decision(
-        candidate=candidate,
+        lane_context=lane_context,
         thesis=th,
         evaluation=ev,
         margin_of_safety=mos,

@@ -34,13 +34,13 @@ None.
 ### Common Patterns
 
 - **Search Tools**: Uses `AsyncPerplexity` with `search_mode="web"` for general research and `search_mode="sec"` for official financial filings.
-- **Structured Output**: The agent is configured to return a `SurveyorOutput` (defined in `schema.py`) for strict data validation.
+- **Structured Output**: The agent is configured to return a `SurveyorOutput` (defined in `schema.py`) for strict data validation. Downstream dashboard lanes use `SurveyorLaneContext` (via `SurveyorCandidate.to_lane_context()`) — screening metrics are omitted before Researcher.
 
 ## Dependencies
 
 ### Internal
 
-- `discount_analyst.agents.surveyor.schema`: For the `SurveyorOutput` schema.
+- `discount_analyst.agents.surveyor.schema`: For `SurveyorOutput`, `SurveyorCandidate`, and `SurveyorLaneContext`.
 - `discount_analyst.config.ai_models_config`: For model configuration and selection.
 - `common.config`: For API keys and rate limit settings.
 - `discount_analyst.agents.common.model`: For creating the LLM model instance.

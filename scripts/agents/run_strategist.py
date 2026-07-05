@@ -257,7 +257,7 @@ async def run_agent(
     ai_models_config = AIModelsConfig(model_name=model_name)
     agent = create_strategist_agent(ai_models_config, terminal=terminal)
     user_prompt = create_user_prompt(
-        surveyor_candidate=surveyor_candidate,
+        lane_context=surveyor_candidate.to_lane_context(),
         deep_research=deep_research,
     )
 

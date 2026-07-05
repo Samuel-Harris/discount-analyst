@@ -21,7 +21,7 @@ from discount_analyst.models.model_name import ModelName
 from discount_analyst.agents.common.agent_names import AgentName
 from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
 from discount_analyst.agents.common.terminal_run import TerminalRunOptions
-from discount_analyst.agents.surveyor.schema import SurveyorCandidate
+from discount_analyst.agents.surveyor.schema import SurveyorLaneContext
 
 from scripts.shared.appraiser_run_context import AppraiserRunContext
 
@@ -265,7 +265,7 @@ def _resolve_target(
     strategist = _load_strategist_run_output(strategist_path)
 
     appraiser_input = AppraiserInput(
-        stock_candidate=surveyor_candidate,
+        lane_context=surveyor_candidate.to_lane_context(),
         deep_research=researcher.output,
         thesis=strategist.output,
         evaluation=sent.output,
@@ -305,10 +305,10 @@ def _build_suffixes(targets: list[AppraiserTarget]) -> list[str]:
 
 
 def _appraiser_run_context(
-    candidate: SurveyorCandidate, shared: SharedArgs
+    lane_context: SurveyorLaneContext, shared: SharedArgs
 ) -> AppraiserRunContext:
     return AppraiserRunContext(
-        surveyor_candidate=candidate,
+        lane_context=lane_context,
         risk_free_rate_pct=shared.risk_free_rate_pct,
         model=shared.model,
     )
@@ -473,9 +473,9 @@ def save_run_output(
     filename_suffix: str | None = None,
 ) -> Path:
     """Build ``AppraiserRunOutput``, write JSON via ``write_agent_json``, return path."""
-    suffix = filename_suffix or args.surveyor_candidate.ticker.upper()
+    suffix = filename_suffix or args.lane_context.ticker.upper()
     run_output = AppraiserRunOutput(
-        ticker=args.surveyor_candidate.ticker,
+        ticker=args.lane_context.ticker,
         model_name=args.model.value,
         risk_free_rate_pct=args.risk_free_rate_pct,
         appraiser=agent_output,
@@ -528,7 +528,7 @@ async def main() -> None:
                 f"using output suffix '{suffixes[i]}'.[/yellow]"
             )
 
-        candidate = target.appraiser_input.stock_candidate
+        candidate = target.appraiser_input.lane_context
         run_context = _appraiser_run_context(candidate, shared)
 
         console.log(

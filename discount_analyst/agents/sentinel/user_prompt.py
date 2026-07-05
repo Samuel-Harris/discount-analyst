@@ -1,19 +1,22 @@
 from discount_analyst.agents.common_prompts.structured_output import (
     final_result_user_step,
 )
-from backend.db.models import EvaluationReport
 from discount_analyst.agents.researcher.schema import DeepResearchReport
+from discount_analyst.agents.sentinel.schema import EvaluationReport
 from discount_analyst.agents.strategist.schema import MispricingThesis
-from discount_analyst.agents.surveyor.schema import SurveyorCandidate
+from discount_analyst.agents.surveyor.lane_context_prompt import (
+    LANE_CONTEXT_QUANTITATIVE_OMISSION_NOTE,
+)
+from discount_analyst.agents.surveyor.schema import SurveyorLaneContext
 
 
 def create_user_prompt(
     *,
-    surveyor_candidate: SurveyorCandidate,
+    lane_context: SurveyorLaneContext,
     deep_research: DeepResearchReport,
     thesis: MispricingThesis,
 ) -> str:
-    candidate_json = surveyor_candidate.model_dump_json(indent=2)
+    candidate_json = lane_context.model_dump_json(indent=2)
     deep_research_json = deep_research.model_dump_json(indent=2)
     thesis_json = thesis.model_dump_json(indent=2)
 
@@ -24,13 +27,15 @@ Evaluate the following investment candidate.
 
 **Your task:** Stress-test the thesis against the evidence and deliver a **clear, defensible verdict**. You are **the adversary, not a validator** — earn the conclusion. Apply the epistemic, numeric, and red-flag calibration rules strictly.
 
+{LANE_CONTEXT_QUANTITATIVE_OMISSION_NOTE}
+
 ---
 
 ## Screening context
 
-<SurveyorCandidate>
+<SurveyorLaneContext>
 {candidate_json}
-</SurveyorCandidate>
+</SurveyorLaneContext>
 
 ---
 

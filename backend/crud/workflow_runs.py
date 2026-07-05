@@ -9,6 +9,7 @@ from sqlmodel import Session, col, select
 
 from backend.contracts.workflow_rows import (
     AgentExecutionRow,
+    CandidateGateRow,
     SurveyorExecutionRow,
     TickerRunRow,
     TickerRunResumeRow,
@@ -25,6 +26,7 @@ from backend.crud.db_utils import (
 from backend.db.models import (
     AgentExecution,
     AgentNameDb,
+    CandidateSnapshot,
     EntryPathDb,
     ExecutionStatusDb,
     Run,
@@ -339,6 +341,17 @@ def fetch_workflow_detail(
             }
             for agent in agents_sorted
         ]
+        candidate_gate: CandidateGateRow | None = None
+        if run.candidate_snapshot_id is not None:
+            snapshot = session.get(CandidateSnapshot, run.candidate_snapshot_id)
+            if snapshot is not None:
+                candidate_gate = {
+                    "gate_status": snapshot.gate_status,
+                    "source_ticker": snapshot.ticker,
+                    "resolved_ticker": snapshot.resolved_ticker,
+                    "gate_failure_reason": snapshot.gate_failure_reason,
+                    "is_actively_trading": snapshot.is_actively_trading,
+                }
         runs_out.append(
             {
                 "id": run.id,
@@ -348,6 +361,7 @@ def fetch_workflow_detail(
                 "status": run.status.value,
                 "final_rating": run.final_rating,
                 "decision_type": run.decision_type.value if run.decision_type else None,
+                "candidate_gate": candidate_gate,
                 "agent_executions": agent_rows,
             }
         )

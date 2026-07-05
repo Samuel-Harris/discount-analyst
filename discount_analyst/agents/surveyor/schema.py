@@ -82,6 +82,21 @@ class KeyMetrics(BaseModel):
     )
 
 
+class SurveyorLaneContext(BaseModel):
+    """Downstream agent input: identity + narrative only; no trusted quantitative screening."""
+
+    ticker: str
+    company_name: str
+    exchange: Exchange
+    currency: Currency
+    sector: str
+    industry: str
+    analyst_coverage_count: int | None
+    rationale: str
+    red_flags: str
+    data_gaps: str
+
+
 class SurveyorCandidate(BaseModel):
     """A single stock candidate surfaced by the Surveyor agent."""
 
@@ -132,6 +147,25 @@ class SurveyorCandidate(BaseModel):
             "not covered by FMP Financial Score endpoint.'"
         ),
     )
+
+    def to_lane_context(
+        self,
+        *,
+        resolved_ticker: str | None = None,
+    ) -> SurveyorLaneContext:
+        """Build filtered lane context, optionally substituting a gate-resolved ticker."""
+        return SurveyorLaneContext(
+            ticker=resolved_ticker or self.ticker,
+            company_name=self.company_name,
+            exchange=self.exchange,
+            currency=self.currency,
+            sector=self.sector,
+            industry=self.industry,
+            analyst_coverage_count=self.analyst_coverage_count,
+            rationale=self.rationale,
+            red_flags=self.red_flags,
+            data_gaps=self.data_gaps,
+        )
 
 
 class SurveyorOutput(BaseModel):

@@ -26,6 +26,21 @@ class SentinelRejection(BaseModel):
     )
 
 
+class DataQualityRejection(BaseModel):
+    """Programmatic rejection when pre-Researcher data-quality gates fail."""
+
+    ticker: str
+    company_name: str
+    decision_date: str
+    is_existing_position: bool
+
+    rating: Literal[InvestmentRating.SELL]
+    recommended_action: str
+    rejection_reason: str = Field(
+        description="Plain-language statement of the gate failure."
+    )
+
+
 class RatingTableRationale(BaseModel):
     """Structured rationale fields persisted with the rating-table decision."""
 
@@ -65,4 +80,4 @@ class Verdict(BaseModel):
     rating: InvestmentRating
     recommended_action: str
 
-    decision: RatingTableDecision | SentinelRejection
+    decision: RatingTableDecision | SentinelRejection | DataQualityRejection

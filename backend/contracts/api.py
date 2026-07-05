@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from backend.contracts.enums import (
     AgentNameSlug,
+    CandidateGateStatusApi,
     DecisionTypeApi,
     EntryPathApi,
     ExecutionStatusApi,
@@ -36,6 +37,14 @@ class AgentExecutionSummary(BaseModel):
     model_name: ModelName | None = None
 
 
+class CandidateGateSummary(BaseModel):
+    gate_status: CandidateGateStatusApi | None
+    source_ticker: str
+    resolved_ticker: str | None
+    gate_failure_reason: str | None
+    is_actively_trading: bool | None
+
+
 class TickerRunDetail(BaseModel):
     id: str
     ticker: str
@@ -44,6 +53,7 @@ class TickerRunDetail(BaseModel):
     status: TickerRunStatusApi
     final_rating: str | None
     decision_type: DecisionTypeApi | None
+    candidate_gate: CandidateGateSummary | None = None
     agent_executions: list[AgentExecutionSummary]
 
 

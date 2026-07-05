@@ -2,6 +2,7 @@
 
 import pytest
 
+from backend.dev.mock_outputs import mock_surveyor_candidate
 from discount_analyst.agents.sentinel.schema import (
     EvaluationReport,
     OverallRedFlagVerdict,
@@ -11,10 +12,12 @@ from discount_analyst.agents.sentinel.schema import (
 )
 from discount_analyst.agents.strategist.schema import MispricingThesis
 from discount_analyst.pipeline.builders import (
+    build_data_quality_rejection,
     build_sentinel_rejection,
     verdict_from_decision,
 )
 from discount_analyst.pipeline.schema import (
+    DataQualityRejection,
     RatingTableDecision,
     RatingTableRationale,
     SentinelRejection,
@@ -109,6 +112,20 @@ def test_build_sentinel_rejection_rating_rules(
         decision_date="2026-04-05",
     )
     assert sr.rating == expected_rating
+
+
+def test_build_data_quality_rejection_recommended_action() -> None:
+    lane_context = mock_surveyor_candidate(ticker="BAD.L").to_lane_context()
+    rejection = build_data_quality_rejection(
+        lane_context,
+        gate_failure_reason="Ticker mismatch.",
+        is_existing_position=False,
+        decision_date="2026-06-21",
+    )
+    assert rejection.rating == InvestmentRating.SELL
+    assert rejection.recommended_action.startswith("Do not initiate")
+    verdict = verdict_from_decision(rejection)
+    assert isinstance(verdict.decision, DataQualityRejection)
 
 
 def test_build_sentinel_rejection_recommended_action_new_vs_held() -> None:

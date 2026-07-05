@@ -2,14 +2,23 @@
 
 from __future__ import annotations
 
-from backend.crud.db_utils import new_id
-from backend.db.models import CandidateSnapshot
+from datetime import datetime
+
+from sqlmodel import Session
+
+from backend.crud.db_utils import new_id, utc_now
+from backend.db.models import (
+    CandidateGateDataSourceDb,
+    CandidateGateStatusDb,
+    CandidateSnapshot,
+)
 from discount_analyst.agents.surveyor.schema import (
     Currency,
     Exchange,
     KeyMetrics,
     SurveyorCandidate,
 )
+from discount_analyst.pipeline.candidate_gates import CandidateGateResult
 
 
 def candidate_to_snapshot(
@@ -74,3 +83,23 @@ def snapshot_to_candidate(snapshot: CandidateSnapshot) -> SurveyorCandidate:
         red_flags=snapshot.red_flags,
         data_gaps=snapshot.data_gaps,
     )
+
+
+def update_candidate_snapshot_gate_results(
+    session: Session,
+    *,
+    snapshot_id: str,
+    gate_result: CandidateGateResult,
+    probed_at: datetime | None = None,
+) -> None:
+    snapshot = session.get(CandidateSnapshot, snapshot_id)
+    if snapshot is None:
+        return
+    snapshot.resolved_ticker = gate_result.resolved_ticker
+    snapshot.resolution_notes = gate_result.resolution_notes
+    snapshot.gate_status = CandidateGateStatusDb(gate_result.gate_status)
+    snapshot.gate_failure_reason = getattr(gate_result, "gate_failure_reason", None)
+    snapshot.is_actively_trading = gate_result.is_actively_trading
+    snapshot.gate_probed_at = probed_at or utc_now()
+    snapshot.gate_data_source = CandidateGateDataSourceDb(gate_result.data_source)
+    session.add(snapshot)
