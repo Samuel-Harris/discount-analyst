@@ -8,15 +8,16 @@ from typing import TYPE_CHECKING
 from backend.db.models import AgentNameDb
 from backend.dev import mock_conversation_messages, mock_outputs
 from discount_analyst.agents.common.ai_logging import AI_LOGFIRE
+from discount_analyst.agents.common_prompts.current_date import with_current_date
 from backend.pipeline.ports import ProfilerStagePort
-from discount_analyst.agents.common.streamed_agent_run import run_streamed_agent
+from discount_analyst.agents.common.terminal_run import run_agent_with_terminal
 from discount_analyst.agents.profiler.profiler import create_profiler_agent
 from discount_analyst.agents.profiler.system_prompt import (
     SYSTEM_PROMPT as PROFILER_SYSTEM_PROMPT,
 )
 from discount_analyst.agents.profiler.user_prompt import create_profiler_user_prompt
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
-from discount_analyst.config.ai_models_config import AIModelsConfig
+from backend.pipeline.llm_config import pipeline_llm_config
 
 if TYPE_CHECKING:
     from common.config import Settings
@@ -40,8 +41,12 @@ class ProfilerStage:
         profiler_exec_id = await port.get_agent_execution_id(run_id, _PROFILER_AGENT)
         if profiler_exec_id is None:
             raise RuntimeError(f"Missing profiler execution for run {run_id}")
+        llm = pipeline_llm_config(settings, is_mock=is_mock)
         await port.mark_agent_execution(
-            execution_id=profiler_exec_id, status="running", started=True
+            execution_id=profiler_exec_id,
+            status="running",
+            started=True,
+            model_name=llm.model_name,
         )
         await port.recompute_workflow_status(workflow_run_id)
         AI_LOGFIRE.info(
@@ -61,14 +66,18 @@ class ProfilerStage:
                 ticker=ticker
             )
         else:
-            ai_cfg = AIModelsConfig(model_name=settings.default_model)
-            agent = create_profiler_agent(
-                ai_models_config=ai_cfg,
-                use_perplexity=settings.use_perplexity,
-                use_mcp_financial_data=settings.use_mcp_financial_data,
-            )
-            outcome = await run_streamed_agent(
-                agent=agent,
+            ai_cfg = llm.ai_models_config
+            if ai_cfg is None:
+                raise RuntimeError("Profiler LLM config missing for non-mock run")
+            outcome = await run_agent_with_terminal(
+                settings=settings,
+                session_id=profiler_exec_id,
+                build_agent=lambda t: create_profiler_agent(
+                    ai_models_config=ai_cfg,
+                    use_perplexity=settings.use_perplexity,
+                    use_mcp_financial_data=settings.use_mcp_financial_data,
+                    terminal=t,
+                ),
                 user_prompt=create_profiler_user_prompt(ticker),
                 usage_limits=ai_cfg.model.usage_limits,
             )
@@ -84,7 +93,7 @@ class ProfilerStage:
         await port.store_agent_conversation(
             run_id=run_id,
             agent_name=_PROFILER_AGENT,
-            system_prompt=PROFILER_SYSTEM_PROMPT,
+            system_prompt=with_current_date(PROFILER_SYSTEM_PROMPT),
             messages=messages,
             messages_json=mock_msgs_json,
         )

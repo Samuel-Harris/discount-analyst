@@ -1,10 +1,10 @@
-"""Persist structured agent outputs (research, thesis, evaluation, appraiser, verdicts, DCF)."""
+"""Persist structured agent outputs (research, thesis, evaluation, appraiser, verdicts)."""
 
 from __future__ import annotations
 
 import json
 from datetime import date
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from sqlalchemy import delete, select
 from sqlmodel import Session, col
@@ -15,7 +15,6 @@ from backend.db.models import (
     AgentExecution,
     AppraiserReport,
     CandidateSnapshot,
-    DcfValuation,
     DecisionTypeDb,
     EvaluationCaveat,
     EvaluationQuestionAssessment,
@@ -39,7 +38,11 @@ from backend.db.models import (
     RunFinalDecisionSupportingFactor,
     WorkflowAgentExecution,
 )
-from discount_analyst.agents.appraiser.schema import AppraiserOutput
+from discount_analyst.agents.appraiser.schema import (
+    AppraiserOutput,
+    IntrinsicValueDistribution,
+    ValuationMethodResult,
+)
 from discount_analyst.agents.profiler.schema import ProfilerOutput
 from discount_analyst.agents.researcher.schema import (
     DeepResearchReport,
@@ -51,7 +54,6 @@ from discount_analyst.agents.strategist.schema import (
     MispricingThesis as MispricingThesisSchema,
 )
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
-from discount_analyst.valuation.data_types import DCFAnalysisResult
 
 
 def persist_surveyor_output(
@@ -410,12 +412,43 @@ def replace_evaluation_report(
         )
 
 
-def replace_appraiser_report(
+def appraiser_output_from_report(row: AppraiserReport) -> AppraiserOutput:
+    return AppraiserOutput(
+        ticker=row.ticker,
+        company_name=row.company_name,
+        valuation_date=row.valuation_date,
+        summary=row.summary,
+        valuation_distribution=IntrinsicValueDistribution(
+            currency=row.currency,
+            current_share_price=row.current_share_price,
+            expected_intrinsic_value=row.expected_intrinsic_value,
+            p10_intrinsic_value=row.p10_intrinsic_value,
+            p25_intrinsic_value=row.p25_intrinsic_value,
+            p50_intrinsic_value=row.p50_intrinsic_value,
+            p75_intrinsic_value=row.p75_intrinsic_value,
+            p90_intrinsic_value=row.p90_intrinsic_value,
+            distribution_method=row.distribution_method,
+            distribution_reasoning=row.distribution_reasoning,
+        ),
+        methods=[
+            ValuationMethodResult.model_validate(method)
+            for method in json.loads(row.methods_json)
+        ],
+        key_value_drivers=json.loads(row.key_value_drivers_json),
+        downside_risks_to_value=json.loads(row.downside_risks_to_value_json),
+        upside_drivers_to_value=json.loads(row.upside_drivers_to_value_json),
+        data_quality=cast(Literal["High", "Medium", "Low"], row.data_quality),
+        caveats=json.loads(row.caveats_json),
+    )
+
+
+def replace_appraiser_output(
     session: Session,
     execution: AgentExecution,
     output_json: str,
 ) -> None:
     output = AppraiserOutput.model_validate_json(output_json)
+    distribution = output.valuation_distribution
     existing = session.scalars(
         select(AppraiserReport).where(
             col(AppraiserReport.agent_execution_id) == execution.id
@@ -427,25 +460,35 @@ def replace_appraiser_report(
     row = AppraiserReport(
         id=new_id(),
         agent_execution_id=execution.id,
-        ebit=output.stock_data.ebit,
-        revenue=output.stock_data.revenue,
-        capital_expenditure=output.stock_data.capital_expenditure,
-        n_shares_outstanding=output.stock_data.n_shares_outstanding,
-        market_cap=output.stock_data.market_cap,
-        gross_debt=output.stock_data.gross_debt,
-        gross_debt_last_year=output.stock_data.gross_debt_last_year,
-        net_debt=output.stock_data.net_debt,
-        total_interest_expense=output.stock_data.total_interest_expense,
-        beta=output.stock_data.beta,
-        reasoning=output.stock_assumptions.reasoning,
-        forecast_period_years=output.stock_assumptions.forecast_period_years,
-        assumed_tax_rate=output.stock_assumptions.assumed_tax_rate,
-        assumed_forecast_period_annual_revenue_growth_rate=output.stock_assumptions.assumed_forecast_period_annual_revenue_growth_rate,
-        assumed_perpetuity_cash_flow_growth_rate=output.stock_assumptions.assumed_perpetuity_cash_flow_growth_rate,
-        assumed_ebit_margin=output.stock_assumptions.assumed_ebit_margin,
-        assumed_depreciation_and_amortization_rate=output.stock_assumptions.assumed_depreciation_and_amortization_rate,
-        assumed_capex_rate=output.stock_assumptions.assumed_capex_rate,
-        assumed_change_in_working_capital_rate=output.stock_assumptions.assumed_change_in_working_capital_rate,
+        ticker=output.ticker,
+        company_name=output.company_name,
+        valuation_date=output.valuation_date,
+        summary=output.summary,
+        currency=distribution.currency,
+        current_share_price=distribution.current_share_price,
+        expected_intrinsic_value=distribution.expected_intrinsic_value,
+        p10_intrinsic_value=distribution.p10_intrinsic_value,
+        p25_intrinsic_value=distribution.p25_intrinsic_value,
+        p50_intrinsic_value=distribution.p50_intrinsic_value,
+        p75_intrinsic_value=distribution.p75_intrinsic_value,
+        p90_intrinsic_value=distribution.p90_intrinsic_value,
+        distribution_method=distribution.distribution_method,
+        distribution_reasoning=distribution.distribution_reasoning,
+        methods_json=json.dumps(
+            [method.model_dump(mode="json") for method in output.methods],
+            separators=(",", ":"),
+        ),
+        key_value_drivers_json=json.dumps(
+            output.key_value_drivers, separators=(",", ":")
+        ),
+        downside_risks_to_value_json=json.dumps(
+            output.downside_risks_to_value, separators=(",", ":")
+        ),
+        upside_drivers_to_value_json=json.dumps(
+            output.upside_drivers_to_value, separators=(",", ":")
+        ),
+        data_quality=output.data_quality,
+        caveats_json=json.dumps(output.caveats, separators=(",", ":")),
     )
     session.add(row)
 
@@ -535,28 +578,3 @@ def upsert_run_final_decision(
                 factor_text=factor,
             )
         )
-
-
-def insert_dcf_valuation(
-    session: Session,
-    *,
-    run_id: str,
-    appraiser_agent_execution_id: str,
-    dcf_result: DCFAnalysisResult,
-) -> None:
-    existing = session.scalars(
-        select(DcfValuation).where(col(DcfValuation.run_id) == run_id)
-    ).first()
-    if existing is not None:
-        session.delete(existing)
-        session.flush()
-    session.add(
-        DcfValuation(
-            id=new_id(),
-            run_id=run_id,
-            appraiser_agent_execution_id=appraiser_agent_execution_id,
-            intrinsic_share_price=dcf_result.intrinsic_share_price,
-            enterprise_value=dcf_result.enterprise_value,
-            equity_value=dcf_result.equity_value,
-        )
-    )

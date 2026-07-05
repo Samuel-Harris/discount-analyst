@@ -24,7 +24,7 @@ None.
 
 ### Working In This Directory
 
-- **No tools**: The Strategist agent is interpretation-only; do not add `WebSearchTool`, `WebFetchTool`, Perplexity, or MCP toolsets without an explicit product decision.
+- **No web/MCP tools**: No `WebSearch`, `WebFetch`, Perplexity, or financial MCP. Optional docker-backed `terminal_exec` follows `settings.use_terminal` / `--no-terminal` like other pipeline agents.
 - **Output contract**: Keep output constrained to `MispricingThesis` in `schema.py`.
 
 ### Testing Requirements

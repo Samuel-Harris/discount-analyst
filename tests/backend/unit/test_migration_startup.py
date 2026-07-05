@@ -5,6 +5,8 @@ from pathlib import Path
 from sqlalchemy import text
 
 from backend.app.main import create_app
+from backend.db.session import sqlite_url_from_path
+from backend.db.verify_schema import verify_alembic_schema
 from backend.settings.testing import dashboard_settings_for_tests
 
 
@@ -30,3 +32,8 @@ def test_startup_applies_alembic_head_and_is_idempotent(tmp_path: Path) -> None:
     with app_one.state.db_session_factory() as session:
         rows = session.exec(text("SELECT COUNT(*) FROM workflow_runs")).one()
     assert rows[0] == 0
+
+
+def test_alembic_metadata_matches_head(tmp_path: Path) -> None:
+    db_path = tmp_path / "alembic-check.sqlite"
+    verify_alembic_schema(database_url=sqlite_url_from_path(db_path))

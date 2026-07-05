@@ -7,7 +7,7 @@ from pathlib import Path
 from pydantic import BaseModel, TypeAdapter
 
 from discount_analyst.agents.common.agent_names import AgentName
-from discount_analyst.config.ai_models_config import ModelName
+from discount_analyst.models.model_name import ModelName
 from discount_analyst.pipeline.schema import Verdict
 
 from scripts.shared.constants import SCRIPTS_OUTPUTS_DIR

@@ -1,29 +1,38 @@
+from discount_analyst.agents.common_prompts.structured_output import (
+    final_result_user_step,
+)
 from discount_analyst.agents.researcher.schema import DeepResearchReport
-from discount_analyst.agents.surveyor.schema import SurveyorCandidate
+from discount_analyst.agents.strategist.schema import MispricingThesis
+from discount_analyst.agents.surveyor.lane_context_prompt import (
+    LANE_CONTEXT_QUANTITATIVE_OMISSION_NOTE,
+)
+from discount_analyst.agents.surveyor.schema import SurveyorLaneContext
 
 
 def create_user_prompt(
     *,
-    surveyor_candidate: SurveyorCandidate,
+    lane_context: SurveyorLaneContext,
     deep_research: DeepResearchReport,
 ) -> str:
-    candidate_json = surveyor_candidate.model_dump_json(indent=2)
+    candidate_json = lane_context.model_dump_json(indent=2)
     deep_research_json = deep_research.model_dump_json(indent=2)
 
     return f"""
-You are receiving two inputs: **screening context** for the name (structured candidate JSON), and a **completed deep research report** (neutral evidence assembly). Your task is to synthesise these into a `MispricingThesis`.
+You are receiving two inputs: **screening context** for the name (structured lane context JSON), and a **completed deep research report** (neutral evidence assembly). Your task is to synthesise these into a `MispricingThesis`.
 
 **Upstream contract:** The research is **not** arguing for a trade — it may include **tensions and contradictions**. The screening block means **“worth investigating”**, not “already validated.”
 
 **Downstream contract:** Your thesis must be **attackable in good faith** — traceable claims, bespoke `evaluation_questions`, and clear “this would break me” conditions.
 
+{LANE_CONTEXT_QUANTITATIVE_OMISSION_NOTE}
+
 ---
 
-## Screening context (candidate)
+## Screening context (lane context)
 
-<surveyor_candidate>
+<SurveyorLaneContext>
 {candidate_json}
-</surveyor_candidate>
+</SurveyorLaneContext>
 
 ---
 
@@ -51,5 +60,7 @@ As you construct the thesis, hold the following questions in mind:
 
 Be rigorous, be honest, and be specific. **Clarity and falsifiability matter more than completeness.**
 
-Return a completed `MispricingThesis` object.
+**Action Items:**
+1. First, provide your concise, human-readable reasoning. You must include the exact sentence: "This thesis hangs on [specific field/claim from the deep research]."
+2. {final_result_user_step(output_type_name=MispricingThesis.__name__)} Use the schema from your system instructions.
 """.strip()

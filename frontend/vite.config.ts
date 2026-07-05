@@ -33,5 +33,14 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    preview: {
+      port: 8080,
+      proxy: {
+        "/api": {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
+      },
+    },
   };
 });

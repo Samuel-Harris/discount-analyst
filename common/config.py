@@ -4,7 +4,7 @@ from typing import Literal
 from pydantic import AliasChoices, BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from discount_analyst.config.ai_models_config import ModelName
+from discount_analyst.models.model_name import ModelName
 
 DashboardLogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
@@ -23,6 +23,10 @@ class OpenAI(BaseModel):
 
 
 class Google(BaseModel):
+    api_key: str
+
+
+class DeepSeek(BaseModel):
     api_key: str
 
 
@@ -81,6 +85,7 @@ class Settings(BaseSettings):
     anthropic: Anthropic | None = None
     openai: OpenAI | None = None
     google: Google | None = None
+    deepseek: DeepSeek | None = None
     fmp: FMP
     eodhd: EODHD
     logging: Logging
@@ -90,14 +95,15 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("DASHBOARD_DATABASE_PATH", "DATABASE_PATH"),
     )
     default_model: ModelName = Field(
-        default=ModelName.GPT_5_1,
+        default=ModelName.DEEPSEEK_V4_PRO,
         validation_alias=AliasChoices("DASHBOARD_DEFAULT_MODEL"),
     )
-    risk_free_rate: float = Field(
-        default=0.037,
-        ge=0.0,
-        le=0.15,
+    risk_free_rate_pct: float = Field(
+        default=3.7,
+        ge=1.0,
+        le=15.0,
         validation_alias=AliasChoices("DASHBOARD_RISK_FREE_RATE"),
+        description="Risk-free rate as a percentage (e.g. 3.7 means 3.7%).",
     )
     use_perplexity: bool = Field(
         default=False,
@@ -106,6 +112,36 @@ class Settings(BaseSettings):
     use_mcp_financial_data: bool = Field(
         default=True,
         validation_alias=AliasChoices("DASHBOARD_USE_MCP_FINANCIAL_DATA"),
+    )
+    use_terminal: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("DASHBOARD_USE_TERMINAL"),
+        description="When True, pipeline agents may call the docker-backed terminal_exec tool.",
+    )
+    terminal_service_url: str = Field(
+        default="http://agent-terminal:8001",
+        validation_alias=AliasChoices(
+            "TERMINAL_SERVICE_URL", "DASHBOARD_TERMINAL_SERVICE_URL"
+        ),
+        description="Base URL for the agent-terminal orchestrator (Compose service).",
+    )
+    terminal_command_timeout_s: int = Field(
+        default=300,
+        ge=1,
+        le=3600,
+        validation_alias=AliasChoices(
+            "TERMINAL_COMMAND_TIMEOUT_S", "DASHBOARD_TERMINAL_COMMAND_TIMEOUT_S"
+        ),
+        description="Per-command wall-clock timeout forwarded to the orchestrator.",
+    )
+    terminal_max_output_bytes: int = Field(
+        default=2_097_152,
+        ge=4096,
+        le=16_777_216,
+        validation_alias=AliasChoices(
+            "TERMINAL_MAX_OUTPUT_BYTES", "DASHBOARD_TERMINAL_MAX_OUTPUT_BYTES"
+        ),
+        description="Maximum combined stdout+stderr bytes returned per terminal_exec.",
     )
     deploy_env: Literal["DEV", "PROD"] = Field(
         default="DEV",

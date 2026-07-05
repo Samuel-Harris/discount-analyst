@@ -9,6 +9,8 @@ from sqlalchemy import CheckConstraint, Column, UniqueConstraint
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, SQLModel  # pyright: ignore[reportUnknownVariableType]
 
+from discount_analyst.models.model_name import ModelName
+
 
 def _str_enum_sql_values(enum_cls: type[StrEnum]) -> list[str]:
     return [member.value for member in enum_cls.__members__.values()]
@@ -43,12 +45,23 @@ class AgentNameDb(StrEnum):
     STRATEGIST = "strategist"
     SENTINEL = "sentinel"
     APPRAISER = "appraiser"
-    ARBITER = "arbiter"
 
 
 class DecisionTypeDb(StrEnum):
-    ARBITER = "arbiter"
+    RATING_TABLE = "rating_table"
     SENTINEL_REJECTION = "sentinel_rejection"
+    DATA_QUALITY_REJECTION = "data_quality_rejection"
+
+
+class CandidateGateStatusDb(StrEnum):
+    PASSED = "passed"
+    REJECTED = "rejected"
+
+
+class CandidateGateDataSourceDb(StrEnum):
+    FMP = "fmp"
+    EODHD = "eodhd"
+    MOCK = "mock"
 
 
 class MessageKindDb(StrEnum):
@@ -98,6 +111,17 @@ class WorkflowAgentExecution(SQLModel, table=True):
     started_at: datetime | None = None
     completed_at: datetime | None = None
     error_message: str | None = None
+    model_name: ModelName | None = Field(
+        default=None,
+        sa_column=Column(
+            SAEnum(
+                ModelName,
+                native_enum=False,
+                values_callable=_str_enum_sql_values,
+            ),
+            nullable=True,
+        ),
+    )
 
 
 class Run(SQLModel, table=True):
@@ -135,6 +159,17 @@ class AgentExecution(SQLModel, table=True):
     started_at: datetime | None = None
     completed_at: datetime | None = None
     error_message: str | None = None
+    model_name: ModelName | None = Field(
+        default=None,
+        sa_column=Column(
+            SAEnum(
+                ModelName,
+                native_enum=False,
+                values_callable=_str_enum_sql_values,
+            ),
+            nullable=True,
+        ),
+    )
 
 
 class CandidateSnapshot(SQLModel, table=True):
@@ -177,6 +212,33 @@ class CandidateSnapshot(SQLModel, table=True):
     piotroski_f_score: int | None = None
     altman_z_score: float | None = None
     insider_buying_last_6m: bool | None = None
+    resolved_ticker: str | None = None
+    resolution_notes: str | None = None
+    gate_status: CandidateGateStatusDb | None = Field(
+        default=None,
+        sa_column=Column(
+            SAEnum(
+                CandidateGateStatusDb,
+                native_enum=False,
+                values_callable=_str_enum_sql_values,
+            ),
+            nullable=True,
+        ),
+    )
+    gate_failure_reason: str | None = None
+    is_actively_trading: bool | None = None
+    gate_probed_at: datetime | None = None
+    gate_data_source: CandidateGateDataSourceDb | None = Field(
+        default=None,
+        sa_column=Column(
+            SAEnum(
+                CandidateGateDataSourceDb,
+                native_enum=False,
+                values_callable=_str_enum_sql_values,
+            ),
+            nullable=True,
+        ),
+    )
     rationale: str
     red_flags: str
     data_gaps: str
@@ -391,43 +453,26 @@ class AppraiserReport(SQLModel, table=True):
 
     id: str = Field(primary_key=True)
     agent_execution_id: str = Field(foreign_key="agent_executions.id", index=True)
-    ebit: float
-    revenue: float
-    capital_expenditure: float
-    n_shares_outstanding: float
-    market_cap: float
-    gross_debt: float
-    gross_debt_last_year: float
-    net_debt: float
-    total_interest_expense: float
-    beta: float
-    reasoning: str
-    forecast_period_years: int
-    assumed_tax_rate: float
-    assumed_forecast_period_annual_revenue_growth_rate: float
-    assumed_perpetuity_cash_flow_growth_rate: float
-    assumed_ebit_margin: float
-    assumed_depreciation_and_amortization_rate: float
-    assumed_capex_rate: float
-    assumed_change_in_working_capital_rate: float
-
-
-class DcfValuation(SQLModel, table=True):
-    __tablename__ = "dcf_valuations"  # pyright: ignore[reportAssignmentType]
-    __table_args__ = (
-        UniqueConstraint("run_id"),
-        UniqueConstraint("appraiser_agent_execution_id"),
-    )
-
-    id: str = Field(primary_key=True)
-    run_id: str = Field(foreign_key="runs.id", index=True)
-    appraiser_agent_execution_id: str = Field(
-        foreign_key="agent_executions.id",
-        index=True,
-    )
-    intrinsic_share_price: float
-    enterprise_value: float
-    equity_value: float
+    ticker: str
+    company_name: str
+    valuation_date: str
+    summary: str
+    currency: str
+    current_share_price: float
+    expected_intrinsic_value: float
+    p10_intrinsic_value: float
+    p25_intrinsic_value: float
+    p50_intrinsic_value: float
+    p75_intrinsic_value: float
+    p90_intrinsic_value: float
+    distribution_method: str
+    distribution_reasoning: str
+    methods_json: str
+    key_value_drivers_json: str
+    downside_risks_to_value_json: str
+    upside_drivers_to_value_json: str
+    data_quality: str
+    caveats_json: str
 
 
 class RunFinalDecision(SQLModel, table=True):
@@ -437,7 +482,7 @@ class RunFinalDecision(SQLModel, table=True):
         CheckConstraint(
             """
             (
-                decision_type = 'arbiter'
+                decision_type = 'rating_table'
                 AND rejection_reason IS NULL
                 AND conviction IS NOT NULL
                 AND current_price IS NOT NULL
@@ -454,6 +499,22 @@ class RunFinalDecision(SQLModel, table=True):
             OR
             (
                 decision_type = 'sentinel_rejection'
+                AND rejection_reason IS NOT NULL
+                AND conviction IS NULL
+                AND current_price IS NULL
+                AND bear_intrinsic_value IS NULL
+                AND base_intrinsic_value IS NULL
+                AND bull_intrinsic_value IS NULL
+                AND margin_of_safety_base_pct IS NULL
+                AND margin_of_safety_verdict IS NULL
+                AND primary_driver IS NULL
+                AND red_flag_disposition IS NULL
+                AND data_gap_disposition IS NULL
+                AND thesis_expiry_note IS NULL
+            )
+            OR
+            (
+                decision_type = 'data_quality_rejection'
                 AND rejection_reason IS NOT NULL
                 AND conviction IS NULL
                 AND current_price IS NULL

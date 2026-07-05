@@ -15,9 +15,10 @@ from sqlalchemy import select
 from sqlmodel import Session, col
 
 from backend.crud.agent_output_persistence import (
+    appraiser_output_from_report,
     persist_profiler_output,
     persist_surveyor_output,
-    replace_appraiser_report,
+    replace_appraiser_output,
     replace_evaluation_report,
     replace_mispricing_thesis,
     replace_research_report,
@@ -39,19 +40,24 @@ from backend.db.models import (
     AgentExecution,
     AgentNameDb,
     CandidateSnapshot,
-    DcfValuation,
     DecisionTypeDb,
     EntryPathDb,
     ExecutionStatusDb,
+    AppraiserReport,
     Run,
     WorkflowRun,
     WorkflowAgentExecution,
     WorkflowRunStatusDb,
 )
-from discount_analyst.agents.arbiter.schema import ArbiterDecision
+from discount_analyst.agents.appraiser.schema import AppraiserOutput
+from discount_analyst.pipeline.schema import (
+    DataQualityRejection,
+    RatingTableDecision,
+    SentinelRejection,
+    Verdict,
+)
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
-from discount_analyst.pipeline.schema import SentinelRejection, Verdict
-from discount_analyst.valuation.data_types import DCFAnalysisResult
+from discount_analyst.models.model_name import ModelName
 
 _ACTIVE_RUN_STATUSES = frozenset({WorkflowRunStatusDb.RUNNING.value})
 _TERMINAL_RUN_STATUSES = frozenset(
@@ -67,7 +73,6 @@ _AGENT_LANE_ORDER = {
     AgentNameDb.STRATEGIST: 2,
     AgentNameDb.SENTINEL: 3,
     AgentNameDb.APPRAISER: 4,
-    AgentNameDb.ARBITER: 5,
 }
 
 
@@ -100,6 +105,7 @@ def _reset_workflow_agent_execution(execution: WorkflowAgentExecution) -> None:
     execution.started_at = None
     execution.completed_at = None
     execution.error_message = None
+    execution.model_name = None
 
 
 def _reset_agent_execution(execution: AgentExecution) -> None:
@@ -107,6 +113,7 @@ def _reset_agent_execution(execution: AgentExecution) -> None:
     execution.started_at = None
     execution.completed_at = None
     execution.error_message = None
+    execution.model_name = None
 
 
 def _clear_run_completion_fields(run: Run) -> None:
@@ -327,6 +334,13 @@ def get_candidate_for_run(session: Session, *, run_id: str) -> SurveyorCandidate
     return snapshot_to_candidate(snapshot)
 
 
+def get_candidate_snapshot_id_for_run(session: Session, *, run_id: str) -> str | None:
+    run = session.get(Run, run_id)
+    if run is None:
+        return None
+    return run.candidate_snapshot_id
+
+
 def get_completed_agent_output_json(
     session: Session,
     *,
@@ -347,21 +361,33 @@ def get_completed_agent_output_json(
     return output_json
 
 
-def get_dcf_valuation_for_run(
+def get_appraiser_report_for_run(
     session: Session,
     *,
     run_id: str,
-) -> DCFAnalysisResult | None:
-    row = session.scalars(
-        select(DcfValuation).where(col(DcfValuation.run_id) == run_id)
+) -> AppraiserReport | None:
+    return session.scalars(
+        select(AppraiserReport)
+        .join(
+            AgentExecution,
+            col(AppraiserReport.agent_execution_id) == col(AgentExecution.id),
+        )
+        .where(
+            col(AgentExecution.run_id) == run_id,
+            col(AgentExecution.agent_name) == AgentNameDb.APPRAISER,
+        )
     ).first()
+
+
+def get_appraiser_output_for_run(
+    session: Session,
+    *,
+    run_id: str,
+) -> AppraiserOutput | None:
+    row = get_appraiser_report_for_run(session, run_id=run_id)
     if row is None:
         return None
-    return DCFAnalysisResult(
-        intrinsic_share_price=row.intrinsic_share_price,
-        enterprise_value=row.enterprise_value,
-        equity_value=row.equity_value,
-    )
+    return appraiser_output_from_report(row)
 
 
 def apply_workflow_agent_execution_status(
@@ -372,6 +398,7 @@ def apply_workflow_agent_execution_status(
     started_at: str | None = None,
     completed_at: str | None = None,
     error_message: str | None = None,
+    model_name: ModelName | None = None,
 ) -> WorkflowAgentExecution | None:
     """Update workflow-level execution status and timestamps only (no output rows)."""
     execution = session.get(WorkflowAgentExecution, execution_id)
@@ -397,6 +424,8 @@ def apply_workflow_agent_execution_status(
         )
     if error_message is not None:
         execution.error_message = error_message
+    if model_name is not None:
+        execution.model_name = model_name
     session.add(execution)
     return execution
 
@@ -420,6 +449,7 @@ def update_workflow_agent_execution(
     started_at: str | None = None,
     completed_at: str | None = None,
     error_message: str | None = None,
+    model_name: ModelName | None = None,
 ) -> None:
     execution = apply_workflow_agent_execution_status(
         session,
@@ -428,6 +458,7 @@ def update_workflow_agent_execution(
         started_at=started_at,
         completed_at=completed_at,
         error_message=error_message,
+        model_name=model_name,
     )
     if execution is None:
         return
@@ -470,6 +501,7 @@ def apply_agent_execution_status(
     started_at: str | None = None,
     completed_at: str | None = None,
     error_message: str | None = None,
+    model_name: ModelName | None = None,
 ) -> AgentExecution | None:
     """Update per-ticker agent execution status and timestamps only (no output rows)."""
     execution = session.get(AgentExecution, execution_id)
@@ -495,6 +527,8 @@ def apply_agent_execution_status(
         )
     if error_message is not None:
         execution.error_message = error_message
+    if model_name is not None:
+        execution.model_name = model_name
     session.add(execution)
     return execution
 
@@ -517,7 +551,7 @@ def persist_agent_execution_structured_output(
         case AgentNameDb.SENTINEL:
             replace_evaluation_report(session, execution, output_json)
         case AgentNameDb.APPRAISER:
-            replace_appraiser_report(session, execution, output_json)
+            replace_appraiser_output(session, execution, output_json)
         case _:
             pass
 
@@ -531,6 +565,7 @@ def update_agent_execution(
     started_at: str | None = None,
     completed_at: str | None = None,
     error_message: str | None = None,
+    model_name: ModelName | None = None,
 ) -> None:
     execution = apply_agent_execution_status(
         session,
@@ -539,6 +574,7 @@ def update_agent_execution(
         started_at=started_at,
         completed_at=completed_at,
         error_message=error_message,
+        model_name=model_name,
     )
     if execution is None:
         return
@@ -662,18 +698,18 @@ def persist_ticker_run_final_verdict(
     if not final_verdict_json or not decision_type:
         return
     verdict = Verdict.model_validate_json(final_verdict_json)
-    if decision_type == DecisionTypeDb.ARBITER.value:
+    if decision_type == DecisionTypeDb.RATING_TABLE.value:
         source_execution_id = get_agent_execution_id_by_run_and_agent(
-            session, run_id=run_id, agent_name=AgentNameDb.ARBITER.value
+            session, run_id=run_id, agent_name=AgentNameDb.APPRAISER.value
         )
         if source_execution_id is None:
             return
-        decision = ArbiterDecision.model_validate(verdict.decision)
+        decision = RatingTableDecision.model_validate(verdict.decision)
         upsert_run_final_decision(
             session,
             run_id=run_id,
             source_agent_execution_id=source_execution_id,
-            decision_type=DecisionTypeDb.ARBITER,
+            decision_type=DecisionTypeDb.RATING_TABLE,
             decision_date=date.fromisoformat(decision.decision_date),
             is_existing_position=decision.is_existing_position,
             rating=decision.rating.value,
@@ -681,9 +717,9 @@ def persist_ticker_run_final_verdict(
             conviction=decision.conviction,
             rejection_reason=None,
             current_price=decision.margin_of_safety.current_price,
-            bear_intrinsic_value=decision.margin_of_safety.bear_intrinsic_value,
-            base_intrinsic_value=decision.margin_of_safety.base_intrinsic_value,
-            bull_intrinsic_value=decision.margin_of_safety.bull_intrinsic_value,
+            bear_intrinsic_value=decision.margin_of_safety.intrinsic_value_bear,
+            base_intrinsic_value=decision.margin_of_safety.expected_intrinsic_value,
+            bull_intrinsic_value=decision.margin_of_safety.intrinsic_value_bull,
             margin_of_safety_base_pct=decision.margin_of_safety.margin_of_safety_base_pct,
             margin_of_safety_verdict=decision.margin_of_safety.margin_of_safety_verdict,
             primary_driver=decision.rationale.primary_driver,
@@ -705,6 +741,37 @@ def persist_ticker_run_final_verdict(
             run_id=run_id,
             source_agent_execution_id=source_execution_id,
             decision_type=DecisionTypeDb.SENTINEL_REJECTION,
+            decision_date=date.fromisoformat(decision.decision_date),
+            is_existing_position=decision.is_existing_position,
+            rating=decision.rating.value,
+            recommended_action=decision.recommended_action,
+            conviction=None,
+            rejection_reason=decision.rejection_reason,
+            current_price=None,
+            bear_intrinsic_value=None,
+            base_intrinsic_value=None,
+            bull_intrinsic_value=None,
+            margin_of_safety_base_pct=None,
+            margin_of_safety_verdict=None,
+            primary_driver=None,
+            red_flag_disposition=None,
+            data_gap_disposition=None,
+            thesis_expiry_note=None,
+            supporting_factors=[],
+            mitigating_factors=[],
+        )
+    elif decision_type == DecisionTypeDb.DATA_QUALITY_REJECTION.value:
+        source_execution_id = get_agent_execution_id_by_run_and_agent(
+            session, run_id=run_id, agent_name=AgentNameDb.RESEARCHER.value
+        )
+        if source_execution_id is None:
+            return
+        decision = DataQualityRejection.model_validate(verdict.decision)
+        upsert_run_final_decision(
+            session,
+            run_id=run_id,
+            source_agent_execution_id=source_execution_id,
+            decision_type=DecisionTypeDb.DATA_QUALITY_REJECTION,
             decision_date=date.fromisoformat(decision.decision_date),
             is_existing_position=decision.is_existing_position,
             rating=decision.rating.value,
@@ -763,4 +830,12 @@ def update_ticker_run_company_name(
     if run is None:
         return
     run.company_name = company_name
+    session.add(run)
+
+
+def update_ticker_run_ticker(session: Session, *, run_id: str, ticker: str) -> None:
+    run = session.get(Run, run_id)
+    if run is None:
+        return
+    run.ticker = ticker
     session.add(run)

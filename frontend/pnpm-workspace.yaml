@@ -1,0 +1,3 @@
+# pnpm project settings (see https://pnpm.io/settings#minimumreleaseage).
+# 1 week = 7 * 24 * 60 minutes
+minimumReleaseAge: 10080

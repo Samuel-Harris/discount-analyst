@@ -7,12 +7,15 @@
 import { dashboardMutator } from './orval-mutator';
 export type AgentExecutionSummaryCompletedAt = string | null;
 
+export type AgentExecutionSummaryModelName = ModelName | null;
+
 export type AgentExecutionSummaryStartedAt = string | null;
 
 export interface AgentExecutionSummary {
   agent_name: AgentNameSlug;
   completed_at: AgentExecutionSummaryCompletedAt;
   id: string;
+  model_name?: AgentExecutionSummaryModelName;
   started_at: AgentExecutionSummaryStartedAt;
   status: ExecutionStatusApi;
 }
@@ -28,8 +31,32 @@ export const AgentNameSlug = {
   strategist: 'strategist',
   sentinel: 'sentinel',
   appraiser: 'appraiser',
-  arbiter: 'arbiter',
 } as const;
+
+export type CandidateGateStatusApi = typeof CandidateGateStatusApi[keyof typeof CandidateGateStatusApi];
+
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const CandidateGateStatusApi = {
+  passed: 'passed',
+  rejected: 'rejected',
+} as const;
+
+export type CandidateGateSummaryGateFailureReason = string | null;
+
+export type CandidateGateSummaryGateStatus = CandidateGateStatusApi | null;
+
+export type CandidateGateSummaryIsActivelyTrading = boolean | null;
+
+export type CandidateGateSummaryResolvedTicker = string | null;
+
+export interface CandidateGateSummary {
+  gate_failure_reason: CandidateGateSummaryGateFailureReason;
+  gate_status: CandidateGateSummaryGateStatus;
+  is_actively_trading: CandidateGateSummaryIsActivelyTrading;
+  resolved_ticker: CandidateGateSummaryResolvedTicker;
+  source_ticker: string;
+}
 
 export interface ConversationResponse {
   assistant_response: string;
@@ -54,8 +81,9 @@ export type DecisionTypeApi = typeof DecisionTypeApi[keyof typeof DecisionTypeAp
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const DecisionTypeApi = {
-  arbiter: 'arbiter',
+  rating_table: 'rating_table',
   sentinel_rejection: 'sentinel_rejection',
+  data_quality_rejection: 'data_quality_rejection',
 } as const;
 
 export type EntryPathApi = typeof EntryPathApi[keyof typeof EntryPathApi];
@@ -85,6 +113,25 @@ export interface HTTPValidationError {
   detail?: ValidationError[];
 }
 
+export type ModelName = typeof ModelName[keyof typeof ModelName];
+
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const ModelName = {
+  'claude-opus-4-5': 'claude-opus-4-5',
+  'claude-sonnet-4-5': 'claude-sonnet-4-5',
+  'claude-opus-4-6': 'claude-opus-4-6',
+  'claude-sonnet-4-6': 'claude-sonnet-4-6',
+  'claude-haiku-4-6': 'claude-haiku-4-6',
+  'gpt-51': 'gpt-5.1',
+  'gpt-52': 'gpt-5.2',
+  'gpt-54': 'gpt-5.4',
+  'gemini-3-pro-preview': 'gemini-3-pro-preview',
+  'gemini-31-pro-preview': 'gemini-3.1-pro-preview',
+  'deepseek-v4-flash': 'deepseek-v4-flash',
+  'deepseek-v4-pro': 'deepseek-v4-pro',
+} as const;
+
 export interface PortfolioResponse {
   portfolio_tickers: string[];
 }
@@ -96,15 +143,20 @@ export interface ProfilerRunCreated {
 
 export type SurveyorExecutionSummaryCompletedAt = string | null;
 
+export type SurveyorExecutionSummaryModelName = ModelName | null;
+
 export type SurveyorExecutionSummaryStartedAt = string | null;
 
 export interface SurveyorExecutionSummary {
   agent_name: AgentNameSlug;
   completed_at: SurveyorExecutionSummaryCompletedAt;
   id: string;
+  model_name?: SurveyorExecutionSummaryModelName;
   started_at: SurveyorExecutionSummaryStartedAt;
   status: ExecutionStatusApi;
 }
+
+export type TickerRunDetailCandidateGate = CandidateGateSummary | null;
 
 export type TickerRunDetailDecisionType = DecisionTypeApi | null;
 
@@ -112,6 +164,7 @@ export type TickerRunDetailFinalRating = string | null;
 
 export interface TickerRunDetail {
   agent_executions: AgentExecutionSummary[];
+  candidate_gate?: TickerRunDetailCandidateGate;
   company_name: string;
   decision_type: TickerRunDetailDecisionType;
   entry_path: EntryPathApi;

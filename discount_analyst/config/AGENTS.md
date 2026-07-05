@@ -5,14 +5,14 @@
 
 ## Purpose
 
-Application and AI model configuration: API keys via `pydantic-settings`, LLM model selection and provider-specific parameters, and provider feature flags (`WEB_FETCH`, `MCP`). Unified `Settings` and `settings` are defined in [`common/config.py`](../../common/config.py); import `common.config` in code.
+Application and AI model configuration: API keys via `pydantic-settings`, LLM model selection and provider-specific parameters, and provider feature flags (`MCP`). Unified `Settings` and `settings` are defined in [`common/config.py`](../../common/config.py); import `common.config` in code.
 
 ## Key Files
 
-| File                   | Description                                                                                           |
-| ---------------------- | ----------------------------------------------------------------------------------------------------- |
-| `ai_models_config.py`  | `ModelName`, `AIModelsConfig`, discriminated `AIModelConfig` union and `model_settings` per provider. |
-| `provider_features.py` | `Provider`, `ProviderFeature`, `PROVIDERS_BY_FEATURE` mapping.                                        |
+| File                   | Description                                                                                                                   |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `ai_models_config.py`  | `AIModelsConfig`, discriminated `AIModelConfig` union and `model_settings` per provider (imports `ModelName` from `models/`). |
+| `provider_features.py` | `Provider`, `ProviderFeature` (`MCP`, `TEXT_ONLY_WEB_FETCH`), `PROVIDERS_BY_FEATURE` mapping.                                 |
 
 ## Subdirectories
 
@@ -20,7 +20,7 @@ None.
 
 ## For AI Agents
 
-- Add new models to `ModelName` and extend the `AIModelsConfig.model` computed field with a matching branch.
+- Add new models to `ModelName` in `discount_analyst/models/model_name.py` and extend the `AIModelsConfig.model` computed field with a matching branch.
 - Use `settings` from `common.config`; do not read `os.environ` directly in application code.
 
 ## Dependencies

@@ -16,7 +16,6 @@ PROFILER_ENTRY_AGENT_NAMES: Final[tuple[str, ...]] = (
     "strategist",
     "sentinel",
     "appraiser",
-    "arbiter",
 )
 
 SURVEYOR_ENTRY_AGENT_NAMES: Final[tuple[str, ...]] = (
@@ -24,5 +23,4 @@ SURVEYOR_ENTRY_AGENT_NAMES: Final[tuple[str, ...]] = (
     "strategist",
     "sentinel",
     "appraiser",
-    "arbiter",
 )

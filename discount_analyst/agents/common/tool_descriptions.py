@@ -1,4 +1,4 @@
-"""Agent-specific tool descriptions for Perplexity-backed search tools."""
+"""Agent-specific tool descriptions for web and filings search tools."""
 
 from dataclasses import dataclass
 
@@ -6,15 +6,15 @@ from discount_analyst.agents.common.agent_names import AgentName
 
 
 @dataclass(frozen=True)
-class PerplexityToolDescriptions:
+class SearchToolDescriptions:
     """Docstrings for web_search and sec_filings_search tools per agent."""
 
     web_search: str
     sec_filings_search: str
 
 
-AGENT_TOOL_DESCRIPTIONS: dict[AgentName, PerplexityToolDescriptions] = {
-    AgentName.APPRAISER: PerplexityToolDescriptions(
+AGENT_TOOL_DESCRIPTIONS: dict[AgentName, SearchToolDescriptions] = {
+    AgentName.APPRAISER: SearchToolDescriptions(
         web_search="""Search the general web for market data, industry analysis, and external context.
 
 Use this tool to find:
@@ -73,7 +73,7 @@ Args:
 Returns:
     The answer to the question based on SEC filings.""",
     ),
-    AgentName.PROFILER: PerplexityToolDescriptions(
+    AgentName.PROFILER: SearchToolDescriptions(
         web_search="""Search the general web for single-ticker context, news, and gaps MCP cannot fill.
 
 Use this tool to find:
@@ -99,7 +99,7 @@ Args:
 Returns:
     The answer based on SEC filings.""",
     ),
-    AgentName.SURVEYOR: PerplexityToolDescriptions(
+    AgentName.SURVEYOR: SearchToolDescriptions(
         web_search="""Search the general web to discover and qualify small-cap equity candidates (UK and US).
 
 Use this tool to find:
@@ -142,7 +142,7 @@ Args:
 Returns:
     The answer based on SEC filings.""",
     ),
-    AgentName.RESEARCHER: PerplexityToolDescriptions(
+    AgentName.RESEARCHER: SearchToolDescriptions(
         web_search="""Search the general web for neutral evidence on business quality, market framing, and catalysts.
 
 Use this tool to find:

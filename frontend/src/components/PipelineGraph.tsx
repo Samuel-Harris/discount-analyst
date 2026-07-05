@@ -84,6 +84,7 @@ const PipelineNode = memo(function PipelineNodeInner({
       onKeyDown={onKeyDown}
       role={clickable ? "button" : undefined}
       tabIndex={clickable ? 0 : undefined}
+      title={node.modelName ?? undefined}
     >
       {node.handleTargetLeft ? (
         <Handle
@@ -106,6 +107,9 @@ const PipelineNode = memo(function PipelineNodeInner({
         <div className="ticker-tag">{node.ticker}</div>
       ) : null}
       <div className="st">{node.status}</div>
+      {node.modelName ? (
+        <div className="model-tag">{node.modelName}</div>
+      ) : null}
       <Handle
         type="source"
         position={Position.Right}

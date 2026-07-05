@@ -7,7 +7,6 @@ export const PROFILER_ENTRY_AGENT_NAMES = [
   "strategist",
   "sentinel",
   "appraiser",
-  "arbiter",
 ] as const satisfies readonly AgentNameSlug[];
 
 /** Matches ``backend.contracts.agent_lane_order.SURVEYOR_ENTRY_AGENT_NAMES``. */
@@ -16,7 +15,6 @@ export const SURVEYOR_ENTRY_AGENT_NAMES = [
   "strategist",
   "sentinel",
   "appraiser",
-  "arbiter",
 ] as const satisfies readonly AgentNameSlug[];
 
 /** Column / chain ordering for profiler-entry lanes in ``buildGraphLayout``. */

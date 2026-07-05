@@ -3,7 +3,12 @@
 import argparse
 from dataclasses import dataclass
 
-from discount_analyst.config.ai_models_config import ModelName
+from common.config import settings
+from discount_analyst.agents.common.terminal_run import (
+    TerminalRunOptions,
+    terminal_run_options,
+)
+from discount_analyst.models.model_name import ModelName
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,7 +20,7 @@ class AgentCliDefaults:
 
 
 DEFAULT_AGENT_CLI_DEFAULTS = AgentCliDefaults(
-    model=ModelName.GPT_5_1,
+    model=ModelName.DEEPSEEK_V4_PRO,
     use_perplexity=False,
 )
 
@@ -36,12 +41,26 @@ def add_agent_cli_model_argument(
     )
 
 
+def add_agent_terminal_argument(parser: argparse.ArgumentParser) -> None:
+    """Register ``--no-terminal`` (namespace attribute: ``no_terminal``)."""
+    parser.add_argument(
+        "--no-terminal",
+        action="store_true",
+        help="Do not register the docker-backed terminal_exec tool for this run.",
+    )
+
+
+def terminal_run_options_for_cli(*, no_terminal: bool) -> TerminalRunOptions:
+    """Build :class:`TerminalRunOptions` from process settings and CLI flags."""
+    return terminal_run_options(settings, enabled=not no_terminal)
+
+
 def add_agent_cli_web_search_arguments(
     parser: argparse.ArgumentParser,
     *,
     default_override: AgentCliDefaults | None = None,
 ) -> None:
-    """Register optional ``--perplexity`` (default: model-native web search).
+    """Register optional ``--perplexity`` (default: Pydantic AI web capabilities).
 
     Namespace attribute: ``use_perplexity``.
     """
@@ -53,6 +72,6 @@ def add_agent_cli_web_search_arguments(
         dest="use_perplexity",
         help=(
             "Use Perplexity API for web_search and sec_filings_search "
-            "(default: model-native web search)."
+            "(default: Pydantic AI WebSearch/WebFetch)."
         ),
     )

@@ -1,7 +1,7 @@
-from enum import StrEnum
 from typing import Annotated, Literal
 
 from anthropic.types.beta import BetaThinkingConfigEnabledParam
+from discount_analyst.models.model_name import ModelName
 from discount_analyst.config.provider_features import (
     PROVIDERS_BY_FEATURE,
     Provider,
@@ -12,7 +12,10 @@ from pydantic import BaseModel, Field, computed_field
 from pydantic_ai import UsageLimits
 from pydantic_ai.models.anthropic import AnthropicModelSettings
 from pydantic_ai.models.google import GoogleModelSettings
-from pydantic_ai.models.openai import OpenAIResponsesModelSettings
+from pydantic_ai.models.openai import (
+    OpenAIChatModelSettings,
+    OpenAIResponsesModelSettings,
+)
 
 _MAX_TOOL_CALLS = 60
 _MAX_TOKENS = 30_000
@@ -21,19 +24,7 @@ _OPENAI_COMPACTION_THRESHOLD_TOKENS = 200_000
 
 _ANTHROPIC_REASONING_EFFORT = "high"
 _OPENAI_REASONING_EFFORT = "high"
-
-
-class ModelName(StrEnum):
-    CLAUDE_OPUS_4_5 = "claude-opus-4-5"
-    CLAUDE_SONNET_4_5 = "claude-sonnet-4-5"
-    CLAUDE_OPUS_4_6 = "claude-opus-4-6"
-    CLAUDE_SONNET_4_6 = "claude-sonnet-4-6"
-    CLAUDE_HAIKU_4_6 = "claude-haiku-4-6"
-    GPT_5_1 = "gpt-5.1"
-    GPT_5_2 = "gpt-5.2"
-    GPT_5_4 = "gpt-5.4"
-    GEMINI_3_PRO_PREVIEW = "gemini-3-pro-preview"
-    GEMINI_3_1_PRO_PREVIEW = "gemini-3.1-pro-preview"
+_DEEPSEEK_REASONING_EFFORT = "high"
 
 
 class BaseAIModelConfig[P: Provider](BaseModel):
@@ -164,8 +155,35 @@ class GoogleAIModelConfig(BaseAIModelConfig[Literal[Provider.GOOGLE]]):
         return settings
 
 
+class DeepSeekAIModelConfig(BaseAIModelConfig[Literal[Provider.DEEPSEEK]]):
+    """DeepSeek model config using the OpenAI-compatible Chat Completions API.
+
+    DeepSeek V4 supports thinking mode through the OpenAI-compatible
+    ``reasoning_effort`` parameter plus a provider-specific ``thinking`` body field.
+    Pydantic AI's ``DeepSeekProvider`` maps the returned ``reasoning_content`` field
+    into thinking parts and handles sending thinking parts back during tool use.
+    """
+
+    provider: Literal[Provider.DEEPSEEK] = Provider.DEEPSEEK
+    reasoning_effort: Literal["low", "medium", "high", "xhigh"] | None = None
+
+    @property
+    def model_settings(self) -> OpenAIChatModelSettings:
+        settings = OpenAIChatModelSettings(
+            max_tokens=self.max_tokens,
+            parallel_tool_calls=True,
+            extra_body={"thinking": {"type": "enabled"}},
+        )
+        if self.reasoning_effort is not None:
+            settings["openai_reasoning_effort"] = self.reasoning_effort
+        return settings
+
+
 AIModelConfig = Annotated[
-    AnthropicAIModelConfig | OpenAIAIModelConfig | GoogleAIModelConfig,
+    AnthropicAIModelConfig
+    | OpenAIAIModelConfig
+    | GoogleAIModelConfig
+    | DeepSeekAIModelConfig,
     Field(discriminator="provider"),
 ]
 
@@ -211,4 +229,11 @@ class AIModelsConfig(BaseModel):
                     max_tokens=_MAX_TOKENS,
                     thinking_budget_tokens=_MAX_THINKING_BUDGET_TOKENS,
                     usage_limits=UsageLimits(tool_calls_limit=_MAX_TOOL_CALLS),
+                )
+            case ModelName.DEEPSEEK_V4_FLASH | ModelName.DEEPSEEK_V4_PRO:
+                return DeepSeekAIModelConfig(
+                    model_name=self.model_name,
+                    max_tokens=_MAX_TOKENS,
+                    usage_limits=UsageLimits(tool_calls_limit=_MAX_TOOL_CALLS),
+                    reasoning_effort=_DEEPSEEK_REASONING_EFFORT,
                 )

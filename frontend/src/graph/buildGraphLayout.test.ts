@@ -20,6 +20,7 @@ function baseDetail(
       status: "completed",
       started_at: "2026-04-01T12:00:01Z",
       completed_at: "2026-04-01T12:00:10Z",
+      model_name: "gpt-5.1",
     },
     runs: [],
     ...overrides,
@@ -64,6 +65,39 @@ describe("buildGraphLayout", () => {
     expect(wf?.kind).toBe("workflow_surveyor");
     expect(wf?.agentName).toBe("surveyor");
     expect(wf?.label).toBe("SURVEYOR");
+    expect(wf?.modelName).toBe("gpt-5.1");
+  });
+
+  it("passes lane agent model_name through to layout nodes", () => {
+    const detail = baseDetail({
+      surveyor_execution: null,
+      runs: [
+        {
+          id: "run-p",
+          ticker: "ORD.L",
+          company_name: "ORD",
+          entry_path: "profiler",
+          status: "running",
+          final_rating: null,
+          decision_type: null,
+          agent_executions: [
+            {
+              id: "a-prof",
+              agent_name: "profiler",
+              status: "running",
+              started_at: null,
+              completed_at: null,
+              model_name: "claude-opus-4-6",
+            },
+          ],
+        },
+      ],
+    });
+    const { nodes } = buildGraphLayout(detail);
+    const profiler = nodes.find(
+      (n) => n.kind === "lane_agent" && n.agentName === "profiler",
+    );
+    expect(profiler?.modelName).toBe("claude-opus-4-6");
   });
 
   it("links Surveyor workflow node to the first lane agent for surveyor entry paths", () => {
@@ -110,8 +144,8 @@ describe("buildGraphLayout", () => {
           decision_type: null,
           agent_executions: [
             {
-              id: "a-arb",
-              agent_name: "arbiter",
+              id: "a-app",
+              agent_name: "appraiser",
               status: "pending",
               started_at: null,
               completed_at: null,

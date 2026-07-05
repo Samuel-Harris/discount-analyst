@@ -1,6 +1,6 @@
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class Exchange(StrEnum):
@@ -82,6 +82,21 @@ class KeyMetrics(BaseModel):
     )
 
 
+class SurveyorLaneContext(BaseModel):
+    """Downstream agent input: identity + narrative only; no trusted quantitative screening."""
+
+    ticker: str
+    company_name: str
+    exchange: Exchange
+    currency: Currency
+    sector: str
+    industry: str
+    analyst_coverage_count: int | None
+    rationale: str
+    red_flags: str
+    data_gaps: str
+
+
 class SurveyorCandidate(BaseModel):
     """A single stock candidate surfaced by the Surveyor agent."""
 
@@ -133,6 +148,25 @@ class SurveyorCandidate(BaseModel):
         ),
     )
 
+    def to_lane_context(
+        self,
+        *,
+        resolved_ticker: str | None = None,
+    ) -> SurveyorLaneContext:
+        """Build filtered lane context, optionally substituting a gate-resolved ticker."""
+        return SurveyorLaneContext(
+            ticker=resolved_ticker or self.ticker,
+            company_name=self.company_name,
+            exchange=self.exchange,
+            currency=self.currency,
+            sector=self.sector,
+            industry=self.industry,
+            analyst_coverage_count=self.analyst_coverage_count,
+            rationale=self.rationale,
+            red_flags=self.red_flags,
+            data_gaps=self.data_gaps,
+        )
+
 
 class SurveyorOutput(BaseModel):
     """Complete output from a single Surveyor run."""
@@ -145,3 +179,23 @@ class SurveyorOutput(BaseModel):
             "better than a diluted one."
         ),
     )
+
+    @field_validator("candidates", mode="after")
+    @classmethod
+    def _candidate_tickers_are_unique(
+        cls, candidates: list[SurveyorCandidate]
+    ) -> list[SurveyorCandidate]:
+        seen: set[str] = set()
+        duplicates: list[str] = []
+        for candidate in candidates:
+            key = candidate.ticker.strip().casefold()
+            if key in seen:
+                duplicates.append(candidate.ticker)
+                continue
+            seen.add(key)
+        if duplicates:
+            duplicate_list = ", ".join(sorted(set(duplicates), key=str.casefold))
+            raise ValueError(
+                f"Duplicate Surveyor candidate ticker(s): {duplicate_list}"
+            )
+        return candidates

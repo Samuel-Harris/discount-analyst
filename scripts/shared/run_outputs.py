@@ -1,15 +1,13 @@
 """Serialisable run records written under scripts/outputs."""
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 from discount_analyst.agents.appraiser.schema import AppraiserOutput
-from discount_analyst.agents.arbiter.schema import ArbiterDecision
 from discount_analyst.agents.sentinel.schema import EvaluationReport
 from discount_analyst.agents.researcher.schema import DeepResearchReport
 from discount_analyst.agents.strategist.schema import MispricingThesis
 from discount_analyst.agents.profiler.schema import ProfilerOutput
 from discount_analyst.agents.surveyor.schema import SurveyorOutput
-from discount_analyst.valuation.data_types import DCFAnalysisResult
 
 
 class TurnUsage(BaseModel):
@@ -33,16 +31,10 @@ def default_turn_usage_list() -> list[TurnUsage]:
 class AppraiserRunOutput(BaseModel):
     """Complete serialisable record for one model run written to outputs/."""
 
-    model_config = ConfigDict(populate_by_name=True)
-
     ticker: str
     model_name: str
-    risk_free_rate: float
-    appraiser: AppraiserOutput = Field(
-        validation_alias=AliasChoices("market_analyst", "appraiser"),
-    )
-    dcf_result: DCFAnalysisResult | None = None
-    dcf_error: str | None = None
+    risk_free_rate_pct: float
+    appraiser: AppraiserOutput
     elapsed_s: float
     input_tokens: int
     output_tokens: int
@@ -135,26 +127,3 @@ class SentinelRunOutput(BaseModel):
     tool_calls: int
     turn_usage: list[TurnUsage] = Field(default_factory=default_turn_usage_list)
     output: EvaluationReport
-
-
-class ArbiterRunOutput(BaseModel):
-    """Complete serialisable record for one Arbiter run written to outputs/."""
-
-    ticker: str
-    model_name: str
-    risk_free_rate: float
-    is_existing_position: bool
-    source_surveyor_report: str
-    source_candidate_index: int = Field(ge=0)
-    source_researcher_report: str
-    source_strategist_report: str
-    source_sentinel_report: str
-    source_appraiser_report: str
-    elapsed_s: float
-    input_tokens: int
-    output_tokens: int
-    cache_write_tokens: int
-    cache_read_tokens: int
-    tool_calls: int
-    turn_usage: list[TurnUsage] = Field(default_factory=default_turn_usage_list)
-    output: ArbiterDecision

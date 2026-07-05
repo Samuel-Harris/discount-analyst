@@ -5,12 +5,11 @@ from __future__ import annotations
 import random
 from datetime import date
 
-from discount_analyst.agents.appraiser.schema import AppraiserOutput
-from discount_analyst.agents.arbiter.schema import (
-    ArbiterDecision,
-    ArbiterRationale,
-    MarginOfSafetyAssessment,
-    MarginOfSafetyVerdict,
+from discount_analyst.agents.appraiser.schema import (
+    AppraiserOutput,
+    IntrinsicValueDistribution,
+    ValuationMethod,
+    ValuationMethodResult,
 )
 from discount_analyst.agents.profiler.schema import ProfilerOutput
 from discount_analyst.agents.researcher.schema import (
@@ -34,11 +33,12 @@ from discount_analyst.agents.surveyor.schema import (
     Exchange,
     KeyMetrics,
     SurveyorCandidate,
+    SurveyorLaneContext,
     SurveyorOutput,
 )
-from discount_analyst.rating import InvestmentRating
-from discount_analyst.valuation.data_types import DCFAnalysisResult
-from discount_analyst.valuation.schema import StockAssumptions, StockData
+from discount_analyst.pipeline.builders import build_rating_table_decision
+from discount_analyst.pipeline.schema import RatingTableDecision
+from discount_analyst.rating.margin_of_safety import MarginOfSafetyAssessment
 
 # Fifteen distinct discovery names for mock surveyor output (LSE-style tickers).
 _DEFAULT_DISCOVERY: list[tuple[str, str]] = [
@@ -155,7 +155,18 @@ def mock_profiler_output(*, ticker: str) -> ProfilerOutput:
     return ProfilerOutput(candidate=mock_surveyor_candidate(ticker=ticker))
 
 
-def mock_deep_research(candidate: SurveyorCandidate) -> DeepResearchReport:
+def _as_lane_context(
+    candidate: SurveyorCandidate | SurveyorLaneContext,
+) -> SurveyorLaneContext:
+    if isinstance(candidate, SurveyorLaneContext):
+        return candidate
+    return candidate.to_lane_context()
+
+
+def mock_deep_research(
+    candidate: SurveyorCandidate | SurveyorLaneContext,
+) -> DeepResearchReport:
+    lane_context = _as_lane_context(candidate)
     return DeepResearchReport(
         executive_overview="Mock executive overview.",
         business_model=BusinessModel(
@@ -190,7 +201,7 @@ def mock_deep_research(candidate: SurveyorCandidate) -> DeepResearchReport:
         risks=["Mock risk one"],
         potential_catalysts=["Mock catalyst"],
         data_gaps_update=DataGapsUpdate(
-            original_data_gaps=candidate.data_gaps,
+            original_data_gaps=lane_context.data_gaps,
             closed_gaps=[],
             remaining_open_gaps=["Mock remaining gap"],
             material_open_gaps=[],
@@ -199,10 +210,11 @@ def mock_deep_research(candidate: SurveyorCandidate) -> DeepResearchReport:
     )
 
 
-def mock_thesis(candidate: SurveyorCandidate) -> MispricingThesis:
+def mock_thesis(candidate: SurveyorCandidate | SurveyorLaneContext) -> MispricingThesis:
+    lane_context = _as_lane_context(candidate)
     return MispricingThesis(
-        ticker=candidate.ticker,
-        company_name=candidate.company_name,
+        ticker=lane_context.ticker,
+        company_name=lane_context.company_name,
         mispricing_type="Mock mispricing",
         market_belief="Mock market belief.",
         mispricing_argument="Mock argument.",
@@ -226,8 +238,9 @@ def mock_sentinel_proceed_for_dashboard_lane(ticker: str) -> bool:
 
 
 def mock_sentinel_evaluation(
-    *, candidate: SurveyorCandidate, proceed: bool
+    *, candidate: SurveyorCandidate | SurveyorLaneContext, proceed: bool
 ) -> EvaluationReport:
+    lane_context = _as_lane_context(candidate)
     proceed_verdicts = (
         ThesisVerdict.INTACT_PROCEED_TO_VALUATION,
         ThesisVerdict.INTACT_WITH_RESERVATIONS,
@@ -301,8 +314,8 @@ def mock_sentinel_evaluation(
     lit = random.choice(("Low", "Moderate", "Elevated"))
 
     return EvaluationReport(
-        ticker=candidate.ticker,
-        company_name=candidate.company_name,
+        ticker=lane_context.ticker,
+        company_name=lane_context.company_name,
         question_assessments=question_assessments,
         red_flag_screen=RedFlagScreen(
             governance_concerns=gov,
@@ -342,174 +355,116 @@ def mock_sentinel_evaluation(
     )
 
 
-def mock_stock_data(candidate: SurveyorCandidate) -> StockData:
-    return StockData(
-        ticker=candidate.ticker,
-        name=candidate.company_name,
-        ebit=12_000_000.0,
-        revenue=80_000_000.0,
-        capital_expenditure=4_000_000.0,
-        n_shares_outstanding=50_000_000.0,
-        market_cap=150_000_000.0,
-        gross_debt=20_000_000.0,
-        gross_debt_last_year=22_000_000.0,
-        net_debt=10_000_000.0,
-        total_interest_expense=1_000_000.0,
-        beta=1.1,
-    )
-
-
-def mock_stock_assumptions() -> StockAssumptions:
-    return StockAssumptions(
-        reasoning="Mock assumptions for dashboard DCF.",
-        forecast_period_years=5,
-        assumed_tax_rate=0.21,
-        assumed_forecast_period_annual_revenue_growth_rate=0.08,
-        assumed_perpetuity_cash_flow_growth_rate=0.025,
-        assumed_ebit_margin=0.18,
-        assumed_depreciation_and_amortization_rate=0.04,
-        assumed_capex_rate=0.05,
-        assumed_change_in_working_capital_rate=0.02,
-    )
-
-
-def mock_appraiser_output(candidate: SurveyorCandidate) -> AppraiserOutput:
+def mock_appraiser_output(
+    candidate: SurveyorCandidate | SurveyorLaneContext,
+) -> AppraiserOutput:
+    lane_context = _as_lane_context(candidate)
+    current_price = 3.0
     return AppraiserOutput(
-        stock_data=mock_stock_data(candidate),
-        stock_assumptions=mock_stock_assumptions(),
+        ticker=lane_context.ticker,
+        company_name=lane_context.company_name,
+        valuation_date=date.today().isoformat(),
+        summary="Mock Appraiser distribution for dashboard testing.",
+        valuation_distribution=IntrinsicValueDistribution(
+            currency=lane_context.currency.value,
+            current_share_price=current_price,
+            expected_intrinsic_value=3.8,
+            p10_intrinsic_value=2.6,
+            p25_intrinsic_value=3.1,
+            p50_intrinsic_value=3.6,
+            p75_intrinsic_value=4.2,
+            p90_intrinsic_value=5.0,
+            distribution_method="mock_scenario_weighting",
+            distribution_reasoning="Mock downside/base/upside range.",
+        ),
+        methods=[
+            ValuationMethodResult(
+                method=ValuationMethod.SCENARIO_WEIGHTING,
+                role="primary",
+                value_per_share=3.8,
+                low_value_per_share=2.6,
+                high_value_per_share=5.0,
+                weight_pct=70.0,
+                key_assumptions=["Mock growth and margin assumptions."],
+                evidence_summary=["Mock research evidence."],
+                sanity_checks=["Mock distribution is monotonic."],
+                limitations=["Mock output only."],
+            ),
+            ValuationMethodResult(
+                method=ValuationMethod.COMPARABLE_MULTIPLES,
+                role="cross_check",
+                value_per_share=3.5,
+                low_value_per_share=3.0,
+                high_value_per_share=4.1,
+                weight_pct=30.0,
+                key_assumptions=["Mock peer multiple range."],
+                evidence_summary=["Mock peer set."],
+                sanity_checks=["Mock selected multiple within peer range."],
+                limitations=["Peer set is illustrative."],
+            ),
+        ],
+        key_value_drivers=["Mock revenue growth", "Mock margin expansion"],
+        downside_risks_to_value=["Mock execution risk"],
+        upside_drivers_to_value=["Mock catalyst delivery"],
+        data_quality="Medium",
+        caveats=["Mock valuation only."],
     )
 
 
-def mock_dcf_result() -> DCFAnalysisResult:
-    return DCFAnalysisResult(
-        intrinsic_share_price=3.2,
-        enterprise_value=180_000_000.0,
-        equity_value=160_000_000.0,
-    )
-
-
-def mock_arbiter_rating_for_dashboard_lane(ticker: str) -> InvestmentRating:
-    """Pick a stable ``InvestmentRating`` per ticker for mock Arbiter output.
-
-    Random ratings made short mock runs look uniformly bearish; this cycles
-    across all five levels using the same case-folded character-sum scheme as
-    :func:`mock_sentinel_proceed_for_dashboard_lane`.
-    """
-
-    order: tuple[InvestmentRating, ...] = (
-        InvestmentRating.STRONG_BUY,
-        InvestmentRating.BUY,
-        InvestmentRating.HOLD,
-        InvestmentRating.SELL,
-        InvestmentRating.STRONG_SELL,
-    )
-    bucket = sum(ord(ch) for ch in ticker.casefold()) % len(order)
-    return order[bucket]
-
-
-def mock_arbiter_decision(
-    candidate: SurveyorCandidate, *, is_existing_position: bool
-) -> ArbiterDecision:
-    rating = mock_arbiter_rating_for_dashboard_lane(candidate.ticker)
-    conviction = random.choice(("Low", "Medium", "High"))
-
-    action_by_rating = {
-        InvestmentRating.STRONG_BUY: (
-            "Increase materially on weakness.",
-            "Add aggressively while liquidity permits.",
-        ),
-        InvestmentRating.BUY: (
-            "Accumulate on pullbacks.",
-            "Add gradually within risk limits.",
-        ),
-        InvestmentRating.HOLD: (
-            "Maintain sizing; reassess on new data.",
-            "Hold pending clearer catalysts.",
-        ),
-        InvestmentRating.SELL: (
-            "Trim exposure into strength.",
-            "Reduce position size.",
-        ),
-        InvestmentRating.STRONG_SELL: (
-            "Exit or hedge promptly.",
-            "Close the position.",
-        ),
-    }
-    recommended_action = random.choice(action_by_rating[rating])
-
-    base = round(random.uniform(1.5, 120.0), 2)
-    bear = round(base * random.uniform(0.55, 0.92), 2)
-    bull = round(base * random.uniform(1.05, 1.45), 2)
-    current = round(base * random.uniform(0.78, 1.12), 2)
-    mos_pct = round((base - current) / base * 100.0, 1) if base else 0.0
-
-    substantial: MarginOfSafetyVerdict = (
-        "Substantial — price implies significant downside in market expectations"
-    )
-    moderate: MarginOfSafetyVerdict = "Moderate — meaningful upside but not exceptional"
-    thin: MarginOfSafetyVerdict = "Thin — limited margin for error"
-    none_mos: MarginOfSafetyVerdict = "None — stock appears fairly valued or overvalued"
-    if mos_pct >= 12:
-        mos_verdict = substantial
-    elif mos_pct >= 3:
-        mos_verdict = random.choice((substantial, moderate))
-    elif mos_pct >= -5:
-        mos_verdict = random.choice((moderate, thin))
-    else:
-        mos_verdict = random.choice((thin, none_mos))
-
-    return ArbiterDecision(
-        ticker=candidate.ticker,
-        company_name=candidate.company_name,
-        decision_date=date.today().isoformat(),
-        is_existing_position=is_existing_position,
-        rating=rating,
-        recommended_action=recommended_action,
-        conviction=conviction,
-        margin_of_safety=MarginOfSafetyAssessment(
-            current_price=current,
-            bear_intrinsic_value=bear,
-            base_intrinsic_value=base,
-            bull_intrinsic_value=bull,
-            margin_of_safety_base_pct=mos_pct,
-            margin_of_safety_verdict=mos_verdict,
-        ),
-        rationale=ArbiterRationale(
-            primary_driver=random.choice(
-                (
-                    "Valuation versus revised intrinsic range.",
-                    "Thesis durability after latest operating evidence.",
-                    "Balance sheet optionality versus peer set.",
-                )
-            ),
-            supporting_factors=random.sample(
-                (
-                    "Cash conversion remains supportive.",
-                    "Narrative dislocation still evident in multiples.",
-                    "Catalyst path within a sensible horizon.",
-                ),
-                k=random.randint(1, 3),
-            ),
-            mitigating_factors=random.sample(
-                (
-                    "Macro sensitivity is non-trivial.",
-                    "Execution risk on key initiatives.",
-                    "Disclosure gaps on segment economics.",
-                ),
-                k=random.randint(1, 3),
-            ),
-            red_flag_disposition=random.choice(
-                ("Acceptable", "Manageable with monitoring", "Elevated but priced")
-            ),
-            data_gap_disposition=random.choice(
-                ("Monitor", "Close before sizing up", "Immaterial for the decision")
-            ),
-        ),
-        thesis_expiry_note=random.choice(
-            (
-                "Revisit after the next two reporting periods.",
-                "Mock expiry note: refresh thesis if guidance changes materially.",
-                "Mock expiry note: reassess if the red-flag screen worsens.",
+def mock_rating_table_gate_evaluation(
+    candidate: SurveyorCandidate | SurveyorLaneContext,
+    *,
+    thesis_verdict: ThesisVerdict = ThesisVerdict.INTACT_PROCEED_TO_VALUATION,
+) -> EvaluationReport:
+    """Minimal Sentinel output for deterministic mock rating-table rows."""
+    lane_context = _as_lane_context(candidate)
+    return EvaluationReport(
+        ticker=lane_context.ticker,
+        company_name=lane_context.company_name,
+        question_assessments=[
+            QuestionAssessment(
+                question="Q1",
+                evidence="Mock evidence.",
+                verdict="Supports thesis",
+                confidence="High",
             )
+        ],
+        red_flag_screen=RedFlagScreen(
+            governance_concerns="",
+            balance_sheet_stress="",
+            customer_or_supplier_concentration="",
+            accounting_quality="",
+            related_party_transactions="",
+            litigation_or_regulatory_risk="",
+            overall_red_flag_verdict=OverallRedFlagVerdict.CLEAR,
         ),
+        thesis_verdict=thesis_verdict,
+        verdict_rationale="Mock sentinel verdict.",
+        material_data_gaps="",
+        caveats=[],
+    )
+
+
+def mock_rating_table_decision(
+    candidate: SurveyorCandidate | SurveyorLaneContext,
+    *,
+    is_existing_position: bool,
+    thesis: MispricingThesis | None = None,
+    evaluation: EvaluationReport | None = None,
+) -> RatingTableDecision:
+    """Deterministic rating-table decision for mock dashboard runs (no LLM)."""
+    lane_context = _as_lane_context(candidate)
+    th = thesis or mock_thesis(candidate)
+    ev = evaluation or mock_rating_table_gate_evaluation(candidate)
+    appraiser_out = mock_appraiser_output(candidate)
+    mos = MarginOfSafetyAssessment.from_distribution(
+        appraiser_out.valuation_distribution
+    )
+    return build_rating_table_decision(
+        lane_context=lane_context,
+        thesis=th,
+        evaluation=ev,
+        margin_of_safety=mos,
+        is_existing_position=is_existing_position,
+        decision_date=date.today().isoformat(),
     )

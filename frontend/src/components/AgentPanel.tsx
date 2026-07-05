@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 
-import type { ConversationResponse } from "../api";
+import type { AgentNameSlug, ConversationResponse } from "../api";
 
 import { AssistantResponsePanel } from "./agentPanel/AssistantResponsePanel";
 import { ConversationMessagesList } from "./agentPanel/ConversationMessagesList";
@@ -10,6 +10,7 @@ import { UiStateText } from "./UiStateText";
 export interface AgentPanelProps {
   open: boolean;
   title: string;
+  agentName?: AgentNameSlug | null;
   loading: boolean;
   error: string | null;
   data: ConversationResponse | null;
@@ -19,6 +20,7 @@ export interface AgentPanelProps {
 export function AgentPanel({
   open,
   title,
+  agentName = null,
   loading,
   error,
   data,
@@ -77,6 +79,7 @@ export function AgentPanel({
                 <h3>Assistant response</h3>
                 <AssistantResponsePanel
                   assistantResponse={data.assistant_response}
+                  agentName={agentName}
                 />
               </section>
             </>

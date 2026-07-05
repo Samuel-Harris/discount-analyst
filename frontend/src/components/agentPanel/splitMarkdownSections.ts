@@ -12,7 +12,7 @@ function headingTitleFromFirstLine(firstLine: string): string | null {
 }
 
 /**
- * Split markdown on lines that start with `#` or `##` followed by whitespace (ATX headings depth 1–2 only).
+ * Split markdown on lines that start with `#` or `##` followed by whitespace (ATX headings depth 1-2 only).
  * Lines that look like headings inside fenced ``` blocks are ignored.
  */
 export function splitMarkdownSections(source: string): MarkdownSection[] {

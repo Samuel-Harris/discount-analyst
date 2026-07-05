@@ -18,8 +18,9 @@ type SortKey =
   | "entry_path";
 
 function formatDecisionType(dt: TickerRunDetail["decision_type"]): string {
-  if (dt === "arbiter") return "Arbiter";
+  if (dt === "rating_table") return "Rating table";
   if (dt === "sentinel_rejection") return "Sentinel";
+  if (dt === "data_quality_rejection") return "Data quality";
   return "—";
 }
 

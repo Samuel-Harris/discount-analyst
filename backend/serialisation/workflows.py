@@ -2,11 +2,13 @@
 
 from backend.contracts.api import (
     AgentExecutionSummary,
+    CandidateGateSummary,
     SurveyorExecutionSummary,
     TickerRunDetail,
     WorkflowRunDetailResponse,
     WorkflowRunListItem,
 )
+from backend.contracts.enums import CandidateGateStatusApi
 from backend.contracts.enums import (
     AgentNameSlug,
     DecisionTypeApi,
@@ -34,51 +36,69 @@ def workflow_list_item(row: WorkflowRunListRow) -> WorkflowRunListItem:
     )
 
 
-def workflow_detail(d: WorkflowRunDetailRecord) -> WorkflowRunDetailResponse:
-    se = d.get("surveyor_execution")
+def workflow_detail(
+    workflow_run_detail_record: WorkflowRunDetailRecord,
+) -> WorkflowRunDetailResponse:
+    surveyor_execution = workflow_run_detail_record.get("surveyor_execution")
     surveyor_summary = None
-    if se:
+    if surveyor_execution:
         surveyor_summary = SurveyorExecutionSummary(
-            id=se["id"],
-            agent_name=AgentNameSlug(se["agent_name"]),
-            status=ExecutionStatusApi(se["status"]),
-            started_at=se["started_at"],
-            completed_at=se["completed_at"],
+            id=surveyor_execution["id"],
+            agent_name=AgentNameSlug(surveyor_execution["agent_name"]),
+            status=ExecutionStatusApi(surveyor_execution["status"]),
+            started_at=surveyor_execution["started_at"],
+            completed_at=surveyor_execution["completed_at"],
+            model_name=surveyor_execution["model_name"],
         )
     runs: list[TickerRunDetail] = []
-    for r in d["runs"]:
+    for run in workflow_run_detail_record["runs"]:
         agents = [
             AgentExecutionSummary(
-                id=a["id"],
-                agent_name=AgentNameSlug(a["agent_name"]),
-                status=ExecutionStatusApi(a["status"]),
-                started_at=a["started_at"],
-                completed_at=a["completed_at"],
+                id=agent_execution["id"],
+                agent_name=AgentNameSlug(agent_execution["agent_name"]),
+                status=ExecutionStatusApi(agent_execution["status"]),
+                started_at=agent_execution["started_at"],
+                completed_at=agent_execution["completed_at"],
+                model_name=agent_execution["model_name"],
             )
-            for a in r["agent_executions"]
+            for agent_execution in run["agent_executions"]
         ]
-        dt = r["decision_type"]
+        dt = run["decision_type"]
+        gate_row = run.get("candidate_gate")
+        candidate_gate = None
+        if gate_row is not None:
+            gate_status = gate_row["gate_status"]
+            candidate_gate = CandidateGateSummary(
+                gate_status=CandidateGateStatusApi(gate_status)
+                if gate_status
+                else None,
+                source_ticker=gate_row["source_ticker"],
+                resolved_ticker=gate_row["resolved_ticker"],
+                gate_failure_reason=gate_row["gate_failure_reason"],
+                is_actively_trading=gate_row["is_actively_trading"],
+            )
         runs.append(
             TickerRunDetail(
-                id=r["id"],
-                ticker=r["ticker"],
-                company_name=r["company_name"],
-                entry_path=EntryPathApi(r["entry_path"]),
-                status=TickerRunStatusApi(r["status"]),
-                final_rating=r["final_rating"],
+                id=run["id"],
+                ticker=run["ticker"],
+                company_name=run["company_name"],
+                entry_path=EntryPathApi(run["entry_path"]),
+                status=TickerRunStatusApi(run["status"]),
+                final_rating=run["final_rating"],
                 decision_type=DecisionTypeApi(dt) if dt else None,
+                candidate_gate=candidate_gate,
                 agent_executions=agents,
             )
         )
-    detail_started_at = d["started_at"]
+    detail_started_at = workflow_run_detail_record["started_at"]
     assert detail_started_at is not None
     return WorkflowRunDetailResponse(
-        id=d["id"],
+        id=workflow_run_detail_record["id"],
         started_at=detail_started_at,
-        completed_at=d["completed_at"],
-        status=WorkflowRunStatusApi(d["status"]),
-        is_mock=d["is_mock"],
-        error_message=d["error_message"],
+        completed_at=workflow_run_detail_record["completed_at"],
+        status=WorkflowRunStatusApi(workflow_run_detail_record["status"]),
+        is_mock=workflow_run_detail_record["is_mock"],
+        error_message=workflow_run_detail_record["error_message"],
         surveyor_execution=surveyor_summary,
         runs=runs,
     )

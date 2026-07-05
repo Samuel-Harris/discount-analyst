@@ -5,6 +5,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TypedDict
 
+from backend.db.models import CandidateGateStatusDb
+from discount_analyst.models.model_name import ModelName
+
 
 class WorkflowRunListRow(TypedDict):
     id: str
@@ -34,6 +37,7 @@ class SurveyorExecutionRow(TypedDict):
     status: str
     started_at: datetime | None
     completed_at: datetime | None
+    model_name: ModelName | None
 
 
 class AgentExecutionRow(TypedDict):
@@ -42,6 +46,15 @@ class AgentExecutionRow(TypedDict):
     status: str
     started_at: datetime | None
     completed_at: datetime | None
+    model_name: ModelName | None
+
+
+class CandidateGateRow(TypedDict):
+    gate_status: CandidateGateStatusDb | None
+    source_ticker: str
+    resolved_ticker: str | None
+    gate_failure_reason: str | None
+    is_actively_trading: bool | None
 
 
 class TickerRunRow(TypedDict):
@@ -52,6 +65,7 @@ class TickerRunRow(TypedDict):
     status: str
     final_rating: str | None
     decision_type: str | None
+    candidate_gate: CandidateGateRow | None
     agent_executions: list[AgentExecutionRow]
 
 

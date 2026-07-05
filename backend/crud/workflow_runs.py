@@ -9,6 +9,7 @@ from sqlmodel import Session, col, select
 
 from backend.contracts.workflow_rows import (
     AgentExecutionRow,
+    CandidateGateRow,
     SurveyorExecutionRow,
     TickerRunRow,
     TickerRunResumeRow,
@@ -25,6 +26,7 @@ from backend.crud.db_utils import (
 from backend.db.models import (
     AgentExecution,
     AgentNameDb,
+    CandidateSnapshot,
     EntryPathDb,
     ExecutionStatusDb,
     Run,
@@ -300,6 +302,7 @@ def fetch_workflow_detail(
             "status": se.status.value,
             "started_at": se.started_at,
             "completed_at": se.completed_at,
+            "model_name": se.model_name,
         }
 
     agent_order = {
@@ -308,7 +311,6 @@ def fetch_workflow_detail(
         AgentNameDb.STRATEGIST.value: 2,
         AgentNameDb.SENTINEL.value: 3,
         AgentNameDb.APPRAISER.value: 4,
-        AgentNameDb.ARBITER.value: 5,
     }
 
     runs = list(
@@ -319,10 +321,10 @@ def fetch_workflow_detail(
         )
     )
     runs_out: list[TickerRunRow] = []
-    for rr in runs:
+    for run in runs:
         agents = list(
             session.scalars(
-                select(AgentExecution).where(col(AgentExecution.run_id) == rr.id)
+                select(AgentExecution).where(col(AgentExecution.run_id) == run.id)
             )
         )
         agents_sorted = sorted(
@@ -330,23 +332,36 @@ def fetch_workflow_detail(
         )
         agent_rows: list[AgentExecutionRow] = [
             {
-                "id": a.id,
-                "agent_name": a.agent_name.value,
-                "status": a.status.value,
-                "started_at": a.started_at,
-                "completed_at": a.completed_at,
+                "id": agent.id,
+                "agent_name": agent.agent_name.value,
+                "status": agent.status.value,
+                "started_at": agent.started_at,
+                "completed_at": agent.completed_at,
+                "model_name": agent.model_name,
             }
-            for a in agents_sorted
+            for agent in agents_sorted
         ]
+        candidate_gate: CandidateGateRow | None = None
+        if run.candidate_snapshot_id is not None:
+            snapshot = session.get(CandidateSnapshot, run.candidate_snapshot_id)
+            if snapshot is not None:
+                candidate_gate = {
+                    "gate_status": snapshot.gate_status,
+                    "source_ticker": snapshot.ticker,
+                    "resolved_ticker": snapshot.resolved_ticker,
+                    "gate_failure_reason": snapshot.gate_failure_reason,
+                    "is_actively_trading": snapshot.is_actively_trading,
+                }
         runs_out.append(
             {
-                "id": rr.id,
-                "ticker": rr.ticker,
-                "company_name": rr.company_name,
-                "entry_path": rr.entry_path.value,
-                "status": rr.status.value,
-                "final_rating": rr.final_rating,
-                "decision_type": rr.decision_type.value if rr.decision_type else None,
+                "id": run.id,
+                "ticker": run.ticker,
+                "company_name": run.company_name,
+                "entry_path": run.entry_path.value,
+                "status": run.status.value,
+                "final_rating": run.final_rating,
+                "decision_type": run.decision_type.value if run.decision_type else None,
+                "candidate_gate": candidate_gate,
                 "agent_executions": agent_rows,
             }
         )

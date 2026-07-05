@@ -6,7 +6,7 @@ An AI-powered stock analysis tool for identifying and valuing promising small-ca
 
 ## Investment Workflow
 
-The tool supports a five-stage pipeline: Surveyor, Researcher, and Strategist run in-repo; you still use an external AI model to weigh the buy case after DCF, then decide trades yourself.
+The tool supports a five-stage pipeline: Surveyor, Researcher, Strategist, Sentinel, and Appraiser run in-repo; you can still use an external AI model to weigh the buy case after valuation, then decide trades yourself.
 
 **1. Survey — discover candidates**
 Run the Surveyor agent to screen for promising small-cap stocks across UK and US markets:
@@ -35,8 +35,8 @@ uv run python scripts/agents/run_strategist.py --researcher-report-and-ticker <s
 
 You can still narrow scope by passing a single-ticker selector instead of treating “shortlist” and “categorise” as separate manual stages.
 
-**3. Value — DCF analysis**
-Pass names that are ready for valuation to the Appraiser agent for a full Discounted Cash Flow analysis:
+**3. Value — intrinsic-value distribution**
+Pass names that are ready for valuation to the Appraiser agent for a method-agnostic intrinsic-value distribution:
 
 ```bash
 uv run python scripts/agents/run_appraiser.py \
@@ -47,10 +47,10 @@ uv run python scripts/agents/run_appraiser.py \
 Use the Sentinel artefact written under `scripts/outputs/` after `run_sentinel.py` (or the full pipeline). The script follows the same `path.json` / `path.json:TICKER` selector pattern as Sentinel; it loads Surveyor, Researcher, and Strategist JSON paths from fields inside the Sentinel run record.
 
 **4. Evaluate — AI buy recommendation**
-Use an AI model (Claude, Gemini, or ChatGPT) to evaluate whether to buy each stock based on the research report, Strategist thesis, and the DCF analysis output.
+Use an AI model (Claude, Gemini, or ChatGPT) to evaluate whether to buy each stock based on the research report, Strategist thesis, Sentinel review, and Appraiser valuation output.
 
 **5. Buy — act on the margin of safety**
-Review the DCF outputs across all analysed stocks. Buy the stocks with the greatest margin of safety — i.e. where the current market price is furthest below the intrinsic value estimated by the Appraiser.
+Review the Appraiser distributions across all analysed stocks. Buy the stocks with the greatest margin of safety — i.e. where the current market price is furthest below the expected intrinsic value estimated by the Appraiser.
 
 ## Quick Start
 
@@ -58,7 +58,7 @@ Review the DCF outputs across all analysed stocks. Buy the stocks with the great
 2. Configure environment variables for the agents you run (see [Environment variables](#environment-variables))
 3. Install dependencies: `uv sync`
 4. Run the Surveyor to find candidates: `uv run python scripts/agents/run_surveyor.py`, or run survey → research → strategy in one command: `uv run python scripts/workflows/run_surveyor_researcher_strategist.py`
-5. After Researcher/Strategist/Sentinel (step 2 above — or `scripts/workflows/run_full_workflow.py` for the full gated pipeline through Arbiter and verdicts JSON), run DCF analysis: `uv run python scripts/agents/run_appraiser.py --sentinel-report-and-ticker scripts/outputs/<sentinel>.json --risk-free-rate <decimal e.g. 0.045>`
+5. After Researcher/Strategist/Sentinel (step 2 above — or `scripts/workflows/run_full_workflow.py` for the full gated pipeline through deterministic rating and verdicts JSON), run Appraiser valuation: `uv run python scripts/agents/run_appraiser.py --sentinel-report-and-ticker scripts/outputs/<sentinel>.json --risk-free-rate <percentage e.g. 4.5>`
 
 ## Environment variables
 
@@ -68,33 +68,36 @@ All configuration lives in a single [`common/config.py`](common/config.py) model
 
 Nested groups use double underscores, for example `PERPLEXITY__API_KEY`, `LOGGING__LOGFIRE_API_KEY`, `EODHD__DISABLED`.
 
-| Variable                            | Purpose                                                                                |
-| ----------------------------------- | -------------------------------------------------------------------------------------- |
-| `LOGGING__LOGFIRE_API_KEY`          | Logfire ingest token (CLI agents and dashboard; non-empty)                             |
-| `PERPLEXITY__API_KEY`               | Perplexity API key                                                                     |
-| `PERPLEXITY__RATE_LIMIT_PER_MINUTE` | Perplexity rate limit                                                                  |
-| `ANTHROPIC__API_KEY`                | Optional Anthropic key                                                                 |
-| `OPENAI__API_KEY`                   | Optional OpenAI key                                                                    |
-| `GOOGLE__API_KEY`                   | Optional Google GenAI key                                                              |
-| `FMP__API_KEY`                      | Financial Modeling Prep                                                                |
-| `EODHD__API_KEY`                    | EODHD                                                                                  |
-| `EODHD__DISABLED`                   | Set to `true` to skip EODHD MCP (FMP unchanged)                                        |
-| `LOGGING__LOG_LEVEL`                | Logfire console minimum for the dashboard process (`DEBUG`–`CRITICAL`; default `INFO`) |
-| `DASHBOARD_DATABASE_PATH`           | SQLite path for workflow runs (default `data/dashboard.sqlite`)                        |
-| `DASHBOARD_DEFAULT_MODEL`           | Default LLM for dashboard-driven runs                                                  |
-| `DASHBOARD_RISK_FREE_RATE`          | Risk-free rate for valuation stages                                                    |
-| `DASHBOARD_USE_PERPLEXITY`          | Toggle Perplexity-backed behaviour where wired                                         |
-| `DASHBOARD_USE_MCP_FINANCIAL_DATA`  | Toggle MCP financial data in dashboard runs                                            |
-| `ENV` or `DASHBOARD_DEPLOY_ENV`     | `DEV` or `PROD` (mock vs live server behaviour)                                        |
+| Variable                            | Purpose                                                                                                                                                   |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LOGGING__LOGFIRE_API_KEY`          | Logfire ingest token (CLI agents and dashboard; non-empty)                                                                                                |
+| `PERPLEXITY__API_KEY`               | Perplexity API key                                                                                                                                        |
+| `PERPLEXITY__RATE_LIMIT_PER_MINUTE` | Perplexity rate limit                                                                                                                                     |
+| `ANTHROPIC__API_KEY`                | Optional Anthropic key                                                                                                                                    |
+| `OPENAI__API_KEY`                   | Optional OpenAI key                                                                                                                                       |
+| `GOOGLE__API_KEY`                   | Optional Google GenAI key                                                                                                                                 |
+| `DEEPSEEK__API_KEY`                 | Optional DeepSeek key                                                                                                                                     |
+| `FMP__API_KEY`                      | Financial Modeling Prep                                                                                                                                   |
+| `EODHD__API_KEY`                    | EODHD                                                                                                                                                     |
+| `EODHD__DISABLED`                   | Set to `true` to skip EODHD MCP (FMP unchanged)                                                                                                           |
+| `LOGGING__LOG_LEVEL`                | Logfire console minimum for the dashboard process (`DEBUG`-`CRITICAL`; default `INFO`)                                                                    |
+| `DASHBOARD_DATABASE_PATH`           | SQLite path for workflow runs (default `data/dashboard.sqlite`; VS Code uses separate `data/dashboard.dev.sqlite` and `data/dashboard.prod.sqlite` files) |
+| `DASHBOARD_DEFAULT_MODEL`           | Default LLM for dashboard-driven runs                                                                                                                     |
+| `DASHBOARD_RISK_FREE_RATE`          | Risk-free rate as a percentage for valuation stages (e.g. `3.7` means 3.7%)                                                                               |
+| `DASHBOARD_USE_PERPLEXITY`          | Toggle Perplexity-backed behaviour where wired                                                                                                            |
+| `DASHBOARD_USE_MCP_FINANCIAL_DATA`  | Toggle MCP financial data in dashboard runs                                                                                                               |
+| `ENV` or `DASHBOARD_DEPLOY_ENV`     | `DEV` or `PROD` (mock vs live server behaviour)                                                                                                           |
 
 Optional provider blocks can be omitted when unused; consult the settings model for required combinations.
 
+When `--perplexity` is not set, agents use Pydantic AI's `WebSearch` and `WebFetch` capabilities. Providers with native support use provider-native tools; providers without native support, such as DeepSeek, use Pydantic AI's local DuckDuckGo search and web-fetch fallbacks. For DeepSeek, the local fetch tool converts binary documents (PDF, Office, and similar) to markdown via markitdown; formats that cannot be converted return an unsupported-type message instead of binary content.
+
 ### Frontend (Vite)
 
-| Variable                | Default                 | Purpose                                                                                                   |
-| ----------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------- |
-| `VITE_API_PREFIX`       | `/api`                  | Prefix for browser `fetch` calls (see [`frontend/src/api/client.ts`](frontend/src/api/client.ts))         |
-| `VITE_DEV_PROXY_TARGET` | `http://127.0.0.1:8000` | **Dev only:** Vite proxy target for `/api` (set to `http://backend:8000` under Docker Compose, see below) |
+| Variable                | Default                 | Purpose                                                                                           |
+| ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------- |
+| `VITE_API_PREFIX`       | `/api`                  | Prefix for browser `fetch` calls (see [`frontend/src/api/client.ts`](frontend/src/api/client.ts)) |
+| `VITE_DEV_PROXY_TARGET` | `http://127.0.0.1:8000` | Vite dev/preview proxy target for `/api` (host API on **8000**)                                   |
 
 ## Local dashboard (API and UI)
 
@@ -117,6 +120,12 @@ To run Alembic manually against the same revision bundle, set `sqlalchemy.url` i
 
 ```bash
 uv run alembic -c backend/db/alembic.ini upgrade head
+```
+
+After changing ORM models in [`backend/db/models.py`](backend/db/models.py), autogenerate a revision, review it manually, then verify metadata matches the migration head:
+
+```bash
+uv run python scripts/check_alembic_schema.py
 ```
 
 ### Seeding mock workflow data
@@ -156,6 +165,12 @@ cd frontend && npm run dev
 
 Open the printed dev server URL (by default port **5173**). Browser calls go to `/api`, which Vite proxies to `VITE_DEV_PROXY_TARGET`.
 
+For a **production-like** local stack (static UI, production uvicorn, terminal in Docker), use the VS Code launch configuration **Dashboard: PROD stack** (see [Docker Compose](#docker-compose) below). That runs `pnpm build` + `vite preview` on **8080**, a background production API on **8000**, and `agent-terminal` in Compose on **8001**. Use **Dashboard: API + Frontend** when you need debugpy breakpoints and hot reload on **5173**.
+
+The VS Code dashboard launches keep local data separate: DEV uses `data/dashboard.dev.sqlite`, while PROD uses `data/dashboard.prod.sqlite`. The historical Docker Compose production database lived in the `dashboard_sqlite_prod` volume at `/data/dashboard.sqlite`; copy it to `data/dashboard.prod.sqlite` before running the host PROD stack if you need those saved workflow runs.
+
+Stopping the PROD debug session ends Vite preview only; background API and terminal tasks keep running until you tear them down (`docker compose down`, and stop uvicorn on port **8000** if needed).
+
 ### Tests and static checks
 
 From the repository root:
@@ -170,26 +185,39 @@ Continuous integration runs `uv run pre-commit run --all-files`, `uv run pytest`
 
 ## Docker Compose
 
-Compose is a **local convenience** for running the dashboard stack; it does not change the product boundary of “no cloud deployment”.
+Compose runs only the **agent-terminal** orchestrator (sandbox containers via the Docker socket). The dashboard API and UI run on the **host** for day-to-day work; this does not change the product boundary of “no cloud deployment”.
 
-**Prerequisites:** Docker Engine or Docker Desktop with [Compose V2](https://docs.docker.com/compose/) (`docker compose`).
+**Prerequisites:** Docker Engine or Docker Desktop with [Compose V2](https://docs.docker.com/compose/) (`docker compose`). Build the sandbox image once: `make build-terminal-sandbox`.
 
-### Dashboard stack (nginx + static UI)
-
-[`docker-compose.yml`](docker-compose.yml) runs a **production-like** smoke stack:
-
-- **backend** — image from [`backend/docker/Dockerfile`](backend/docker/Dockerfile), exposed on **8000** inside the Compose network only, SQLite on a named volume at `DASHBOARD_DATABASE_PATH=/data/dashboard.sqlite`, with **`ENV=PROD`** so mock mode is not forced server-side (this matches the static UI image, which is built with `ENV=PROD`).
-- **web** — static assets from [`frontend/Dockerfile`](frontend/Dockerfile) `production`, served by nginx using [`docker/nginx.dashboard.conf`](docker/nginx.dashboard.conf), which reverse-proxies `/api` to the backend. Published port **8080** maps to nginx port **80**.
-
-Add a repository root `.env` with at least **`LOGGING__LOGFIRE_API_KEY`** (and other keys required by [`common/config.py`](common/config.py)); Compose references it when present (`env_file` with `required: false` in [`docker-compose.yml`](docker-compose.yml)).
+### Terminal service
 
 From the repository root (foreground; pass `-d` for detached):
 
 ```bash
-docker compose -f docker-compose.yml up --build
+docker compose up --build
 ```
 
-Open **http://localhost:8080**. SQLite uses the volume `dashboard_sqlite_prod` until you remove it (`docker compose down -v`).
+Optional bind-mount of the repo into sandboxes:
+
+```bash
+TERMINAL_WORKSPACE_HOST_PATH="$(pwd)" docker compose up --build
+```
+
+The terminal listens on **<http://127.0.0.1:8001>**.
+
+### Production-like local dashboard (host + terminal)
+
+| Component                            | Where                                                       | Port     |
+| ------------------------------------ | ----------------------------------------------------------- | -------- |
+| UI (built static assets)             | Host — `vite preview` via VS Code **Dashboard: PROD stack** | **8080** |
+| API (`ENV=PROD`, production uvicorn) | Host — background task `dashboard:api-prod`                 | **8000** |
+| Terminal                             | Docker — `agent-terminal`                                   | **8001** |
+
+Launch **Dashboard: PROD stack** from [`.vscode/launch.json`](.vscode/launch.json). The `preLaunchTask` `dashboard:prod-stack-prep` (see [`.vscode/tasks.json`](.vscode/tasks.json)) starts terminal + alembic + API + `pnpm build` with `ENV=PROD` and `DASHBOARD_DATABASE_PATH=data/dashboard.prod.sqlite`, then opens preview. The DEV debug compound uses `DASHBOARD_DATABASE_PATH=data/dashboard.dev.sqlite`; the application default remains **`data/dashboard.sqlite`** on the host ([`common/config.py`](common/config.py)) for direct commands that do not override it. Add a repository root `.env` with at least **`LOGGING__LOGFIRE_API_KEY`** and other keys required by settings.
+
+For **DEV** debugging (reload, debugpy, Vite dev server), use **Dashboard: API + Frontend** on **5173** / **8000** instead.
+
+**Teardown:** Stopping the PROD debug session does not stop background tasks. Run `docker compose down` and stop the uvicorn process on port **8000** if needed (`lsof -i :8000` or Activity Monitor).
 
 ### Building images without Compose
 

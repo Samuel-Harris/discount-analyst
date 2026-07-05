@@ -1273,3 +1273,15 @@ button {
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
+
+.pipeline-node .model-tag {
+  font-size: 8px;
+  color: var(--muted);
+  margin-top: 1px;
+  letter-spacing: 0.02em;
+  opacity: 0.85;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

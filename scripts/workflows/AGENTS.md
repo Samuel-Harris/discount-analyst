@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-04-05 | Updated: 2026-04-05 -->
+<!-- Generated: 2026-04-05 | Updated: 2026-05-31 -->
 
 # workflows
 
@@ -9,13 +9,13 @@ Contains orchestration scripts that run multiple agents in sequence with JSON ar
 
 ## Key Files
 
-| File                                    | Description                                                                                                                                                                                                           |
-| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `run_surveyor_then_researcher.py`       | Surveyor discovery, then sequential Researcher per candidate (no Strategist).                                                                                                                                         |
-| `run_surveyor_researcher_strategist.py` | Surveyor discovery, sequential Researcher per candidate, then Strategist per successful Researcher.                                                                                                                   |
-| `run_surveyor_to_sentinel.py`           | Surveyor discovery, sequential Researcher per candidate, then Strategist and Sentinel per successful prior stage.                                                                                                     |
-| `run_full_workflow.py`                  | Surveyor discovery, sequential Researcher per candidate, Strategist and Sentinel per successful prior stage; Appraiser + DCF and Arbiter when the Sentinel valuation gate passes; verdicts table + `*-VERDICTS.json`. |
-| `__init__.py`                           | Package initialization for workflow scripts.                                                                                                                                                                          |
+| File                                    | Description                                                                                                                                                                                                                  |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `run_surveyor_then_researcher.py`       | Surveyor discovery, then sequential Researcher per candidate (no Strategist).                                                                                                                                                |
+| `run_surveyor_researcher_strategist.py` | Surveyor discovery, sequential Researcher per candidate, then Strategist per successful Researcher.                                                                                                                          |
+| `run_surveyor_to_sentinel.py`           | Surveyor discovery, sequential Researcher per candidate, then Strategist and Sentinel per successful prior stage.                                                                                                            |
+| `run_full_workflow.py`                  | Surveyor discovery, sequential Researcher per candidate, Strategist and Sentinel per successful prior stage; Appraiser and deterministic rating when the Sentinel valuation gate passes; verdicts table + `*-VERDICTS.json`. |
+| `__init__.py`                           | Package initialization for workflow scripts.                                                                                                                                                                                 |
 
 ## Subdirectories
 

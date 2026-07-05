@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
+from discount_analyst.models.model_name import ModelName
+
 
 class ProfilerStagePort(Protocol):
     """Narrow interface used by the profiler pipeline stage (DB + status hooks)."""
@@ -20,6 +22,7 @@ class ProfilerStagePort(Protocol):
         started: bool = False,
         completed: bool = False,
         error_message: str | None = None,
+        model_name: ModelName | None = None,
     ) -> None:
         """Update agent execution status, timestamps, output, or error."""
 

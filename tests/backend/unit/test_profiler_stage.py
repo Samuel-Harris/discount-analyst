@@ -36,6 +36,7 @@ class FakeProfilerPort:
         started: bool = False,
         completed: bool = False,
         error_message: str | None = None,
+        model_name: object = None,
     ) -> None:
         self._log(
             "mark_agent_execution",
@@ -45,6 +46,7 @@ class FakeProfilerPort:
             started=started,
             completed=completed,
             error_message=error_message,
+            model_name=model_name,
         )
 
     async def recompute_workflow_status(self, workflow_run_id: str) -> None:
@@ -104,6 +106,7 @@ async def test_profiler_stage_mock_path_records_expected_port_sequence() -> None
     ]
     assert port.calls[1][1]["status"] == "running"
     assert port.calls[1][1]["started"] is True
+    assert port.calls[1][1]["model_name"] is None
     assert port.calls[3][1]["status"] == "completed"
     assert port.calls[3][1]["completed"] is True
     assert port.calls[3][1]["output_json"] is not None
@@ -127,20 +130,14 @@ async def test_profiler_stage_raises_when_profiler_execution_missing() -> None:
 
 
 @pytest.mark.asyncio
-async def test_profiler_stage_non_mock_path_uses_streamed_agent() -> None:
+async def test_profiler_stage_non_mock_path_uses_run_agent_with_terminal() -> None:
     port = FakeProfilerPort(profiler_exec_id="exec-p")
     settings = dashboard_settings_for_tests()
     profiler_output = mock_outputs.mock_profiler_output(ticker="X.L")
     fake_outcome = SimpleNamespace(output=profiler_output, all_messages=[object()])
-    with (
-        patch(
-            "backend.pipeline.stages.profiler_stage.run_streamed_agent",
-            new=AsyncMock(return_value=fake_outcome),
-        ),
-        patch(
-            "backend.pipeline.stages.profiler_stage.create_profiler_agent",
-            return_value="fake-agent",
-        ),
+    with patch(
+        "backend.pipeline.stages.profiler_stage.run_agent_with_terminal",
+        new=AsyncMock(return_value=fake_outcome),
     ):
         candidate = await ProfilerStage().run(
             port,
@@ -151,4 +148,5 @@ async def test_profiler_stage_non_mock_path_uses_streamed_agent() -> None:
             is_mock=False,
         )
     assert candidate.ticker == "X.L"
+    assert port.calls[1][1]["model_name"] == settings.default_model
     assert port.calls[4][1]["messages"] == fake_outcome.all_messages

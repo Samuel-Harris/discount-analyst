@@ -64,58 +64,62 @@ class StockData(BaseModel):
 
     @computed_field
     @property
-    def ebit_margin(self) -> float:
+    def ebit_margin_pct(self) -> float:
         """
-        Calculated EBIT Margin as a decimal (e.g., 0.15 for 15%).
-        Formula: EBIT / Revenue
+        Calculated EBIT margin as a percentage (e.g. 15.0 means 15%).
+        Formula: (EBIT / Revenue) x 100
         Measures operating profitability.
         """
 
         if self.revenue == 0:
             return 0.0
-        return self.ebit / self.revenue
+        return self.ebit / self.revenue * 100
 
     @computed_field
     @property
-    def implied_interest_rate(self) -> float:
+    def implied_interest_rate_pct(self) -> float:
         """
-        Calculated implied interest rate on debt as a decimal (e.g., 0.045 for 4.5%).
-        Formula: Total Interest Expense / Average Gross Debt
+        Calculated implied interest rate on debt as a percentage (e.g. 4.5 means 4.5%).
+        Formula: (Total Interest Expense / Average Gross Debt) × 100
         Represents the company's effective cost of debt.
         """
         avg_debt = (self.gross_debt + self.gross_debt_last_year) / 2
         if avg_debt == 0:
             return 0.0
-        return self.total_interest_expense / avg_debt
+        return self.total_interest_expense / avg_debt * 100
 
     @computed_field
     @property
-    def capex_as_percentage_of_revenue(self) -> float:
+    def capex_to_revenue_pct(self) -> float:
         """
-        Calculated CapEx as a percentage of revenue, expressed as a decimal (e.g., 0.06 for 6%).
-        Formula: Capital Expenditure / Revenue
+        Calculated CapEx as a percentage of revenue (e.g. 6.0 means 6%).
+        Formula: (Capital Expenditure / Revenue) x 100
         Measures capital intensity and investment requirements relative to sales.
-        Used as a baseline for the 'assumed_capex_rate' in DCF projections.
+        Used as a baseline for assumed capex rates in DCF projections.
         Higher values indicate capital-intensive businesses (manufacturing, infrastructure).
         Lower values indicate asset-light businesses (software, services).
         """
 
         if self.revenue == 0:
             return 0.0
-        return self.capital_expenditure / self.revenue
+        return self.capital_expenditure / self.revenue * 100
 
     @computed_field
     @property
-    def debt_trend(self) -> float:
+    def debt_trend_pct(self) -> float:
         """
-        Calculated debt trend as a percentage (e.g., -0.075 for -7.5%).
-        Formula: (Gross Debt - Gross Debt Last Year) / Gross Debt Last Year
-        Represents the change in debt levels over the period. Positive = adding debt, Negative = paying down debt.
+        Calculated year-on-year gross debt change as a percentage (e.g. -7.5 means -7.5%).
+        Formula: ((Gross Debt - Gross Debt Last Year) / Gross Debt Last Year) × 100
+        Represents the change in debt levels over the period. Positive = adding debt, negative = paying down debt.
         """
 
         if self.gross_debt_last_year == 0:
             return 0.0
-        return (self.gross_debt - self.gross_debt_last_year) / self.gross_debt_last_year
+        return (
+            (self.gross_debt - self.gross_debt_last_year)
+            / self.gross_debt_last_year
+            * 100
+        )
 
     @computed_field
     @property
@@ -142,24 +146,24 @@ class StockAssumptions(BaseModel):
     forecast_period_years: int = Field(
         description="The number of years for the explicit forecast period before terminal value calculation. Typically 5 years for mature companies, 7-8 years for growing/transitioning companies, and 10 years for high-growth companies far from steady state."
     )
-    assumed_tax_rate: float = Field(
-        description="The assumed corporate tax rate as a decimal (e.g., 0.21 for 21%). Should reflect the lower of statutory rate or company's historical effective tax rate."
+    assumed_tax_rate_pct: float = Field(
+        description="The assumed corporate tax rate as a percentage (e.g. 21.0 means 21%). Should reflect the lower of statutory rate or company's historical effective tax rate."
     )
-    assumed_forecast_period_annual_revenue_growth_rate: float = Field(
-        description="The assumed average annual revenue growth rate during the forecast period as a decimal (e.g., 0.15 for 15%). For companies with declining growth, this represents the geometric average across all forecast years. Must be greater than perpetuity growth rate."
+    assumed_forecast_period_annual_revenue_growth_rate_pct: float = Field(
+        description="The assumed average annual revenue growth rate during the forecast period as a percentage (e.g. 15.0 means 15%). For companies with declining growth, this represents the geometric average across all forecast years. Must be greater than perpetuity growth rate."
     )
-    assumed_perpetuity_cash_flow_growth_rate: float = Field(
-        description="The assumed long-term sustainable growth rate of cash flows in perpetuity as a decimal (e.g., 0.025 for 2.5%). Should not exceed nominal GDP growth; typically 2.0-3.0%. Must be less than forecast period growth rate."
+    assumed_perpetuity_cash_flow_growth_rate_pct: float = Field(
+        description="The assumed long-term sustainable growth rate of cash flows in perpetuity as a percentage (e.g. 2.5 means 2.5%). Should not exceed nominal GDP growth; typically 2.0-3.0%. Must be less than forecast period growth rate."
     )
-    assumed_ebit_margin: float = Field(
-        description="The assumed normalized/terminal EBIT margin as a decimal (e.g., 0.18 for 18%). Represents the expected steady-state operating margin at the end of the forecast period, typically benchmarked against peer group medians."
+    assumed_ebit_margin_pct: float = Field(
+        description="The assumed normalized/terminal EBIT margin as a percentage (e.g. 18.0 means 18%). Represents the expected steady-state operating margin at the end of the forecast period, typically benchmarked against peer group medians."
     )
-    assumed_depreciation_and_amortization_rate: float = Field(
-        description="The assumed depreciation and amortization rate as a percentage of revenue, expressed as a decimal (e.g., 0.05 for 5%). Based on historical median D&A/Revenue ratio."
+    assumed_depreciation_and_amortization_rate_pct: float = Field(
+        description="The assumed depreciation and amortization rate as a percentage of revenue (e.g. 5.0 means 5%). Based on historical median D&A/Revenue ratio."
     )
-    assumed_capex_rate: float = Field(
-        description="The assumed capital expenditure rate as a percentage of revenue, expressed as a decimal (e.g., 0.06 for 6%). Should reflect maintenance capex plus growth capex needs. For growth companies, typically exceeds D&A rate; for mature companies, approximately equals D&A rate."
+    assumed_capex_rate_pct: float = Field(
+        description="The assumed capital expenditure rate as a percentage of revenue (e.g. 6.0 means 6%). Should reflect maintenance capex plus growth capex needs. For growth companies, typically exceeds D&A rate; for mature companies, approximately equals D&A rate."
     )
-    assumed_change_in_working_capital_rate: float = Field(
-        description="The assumed change in working capital as a percentage of revenue change, expressed as a decimal (e.g., 0.02 for 2%). Represents cash consumed by working capital as the business grows. Can be negative for companies with negative working capital models."
+    assumed_change_in_working_capital_rate_pct: float = Field(
+        description="The assumed change in working capital as a percentage of revenue change (e.g. 2.0 means 2%). Represents cash consumed by working capital as the business grows. Can be negative for companies with negative working capital models."
     )

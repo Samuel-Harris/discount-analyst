@@ -66,6 +66,21 @@ jobs:
         run: |
           uv run pyright
 
+  alembic-schema-drift:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python and Dependencies
+        uses: ./.github/actions/setup-python
+
+      - name: Verify Alembic head matches ORM metadata
+        env:
+          DASHBOARD_DATABASE_PATH: ${{ runner.temp }}/alembic-check.sqlite
+        run: |
+          uv run python scripts/check_alembic_schema.py
+
   frontend-api-drift:
     runs-on: ubuntu-latest
 

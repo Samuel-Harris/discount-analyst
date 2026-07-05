@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
-from discount_analyst.config.ai_models_config import ModelName
+from discount_analyst.models.model_name import ModelName
 
 from common.config import (
     DashboardLogLevel,
@@ -36,14 +36,16 @@ def dashboard_settings_for_tests(
         anthropic=None,
         openai=None,
         google=None,
+        deepseek=None,
         logging=Logging(
             logfire_api_key=logfire_api_key,
             log_level=log_level,
         ),
         database_path=database_path or Path("data/dashboard.sqlite"),
         default_model=ModelName.GPT_5_1,
-        risk_free_rate=0.037,
+        risk_free_rate_pct=3.7,
         use_perplexity=False,
         use_mcp_financial_data=True,
+        use_terminal=False,
         deploy_env=deploy_env,
     )
