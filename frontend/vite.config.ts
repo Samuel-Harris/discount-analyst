@@ -19,9 +19,16 @@ export default defineConfig(({ mode }) => {
     "http://127.0.0.1:8000";
   const deployEnv = normaliseDeployEnv(process.env.ENV);
 
+  const apiPrefix = (
+    process.env.VITE_API_PREFIX?.trim() ||
+    fromFiles.VITE_API_PREFIX?.trim() ||
+    "/api"
+  ).replace(/\/$/, "");
+
   return {
     define: {
       "import.meta.env.VITE_DEPLOY_ENV": JSON.stringify(deployEnv),
+      __VITE_API_PREFIX__: JSON.stringify(apiPrefix),
     },
     plugins: [react()],
     server: {

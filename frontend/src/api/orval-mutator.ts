@@ -1,7 +1,7 @@
-const apiPrefix = (import.meta.env.VITE_API_PREFIX ?? "/api").replace(
-  /\/$/,
-  "",
-);
+/** Injected at build/test time via Vite `define` (see `vite.config.ts`). */
+declare const __VITE_API_PREFIX__: string;
+
+const apiPrefix = __VITE_API_PREFIX__;
 
 /** Thrown when the dashboard HTTP API returns an error or an unreadable body. */
 export class DashboardApiError extends Error {
