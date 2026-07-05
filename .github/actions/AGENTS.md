@@ -9,15 +9,16 @@ The `.github/actions/` directory contains custom, reusable GitHub Actions develo
 
 ## Key Files
 
-| File | Description |
-| --------- | ---------------------------- |
+| File   | Description                                                                      |
+| ------ | -------------------------------------------------------------------------------- |
 | (None) | This directory primarily serves as a container for custom action subdirectories. |
 
 ## Subdirectories
 
-| Directory | Purpose |
-| --------- | ----------------------------------------- |
-| `setup-python/` | Standardizes the setup of Python 3.14 and uv dependencies (see `setup-python/AGENTS.md`). |
+| Directory         | Purpose                                                                                   |
+| ----------------- | ----------------------------------------------------------------------------------------- |
+| `setup-python/`   | Standardizes the setup of Python 3.14 and uv dependencies (see `setup-python/AGENTS.md`). |
+| `setup-frontend/` | Standardizes Node.js 22, pnpm, and frontend dependency installation for CI jobs.          |
 
 ## For AI Agents
 

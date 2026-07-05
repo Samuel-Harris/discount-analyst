@@ -109,7 +109,7 @@ Logfire is configured with **FastAPI**, **PydanticAI**, and **HTTPX** instrument
 
 ```bash
 uv sync
-cd frontend && npm ci && cd ..
+cd frontend && pnpm install --frozen-lockfile && cd ..
 ```
 
 ### Database migrations
@@ -160,7 +160,7 @@ uv run uvicorn backend.app.main:create_app --factory --reload --host 127.0.0.1 -
 Terminal 2 — UI:
 
 ```bash
-cd frontend && npm run dev
+cd frontend && pnpm run dev
 ```
 
 Open the printed dev server URL (by default port **5173**). Browser calls go to `/api`, which Vite proxies to `VITE_DEV_PROXY_TARGET`.
@@ -178,10 +178,10 @@ From the repository root:
 ```bash
 uv run pytest
 uv run pyright
-cd frontend && npm test
+cd frontend && pnpm test
 ```
 
-Continuous integration runs `uv run pre-commit run --all-files`, `uv run pytest` (with coverage for `discount_analyst/` and `backend/`), `uv run pyright`, a Node job that runs `npm run build` and `npm test` in `frontend/`, and a job that regenerates the dashboard OpenAPI spec and Orval client then fails on `git diff` drift (see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
+Continuous integration runs `uv run pre-commit run --all-files`, `uv run pytest` (with coverage for `discount_analyst/` and `backend/`), `uv run pyright`, a Node job that runs `pnpm run build` and `pnpm test` in `frontend/`, and a job that regenerates the dashboard OpenAPI spec and Orval client then fails on `git diff` drift (see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
 
 ## Docker Compose
 
@@ -218,10 +218,3 @@ Launch **Dashboard: PROD stack** from [`.vscode/launch.json`](.vscode/launch.jso
 For **DEV** debugging (reload, debugpy, Vite dev server), use **Dashboard: API + Frontend** on **5173** / **8000** instead.
 
 **Teardown:** Stopping the PROD debug session does not stop background tasks. Run `docker compose down` and stop the uvicorn process on port **8000** if needed (`lsof -i :8000` or Activity Monitor).
-
-### Building images without Compose
-
-```bash
-docker build -f backend/docker/Dockerfile -t discount-analyst-backend .
-docker build -f frontend/Dockerfile --target production -t discount-analyst-web .
-```

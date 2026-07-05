@@ -43,15 +43,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+      - name: Setup frontend (pnpm)
+        uses: ./.github/actions/setup-frontend
 
-      - name: Install, build, and test frontend
+      - name: Build and test frontend
         run: |
-          cd frontend && npm ci && npm run build && npm test
+          cd frontend && pnpm run build && pnpm test
 
   pyright:
     runs-on: ubuntu-latest
@@ -90,11 +87,8 @@ jobs:
       - name: Setup Python and Dependencies
         uses: ./.github/actions/setup-python
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+      - name: Setup frontend (pnpm)
+        uses: ./.github/actions/setup-frontend
 
       - name: Regenerate OpenAPI and Orval client
         env:
@@ -107,14 +101,14 @@ jobs:
           EODHD__API_KEY: pytest-dummy-eodhd
         run: |
           uv run python scripts/export_dashboard_openapi.py
-          cd frontend && npm ci && npm run generate:api && npm run build
+          cd frontend && pnpm run generate:api && pnpm run build
 
       - name: Fail if OpenAPI or generated client drifted
         run: |
           git diff --exit-code -- frontend/openapi.json frontend/src/api/generated.ts || {
             echo "Regenerated API artefacts differ from the committed tree."
             echo "From the repo root run: uv run python scripts/export_dashboard_openapi.py"
-            echo "Then: cd frontend && npm run generate:api"
+            echo "Then: cd frontend && pnpm run generate:api"
             echo "Commit frontend/openapi.json and frontend/src/api/generated.ts"
             exit 1
           }
