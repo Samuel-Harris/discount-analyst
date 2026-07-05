@@ -2,11 +2,13 @@
 
 from backend.contracts.api import (
     AgentExecutionSummary,
+    CandidateGateSummary,
     SurveyorExecutionSummary,
     TickerRunDetail,
     WorkflowRunDetailResponse,
     WorkflowRunListItem,
 )
+from backend.contracts.enums import CandidateGateStatusApi
 from backend.contracts.enums import (
     AgentNameSlug,
     DecisionTypeApi,
@@ -62,6 +64,19 @@ def workflow_detail(
             for agent_execution in run["agent_executions"]
         ]
         dt = run["decision_type"]
+        gate_row = run.get("candidate_gate")
+        candidate_gate = None
+        if gate_row is not None:
+            gate_status = gate_row["gate_status"]
+            candidate_gate = CandidateGateSummary(
+                gate_status=CandidateGateStatusApi(gate_status)
+                if gate_status
+                else None,
+                source_ticker=gate_row["source_ticker"],
+                resolved_ticker=gate_row["resolved_ticker"],
+                gate_failure_reason=gate_row["gate_failure_reason"],
+                is_actively_trading=gate_row["is_actively_trading"],
+            )
         runs.append(
             TickerRunDetail(
                 id=run["id"],
@@ -71,6 +86,7 @@ def workflow_detail(
                 status=TickerRunStatusApi(run["status"]),
                 final_rating=run["final_rating"],
                 decision_type=DecisionTypeApi(dt) if dt else None,
+                candidate_gate=candidate_gate,
                 agent_executions=agents,
             )
         )

@@ -6,13 +6,13 @@ from pydantic import BaseModel, Field, model_validator
 from discount_analyst.agents.researcher.schema import DeepResearchReport
 from discount_analyst.agents.sentinel.schema import EvaluationReport
 from discount_analyst.agents.strategist.schema import MispricingThesis
-from discount_analyst.agents.surveyor.schema import SurveyorCandidate
+from discount_analyst.agents.surveyor.schema import SurveyorLaneContext
 
 
 class AppraiserInput(BaseModel):
     """Structured input for the Appraiser (same upstream contract as the full workflow)."""
 
-    stock_candidate: SurveyorCandidate
+    lane_context: SurveyorLaneContext
     deep_research: DeepResearchReport
     thesis: MispricingThesis
     evaluation: EvaluationReport

@@ -33,6 +33,31 @@ export const AgentNameSlug = {
   appraiser: 'appraiser',
 } as const;
 
+export type CandidateGateStatusApi = typeof CandidateGateStatusApi[keyof typeof CandidateGateStatusApi];
+
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const CandidateGateStatusApi = {
+  passed: 'passed',
+  rejected: 'rejected',
+} as const;
+
+export type CandidateGateSummaryGateFailureReason = string | null;
+
+export type CandidateGateSummaryGateStatus = CandidateGateStatusApi | null;
+
+export type CandidateGateSummaryIsActivelyTrading = boolean | null;
+
+export type CandidateGateSummaryResolvedTicker = string | null;
+
+export interface CandidateGateSummary {
+  gate_failure_reason: CandidateGateSummaryGateFailureReason;
+  gate_status: CandidateGateSummaryGateStatus;
+  is_actively_trading: CandidateGateSummaryIsActivelyTrading;
+  resolved_ticker: CandidateGateSummaryResolvedTicker;
+  source_ticker: string;
+}
+
 export interface ConversationResponse {
   assistant_response: string;
   messages_json: string;
@@ -58,6 +83,7 @@ export type DecisionTypeApi = typeof DecisionTypeApi[keyof typeof DecisionTypeAp
 export const DecisionTypeApi = {
   rating_table: 'rating_table',
   sentinel_rejection: 'sentinel_rejection',
+  data_quality_rejection: 'data_quality_rejection',
 } as const;
 
 export type EntryPathApi = typeof EntryPathApi[keyof typeof EntryPathApi];
@@ -130,12 +156,15 @@ export interface SurveyorExecutionSummary {
   status: ExecutionStatusApi;
 }
 
+export type TickerRunDetailCandidateGate = CandidateGateSummary | null;
+
 export type TickerRunDetailDecisionType = DecisionTypeApi | null;
 
 export type TickerRunDetailFinalRating = string | null;
 
 export interface TickerRunDetail {
   agent_executions: AgentExecutionSummary[];
+  candidate_gate?: TickerRunDetailCandidateGate;
   company_name: string;
   decision_type: TickerRunDetailDecisionType;
   entry_path: EntryPathApi;

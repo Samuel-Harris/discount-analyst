@@ -50,6 +50,18 @@ class AgentNameDb(StrEnum):
 class DecisionTypeDb(StrEnum):
     RATING_TABLE = "rating_table"
     SENTINEL_REJECTION = "sentinel_rejection"
+    DATA_QUALITY_REJECTION = "data_quality_rejection"
+
+
+class CandidateGateStatusDb(StrEnum):
+    PASSED = "passed"
+    REJECTED = "rejected"
+
+
+class CandidateGateDataSourceDb(StrEnum):
+    FMP = "fmp"
+    EODHD = "eodhd"
+    MOCK = "mock"
 
 
 class MessageKindDb(StrEnum):
@@ -200,6 +212,33 @@ class CandidateSnapshot(SQLModel, table=True):
     piotroski_f_score: int | None = None
     altman_z_score: float | None = None
     insider_buying_last_6m: bool | None = None
+    resolved_ticker: str | None = None
+    resolution_notes: str | None = None
+    gate_status: CandidateGateStatusDb | None = Field(
+        default=None,
+        sa_column=Column(
+            SAEnum(
+                CandidateGateStatusDb,
+                native_enum=False,
+                values_callable=_str_enum_sql_values,
+            ),
+            nullable=True,
+        ),
+    )
+    gate_failure_reason: str | None = None
+    is_actively_trading: bool | None = None
+    gate_probed_at: datetime | None = None
+    gate_data_source: CandidateGateDataSourceDb | None = Field(
+        default=None,
+        sa_column=Column(
+            SAEnum(
+                CandidateGateDataSourceDb,
+                native_enum=False,
+                values_callable=_str_enum_sql_values,
+            ),
+            nullable=True,
+        ),
+    )
     rationale: str
     red_flags: str
     data_gaps: str
@@ -460,6 +499,22 @@ class RunFinalDecision(SQLModel, table=True):
             OR
             (
                 decision_type = 'sentinel_rejection'
+                AND rejection_reason IS NOT NULL
+                AND conviction IS NULL
+                AND current_price IS NULL
+                AND bear_intrinsic_value IS NULL
+                AND base_intrinsic_value IS NULL
+                AND bull_intrinsic_value IS NULL
+                AND margin_of_safety_base_pct IS NULL
+                AND margin_of_safety_verdict IS NULL
+                AND primary_driver IS NULL
+                AND red_flag_disposition IS NULL
+                AND data_gap_disposition IS NULL
+                AND thesis_expiry_note IS NULL
+            )
+            OR
+            (
+                decision_type = 'data_quality_rejection'
                 AND rejection_reason IS NOT NULL
                 AND conviction IS NULL
                 AND current_price IS NULL

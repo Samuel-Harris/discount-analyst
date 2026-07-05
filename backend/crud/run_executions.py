@@ -51,6 +51,7 @@ from backend.db.models import (
 )
 from discount_analyst.agents.appraiser.schema import AppraiserOutput
 from discount_analyst.pipeline.schema import (
+    DataQualityRejection,
     RatingTableDecision,
     SentinelRejection,
     Verdict,
@@ -331,6 +332,13 @@ def get_candidate_for_run(session: Session, *, run_id: str) -> SurveyorCandidate
     if snapshot is None:
         return None
     return snapshot_to_candidate(snapshot)
+
+
+def get_candidate_snapshot_id_for_run(session: Session, *, run_id: str) -> str | None:
+    run = session.get(Run, run_id)
+    if run is None:
+        return None
+    return run.candidate_snapshot_id
 
 
 def get_completed_agent_output_json(
@@ -752,6 +760,37 @@ def persist_ticker_run_final_verdict(
             supporting_factors=[],
             mitigating_factors=[],
         )
+    elif decision_type == DecisionTypeDb.DATA_QUALITY_REJECTION.value:
+        source_execution_id = get_agent_execution_id_by_run_and_agent(
+            session, run_id=run_id, agent_name=AgentNameDb.RESEARCHER.value
+        )
+        if source_execution_id is None:
+            return
+        decision = DataQualityRejection.model_validate(verdict.decision)
+        upsert_run_final_decision(
+            session,
+            run_id=run_id,
+            source_agent_execution_id=source_execution_id,
+            decision_type=DecisionTypeDb.DATA_QUALITY_REJECTION,
+            decision_date=date.fromisoformat(decision.decision_date),
+            is_existing_position=decision.is_existing_position,
+            rating=decision.rating.value,
+            recommended_action=decision.recommended_action,
+            conviction=None,
+            rejection_reason=decision.rejection_reason,
+            current_price=None,
+            bear_intrinsic_value=None,
+            base_intrinsic_value=None,
+            bull_intrinsic_value=None,
+            margin_of_safety_base_pct=None,
+            margin_of_safety_verdict=None,
+            primary_driver=None,
+            red_flag_disposition=None,
+            data_gap_disposition=None,
+            thesis_expiry_note=None,
+            supporting_factors=[],
+            mitigating_factors=[],
+        )
 
 
 def update_ticker_run_completion(
@@ -791,4 +830,12 @@ def update_ticker_run_company_name(
     if run is None:
         return
     run.company_name = company_name
+    session.add(run)
+
+
+def update_ticker_run_ticker(session: Session, *, run_id: str, ticker: str) -> None:
+    run = session.get(Run, run_id)
+    if run is None:
+        return
+    run.ticker = ticker
     session.add(run)

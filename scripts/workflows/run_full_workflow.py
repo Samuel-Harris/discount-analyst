@@ -45,6 +45,7 @@ from discount_analyst.pipeline.builders import (
     verdict_from_decision,
 )
 from discount_analyst.pipeline.schema import (
+    RatingTableDecision,
     SentinelRejection,
     Verdict,
 )
@@ -413,13 +414,18 @@ def display_verdicts_table(verdicts: list[Verdict]) -> None:
             rejection_reason = v.decision.rejection_reason
             conviction = "—"
             margin_of_safety_verdict = "—"
-        else:
+        elif isinstance(v.decision, RatingTableDecision):
             provenance = "Rating table"
             rejection_reason = "—"
             conviction = v.decision.conviction
             margin_of_safety_verdict = (
                 v.decision.margin_of_safety.margin_of_safety_verdict
             )
+        else:
+            provenance = "Data quality"
+            rejection_reason = v.decision.rejection_reason
+            conviction = "—"
+            margin_of_safety_verdict = "—"
 
         table.add_row(
             v.ticker,
@@ -543,7 +549,9 @@ async def run_researcher_once(
         use_mcp_financial_data=use_mcp_financial_data,
         terminal=terminal,
     )
-    user_prompt = create_researcher_user_prompt(surveyor_candidate=candidate)
+    user_prompt = create_researcher_user_prompt(
+        lane_context=candidate.to_lane_context()
+    )
 
     outcome = await run_streamed_agent(
         agent=agent,
@@ -582,7 +590,7 @@ async def run_strategist_once(
     ai_models_config = AIModelsConfig(model_name=model_name)
     agent = create_strategist_agent(ai_models_config, terminal=terminal)
     user_prompt = create_strategist_user_prompt(
-        surveyor_candidate=surveyor_candidate,
+        lane_context=surveyor_candidate.to_lane_context(),
         deep_research=deep_research,
     )
 
@@ -621,7 +629,7 @@ async def run_sentinel_once(
     ai_models_config = AIModelsConfig(model_name=model_name)
     agent = create_sentinel_agent(ai_models_config, terminal=terminal)
     user_prompt = create_sentinel_user_prompt(
-        surveyor_candidate=surveyor_candidate,
+        lane_context=surveyor_candidate.to_lane_context(),
         deep_research=deep_research,
         thesis=thesis,
     )
@@ -769,14 +777,14 @@ async def _run_appraiser_final_rating_for_candidate(
     verdicts: list[Verdict],
 ) -> None:
     appraiser_input = AppraiserInput(
-        stock_candidate=candidate,
+        lane_context=candidate.to_lane_context(),
         deep_research=run_result.output,
         thesis=strat_result.output,
         evaluation=sent_result.output,
         risk_free_rate_pct=args.risk_free_rate_pct,
     )
     run_context = AppraiserRunContext(
-        surveyor_candidate=candidate,
+        lane_context=candidate.to_lane_context(),
         risk_free_rate_pct=args.risk_free_rate_pct,
         model=args.model,
     )
@@ -805,7 +813,7 @@ async def _run_appraiser_final_rating_for_candidate(
         agent_result.output.valuation_distribution
     )
     rating_decision = build_rating_table_decision(
-        candidate=candidate,
+        lane_context=candidate.to_lane_context(),
         thesis=strat_result.output,
         evaluation=sent_result.output,
         margin_of_safety=margin_of_safety,

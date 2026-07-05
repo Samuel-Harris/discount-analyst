@@ -2,11 +2,14 @@ from discount_analyst.agents.appraiser.schema import AppraiserInput, AppraiserOu
 from discount_analyst.agents.common_prompts.structured_output import (
     final_result_user_step,
 )
+from discount_analyst.agents.surveyor.lane_context_prompt import (
+    LANE_CONTEXT_QUANTITATIVE_OMISSION_NOTE,
+)
 
 
 def create_user_prompt(*, appraiser_input: AppraiserInput) -> str:
-    ticker = appraiser_input.stock_candidate.ticker
-    candidate_json = appraiser_input.stock_candidate.model_dump_json(indent=2)
+    ticker = appraiser_input.lane_context.ticker
+    candidate_json = appraiser_input.lane_context.model_dump_json(indent=2)
     deep_research_json = appraiser_input.deep_research.model_dump_json(indent=2)
     thesis_json = appraiser_input.thesis.model_dump_json(indent=2)
     evaluation_json = appraiser_input.evaluation.model_dump_json(indent=2)
@@ -15,7 +18,7 @@ def create_user_prompt(*, appraiser_input: AppraiserInput) -> str:
     return f"""
 Analyze **{ticker}** and produce a method-agnostic intrinsic value distribution.
 
-**Upstream contract:** You receive **structured screening context** (`stock_candidate`), **neutral deep research** (`deep_research`), the **mispricing thesis** (`thesis`), and the Sentinel **evaluation** (`evaluation`). Screening is **“worth modelling” framing**, not verified financials — **validate** flags and gaps against filings and your own web-search work. The thesis and evaluation are claims and stress-test results to respect when building assumptions; they do not replace live financial facts.
+**Upstream contract:** You receive **structured screening context** (`lane_context`), **neutral deep research** (`deep_research`), the **mispricing thesis** (`thesis`), and the Sentinel **evaluation** (`evaluation`). Screening is **“worth modelling” framing**, not verified financials — **validate** flags and gaps against filings and your own web-search work. The thesis and evaluation are claims and stress-test results to respect when building assumptions; they do not replace live financial facts.
 
 **Downstream contract:** Return **valuation-only** `AppraiserOutput` JSON containing:
 - `valuation_distribution` with current price, expected intrinsic value, p10/p25/p50/p75/p90 intrinsic values, currency, method, and reasoning
@@ -23,6 +26,8 @@ Analyze **{ticker}** and produce a method-agnostic intrinsic value distribution.
 - method evidence summaries, key value drivers, downside risks, upside drivers, data quality, and caveats
 
 Do **not** return DCF-specific `stock_data` or `stock_assumptions`. Do **not** return an investment rating or recommended action.
+
+{LANE_CONTEXT_QUANTITATIVE_OMISSION_NOTE}
 
 **Risk-free rate (externally supplied — do not infer or override):** {rfr} (percentage points, e.g. 4.5 means 4.5%). Use this value if you run DCF, reverse DCF, discount-rate sensitivity, or a related cross-check. If you use it, cite it in the relevant method evidence. Do not substitute a different rate.
 
@@ -32,9 +37,9 @@ Do **not** return DCF-specific `stock_data` or `stock_assumptions`. Do **not** r
 
 ## Screening context
 
-<SurveyorCandidate>
+<SurveyorLaneContext>
 {candidate_json}
-</SurveyorCandidate>
+</SurveyorLaneContext>
 
 ---
 
@@ -71,11 +76,10 @@ Step 4: Triangulate the method results into a single intrinsic-value distributio
 Step 5: {final_result_user_step(output_type_name=AppraiserOutput.__name__)}
 
 Use the JSON blocks alongside each other to:
-- Use **sector and industry** from the candidate to ground **peers, competitive context, and structural economics** — do **not** label the stock “value” or “growth” or choose assumptions from a style bucket; derive projections from **evidence and the mispricing story**, not from market-style categories
-- Weigh the stated rationale and key metrics (where present) against your own market data, method choices, and valuation assumptions
-- Treat red_flags and data_gaps in the candidate as hypotheses to validate or refine — not as ground truth
+- Use **sector and industry** from the lane context to ground **peers, competitive context, and structural economics** — do **not** label the stock “value” or “growth” or choose assumptions from a style bucket; derive projections from **evidence and the mispricing story**, not from market-style categories
+- Treat red_flags and data_gaps in the lane context as hypotheses to validate or refine — not as ground truth
 - Incorporate thesis conviction, falsifiable claims, and Sentinel caveats when judging valuation risk — without treating prose as audited numbers
-- Prefer the deep research report and live data for numbers; use the candidate block for **consistent framing** with how the name was first characterised (signals and concerns from screening, not a category label)
+- Prefer the deep research report and live data for numbers; use the lane context for **consistent framing** with how the name was first characterised (signals and concerns from screening, not a category label)
 
 The DeepResearchReport contains comprehensive analysis of the company including:
 - Revenue growth trends and quality metrics

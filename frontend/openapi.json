@@ -70,6 +70,74 @@
         "title": "AgentNameSlug",
         "type": "string"
       },
+      "CandidateGateStatusApi": {
+        "enum": [
+          "passed",
+          "rejected"
+        ],
+        "title": "CandidateGateStatusApi",
+        "type": "string"
+      },
+      "CandidateGateSummary": {
+        "properties": {
+          "gate_failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gate Failure Reason"
+          },
+          "gate_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CandidateGateStatusApi"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_actively_trading": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Actively Trading"
+          },
+          "resolved_ticker": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved Ticker"
+          },
+          "source_ticker": {
+            "title": "Source Ticker",
+            "type": "string"
+          }
+        },
+        "required": [
+          "gate_status",
+          "source_ticker",
+          "resolved_ticker",
+          "gate_failure_reason",
+          "is_actively_trading"
+        ],
+        "title": "CandidateGateSummary",
+        "type": "object"
+      },
       "ConversationResponse": {
         "properties": {
           "assistant_response": {
@@ -144,7 +212,8 @@
       "DecisionTypeApi": {
         "enum": [
           "rating_table",
-          "sentinel_rejection"
+          "sentinel_rejection",
+          "data_quality_rejection"
         ],
         "title": "DecisionTypeApi",
         "type": "string"
@@ -300,6 +369,16 @@
             },
             "title": "Agent Executions",
             "type": "array"
+          },
+          "candidate_gate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CandidateGateSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "company_name": {
             "title": "Company Name",

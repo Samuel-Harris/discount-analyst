@@ -47,7 +47,7 @@ from discount_analyst.agents.strategist.system_prompt import (
 from discount_analyst.agents.strategist.user_prompt import (
     create_user_prompt as create_strategist_user_prompt,
 )
-from discount_analyst.agents.surveyor.schema import SurveyorCandidate
+from discount_analyst.agents.surveyor.schema import SurveyorLaneContext
 from discount_analyst.integrations.terminal import TerminalRuntimeConfig
 from discount_analyst.pipeline.builders import (
     build_rating_table_decision,
@@ -112,7 +112,7 @@ class TickerLaneStage:
         *,
         workflow_run_id: str,
         run_id: str,
-        candidate: SurveyorCandidate,
+        lane_context: SurveyorLaneContext,
         is_mock: bool,
         is_existing_position: bool,
     ) -> None:
@@ -120,7 +120,7 @@ class TickerLaneStage:
             host,
             workflow_run_id=workflow_run_id,
             run_id=run_id,
-            candidate=candidate,
+            lane_context=lane_context,
             is_mock=is_mock,
         )
         if not sentinel_proceeds_to_valuation(evaluation):
@@ -128,7 +128,7 @@ class TickerLaneStage:
                 "Sentinel gate did not pass; skipping valuation stages",
                 workflow_run_id=workflow_run_id,
                 run_id=run_id,
-                ticker=candidate.ticker,
+                ticker=lane_context.ticker,
             )
             await self.apply_sentinel_rejection(
                 host,
@@ -143,13 +143,13 @@ class TickerLaneStage:
             "Sentinel gate passed; continuing to appraiser",
             workflow_run_id=workflow_run_id,
             run_id=run_id,
-            ticker=candidate.ticker,
+            ticker=lane_context.ticker,
         )
         await self.run_appraiser_final_rating(
             host,
             workflow_run_id=workflow_run_id,
             run_id=run_id,
-            candidate=candidate,
+            lane_context=lane_context,
             research_out=research_out,
             thesis=thesis,
             evaluation=evaluation,
@@ -163,7 +163,7 @@ class TickerLaneStage:
         *,
         workflow_run_id: str,
         run_id: str,
-        candidate: SurveyorCandidate,
+        lane_context: SurveyorLaneContext,
         is_mock: bool,
     ) -> tuple[Any, Any, Any]:
         llm = pipeline_llm_config(host.settings, is_mock=is_mock)
@@ -171,7 +171,7 @@ class TickerLaneStage:
             host,
             workflow_run_id=workflow_run_id,
             run_id=run_id,
-            candidate=candidate,
+            lane_context=lane_context,
             is_mock=is_mock,
             llm=llm,
         )
@@ -179,7 +179,7 @@ class TickerLaneStage:
             host,
             workflow_run_id=workflow_run_id,
             run_id=run_id,
-            candidate=candidate,
+            lane_context=lane_context,
             research_out=research_out,
             is_mock=is_mock,
             llm=llm,
@@ -188,7 +188,7 @@ class TickerLaneStage:
             host,
             workflow_run_id=workflow_run_id,
             run_id=run_id,
-            candidate=candidate,
+            lane_context=lane_context,
             research_out=research_out,
             thesis=thesis,
             is_mock=is_mock,
@@ -202,7 +202,7 @@ class TickerLaneStage:
         *,
         workflow_run_id: str,
         run_id: str,
-        candidate: SurveyorCandidate,
+        lane_context: SurveyorLaneContext,
         is_mock: bool,
         llm: PipelineLlmConfig,
     ) -> DeepResearchReport:
@@ -223,7 +223,7 @@ class TickerLaneStage:
                 agent_name=AgentNameDb.RESEARCHER,
                 workflow_run_id=workflow_run_id,
                 run_id=run_id,
-                ticker=candidate.ticker,
+                ticker=lane_context.ticker,
             )
             return DeepResearchReport.model_validate_json(research_json)
 
@@ -239,16 +239,16 @@ class TickerLaneStage:
             agent_name=AgentNameDb.RESEARCHER,
             workflow_run_id=workflow_run_id,
             run_id=run_id,
-            ticker=candidate.ticker,
+            ticker=lane_context.ticker,
             is_mock=is_mock,
         )
         r_mock_json: str | None = None
         if is_mock:
             await asyncio.sleep(5)
-            research_out = mock_outputs.mock_deep_research(candidate)
+            research_out = mock_outputs.mock_deep_research(lane_context)
             r_messages = None
             r_mock_json = mock_conversation_messages.researcher_messages_json(
-                ticker=candidate.ticker
+                ticker=lane_context.ticker
             )
         else:
             ai_cfg = llm.ai_models_config
@@ -264,7 +264,7 @@ class TickerLaneStage:
                     use_mcp_financial_data=host.settings.use_mcp_financial_data,
                     terminal=t,
                 ),
-                user_prompt=create_researcher_user_prompt(surveyor_candidate=candidate),
+                user_prompt=create_researcher_user_prompt(lane_context=lane_context),
                 usage_limits=ai_cfg.model.usage_limits,
             )
             research_out = outcome.output
@@ -282,7 +282,7 @@ class TickerLaneStage:
             agent_name=AgentNameDb.RESEARCHER,
             workflow_run_id=workflow_run_id,
             run_id=run_id,
-            ticker=candidate.ticker,
+            ticker=lane_context.ticker,
         )
         return research_out
 
@@ -292,7 +292,7 @@ class TickerLaneStage:
         *,
         workflow_run_id: str,
         run_id: str,
-        candidate: SurveyorCandidate,
+        lane_context: SurveyorLaneContext,
         research_out: DeepResearchReport,
         is_mock: bool,
         llm: PipelineLlmConfig,
@@ -316,7 +316,7 @@ class TickerLaneStage:
                 agent_name=AgentNameDb.STRATEGIST,
                 workflow_run_id=workflow_run_id,
                 run_id=run_id,
-                ticker=candidate.ticker,
+                ticker=lane_context.ticker,
             )
             return MispricingThesis.model_validate_json(thesis_json)
 
@@ -332,16 +332,16 @@ class TickerLaneStage:
             agent_name=AgentNameDb.STRATEGIST,
             workflow_run_id=workflow_run_id,
             run_id=run_id,
-            ticker=candidate.ticker,
+            ticker=lane_context.ticker,
             is_mock=is_mock,
         )
         s_mock_json: str | None = None
         if is_mock:
             await asyncio.sleep(5)
-            thesis = mock_outputs.mock_thesis(candidate)
+            thesis = mock_outputs.mock_thesis(lane_context)
             s_messages = None
             s_mock_json = mock_conversation_messages.strategist_messages_json(
-                ticker=candidate.ticker
+                ticker=lane_context.ticker
             )
         else:
             ai_cfg = llm.ai_models_config
@@ -353,7 +353,7 @@ class TickerLaneStage:
                 runtime=host.cached_terminal_runtime(),
                 build_agent=lambda t: create_strategist_agent(ai_cfg, terminal=t),
                 user_prompt=create_strategist_user_prompt(
-                    surveyor_candidate=candidate, deep_research=research_out
+                    lane_context=lane_context, deep_research=research_out
                 ),
                 usage_limits=ai_cfg.model.usage_limits,
             )
@@ -372,7 +372,7 @@ class TickerLaneStage:
             agent_name=AgentNameDb.STRATEGIST,
             workflow_run_id=workflow_run_id,
             run_id=run_id,
-            ticker=candidate.ticker,
+            ticker=lane_context.ticker,
         )
         return thesis
 
@@ -382,7 +382,7 @@ class TickerLaneStage:
         *,
         workflow_run_id: str,
         run_id: str,
-        candidate: SurveyorCandidate,
+        lane_context: SurveyorLaneContext,
         research_out: DeepResearchReport,
         thesis: MispricingThesis,
         is_mock: bool,
@@ -405,7 +405,7 @@ class TickerLaneStage:
                 agent_name=AgentNameDb.SENTINEL,
                 workflow_run_id=workflow_run_id,
                 run_id=run_id,
-                ticker=candidate.ticker,
+                ticker=lane_context.ticker,
             )
             return SentinelEvaluationReport.model_validate_json(evaluation_json)
 
@@ -421,21 +421,21 @@ class TickerLaneStage:
             agent_name=AgentNameDb.SENTINEL,
             workflow_run_id=workflow_run_id,
             run_id=run_id,
-            ticker=candidate.ticker,
+            ticker=lane_context.ticker,
             is_mock=is_mock,
         )
         n_mock_json: str | None = None
         if is_mock:
             await asyncio.sleep(5)
             evaluation = mock_outputs.mock_sentinel_evaluation(
-                candidate=candidate,
+                candidate=lane_context,
                 proceed=mock_outputs.mock_sentinel_proceed_for_dashboard_lane(
-                    candidate.ticker
+                    lane_context.ticker
                 ),
             )
             n_messages = None
             n_mock_json = mock_conversation_messages.sentinel_messages_json(
-                ticker=candidate.ticker
+                ticker=lane_context.ticker
             )
         else:
             ai_cfg = llm.ai_models_config
@@ -447,7 +447,7 @@ class TickerLaneStage:
                 runtime=host.cached_terminal_runtime(),
                 build_agent=lambda t: create_sentinel_agent(ai_cfg, terminal=t),
                 user_prompt=create_sentinel_user_prompt(
-                    surveyor_candidate=candidate,
+                    lane_context=lane_context,
                     deep_research=research_out,
                     thesis=thesis,
                 ),
@@ -468,7 +468,7 @@ class TickerLaneStage:
             agent_name=AgentNameDb.SENTINEL,
             workflow_run_id=workflow_run_id,
             run_id=run_id,
-            ticker=candidate.ticker,
+            ticker=lane_context.ticker,
         )
         return evaluation
 
@@ -518,7 +518,7 @@ class TickerLaneStage:
         *,
         workflow_run_id: str,
         run_id: str,
-        candidate: SurveyorCandidate,
+        lane_context: SurveyorLaneContext,
         research_out: Any,
         thesis: Any,
         evaluation: Any,
@@ -544,7 +544,7 @@ class TickerLaneStage:
                 agent_name=AgentNameDb.APPRAISER,
                 workflow_run_id=workflow_run_id,
                 run_id=run_id,
-                ticker=candidate.ticker,
+                ticker=lane_context.ticker,
             )
         else:
             await host.mark_exec(
@@ -559,11 +559,11 @@ class TickerLaneStage:
                 agent_name=AgentNameDb.APPRAISER,
                 workflow_run_id=workflow_run_id,
                 run_id=run_id,
-                ticker=candidate.ticker,
+                ticker=lane_context.ticker,
                 is_mock=is_mock,
             )
             appraiser_input = AppraiserInput(
-                stock_candidate=candidate,
+                lane_context=lane_context,
                 deep_research=research_out,
                 thesis=thesis,
                 evaluation=evaluation,
@@ -572,10 +572,10 @@ class TickerLaneStage:
             a_mock_json: str | None = None
             if is_mock:
                 await asyncio.sleep(5)
-                appraiser_out = mock_outputs.mock_appraiser_output(candidate)
+                appraiser_out = mock_outputs.mock_appraiser_output(lane_context)
                 a_messages = None
                 a_mock_json = mock_conversation_messages.appraiser_messages_json(
-                    ticker=candidate.ticker
+                    ticker=lane_context.ticker
                 )
             else:
                 ai_cfg = llm.ai_models_config
@@ -611,13 +611,13 @@ class TickerLaneStage:
                 agent_name=AgentNameDb.APPRAISER,
                 workflow_run_id=workflow_run_id,
                 run_id=run_id,
-                ticker=candidate.ticker,
+                ticker=lane_context.ticker,
             )
 
         if is_mock:
             await asyncio.sleep(5)
             rating_decision = mock_outputs.mock_rating_table_decision(
-                candidate,
+                lane_context,
                 is_existing_position=is_existing_position,
                 thesis=thesis,
                 evaluation=evaluation,
@@ -627,7 +627,7 @@ class TickerLaneStage:
                 appraiser_out.valuation_distribution
             )
             rating_decision = build_rating_table_decision(
-                candidate=candidate,
+                lane_context=lane_context,
                 thesis=thesis,
                 evaluation=evaluation,
                 margin_of_safety=mos,
@@ -651,5 +651,5 @@ class TickerLaneStage:
             agent_name=AgentNameDb.APPRAISER,
             workflow_run_id=workflow_run_id,
             run_id=run_id,
-            ticker=candidate.ticker,
+            ticker=lane_context.ticker,
         )

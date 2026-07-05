@@ -294,7 +294,7 @@ async def run_agent(
         use_mcp_financial_data=use_mcp_financial_data,
         terminal=terminal,
     )
-    user_prompt = create_user_prompt(surveyor_candidate=candidate)
+    user_prompt = create_user_prompt(lane_context=candidate.to_lane_context())
 
     outcome = await run_streamed_agent(
         agent=agent,

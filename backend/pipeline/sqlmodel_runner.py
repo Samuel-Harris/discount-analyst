@@ -42,6 +42,7 @@ from backend.crud.workflow_runs import (
 )
 from backend.pipeline.agent_errors import extract_agent_error_message
 from backend.pipeline.ports import ProfilerStagePort
+from backend.pipeline.stages.candidate_gate_stage import CandidateGateStage
 from backend.pipeline.stages.profiler_stage import ProfilerStage
 from backend.pipeline.stages.surveyor_stage import SurveyorStage
 from backend.pipeline.stages.ticker_lane_stage import TickerLaneStage
@@ -61,6 +62,7 @@ class DashboardPipelineRunner:
         self._session_factory = session_factory
         self._settings = settings
         self._lock = asyncio.Lock()
+        self._candidate_gate_stage = CandidateGateStage()
         self._profiler_stage = ProfilerStage()
         self._surveyor_stage = SurveyorStage()
         self._ticker_lane_stage = TickerLaneStage()
@@ -437,11 +439,21 @@ class DashboardPipelineRunner:
                 ticker=ticker,
                 is_mock=is_mock,
             )
-            await self._ticker_lane_stage.run_downstream_from_researcher(
+            lane_context = await self._candidate_gate_stage.admit(
                 self,
                 workflow_run_id=workflow_run_id,
                 run_id=run_id,
                 candidate=candidate,
+                is_mock=is_mock,
+                is_existing_position=True,
+            )
+            if lane_context is None:
+                return
+            await self._ticker_lane_stage.run_downstream_from_researcher(
+                self,
+                workflow_run_id=workflow_run_id,
+                run_id=run_id,
+                lane_context=lane_context,
                 is_mock=is_mock,
                 is_existing_position=True,
             )
@@ -528,11 +540,21 @@ class DashboardPipelineRunner:
             is_mock=is_mock,
         )
         try:
-            await self._ticker_lane_stage.run_downstream_from_researcher(
+            lane_context = await self._candidate_gate_stage.admit(
                 self,
                 workflow_run_id=workflow_run_id,
                 run_id=run_id,
                 candidate=candidate,
+                is_mock=is_mock,
+                is_existing_position=False,
+            )
+            if lane_context is None:
+                return
+            await self._ticker_lane_stage.run_downstream_from_researcher(
+                self,
+                workflow_run_id=workflow_run_id,
+                run_id=run_id,
+                lane_context=lane_context,
                 is_mock=is_mock,
                 is_existing_position=False,
             )
