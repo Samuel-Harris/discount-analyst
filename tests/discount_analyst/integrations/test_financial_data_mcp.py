@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 import discount_analyst.integrations.financial_data_mcp as financial_data_mcp
+from discount_analyst.integrations.blacklisted_mcp_toolset import BlacklistedMcpToolset
 
 
 def test_create_financial_data_mcp_servers_includes_eodhd_when_not_disabled(
@@ -14,6 +15,8 @@ def test_create_financial_data_mcp_servers_includes_eodhd_when_not_disabled(
     monkeypatch.setattr(financial_data_mcp.settings, "eodhd", eodhd)
     servers = financial_data_mcp.create_financial_data_mcp_servers()
     assert len(servers) == 2
+    assert isinstance(servers[0], BlacklistedMcpToolset)
+    assert isinstance(servers[1], BlacklistedMcpToolset)
     assert servers[0].id == "eodhd"
     assert servers[1].id == "fmp"
 
@@ -25,4 +28,5 @@ def test_create_financial_data_mcp_servers_omits_eodhd_when_disabled(
     monkeypatch.setattr(financial_data_mcp.settings, "eodhd", eodhd)
     servers = financial_data_mcp.create_financial_data_mcp_servers()
     assert len(servers) == 1
+    assert isinstance(servers[0], BlacklistedMcpToolset)
     assert servers[0].id == "fmp"

@@ -6,18 +6,12 @@ import asyncio
 import functools
 import random
 import time
-from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import KW_ONLY, dataclass
-from typing import Any, Literal, Protocol, cast
+from typing import Any, Protocol, cast
 
 import anyio.to_thread
 from pydantic import TypeAdapter
-from pydantic_ai.capabilities import WebSearch
-from pydantic_ai.capabilities.abstract import AbstractCapability
-from pydantic_ai.capabilities.web_search import WebSearchLocalStrategy
-from pydantic_ai.native_tools import WebSearchTool, WebSearchUserLocation
-from pydantic_ai.tools import AgentDepsT, AgentNativeTool, RunContext, Tool
-from pydantic_ai.toolsets import AgentToolset
+from pydantic_ai.tools import Tool
 from typing_extensions import TypedDict
 
 from discount_analyst.agents.common.ai_logging import AI_LOGFIRE
@@ -214,67 +208,3 @@ def create_bounded_duckduckgo_search_tool(
         name="duckduckgo_search",
         description="Searches DuckDuckGo for the given query and returns the results.",
     )
-
-
-@dataclass(init=False)
-class BoundedWebSearch(AbstractCapability[AgentDepsT]):
-    """Pydantic AI WebSearch configured with a bounded DuckDuckGo local fallback."""
-
-    web_search: WebSearch[AgentDepsT]
-
-    def __init__(
-        self,
-        *,
-        native: WebSearchTool
-        | Callable[
-            [RunContext[AgentDepsT]],
-            Awaitable[WebSearchTool | None] | WebSearchTool | None,
-        ]
-        | bool = True,
-        local: WebSearchLocalStrategy
-        | Tool[AgentDepsT]
-        | Callable[..., Any]
-        | bool
-        | None = None,
-        search_context_size: Literal["low", "medium", "high"] | None = None,
-        user_location: WebSearchUserLocation | None = None,
-        blocked_domains: list[str] | None = None,
-        allowed_domains: list[str] | None = None,
-        max_uses: int | None = None,
-        id: str | None = None,
-        defer_loading: bool = False,
-        description: str | None = None,
-    ) -> None:
-        self.id = id
-        self.description = description
-        self.defer_loading = defer_loading
-        self.web_search = WebSearch(
-            native=native,
-            local=self._local_tool(local),
-            search_context_size=search_context_size,
-            user_location=user_location,
-            blocked_domains=blocked_domains,
-            allowed_domains=allowed_domains,
-            max_uses=max_uses,
-            id=id,
-            defer_loading=defer_loading,
-            description=description,
-        )
-
-    def get_native_tools(self) -> Sequence[AgentNativeTool[AgentDepsT]]:
-        return self.web_search.get_native_tools()
-
-    def get_toolset(self) -> AgentToolset[AgentDepsT] | None:
-        return self.web_search.get_toolset()
-
-    @staticmethod
-    def _local_tool(
-        local: WebSearchLocalStrategy
-        | Tool[AgentDepsT]
-        | Callable[..., Any]
-        | bool
-        | None,
-    ) -> WebSearchLocalStrategy | Tool[AgentDepsT] | Callable[..., Any] | bool | None:
-        if local is None or local is True or local == "duckduckgo":
-            return create_bounded_duckduckgo_search_tool()
-        return local

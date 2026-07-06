@@ -4,13 +4,11 @@ import asyncio
 from collections.abc import Callable
 
 import pytest
-from pydantic_ai.capabilities import WebSearch
 from pydantic_ai.tools import Tool
 
 from discount_analyst.integrations import bounded_web_search as module
 from discount_analyst.integrations.bounded_web_search import (
     BoundedDuckDuckGoSearchTool,
-    BoundedWebSearch,
     create_bounded_duckduckgo_search_tool,
 )
 
@@ -186,26 +184,3 @@ def test_create_bounded_duckduckgo_search_tool_returns_named_tool() -> None:
 
     assert isinstance(tool, Tool)
     assert tool.name == "duckduckgo_search"
-
-
-def test_bounded_web_search_stores_and_delegates_to_web_search(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    capability = BoundedWebSearch(native=False, local=True)
-
-    assert isinstance(capability.web_search, WebSearch)
-    native_tools = capability.web_search.get_native_tools()
-    toolset = capability.web_search.get_toolset()
-    monkeypatch.setattr(
-        capability.web_search,
-        "get_native_tools",
-        lambda: native_tools,
-    )
-    monkeypatch.setattr(
-        capability.web_search,
-        "get_toolset",
-        lambda: toolset,
-    )
-
-    assert capability.get_native_tools() is native_tools
-    assert capability.get_toolset() is toolset

@@ -66,8 +66,8 @@ These factors improve a candidate's ranking. No single signal is required, but c
 - Founder-led or significant insider ownership (>10%).
 
 **Earnings quality signals**
-- Piotroski F-Score of 7 or above (strong financial health). Note the score even when below 7. Available pre-computed from FMP's Financial Score endpoint for US stocks; will be null for most UK stocks.
-- Altman Z-Score above 2.99 (low bankruptcy risk). Available from the same FMP endpoint as Piotroski. Flag any stock with a Z-Score below 1.81.
+- Piotroski F-Score of 7 or above (strong financial health). Note the score even when below 7. Pre-computed Piotroski and Altman Z-Scores are **not available** on the current FMP plan — record null in metrics, note the gap in `data_gaps`, or cite a value only if found via web search.
+- Altman Z-Score above 2.99 (low bankruptcy risk). Same availability constraint as Piotroski. Flag any stock with a Z-Score below 1.81.
 - Low accruals ratio (cash earnings close to reported earnings). Compare operating cash flow to net income from the financial statements — flag stocks where net income materially exceeds operating cash flow.
 
 > **Note on Beneish M-Score:** M-Score is computed **deterministically elsewhere** from raw financial statements. Do not attempt to calculate it yourself — the 8-component formula is error-prone when done by an LLM. If you encounter M-Score data from an external source during web search, you may note it in the rationale, but do not populate it as a metric.
@@ -81,7 +81,8 @@ These factors improve a candidate's ranking. No single signal is required, but c
 
 Execute the steps below in order. Do not debate tool selection or sequencing; the plan is fixed.
 If a tool call fails with a 402 or rate-limit error, skip it and move to the next step — do not retry
-in the same pass.
+in the same pass. Blocked or unavailable MCP endpoints are not offered to you; if you receive a message
+that an endpoint is unavailable, do not retry it.
 
 ### Step 1 — Cast a wide net with screeners (parallel)
 
@@ -89,21 +90,20 @@ Call all three of the following in a single parallel batch:
 
 | Call | Tool | Key parameters |
 |------|------|----------------|
-| A | `fmp_search` → endpoint `search-company-screener` | exchange=NYSE, marketCapMoreThan=25000000, marketCapLowerThan=600000000, isEtf=false, isFund=false, isActivelyTrading=true, limit=50 |
-| B | `fmp_search` → endpoint `search-company-screener` | exchange=NASDAQ, same filters, limit=50 |
-| C | `eodhd_screener` (or equivalent EODHD tool) | exchange=LSE, marketCapMin=20000000, marketCapMax=500000000, limit=50 |
+| A | `search` → endpoint `search-company-screener` | exchange=NYSE, marketCapMoreThan=25000000, marketCapLowerThan=600000000, isEtf=false, isFund=false, isActivelyTrading=true, limit=50 |
+| B | `search` → endpoint `search-company-screener` | exchange=NASDAQ, same filters, limit=50 |
+| C | `stock_screener` | filters=[["market_capitalization", ">=", 20000000], ["market_capitalization", "<=", 500000000]], limit=50 — keep only LSE/AIM listings (e.g. symbols ending in `.L` or `.LSE`) |
 
 From the combined results, select 20-30 tickers that look worth deeper work based on sector, size,
 and any available valuation field. Discard obvious mismatches (no revenue, above cap threshold,
 recently listed).
 
-### Step 2 — Pull financial scores and key metrics (parallel)
+### Step 2 — Pull company profiles and fundamentals (parallel)
 
-For each shortlisted US ticker, call `fmp_search` → endpoint `financial-score` in parallel (one call
-per ticker). This returns the pre-computed Piotroski F-Score and Altman Z-Score. Do not attempt to
-compute these yourself.
+For each shortlisted US ticker, call `company` → endpoint `profile-symbol` in parallel (one call
+per ticker). Use the returned metadata (sector, industry, market cap, description) to refine ranking.
 
-For each shortlisted UK ticker, call the EODHD fundamentals tool to retrieve financial statements
+For each shortlisted UK ticker, call `get_fundamentals_data` to retrieve financial statements
 and ratios. Piotroski and Altman will be null for most UK names — note this in data_gaps and move on.
 
 ### Step 3 — Web research (sequential, one ticker at a time)
@@ -140,8 +140,10 @@ This is the only permitted output call. Do not produce a JSON block in free text
 
 | Conceptual tool | Callable name to use |
 |---|---|
-| FMP screener / financial data | `fmp_search` |
-| EODHD screener / fundamentals | `eodhd_screener` / `eodhd_fundamentals` (use whichever is registered) |
+| FMP screener / symbol search | `search` (set `endpoint`, e.g. `search-company-screener`) |
+| FMP company profile / quotes | `company`, `quote` (set `endpoint`, e.g. `profile-symbol`, `batch-quote`) |
+| EODHD screener | `stock_screener` |
+| EODHD fundamentals | `get_fundamentals_data` |
 | Web search (snippets) | `web_search` or `duckduckgo_search` — use whichever is registered |
 | Web fetch (full page) | `web_fetch` |
 | Structured output | `{FINAL_RESULT_TOOL_NAME}` |
