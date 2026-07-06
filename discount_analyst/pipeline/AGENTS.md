@@ -9,13 +9,13 @@ Non-LLM pipeline contracts for **human-facing verdicts**: `SentinelRejection` (p
 
 ## Key Files
 
-| File                       | Description                                                                                                         |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `schema.py`                | `SentinelRejection`, `DataQualityRejection`, `RatingTableDecision`, `Verdict`, related rationale types.             |
-| `candidate_gates.py`       | `validate_candidate`, pass/reject `CandidateGateResult` union, and internal FMP/EODHD ticker/listing probes.        |
-| `rating_decision_table.py` | Flat ``match`` on ``(MoS, conviction, reservations)`` and ``(rating, position)`` with ``assert_never``.             |
-| `builders.py`              | `build_sentinel_rejection`, `build_data_quality_rejection`, `build_rating_table_decision`, `verdict_from_decision`. |
-| `__init__.py`              | Package docstring only (no barrel re-exports).                                                                      |
+| File                       | Description                                                                                                                               |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `schema.py`                | `SentinelRejection`, `DataQualityRejection`, `RatingTableDecision`, `Verdict`, related rationale types.                                   |
+| `candidate_gates.py`       | `validate_candidate`, pass/reject `CandidateGateResult` union, and internal FMP profile / EODHD ticker/listing probes (no `quote-short`). |
+| `rating_decision_table.py` | Flat ``match`` on ``(MoS, conviction, reservations)`` and ``(rating, position)`` with ``assert_never``.                                   |
+| `builders.py`              | `build_sentinel_rejection`, `build_data_quality_rejection`, `build_rating_table_decision`, `verdict_from_decision`.                       |
+| `__init__.py`              | Package docstring only (no barrel re-exports).                                                                                            |
 
 ## Dependencies
 

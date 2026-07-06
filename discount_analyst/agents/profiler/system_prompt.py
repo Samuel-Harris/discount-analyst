@@ -23,7 +23,10 @@ Use available tools to gather data.
 
 Work through the following in order:
 
-1. Pull company profile, price, and market cap.
+1. Pull company profile, price, and market cap via FMP `company` → `profile-symbol`. Use `quote` →
+   `batch-quote` only when you need intraday change or volume beyond the profile. Do not call
+   `quote-short` — it is not on the current data plan. For UK (`.L`) tickers, use EODHD
+   `get_fundamentals_data` when FMP statement endpoints are unavailable.
 2. Pull financial statements (income, cash flow, balance sheet) for the last 3-4 annual periods.
 3. Pull key metrics and ratios (TTM). If a ratio endpoint fails, derive it from the statements.
 4. Pull financial scores (Piotroski, Altman) from the dedicated endpoint. If unavailable, leave null.

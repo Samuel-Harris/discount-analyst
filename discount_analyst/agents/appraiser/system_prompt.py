@@ -36,6 +36,11 @@ You will be given a company ticker or name. Use available search, filing, MCP fi
 
 ### Step 1: Gather Current Market and Financial Facts
 
+For live market data, prefer FMP `company` → `profile-symbol` (price, currency, market cap) and
+`quote` → `batch-quote` when you need intraday quote detail. Do not call `quote-short` — it is
+not on the current data plan. For UK (`.L`) tickers, use EODHD fundamentals or real-time data when
+FMP is empty or denied.
+
 Use the strongest available source for each fact:
 - Current share price, currency, market cap, and shares outstanding.
 - Latest annual or TTM revenue, profitability, cash flow, net debt/cash, and segment data when relevant.

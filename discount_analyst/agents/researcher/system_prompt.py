@@ -46,17 +46,39 @@ For the candidate ticker resolve the FMP symbol **in one call**, never more.
 
 | Ticker format | Rule |
 |---|---|
-| Ends in `.L` (LSE) | Call `fmp_company profile-symbol` with the exact ticker (e.g. `GLE.L`). If the result array is empty, fall back to `fmp_search search-symbol` with the company name. |
-| US exchange (no suffix) | Call `fmp_company profile-symbol` with the ticker directly. |
-| Other suffix (`.PA`, `.AS`, etc.) | Call `fmp_search search-symbol` with the company name. Pick the record whose `exchange` matches the SurveyorCandidate `exchange` field. |
+| Ends in `.L` (LSE) | Call `company` → `profile-symbol` with the exact ticker (e.g. `GLE.L`). If the result array is empty, fall back to `search` → `search-symbol` with the company name. |
+| US exchange (no suffix) | Call `company` → `profile-symbol` with the ticker directly. |
+| Other suffix (`.PA`, `.AS`, etc.) | Call `search` → `search-symbol` with the company name. Pick the record whose `exchange` matches the SurveyorCandidate `exchange` field. |
 
 Check the `isAdr` flag. If `true`, note that the FMP symbol is an ADR and that fundamentals may be denominated in USD; prefer the primary-listing symbol for financial statements where available.
 
 ### Step 1 — Parallel data pull
-After symbol resolution, fire **all FMP endpoints in a single parallel call**. Minimum required:
-`profile-symbol`, `income-statement` (annual, limit 4), `cashflow-statement` (annual, limit 4), `balance-sheet-statement` (annual, limit 4), `key-metrics` (annual, limit 4), `financial-scores`, `quote-short`, `search-stock-news` (limit 30), `ratings-snapshot`, `price-target-summary`, `insider-trade-statistics`.
+After symbol resolution, fire **all allowed FMP and EODHD calls in a single parallel batch**. Minimum required:
 
-If any statement endpoint returns 402, continue with the data you have and note the gap in `data_gaps_update`.
+| Source | Tool | Endpoint / call |
+|---|---|---|
+| FMP | `company` | `profile-symbol` (includes current price and market cap) |
+| FMP | `quote` | `batch-quote` (supplemental intraday change/volume when needed) |
+| UK (`.L`) | EODHD | `get_fundamentals_data` for financial statements and ratios |
+| FMP | `statements` | `financial-reports-dates` when useful for filing cadence |
+
+Several FMP tools and endpoints are **not available** on the current data plan — whole tools (`analyst`, `news`, `insiderTrades`, `chart`, `calendar`) and premium endpoints such as `quote-short`, `batch-market-cap`, and most `statements` financials (`income-statement`, `cashflow-statement`, `balance-sheet-statement`, `key-metrics`, `financial-scores`, etc.). Do not attempt them; they are excluded from your tool list. Cover analyst ratings, news, insider activity, and detailed US financial statements in Step 2 via web search and primary filings.
+
+If an allowed call returns empty or errors, continue with the data you have and note the gap in `data_gaps_update`.
+
+### Tool name reference (authoritative)
+
+| Conceptual tool | Callable name to use |
+|---|---|
+| FMP symbol search | `search` (set `endpoint`, e.g. `search-symbol`) |
+| FMP company profile / quotes | `company`, `quote` (set `endpoint`, e.g. `profile-symbol`, `batch-quote`) |
+| FMP statements (plan-limited) | `statements` (only endpoints visible in your tool schema) |
+| EODHD fundamentals | `get_fundamentals_data` |
+| Web search (snippets) | `web_search` or `duckduckgo_search` — use whichever is registered |
+| Web fetch (full page) | `web_fetch` |
+| Structured output | `final_result` |
+
+Do not use any tool not listed above or not visible in your registered tool schema.
 
 ### Step 2 — Supplementary web research
 After the FMP pull, run targeted web searches to close gaps that FMP cannot fill:

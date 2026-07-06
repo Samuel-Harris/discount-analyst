@@ -39,6 +39,8 @@ def test_is_blocked_endpoint_pair() -> None:
         "statements",
         {"endpoint": "financial-reports-dates"},
     )
+    assert is_blocked(FMP_BLACKLIST, "quote", {"endpoint": "quote-short"})
+    assert not is_blocked(FMP_BLACKLIST, "quote", {"endpoint": "batch-quote"})
 
 
 def test_is_blocked_without_endpoint_only_checks_whole_tool() -> None:

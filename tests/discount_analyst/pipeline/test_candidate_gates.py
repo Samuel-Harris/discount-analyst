@@ -15,8 +15,8 @@ from discount_analyst.integrations.eodhd_client import (
     EodhdRealTimeQuote,
 )
 from discount_analyst.integrations.fmp_client import (
+    FmpAccessDeniedError,
     FmpProfile,
-    FmpQuoteShort,
     FmpSearchResult,
 )
 from discount_analyst.pipeline.candidate_gates import (
@@ -67,9 +67,11 @@ class _RecordingFmpClient:
         del query
         return [FmpSearchResult.model_validate(row) for row in self._search_rows]
 
-    async def quote_short(self, symbol: str) -> list[FmpQuoteShort]:
+
+class _DeniedProfileFmpClient(_RecordingFmpClient):
+    async def profile(self, symbol: str) -> list[FmpProfile]:
         del symbol
-        return [FmpQuoteShort(symbol="ULTP.L", price=10.0)]
+        raise FmpAccessDeniedError(status_code=402, symbol_or_query="AOUT")
 
 
 class _DelistedEodhdClient:
@@ -185,3 +187,24 @@ def test_candidate_to_lane_context_matches_gate_output_shape() -> None:
     candidate = _candidate(ticker="ULT.L", company_name="Ultimate Products plc")
     lane_context = candidate.to_lane_context(resolved_ticker="ULTP.L")
     assert lane_context.ticker == "ULTP.L"
+
+
+@pytest.mark.anyio
+async def test_validate_candidate_rejects_us_ticker_when_fmp_profile_denied() -> None:
+    candidate = _candidate(
+        ticker="AOUT",
+        company_name="American Outdoor Brands Inc",
+        exchange=Exchange.NASDAQ,
+    )
+    settings = dashboard_settings_for_tests()
+
+    result = await validate_candidate(
+        candidate,
+        settings=settings,
+        fmp_client=_DeniedProfileFmpClient(profile_rows=[]),  # type: ignore[arg-type]
+    )
+
+    assert result.gate_status == "rejected"
+    assert isinstance(result, RejectedCandidateGate)
+    assert "FMP profile lookup denied" in result.gate_failure_reason
+    assert result.data_source == "fmp"
