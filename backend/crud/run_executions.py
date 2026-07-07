@@ -125,6 +125,47 @@ def _clear_run_completion_fields(run: Run) -> None:
     run.recommended_action = None
 
 
+def _lane_executions(executions: list[AgentExecution]) -> list[AgentExecution]:
+    return [
+        execution
+        for execution in executions
+        if execution.agent_name in _AGENT_LANE_ORDER
+    ]
+
+
+def _first_retry_lane_order(run: Run, executions: list[AgentExecution]) -> int | None:
+    """Return the first lane agent order to reset, or None when the run is not retriable."""
+    lane_executions = _lane_executions(executions)
+    failed_orders = [
+        _AGENT_LANE_ORDER[execution.agent_name]
+        for execution in lane_executions
+        if execution.status == ExecutionStatusDb.FAILED
+    ]
+    if failed_orders:
+        return min(failed_orders)
+
+    if run.status != WorkflowRunStatusDb.FAILED:
+        return None
+
+    if not lane_executions:
+        return None
+
+    if any(
+        execution.status in (ExecutionStatusDb.FAILED, ExecutionStatusDb.COMPLETED)
+        for execution in lane_executions
+    ):
+        return None
+
+    if all(
+        execution.status == ExecutionStatusDb.SKIPPED for execution in lane_executions
+    ):
+        return min(
+            _AGENT_LANE_ORDER[execution.agent_name] for execution in lane_executions
+        )
+
+    return None
+
+
 def prepare_retry_failed_agents(
     session: Session,
     workflow_run_id: str,
@@ -161,15 +202,9 @@ def prepare_retry_failed_agents(
             ),
             key=lambda execution: _AGENT_LANE_ORDER.get(execution.agent_name, 99),
         )
-        failed_orders = [
-            _AGENT_LANE_ORDER[execution.agent_name]
-            for execution in executions
-            if execution.status == ExecutionStatusDb.FAILED
-            and execution.agent_name in _AGENT_LANE_ORDER
-        ]
-        if not failed_orders:
+        first_failed_order = _first_retry_lane_order(run, executions)
+        if first_failed_order is None:
             continue
-        first_failed_order = min(failed_orders)
         for execution in executions:
             order = _AGENT_LANE_ORDER.get(execution.agent_name)
             if order is None or order < first_failed_order:

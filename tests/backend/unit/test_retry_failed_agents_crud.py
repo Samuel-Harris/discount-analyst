@@ -5,7 +5,10 @@ from __future__ import annotations
 import pytest
 from sqlmodel import Session, col, select
 
-from backend.contracts.agent_lane_order import PROFILER_ENTRY_AGENT_NAMES
+from backend.contracts.agent_lane_order import (
+    PROFILER_ENTRY_AGENT_NAMES,
+    SURVEYOR_ENTRY_AGENT_NAMES,
+)
 from backend.crud.db_utils import utc_now
 from backend.crud.run_executions import (
     NoFailedAgentsToRetryError,
@@ -57,6 +60,36 @@ def _insert_workflow_with_profiler_lane(session: Session) -> tuple[str, str, str
         is_existing_position=True,
         is_mock=True,
         agent_names=PROFILER_ENTRY_AGENT_NAMES,
+    )
+    session.commit()
+    return workflow_run_id, surveyor_execution_id, run_id
+
+
+def _insert_workflow_with_surveyor_lane(session: Session) -> tuple[str, str, str]:
+    workflow_run_id = new_id()
+    surveyor_execution_id = new_id()
+    run_id = new_id()
+    insert_workflow_run(
+        session,
+        workflow_run_id=workflow_run_id,
+        portfolio_tickers=["NATR"],
+        is_mock=True,
+    )
+    insert_surveyor_workflow_execution(
+        session,
+        execution_id=surveyor_execution_id,
+        workflow_run_id=workflow_run_id,
+    )
+    insert_ticker_run_with_agents(
+        session,
+        run_id=run_id,
+        workflow_run_id=workflow_run_id,
+        ticker="NATR",
+        company_name="Nature's Sunshine",
+        entry_path="surveyor",
+        is_existing_position=False,
+        is_mock=True,
+        agent_names=SURVEYOR_ENTRY_AGENT_NAMES,
     )
     session.commit()
     return workflow_run_id, surveyor_execution_id, run_id
@@ -146,6 +179,57 @@ def test_prepare_retry_failed_agents_resets_failed_surveyor_and_lane(
     assert statuses["strategist"] == "pending"
     assert statuses["sentinel"] == "pending"
     assert statuses["appraiser"] == "pending"
+
+
+def test_prepare_retry_failed_agents_resets_gate_abort_lane_with_all_skipped_agents(
+    db_session: Session,
+) -> None:
+    workflow_run_id, _surveyor_execution_id, run_id = (
+        _insert_workflow_with_surveyor_lane(db_session)
+    )
+    workflow = db_session.get(WorkflowRun, workflow_run_id)
+    run = db_session.get(Run, run_id)
+    assert workflow is not None
+    assert run is not None
+
+    workflow.status = WorkflowRunStatusDb.FAILED
+    workflow.completed_at = utc_now()
+    run.status = WorkflowRunStatusDb.FAILED
+    run.completed_at = utc_now()
+    run.error_message = (
+        "Client error '429 Too Many Requests' for url "
+        "'https://financialmodelingprep.com/stable/profile?symbol=NATR'"
+    )
+    for agent_name in SURVEYOR_ENTRY_AGENT_NAMES:
+        _set_agent_status(
+            db_session,
+            run_id=run_id,
+            agent_name=agent_name,
+            status=ExecutionStatusDb.SKIPPED,
+        )
+    db_session.commit()
+
+    preparation = prepare_retry_failed_agents(db_session, workflow_run_id)
+    db_session.commit()
+
+    assert preparation.surveyor_reset is False
+    assert preparation.lane_reset_count == 1
+    assert preparation.agent_execution_reset_count == 4
+    detail = fetch_workflow_detail(db_session, workflow_run_id)
+    assert detail is not None
+    assert detail["status"] == "running"
+    lane = detail["runs"][0]
+    assert lane["status"] == "running"
+    refreshed_run = db_session.get(Run, run_id)
+    assert refreshed_run is not None
+    assert refreshed_run.error_message is None
+    statuses = {row["agent_name"]: row["status"] for row in lane["agent_executions"]}
+    assert statuses == {
+        "researcher": "pending",
+        "strategist": "pending",
+        "sentinel": "pending",
+        "appraiser": "pending",
+    }
 
 
 def test_prepare_retry_failed_agents_rejects_running_workflow(
