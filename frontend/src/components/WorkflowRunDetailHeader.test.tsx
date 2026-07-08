@@ -179,6 +179,69 @@ describe("WorkflowRunDetailHeader", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows retry button for gate-abort failed runs with only skipped lane agents", () => {
+    render(
+      <WorkflowRunDetailHeader
+        detail={makeDetail({
+          status: "failed",
+          runs: [
+            {
+              id: "run-1",
+              ticker: "NATR",
+              company_name: "Nature's Sunshine",
+              entry_path: "surveyor",
+              status: "failed",
+              final_rating: null,
+              decision_type: null,
+              agent_executions: [
+                {
+                  id: "exec-1",
+                  agent_name: "researcher",
+                  status: "skipped",
+                  started_at: null,
+                  completed_at: null,
+                },
+                {
+                  id: "exec-2",
+                  agent_name: "strategist",
+                  status: "skipped",
+                  started_at: null,
+                  completed_at: null,
+                },
+                {
+                  id: "exec-3",
+                  agent_name: "sentinel",
+                  status: "skipped",
+                  started_at: null,
+                  completed_at: null,
+                },
+                {
+                  id: "exec-4",
+                  agent_name: "appraiser",
+                  status: "skipped",
+                  started_at: null,
+                  completed_at: null,
+                },
+              ],
+            },
+          ],
+        })}
+        onRequestDelete={vi.fn()}
+        onRequestCancel={vi.fn()}
+        onRequestRetryFailedAgents={vi.fn()}
+        cancelPending={false}
+        retryFailedAgentsPending={false}
+        mainView="pipeline"
+        onOpenRecommendations={vi.fn()}
+        onOpenPipeline={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Retry all failed agents" }),
+    ).toBeInTheDocument();
+  });
+
   it("disables retry button while retry is in-flight", () => {
     render(
       <WorkflowRunDetailHeader

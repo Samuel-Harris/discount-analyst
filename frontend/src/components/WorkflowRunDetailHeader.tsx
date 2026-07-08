@@ -1,6 +1,7 @@
 import type { WorkflowRunDetailResponse } from "../api";
 import type { WorkflowMainView } from "../hooks/useWorkflowRunNavigation";
 import { formatWhen } from "../utils/formatWhen";
+import { hasRetriableFailedAgents } from "../utils/workflowRetry";
 import { UiStateText } from "./UiStateText";
 
 export interface WorkflowRunDetailHeaderProps {
@@ -29,12 +30,8 @@ export function WorkflowRunDetailHeader({
   const isTerminalWorkflow = ["completed", "failed", "cancelled"].includes(
     detail.status,
   );
-  const hasFailedAgent =
-    detail.surveyor_execution?.status === "failed" ||
-    detail.runs.some((run) =>
-      run.agent_executions.some((execution) => execution.status === "failed"),
-    );
-  const canRetryFailedAgents = isTerminalWorkflow && hasFailedAgent;
+  const canRetryFailedAgents =
+    isTerminalWorkflow && hasRetriableFailedAgents(detail);
 
   return (
     <div className="detail-header">
