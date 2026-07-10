@@ -1,4 +1,7 @@
 from discount_analyst.agents.common_prompts.creed import INVESTING_CREED
+from discount_analyst.agents.common_prompts.financial_data_mcp import (
+    FINANCIAL_DATA_MCP_RULES,
+)
 from discount_analyst.agents.common_prompts.structured_output import (
     FINAL_RESULT_TOOL_NAME,
 )
@@ -80,9 +83,8 @@ These factors improve a candidate's ranking. No single signal is required, but c
 ## How to search — execution plan
 
 Execute the steps below in order. Do not debate tool selection or sequencing; the plan is fixed.
-If a tool call fails with a 402 or rate-limit error, skip it and move to the next step — do not retry
-in the same pass. Blocked or unavailable MCP endpoints are not offered to you; if you receive a message
-that an endpoint is unavailable, do not retry it.
+
+{FINANCIAL_DATA_MCP_RULES}
 
 ### Step 1 — Cast a wide net with screeners (parallel)
 
@@ -136,25 +138,10 @@ exists — only fetch when the snippet is insufficient to assess a material risk
 Once research is complete, call `{FINAL_RESULT_TOOL_NAME}` once with your completed `{SurveyorOutput.__name__}`.
 This is the only permitted output call. Do not produce a JSON block in free text as a substitute.
 
-### Tool name reference (authoritative)
-
-| Conceptual tool | Callable name to use |
-|---|---|
-| FMP screener / symbol search | `search` (set `endpoint`, e.g. `search-company-screener`) |
-| FMP company profile / quotes | `company`, `quote` (set `endpoint`, e.g. `profile-symbol`, `batch-quote`) |
-| EODHD screener | `stock_screener` |
-| EODHD fundamentals | `get_fundamentals_data` |
-| Web search (snippets) | `web_search` or `duckduckgo_search` — use whichever is registered |
-| Web fetch (full page) | `web_fetch` |
-| Structured output | `{FINAL_RESULT_TOOL_NAME}` |
-
 There is no SEC-specific search tool. For US insider transactions and filing verification, use
 the registered web search tool with queries targeting sec.gov (e.g.
 `site:sec.gov TICKER form 4 2024`), then `web_fetch` on any specific filing URL returned.
 If a filing URL is not returned, note the gap in data_gaps and move on — do not loop.
-
-Do not use any other tool not listed above. If you find yourself reasoning about whether a tool
-is permitted, the answer is no unless it appears in this table.
 
 ### Parallel call policy
 

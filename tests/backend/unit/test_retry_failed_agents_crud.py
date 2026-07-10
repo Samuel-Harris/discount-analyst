@@ -181,6 +181,83 @@ def test_prepare_retry_failed_agents_resets_failed_surveyor_and_lane(
     assert statuses["appraiser"] == "pending"
 
 
+def test_fetch_workflow_detail_can_retry_for_failed_surveyor_and_lane(
+    db_session: Session,
+) -> None:
+    workflow_run_id, surveyor_execution_id, run_id = (
+        _insert_workflow_with_profiler_lane(db_session)
+    )
+    workflow = db_session.get(WorkflowRun, workflow_run_id)
+    surveyor = db_session.get(WorkflowAgentExecution, surveyor_execution_id)
+    run = db_session.get(Run, run_id)
+    assert workflow is not None
+    assert surveyor is not None
+    assert run is not None
+
+    workflow.status = WorkflowRunStatusDb.FAILED
+    workflow.completed_at = utc_now()
+    surveyor.status = ExecutionStatusDb.FAILED
+    run.status = WorkflowRunStatusDb.FAILED
+    _set_agent_status(
+        db_session,
+        run_id=run_id,
+        agent_name="researcher",
+        status=ExecutionStatusDb.FAILED,
+    )
+    db_session.commit()
+
+    detail = fetch_workflow_detail(db_session, workflow_run_id)
+    assert detail is not None
+    assert detail["can_retry_failed_agents"] is True
+
+
+def test_fetch_workflow_detail_can_retry_for_gate_abort_lane(
+    db_session: Session,
+) -> None:
+    workflow_run_id, _surveyor_execution_id, run_id = (
+        _insert_workflow_with_surveyor_lane(db_session)
+    )
+    workflow = db_session.get(WorkflowRun, workflow_run_id)
+    run = db_session.get(Run, run_id)
+    assert workflow is not None
+    assert run is not None
+
+    workflow.status = WorkflowRunStatusDb.FAILED
+    workflow.completed_at = utc_now()
+    run.status = WorkflowRunStatusDb.FAILED
+    run.completed_at = utc_now()
+    for agent_name in SURVEYOR_ENTRY_AGENT_NAMES:
+        _set_agent_status(
+            db_session,
+            run_id=run_id,
+            agent_name=agent_name,
+            status=ExecutionStatusDb.SKIPPED,
+        )
+    db_session.commit()
+
+    detail = fetch_workflow_detail(db_session, workflow_run_id)
+    assert detail is not None
+    assert detail["can_retry_failed_agents"] is True
+
+
+def test_fetch_workflow_detail_can_retry_false_for_running_workflow(
+    db_session: Session,
+) -> None:
+    workflow_run_id, _, run_id = _insert_workflow_with_profiler_lane(db_session)
+    _set_agent_status(
+        db_session,
+        run_id=run_id,
+        agent_name="researcher",
+        status=ExecutionStatusDb.FAILED,
+    )
+    db_session.commit()
+
+    detail = fetch_workflow_detail(db_session, workflow_run_id)
+    assert detail is not None
+    assert detail["status"] == "running"
+    assert detail["can_retry_failed_agents"] is False
+
+
 def test_prepare_retry_failed_agents_resets_gate_abort_lane_with_all_skipped_agents(
     db_session: Session,
 ) -> None:

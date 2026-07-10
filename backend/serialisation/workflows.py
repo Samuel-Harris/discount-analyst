@@ -99,6 +99,7 @@ def workflow_detail(
         status=WorkflowRunStatusApi(workflow_run_detail_record["status"]),
         is_mock=workflow_run_detail_record["is_mock"],
         error_message=workflow_run_detail_record["error_message"],
+        can_retry_failed_agents=workflow_run_detail_record["can_retry_failed_agents"],
         surveyor_execution=surveyor_summary,
         runs=runs,
     )

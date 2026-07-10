@@ -14,6 +14,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlmodel import Session, col
 
+from backend.contracts.agent_lane_order import LANE_AGENT_SLUGS
 from backend.crud.agent_output_persistence import (
     appraiser_output_from_report,
     persist_profiler_output,
@@ -129,8 +130,26 @@ def _lane_executions(executions: list[AgentExecution]) -> list[AgentExecution]:
     return [
         execution
         for execution in executions
-        if execution.agent_name in _AGENT_LANE_ORDER
+        if execution.agent_name.value in LANE_AGENT_SLUGS
     ]
+
+
+def workflow_can_retry_failed_agents(
+    *,
+    workflow_status: WorkflowRunStatusDb,
+    surveyor: WorkflowAgentExecution | None,
+    runs: list[Run],
+    executions_by_run_id: dict[str, list[AgentExecution]],
+) -> bool:
+    """Return whether a terminal workflow has failed surveyor or lane work to retry."""
+    if workflow_status.value not in _TERMINAL_RUN_STATUSES:
+        return False
+    if surveyor is not None and surveyor.status == ExecutionStatusDb.FAILED:
+        return True
+    return any(
+        _first_retry_lane_order(run, executions_by_run_id.get(run.id, [])) is not None
+        for run in runs
+    )
 
 
 def _first_retry_lane_order(run: Run, executions: list[AgentExecution]) -> int | None:

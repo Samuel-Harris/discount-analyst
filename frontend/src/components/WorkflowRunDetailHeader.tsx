@@ -1,7 +1,6 @@
 import type { WorkflowRunDetailResponse } from "../api";
 import type { WorkflowMainView } from "../hooks/useWorkflowRunNavigation";
 import { formatWhen } from "../utils/formatWhen";
-import { hasRetriableFailedAgents } from "../utils/workflowRetry";
 import { UiStateText } from "./UiStateText";
 
 export interface WorkflowRunDetailHeaderProps {
@@ -31,7 +30,7 @@ export function WorkflowRunDetailHeader({
     detail.status,
   );
   const canRetryFailedAgents =
-    isTerminalWorkflow && hasRetriableFailedAgents(detail);
+    isTerminalWorkflow && detail.can_retry_failed_agents;
 
   return (
     <div className="detail-header">

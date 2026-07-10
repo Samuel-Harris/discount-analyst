@@ -5,6 +5,7 @@ Surveyor-discovered lanes use ``SURVEYOR_ENTRY_AGENT_NAMES`` (no profiler execut
 
 The graph column order for profiler-entry lanes matches ``PROFILER_ENTRY_AGENT_NAMES``;
 the dashboard frontend mirrors these tuples in ``frontend/src/graph/agentLaneOrder.ts``.
+``LANE_AGENT_SLUGS`` is the superset used when filtering ticker-lane agent rows.
 ``tests/backend/unit/test_agent_lane_order_sync.py`` asserts both stay aligned.
 """
 
@@ -24,3 +25,6 @@ SURVEYOR_ENTRY_AGENT_NAMES: Final[tuple[str, ...]] = (
     "sentinel",
     "appraiser",
 )
+
+# Superset of surveyor-entry lane agents; profiler is absent on surveyor-entry runs.
+LANE_AGENT_SLUGS: Final[frozenset[str]] = frozenset(PROFILER_ENTRY_AGENT_NAMES)

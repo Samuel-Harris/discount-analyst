@@ -1,4 +1,7 @@
 from discount_analyst.agents.common_prompts.creed import INVESTING_CREED
+from discount_analyst.agents.common_prompts.financial_data_mcp import (
+    FINANCIAL_DATA_MCP_RULES,
+)
 from discount_analyst.agents.common_prompts.structured_output import (
     final_result_submit_section,
 )
@@ -36,10 +39,7 @@ You will be given a company ticker or name. Use available search, filing, MCP fi
 
 ### Step 1: Gather Current Market and Financial Facts
 
-For live market data, prefer FMP `company` → `profile-symbol` (price, currency, market cap) and
-`quote` → `batch-quote` when you need intraday quote detail. Do not call `quote-short` — it is
-not on the current data plan. For UK (`.L`) tickers, use EODHD fundamentals or real-time data when
-FMP is empty or denied.
+{FINANCIAL_DATA_MCP_RULES}
 
 Use the strongest available source for each fact:
 - Current share price, currency, market cap, and shares outstanding.

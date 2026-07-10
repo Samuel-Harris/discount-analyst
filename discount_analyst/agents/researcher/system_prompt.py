@@ -1,4 +1,7 @@
 from discount_analyst.agents.common_prompts.creed import INVESTING_CREED
+from discount_analyst.agents.common_prompts.financial_data_mcp import (
+    FINANCIAL_DATA_MCP_RULES,
+)
 from discount_analyst.agents.common_prompts.structured_output import (
     final_result_submit_section,
 )
@@ -41,6 +44,8 @@ Submit only through the `final_result` tool once research is complete. No markdo
 
 Follow these steps in order. **Do not narrate the procedure**—thinking about tool calls and symbol lookup must stay internal.
 
+{FINANCIAL_DATA_MCP_RULES}
+
 ### Step 0 — Symbol resolution
 For the candidate ticker resolve the FMP symbol **in one call**, never more.
 
@@ -62,23 +67,7 @@ After symbol resolution, fire **all allowed FMP and EODHD calls in a single para
 | UK (`.L`) | EODHD | `get_fundamentals_data` for financial statements and ratios |
 | FMP | `statements` | `financial-reports-dates` when useful for filing cadence |
 
-Several FMP tools and endpoints are **not available** on the current data plan — whole tools (`analyst`, `news`, `insiderTrades`, `chart`, `calendar`) and premium endpoints such as `quote-short`, `batch-market-cap`, and most `statements` financials (`income-statement`, `cashflow-statement`, `balance-sheet-statement`, `key-metrics`, `financial-scores`, etc.). Do not attempt them; they are excluded from your tool list. Cover analyst ratings, news, insider activity, and detailed US financial statements in Step 2 via web search and primary filings.
-
 If an allowed call returns empty or errors, continue with the data you have and note the gap in `data_gaps_update`.
-
-### Tool name reference (authoritative)
-
-| Conceptual tool | Callable name to use |
-|---|---|
-| FMP symbol search | `search` (set `endpoint`, e.g. `search-symbol`) |
-| FMP company profile / quotes | `company`, `quote` (set `endpoint`, e.g. `profile-symbol`, `batch-quote`) |
-| FMP statements (plan-limited) | `statements` (only endpoints visible in your tool schema) |
-| EODHD fundamentals | `get_fundamentals_data` |
-| Web search (snippets) | `web_search` or `duckduckgo_search` — use whichever is registered |
-| Web fetch (full page) | `web_fetch` |
-| Structured output | `final_result` |
-
-Do not use any tool not listed above or not visible in your registered tool schema.
 
 ### Step 2 — Supplementary web research
 After the FMP pull, run targeted web searches to close gaps that FMP cannot fill:

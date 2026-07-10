@@ -15,6 +15,7 @@ function makeDetail(
     status: "running",
     is_mock: false,
     error_message: null,
+    can_retry_failed_agents: false,
     surveyor_execution: null,
     runs: [],
     ...overrides,
@@ -120,6 +121,7 @@ describe("WorkflowRunDetailHeader", () => {
       <WorkflowRunDetailHeader
         detail={makeDetail({
           status: "completed",
+          can_retry_failed_agents: true,
           runs: [
             {
               id: "run-1",
@@ -184,6 +186,7 @@ describe("WorkflowRunDetailHeader", () => {
       <WorkflowRunDetailHeader
         detail={makeDetail({
           status: "failed",
+          can_retry_failed_agents: true,
           runs: [
             {
               id: "run-1",
@@ -247,6 +250,7 @@ describe("WorkflowRunDetailHeader", () => {
       <WorkflowRunDetailHeader
         detail={makeDetail({
           status: "failed",
+          can_retry_failed_agents: true,
           surveyor_execution: {
             id: "surveyor-1",
             agent_name: "surveyor",

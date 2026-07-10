@@ -17,6 +17,9 @@ export const SURVEYOR_ENTRY_AGENT_NAMES = [
   "appraiser",
 ] as const satisfies readonly AgentNameSlug[];
 
+/** Agent slugs that may appear on any ticker lane (profiler- or surveyor-entry). */
+export const LANE_AGENT_SLUGS = new Set<string>(PROFILER_ENTRY_AGENT_NAMES);
+
 /** Column / chain ordering for profiler-entry lanes in ``buildGraphLayout``. */
 export const GRAPH_LAYOUT_PROFILER_LANE_ORDER: readonly AgentNameSlug[] =
   PROFILER_ENTRY_AGENT_NAMES;

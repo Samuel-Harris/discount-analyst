@@ -73,6 +73,7 @@ function makeDetail(
     status: "running",
     is_mock: false,
     error_message: null,
+    can_retry_failed_agents: false,
     surveyor_execution: {
       id: "wfe-1",
       agent_name: "surveyor",
