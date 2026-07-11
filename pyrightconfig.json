@@ -16,5 +16,8 @@
   ],
   "typeCheckingMode": "strict",
   "pythonVersion": "3.14",
-  "reportUnknownVariableType": true
+  "reportUnknownVariableType": true,
+  "extraPaths": [
+    "backend/src"
+  ]
 }
