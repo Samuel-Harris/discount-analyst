@@ -21,7 +21,6 @@ from backend.contracts.agent_lane_order import SURVEYOR_ENTRY_AGENT_NAMES
 from backend.crud.db_utils import new_id, utc_now_iso
 from backend.crud.run_executions import (
     complete_agent_execution_with_conversation,
-    complete_workflow_agent_execution_with_conversation,
     get_agent_execution_id_by_run_and_agent,
     get_agent_execution_status_by_run_and_agent,
     get_candidate_for_run,
@@ -284,7 +283,7 @@ class DashboardPipelineRunner:
         messages_json: str | None = None,
     ) -> None:
         await self.db(
-            complete_workflow_agent_execution_with_conversation,
+            complete_agent_execution_with_conversation,
             execution_id=execution_id,
             conversation_id=new_id(),
             system_prompt=system_prompt,

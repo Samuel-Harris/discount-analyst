@@ -11,14 +11,12 @@ from sqlmodel import Session, select
 from backend.crud.db_utils import new_id, utc_now
 from backend.crud.run_executions import (
     apply_agent_execution_status,
-    apply_workflow_agent_execution_status,
     prepare_retry_failed_agents,
 )
 from backend.db.models import (
     AgentExecution,
     AgentNameDb,
     ExecutionStatusDb,
-    WorkflowAgentExecution,
     WorkflowRun,
     WorkflowRunStatusDb,
 )
@@ -86,23 +84,24 @@ def test_apply_agent_execution_status_sets_model_name(session: Session) -> None:
     assert refreshed.model_name == ModelName.GPT_5_1
 
 
-def test_apply_workflow_agent_execution_status_sets_model_name(
+def test_apply_workflow_scoped_agent_execution_status_sets_model_name(
     session: Session,
 ) -> None:
     workflow_run_id = new_id()
     execution_id = new_id()
     _insert_workflow_run(session, workflow_run_id=workflow_run_id)
     session.add(
-        WorkflowAgentExecution(
+        AgentExecution(
             id=execution_id,
             workflow_run_id=workflow_run_id,
+            run_id=None,
             agent_name=AgentNameDb.SURVEYOR,
             status=ExecutionStatusDb.PENDING,
         )
     )
     session.commit()
 
-    apply_workflow_agent_execution_status(
+    apply_agent_execution_status(
         session,
         execution_id=execution_id,
         status=ExecutionStatusDb.RUNNING.value,
@@ -110,7 +109,7 @@ def test_apply_workflow_agent_execution_status_sets_model_name(
     )
     session.commit()
 
-    refreshed = session.get(WorkflowAgentExecution, execution_id)
+    refreshed = session.get(AgentExecution, execution_id)
     assert refreshed is not None
     assert refreshed.model_name == ModelName.CLAUDE_OPUS_4_6
 
@@ -124,9 +123,10 @@ def test_retry_failed_agents_clears_model_name(session: Session) -> None:
     workflow.status = WorkflowRunStatusDb.FAILED
     session.add(workflow)
     session.add(
-        WorkflowAgentExecution(
+        AgentExecution(
             id=execution_id,
             workflow_run_id=workflow_run_id,
+            run_id=None,
             agent_name=AgentNameDb.SURVEYOR,
             status=ExecutionStatusDb.FAILED,
             model_name=ModelName.GPT_5_2,
@@ -137,7 +137,7 @@ def test_retry_failed_agents_clears_model_name(session: Session) -> None:
     prepare_retry_failed_agents(session, workflow_run_id)
     session.commit()
 
-    refreshed = session.get(WorkflowAgentExecution, execution_id)
+    refreshed = session.get(AgentExecution, execution_id)
     assert refreshed is not None
     assert refreshed.status == ExecutionStatusDb.PENDING
     assert refreshed.model_name is None

@@ -10,7 +10,7 @@ from backend.crud.run_executions import (
     get_workflow_candidate_snapshot_id,
     get_workflow_surveyor_execution_id,
     get_workflow_surveyor_execution_status,
-    update_workflow_agent_execution,
+    update_agent_execution,
 )
 from backend.db.models import AgentNameDb, ExecutionStatusDb
 from backend.dev import mock_conversation_messages, mock_outputs
@@ -102,7 +102,7 @@ class SurveyorStage:
                 is_mock=is_mock,
             )
             await host.db(
-                update_workflow_agent_execution,
+                update_agent_execution,
                 execution_id=surveyor_exec_id,
                 status="running",
                 started_at=utc_now_iso(),
@@ -153,7 +153,7 @@ class SurveyorStage:
                 error_message=error_msg,
             )
             await host.db(
-                update_workflow_agent_execution,
+                update_agent_execution,
                 execution_id=surveyor_exec_id,
                 status="failed",
                 error_message=error_msg,

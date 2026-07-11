@@ -104,9 +104,9 @@ Historical Docker Compose production data was migrated into `data/dashboard.prod
    ```
 
    Creates `conversation_digests/` with:
-   - **Workflow-scoped** conversations (`workflow_agent_executions`) — Surveyor uses ticker label `__workflow__` in filenames.
-   - **Per-ticker** conversations (`runs` → `agent_executions` → `agent_conversations`), ordered by agent and ticker.
-   - **`_MERGED_<AGENT>.md`** per agent present (e.g. `_MERGED_SURVEYOR.md`). Agent names in SQLite are **uppercase** (`SURVEYOR`, `PROFILER`, …).
+   - **Workflow-scoped** conversations (`agent_executions` with `workflow_run_id`) — Surveyor uses ticker label `__workflow__` in filenames.
+   - **Per-ticker** conversations (`runs` → lane-scoped `agent_executions` → `agent_conversations`), ordered by agent and ticker.
+   - **`_MERGED_<AGENT>.md`** per agent present (e.g. `_MERGED_SURVEYOR.md`). Agent names in SQLite are **lowercase** (`surveyor`, `profiler`, …); digest filenames may upper-case them.
 
    Confirm non-empty output (`ls conversation_digests/`). An empty directory means the workflow is missing from the supplied SQLite.
 
@@ -157,7 +157,7 @@ Write a **single self-contained HTML file** (no external CSS/JS/fonts). Requirem
 
 ## Codebase pointers
 
-- Models: [`backend/db/models.py`](../../../backend/db/models.py) — `WorkflowRun` (`started_at`, `status`), `Run` (`ticker`, `final_rating`, `decision_type`), `AgentConversation` (`workflow_agent_execution_id` XOR `agent_execution_id`), messages, parts.
+- Models: [`backend/db/models.py`](../../../backend/db/models.py) — `WorkflowRun` (`started_at`, `status`), `Run` (`ticker`, `final_rating`, `decision_type`), `AgentExecution` (XOR parent: `workflow_run_id` or `run_id`), `AgentConversation` (`agent_execution_id`), messages, parts.
 - Agent enum: `AgentNameDb` — six pipeline agents (no `ARBITER`; legacy `arbiter` rows were migrated in alembic `0004`).
 - Config default DB: `common/config.py` → `Settings.database_path` defaults to `data/dashboard.sqlite`; production analysis uses **`data/dashboard.prod.sqlite`**.
 - Export scripts: stdlib-only, live under `.cursor/skills/analyse-workflow-run/scripts/` (no repo imports).

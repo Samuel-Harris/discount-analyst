@@ -31,7 +31,6 @@ from backend.db.models import (
     EntryPathDb,
     ExecutionStatusDb,
     Run,
-    WorkflowAgentExecution,
     WorkflowRun,
     WorkflowRunPortfolioTicker,
     WorkflowRunStatusDb,
@@ -117,9 +116,9 @@ def recompute_workflow_status(session: Session, workflow_run_id: str) -> None:
         return
 
     surveyor = session.scalars(
-        select(WorkflowAgentExecution).where(
-            col(WorkflowAgentExecution.workflow_run_id) == workflow_run_id,
-            col(WorkflowAgentExecution.agent_name) == AgentNameDb.SURVEYOR,
+        select(AgentExecution).where(
+            col(AgentExecution.workflow_run_id) == workflow_run_id,
+            col(AgentExecution.agent_name) == AgentNameDb.SURVEYOR,
         )
     ).first()
     runs = list(
@@ -199,9 +198,10 @@ def insert_surveyor_workflow_execution(
     workflow_run_id: str,
 ) -> None:
     session.add(
-        WorkflowAgentExecution(
+        AgentExecution(
             id=execution_id,
             workflow_run_id=workflow_run_id,
+            run_id=None,
             agent_name=AgentNameDb.SURVEYOR,
             status=ExecutionStatusDb.PENDING,
             started_at=None,
@@ -290,9 +290,9 @@ def fetch_workflow_detail(
         return None
 
     se = session.scalars(
-        select(WorkflowAgentExecution).where(
-            col(WorkflowAgentExecution.workflow_run_id) == workflow_run_id,
-            col(WorkflowAgentExecution.agent_name) == AgentNameDb.SURVEYOR,
+        select(AgentExecution).where(
+            col(AgentExecution.workflow_run_id) == workflow_run_id,
+            col(AgentExecution.agent_name) == AgentNameDb.SURVEYOR,
         )
     ).first()
     surveyor_execution: SurveyorExecutionRow | None = None
@@ -428,14 +428,14 @@ def set_workflow_error(session: Session, workflow_run_id: str, message: str) -> 
 def _cancel_unfinished_child_rows(
     session: Session, workflow_run_id: str, *, completed_at: Any
 ) -> None:
-    workflow_executions = list(
+    workflow_scoped_executions = list(
         session.scalars(
-            select(WorkflowAgentExecution).where(
-                col(WorkflowAgentExecution.workflow_run_id) == workflow_run_id
+            select(AgentExecution).where(
+                col(AgentExecution.workflow_run_id) == workflow_run_id
             )
         )
     )
-    for execution in workflow_executions:
+    for execution in workflow_scoped_executions:
         if execution.status.value not in ACTIVE_EXECUTION_STATUSES:
             continue
         execution.status = ExecutionStatusDb.CANCELLED
@@ -452,14 +452,14 @@ def _cancel_unfinished_child_rows(
         run.completed_at = completed_at
         session.add(run)
 
-    agent_executions = list(
+    lane_executions = list(
         session.scalars(
             select(AgentExecution)
             .join(Run, col(AgentExecution.run_id) == col(Run.id))
             .where(col(Run.workflow_run_id) == workflow_run_id)
         )
     )
-    for execution in agent_executions:
+    for execution in lane_executions:
         if execution.status.value not in ACTIVE_EXECUTION_STATUSES:
             continue
         execution.status = ExecutionStatusDb.CANCELLED

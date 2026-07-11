@@ -116,10 +116,10 @@ def main() -> None:
 
     rows = con.execute(
         """
-        SELECT ac.id AS conv_id, wae.agent_name
+        SELECT ac.id AS conv_id, ae.agent_name
         FROM agent_conversations ac
-        JOIN workflow_agent_executions wae ON wae.id = ac.workflow_agent_execution_id
-        WHERE wae.workflow_run_id = ?
+        JOIN agent_executions ae ON ae.id = ac.agent_execution_id
+        WHERE ae.workflow_run_id = ?
         """,
         (workflow_id,),
     ).fetchall()

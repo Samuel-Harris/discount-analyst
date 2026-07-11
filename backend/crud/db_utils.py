@@ -7,7 +7,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from backend.db.models import ExecutionStatusDb
+from backend.db.models import AgentExecution, ExecutionStatusDb
 
 TERMINAL_EXECUTION_STATUSES = frozenset(
     {
@@ -42,3 +42,13 @@ def dump_json_string(value: Any) -> str:
     if isinstance(value, str):
         return value
     return json.dumps(value, separators=(",", ":"), ensure_ascii=False)
+
+
+def require_lane_run_id(execution: AgentExecution) -> str:
+    """Return the lane ``run_id``, asserting the execution is not workflow-scoped."""
+    run_id = execution.run_id
+    if run_id is None:
+        raise ValueError(
+            f"AgentExecution {execution.id!r} is workflow-scoped; expected lane run_id"
+        )
+    return run_id

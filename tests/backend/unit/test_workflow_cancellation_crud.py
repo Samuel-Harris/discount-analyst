@@ -9,7 +9,6 @@ from backend.crud.run_executions import (
     insert_ticker_run_with_agents,
     update_agent_execution,
     update_ticker_run_completion,
-    update_workflow_agent_execution,
 )
 from backend.crud.workflow_runs import (
     cancel_workflow_run,
@@ -20,7 +19,7 @@ from backend.crud.workflow_runs import (
     set_workflow_error,
 )
 from backend.crud.db_utils import new_id, utc_now_iso
-from backend.db.models import AgentExecution, Run, WorkflowAgentExecution
+from backend.db.models import AgentExecution, Run
 
 
 def _insert_workflow_fixture(session: Session) -> tuple[str, str, str]:
@@ -62,7 +61,7 @@ def test_cancel_workflow_run_preserves_terminal_children(db_session: Session) ->
     )
     assert profiler_execution_id is not None
 
-    update_workflow_agent_execution(
+    update_agent_execution(
         db_session,
         execution_id=surveyor_execution_id,
         status="completed",
@@ -139,7 +138,7 @@ def test_recompute_workflow_status_keeps_running_with_failed_and_running_runs(
         is_mock=True,
         agent_names=("researcher",),
     )
-    update_workflow_agent_execution(
+    update_agent_execution(
         db_session,
         execution_id=surveyor_execution_id,
         status="completed",
@@ -183,7 +182,7 @@ def test_recompute_workflow_status_fails_after_all_runs_terminal_with_failure(
         is_mock=True,
         agent_names=("researcher",),
     )
-    update_workflow_agent_execution(
+    update_agent_execution(
         db_session,
         execution_id=surveyor_execution_id,
         status="completed",
@@ -226,15 +225,15 @@ def test_cancel_workflow_run_marks_active_rows_cancelled(db_session: Session) ->
 
     assert cancel_workflow_run(db_session, workflow_run_id) is True
 
-    workflow_exec_statuses = {
+    workflow_execution_statuses = {
         row.status.value
         for row in db_session.scalars(
-            select(WorkflowAgentExecution).where(
-                col(WorkflowAgentExecution.workflow_run_id) == workflow_run_id
+            select(AgentExecution).where(
+                col(AgentExecution.workflow_run_id) == workflow_run_id
             )
         )
     }
-    run_exec_statuses = {
+    lane_execution_statuses = {
         row.status.value
         for row in db_session.scalars(
             select(AgentExecution)
@@ -242,5 +241,5 @@ def test_cancel_workflow_run_marks_active_rows_cancelled(db_session: Session) ->
             .where(col(Run.workflow_run_id) == workflow_run_id)
         )
     }
-    assert workflow_exec_statuses == {"cancelled"}
-    assert run_exec_statuses == {"cancelled"}
+    assert workflow_execution_statuses == {"cancelled"}
+    assert lane_execution_statuses == {"cancelled"}

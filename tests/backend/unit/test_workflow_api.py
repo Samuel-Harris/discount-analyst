@@ -25,7 +25,6 @@ from backend.db.models import (
     AgentExecution,
     ExecutionStatusDb,
     Run,
-    WorkflowAgentExecution,
     WorkflowRun,
     WorkflowRunStatusDb,
 )
@@ -201,7 +200,7 @@ def _insert_retryable_workflow(app: FastAPI) -> tuple[str, str]:
             agent_names=PROFILER_ENTRY_AGENT_NAMES,
         )
         workflow = session.get(WorkflowRun, workflow_run_id)
-        surveyor = session.get(WorkflowAgentExecution, surveyor_execution_id)
+        surveyor = session.get(AgentExecution, surveyor_execution_id)
         run = session.get(Run, run_id)
         assert workflow is not None
         assert surveyor is not None

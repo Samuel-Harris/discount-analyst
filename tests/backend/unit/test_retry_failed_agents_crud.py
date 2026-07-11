@@ -30,7 +30,6 @@ from backend.db.models import (
     AgentNameDb,
     ExecutionStatusDb,
     Run,
-    WorkflowAgentExecution,
     WorkflowRun,
     WorkflowRunStatusDb,
 )
@@ -121,7 +120,7 @@ def test_prepare_retry_failed_agents_resets_failed_surveyor_and_lane(
         _insert_workflow_with_profiler_lane(db_session)
     )
     workflow = db_session.get(WorkflowRun, workflow_run_id)
-    surveyor = db_session.get(WorkflowAgentExecution, surveyor_execution_id)
+    surveyor = db_session.get(AgentExecution, surveyor_execution_id)
     run = db_session.get(Run, run_id)
     assert workflow is not None
     assert surveyor is not None
@@ -189,7 +188,7 @@ def test_fetch_workflow_detail_can_retry_for_failed_surveyor_and_lane(
         _insert_workflow_with_profiler_lane(db_session)
     )
     workflow = db_session.get(WorkflowRun, workflow_run_id)
-    surveyor = db_session.get(WorkflowAgentExecution, surveyor_execution_id)
+    surveyor = db_session.get(AgentExecution, surveyor_execution_id)
     run = db_session.get(Run, run_id)
     assert workflow is not None
     assert surveyor is not None
@@ -398,7 +397,7 @@ def test_prepare_retry_failed_agents_resets_cancelled_children_after_surveyor_fa
         _insert_workflow_with_profiler_lane(db_session)
     )
     workflow = db_session.get(WorkflowRun, workflow_run_id)
-    surveyor = db_session.get(WorkflowAgentExecution, surveyor_execution_id)
+    surveyor = db_session.get(AgentExecution, surveyor_execution_id)
     run = db_session.get(Run, run_id)
     assert workflow is not None
     assert surveyor is not None

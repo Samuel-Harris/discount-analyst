@@ -100,30 +100,6 @@ class WorkflowRunPortfolioTicker(SQLModel, table=True):
     ticker: str
 
 
-class WorkflowAgentExecution(SQLModel, table=True):
-    __tablename__ = "workflow_agent_executions"  # pyright: ignore[reportAssignmentType]
-    __table_args__ = (UniqueConstraint("workflow_run_id", "agent_name"),)
-
-    id: str = Field(primary_key=True)
-    workflow_run_id: str = Field(foreign_key="workflow_runs.id", index=True)
-    agent_name: AgentNameDb
-    status: ExecutionStatusDb = Field(default=ExecutionStatusDb.PENDING)
-    started_at: datetime | None = None
-    completed_at: datetime | None = None
-    error_message: str | None = None
-    model_name: ModelName | None = Field(
-        default=None,
-        sa_column=Column(
-            SAEnum(
-                ModelName,
-                native_enum=False,
-                values_callable=_str_enum_sql_values,
-            ),
-            nullable=True,
-        ),
-    )
-
-
 class Run(SQLModel, table=True):
     __tablename__ = "runs"  # pyright: ignore[reportAssignmentType]
 
@@ -151,10 +127,20 @@ class Run(SQLModel, table=True):
 
 class AgentExecution(SQLModel, table=True):
     __tablename__ = "agent_executions"  # pyright: ignore[reportAssignmentType]
-    __table_args__ = (UniqueConstraint("run_id", "agent_name"),)
+    __table_args__ = (
+        CheckConstraint(
+            "(workflow_run_id IS NOT NULL) <> (run_id IS NOT NULL)",
+            name="agent_execution_parent_xor",
+        ),
+        UniqueConstraint("workflow_run_id", "agent_name"),
+        UniqueConstraint("run_id", "agent_name"),
+    )
 
     id: str = Field(primary_key=True)
-    run_id: str = Field(foreign_key="runs.id", index=True)
+    workflow_run_id: str | None = Field(
+        default=None, foreign_key="workflow_runs.id", index=True
+    )
+    run_id: str | None = Field(default=None, foreign_key="runs.id", index=True)
     agent_name: AgentNameDb
     status: ExecutionStatusDb = Field(default=ExecutionStatusDb.PENDING)
     started_at: datetime | None = None
@@ -175,25 +161,10 @@ class AgentExecution(SQLModel, table=True):
 
 class CandidateSnapshot(SQLModel, table=True):
     __tablename__ = "candidate_snapshots"  # pyright: ignore[reportAssignmentType]
-    __table_args__ = (
-        CheckConstraint(
-            "(workflow_agent_execution_id IS NOT NULL) <> (agent_execution_id IS NOT NULL)"
-        ),
-        UniqueConstraint("workflow_agent_execution_id", "sort_order"),
-        UniqueConstraint("agent_execution_id"),
-    )
+    __table_args__ = (UniqueConstraint("agent_execution_id", "sort_order"),)
 
     id: str = Field(primary_key=True)
-    workflow_agent_execution_id: str | None = Field(
-        default=None,
-        foreign_key="workflow_agent_executions.id",
-        index=True,
-    )
-    agent_execution_id: str | None = Field(
-        default=None,
-        foreign_key="agent_executions.id",
-        index=True,
-    )
+    agent_execution_id: str = Field(foreign_key="agent_executions.id", index=True)
     sort_order: int
     ticker: str
     company_name: str
@@ -588,25 +559,10 @@ class RunFinalDecisionMitigatingFactor(SQLModel, table=True):
 
 class AgentConversation(SQLModel, table=True):
     __tablename__ = "agent_conversations"  # pyright: ignore[reportAssignmentType]
-    __table_args__ = (
-        CheckConstraint(
-            "(workflow_agent_execution_id IS NOT NULL) <> (agent_execution_id IS NOT NULL)"
-        ),
-        UniqueConstraint("workflow_agent_execution_id"),
-        UniqueConstraint("agent_execution_id"),
-    )
+    __table_args__ = (UniqueConstraint("agent_execution_id"),)
 
     id: str = Field(primary_key=True)
-    workflow_agent_execution_id: str | None = Field(
-        default=None,
-        foreign_key="workflow_agent_executions.id",
-        index=True,
-    )
-    agent_execution_id: str | None = Field(
-        default=None,
-        foreign_key="agent_executions.id",
-        index=True,
-    )
+    agent_execution_id: str = Field(foreign_key="agent_executions.id", index=True)
     system_prompt: str
 
 
