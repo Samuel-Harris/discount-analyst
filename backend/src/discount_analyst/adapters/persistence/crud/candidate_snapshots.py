@@ -1,0 +1,103 @@
+"""Map between Surveyor candidate payloads and persisted CandidateSnapshot rows."""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from sqlmodel import Session
+
+from discount_analyst.adapters.persistence.crud.db_utils import new_id, utc_now
+from discount_analyst.adapters.persistence.models import (
+    CandidateGateDataSourceDb,
+    CandidateGateStatusDb,
+    CandidateSnapshot,
+)
+from discount_analyst.agents.surveyor.schema import (
+    Currency,
+    Exchange,
+    KeyMetrics,
+    SurveyorCandidate,
+)
+from discount_analyst.application.candidates.gate_results import CandidateGateResult
+
+
+def candidate_to_snapshot(
+    *,
+    candidate: SurveyorCandidate,
+    sort_order: int,
+    agent_execution_id: str,
+) -> CandidateSnapshot:
+    return CandidateSnapshot(
+        id=new_id(),
+        agent_execution_id=agent_execution_id,
+        sort_order=sort_order,
+        ticker=candidate.ticker,
+        company_name=candidate.company_name,
+        exchange=candidate.exchange.value,
+        currency=candidate.currency.value,
+        market_cap_local=candidate.market_cap_local,
+        market_cap_display=candidate.market_cap_display,
+        sector=candidate.sector,
+        industry=candidate.industry,
+        analyst_coverage_count=candidate.analyst_coverage_count,
+        trailing_pe=candidate.key_metrics.trailing_pe,
+        ev_ebit=candidate.key_metrics.ev_ebit,
+        price_to_book=candidate.key_metrics.price_to_book,
+        revenue_growth_3y_cagr_pct=candidate.key_metrics.revenue_growth_3y_cagr_pct,
+        free_cash_flow_yield_pct=candidate.key_metrics.free_cash_flow_yield_pct,
+        net_debt_to_ebitda=candidate.key_metrics.net_debt_to_ebitda,
+        piotroski_f_score=candidate.key_metrics.piotroski_f_score,
+        altman_z_score=candidate.key_metrics.altman_z_score,
+        insider_buying_last_6m=candidate.key_metrics.insider_buying_last_6m,
+        rationale=candidate.rationale,
+        red_flags=candidate.red_flags,
+        data_gaps=candidate.data_gaps,
+    )
+
+
+def snapshot_to_candidate(snapshot: CandidateSnapshot) -> SurveyorCandidate:
+    return SurveyorCandidate(
+        ticker=snapshot.ticker,
+        company_name=snapshot.company_name,
+        exchange=Exchange(snapshot.exchange),
+        currency=Currency(snapshot.currency),
+        market_cap_local=snapshot.market_cap_local,
+        market_cap_display=snapshot.market_cap_display,
+        sector=snapshot.sector,
+        industry=snapshot.industry,
+        analyst_coverage_count=snapshot.analyst_coverage_count,
+        key_metrics=KeyMetrics(
+            trailing_pe=snapshot.trailing_pe,
+            ev_ebit=snapshot.ev_ebit,
+            price_to_book=snapshot.price_to_book,
+            revenue_growth_3y_cagr_pct=snapshot.revenue_growth_3y_cagr_pct,
+            free_cash_flow_yield_pct=snapshot.free_cash_flow_yield_pct,
+            net_debt_to_ebitda=snapshot.net_debt_to_ebitda,
+            piotroski_f_score=snapshot.piotroski_f_score,
+            altman_z_score=snapshot.altman_z_score,
+            insider_buying_last_6m=snapshot.insider_buying_last_6m,
+        ),
+        rationale=snapshot.rationale,
+        red_flags=snapshot.red_flags,
+        data_gaps=snapshot.data_gaps,
+    )
+
+
+def update_candidate_snapshot_gate_results(
+    session: Session,
+    *,
+    snapshot_id: str,
+    gate_result: CandidateGateResult,
+    probed_at: datetime | None = None,
+) -> None:
+    snapshot = session.get(CandidateSnapshot, snapshot_id)
+    if snapshot is None:
+        return
+    snapshot.resolved_ticker = gate_result.resolved_ticker
+    snapshot.resolution_notes = gate_result.resolution_notes
+    snapshot.gate_status = CandidateGateStatusDb(gate_result.gate_status)
+    snapshot.gate_failure_reason = getattr(gate_result, "gate_failure_reason", None)
+    snapshot.is_actively_trading = gate_result.is_actively_trading
+    snapshot.gate_probed_at = probed_at or utc_now()
+    snapshot.gate_data_source = CandidateGateDataSourceDb(gate_result.data_source)
+    session.add(snapshot)

@@ -1,0 +1,30 @@
+# Tach: external dependency accuracy vs pyproject.toml
+# (module layers remain enforced by import-linter — do not duplicate those here)
+
+exclude = [
+  "**/*__pycache__",
+  ".venv/**",
+  "backend/src/discount_analyst/notebooks/**",
+  "backend/tests/**",
+  "backend/tools/**",
+  "frontend/**",
+]
+
+# Importable roots for each package that owns a pyproject.toml.
+source_roots = [
+  "backend/src",
+  "backend/services/agent_terminal",
+]
+
+exact = true
+ignore_type_checking_imports = true
+
+[external]
+# Import root `pydantic_ai` is provided by the `pydantic-ai-slim` distribution.
+rename = [
+  "pydantic_ai:pydantic-ai-slim",
+]
+
+[rules]
+# Fail on both undeclared imports and unused declared deps.
+unused_external_dependencies = "error"

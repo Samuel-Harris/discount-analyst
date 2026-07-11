@@ -5,6 +5,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
 
 const frontendDir = path.dirname(fileURLToPath(import.meta.url));
+const srcDir = path.resolve(frontendDir, "src");
 
 function normaliseDeployEnv(raw: string | undefined): "DEV" | "PROD" {
   const v = (raw ?? "DEV").trim().toUpperCase();
@@ -31,6 +32,11 @@ export default defineConfig(({ mode }) => {
       __VITE_API_PREFIX__: JSON.stringify(apiPrefix),
     },
     plugins: [react()],
+    resolve: {
+      alias: {
+        "@": srcDir,
+      },
+    },
     server: {
       port: 5173,
       proxy: {

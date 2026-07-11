@@ -18,33 +18,36 @@ dependencies = [
     "pydantic-settings (>=2.12.0,<3.0.0)",
     "perplexityai (>=0.22.0,<0.23.0)",
     "aiolimiter (>=1.2.1,<2.0.0)",
-    "pydantic-ai>=1.106.0",
-    "pydantic-ai-slim[duckduckgo,web-fetch,mcp]>=1.106.0",
+    "pydantic-ai-slim[duckduckgo,web-fetch,mcp,anthropic,openai,google,logfire]>=1.106.0",
     "logfire (>=4.16.0,<5.0.0)",
-    "markdownify (>=1.2.2,<2.0.0)",
     "markitdown[pdf,docx] (>=0.1.6,<0.2.0)",
     "httpx (>=0.28.1,<0.29.0)",
+    "tenacity (>=9.0.0,<10.0.0)",
+    "ddgs (>=9.0.0,<10.0.0)",
     "rich (>=14.2.0,<15.0.0)",
     "openai>=2.9.0",
     "google-genai>=1.53.0",
     "anthropic>=0.80.0,<1.0.0",
+    "fastapi (>=0.115.0,<1.0.0)",
+    "uvicorn[standard] (>=0.30.0,<1.0.0)",
 ]
 
 [build-system]
 requires = ["uv_build>=0.9.18,<0.10.0"]
 build-backend = "uv_build"
 
+[project.scripts]
+discount-analyst = "discount_analyst.composition.cli:main"
+
 [tool.uv.build-backend]
 module-name = "discount_analyst"
-module-root = ""
+module-root = "backend/src"
 
 [dependency-groups]
 dev = [
     "pytest (>=8.4.2,<9.0.0)",
     "pytest-asyncio (>=0.25.0,<1.0.0)",
     "pytest-cov (>=7.0.0,<8.0.0)",
-    "fastapi (>=0.115.0,<1.0.0)",
-    "uvicorn[standard] (>=0.30.0,<1.0.0)",
     "ruff (>=0.14.2,<0.15.0)",
     "pre-commit (>=4.3.0,<5.0.0)",
     "pandas-stubs (>=2.3.2.250926,<3.0.0.0)",
@@ -54,6 +57,8 @@ dev = [
     "opentelemetry-instrumentation-fastapi>=0.49b0",
     "docker>=7.1.0",
     "types-docker>=7.1.0.20260518",
+    "import-linter>=2.1",
+    "tach>=0.35.0",
 ]
 
 [tool.uv]
@@ -62,11 +67,109 @@ exclude-newer = "1 week"
 [tool.pyrefly]
 python-version = "3.14.0"
 project-includes = [
-    "common/",
-    "discount_analyst/",
-    "backend/",
-    "scripts/",
-    "tests/",
+    "backend/src/",
+    "backend/tools/",
+    "backend/services/",
+    "backend/tests/",
 ]
 infer-with-first-use = false
 untyped-def-behavior = "check-and-infer-return-type"
+
+[tool.importlinter]
+root_packages = ["discount_analyst"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Coarse package direction"
+type = "layers"
+containers = ["discount_analyst"]
+layers = [
+  "composition",
+  "entrypoints",
+  "adapters",
+  "application",
+  "agents",
+  "config",
+  "domain",
+]
+exhaustive = true
+exhaustive_ignores = ["notebooks"]
+
+[[tool.importlinter.contracts]]
+name = "Domain imports nothing outward"
+type = "forbidden"
+source_modules = ["discount_analyst.domain"]
+forbidden_modules = [
+  "discount_analyst.application",
+  "discount_analyst.agents",
+  "discount_analyst.adapters",
+  "discount_analyst.entrypoints",
+  "discount_analyst.composition",
+  "discount_analyst.config",
+  "fastapi", "sqlmodel", "sqlalchemy", "httpx", "pydantic_ai", "yfinance",
+]
+
+[[tool.importlinter.contracts]]
+name = "Domain is only imported by allowed layers"
+type = "protected"
+protected_modules = ["discount_analyst.domain"]
+allowed_importers = [
+  "discount_analyst.application",
+  "discount_analyst.agents",
+  "discount_analyst.adapters",
+  "discount_analyst.config",
+  "discount_analyst.entrypoints",
+  "discount_analyst.composition",
+]
+
+[[tool.importlinter.contracts]]
+name = "Application does not import adapters or entrypoints"
+type = "forbidden"
+source_modules = ["discount_analyst.application"]
+forbidden_modules = [
+  "discount_analyst.adapters",
+  "discount_analyst.entrypoints",
+  "discount_analyst.composition",
+  "fastapi", "sqlmodel", "sqlalchemy",
+]
+
+[[tool.importlinter.contracts]]
+name = "Application is only imported by entrypoints and adapters"
+type = "protected"
+protected_modules = ["discount_analyst.application"]
+allowed_importers = [
+  "discount_analyst.entrypoints",
+  "discount_analyst.adapters",
+  "discount_analyst.composition",
+]
+
+[[tool.importlinter.contracts]]
+name = "API and CLI are independent"
+type = "independence"
+modules = [
+  "discount_analyst.entrypoints.api",
+  "discount_analyst.entrypoints.cli",
+]
+
+[[tool.importlinter.contracts]]
+name = "Adapter families are independent"
+type = "independence"
+modules = [
+  "discount_analyst.adapters.persistence",
+  "discount_analyst.adapters.market_data",
+  "discount_analyst.adapters.simulation",
+]
+
+[[tool.importlinter.contracts]]
+name = "Agent stages follow dependency direction"
+type = "layers"
+containers = ["discount_analyst.agents"]
+layers = [
+  "appraiser",
+  "sentinel",
+  "strategist",
+  "researcher | profiler",
+  "surveyor",
+]
+exhaustive = true
+exhaustive_ignores = ["runtime", "common_prompts", "tools"]

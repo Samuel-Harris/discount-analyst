@@ -16,3 +16,17 @@ repos:
       - id: ruff-check
         args: [--fix, --exit-non-zero-on-fix]
       - id: ruff-format
+  - repo: local
+    hooks:
+      - id: import-linter
+        name: import-linter
+        entry: uv run lint-imports
+        language: system
+        pass_filenames: false
+        types: [python]
+      - id: tach-check-external
+        name: tach check-external
+        entry: uv run tach check-external
+        language: system
+        pass_filenames: false
+        types: [python]

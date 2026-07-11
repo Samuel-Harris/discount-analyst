@@ -1,0 +1,530 @@
+"""Run the Appraiser agent from Sentinel run output JSON selectors."""
+
+import argparse
+import asyncio
+import time
+from collections import Counter
+from dataclasses import dataclass
+from pathlib import Path
+from typing import NamedTuple
+
+from pydantic import BaseModel, ValidationError
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+
+from discount_analyst.agents.appraiser.appraiser import create_appraiser_agent
+from discount_analyst.agents.appraiser.schema import AppraiserInput, AppraiserOutput
+from discount_analyst.agents.appraiser.user_prompt import create_user_prompt
+from discount_analyst.config.ai_models_config import AIModelsConfig
+from discount_analyst.domain.model_selection.model_name import ModelName
+from discount_analyst.agents.runtime.agent_names import AgentName
+from discount_analyst.agents.runtime.streamed_agent_run import run_streamed_agent
+from discount_analyst.agents.runtime.terminal_run import TerminalRunOptions
+from discount_analyst.agents.surveyor.schema import SurveyorLaneContext
+
+from discount_analyst.application.workflows.appraiser_run_context import (
+    AppraiserRunContext,
+)
+
+from discount_analyst.entrypoints.cli.shared.cli import (
+    DEFAULT_AGENT_CLI_DEFAULTS,
+    add_agent_cli_model_argument,
+    add_agent_cli_web_search_arguments,
+    add_agent_terminal_argument,
+    terminal_run_options_for_cli,
+)
+from discount_analyst.entrypoints.cli.shared.artefacts import write_agent_json
+from discount_analyst.entrypoints.cli.shared.run_outputs import (
+    AppraiserRunOutput,
+    ResearcherRunOutput,
+    SentinelRunOutput,
+    StrategistRunOutput,
+    SurveyorRunOutput,
+    TurnUsage,
+)
+from discount_analyst.entrypoints.cli.shared.selectors import (
+    Selector,
+    parse_report_selector,
+)
+from discount_analyst.entrypoints.cli.shared.usage import extract_turn_usage
+from discount_analyst.adapters.observability.script_setup import setup_logfire
+
+setup_logfire()
+
+console = Console()
+
+
+class AppraiserTarget(NamedTuple):
+    sentinel_report_path: Path
+    sentinel_run: SentinelRunOutput
+    appraiser_input: AppraiserInput
+
+
+@dataclass
+class SharedArgs:
+    risk_free_rate_pct: float
+    model: ModelName
+    use_perplexity: bool
+    use_mcp_financial_data: bool
+    terminal: TerminalRunOptions
+
+
+class AppraiserCliArgs(BaseModel):
+    model: ModelName
+    selectors: list[Selector]
+    risk_free_rate_pct: float
+    use_perplexity: bool
+    use_mcp_financial_data: bool
+    use_terminal: bool
+
+
+@dataclass
+class AgentRunResult:
+    output: AppraiserOutput
+    elapsed_s: float
+    input_tokens: int
+    output_tokens: int
+    cache_write_tokens: int
+    cache_read_tokens: int
+    tool_calls: int
+    turn_usage: list[TurnUsage]
+
+
+def parse_args() -> AppraiserCliArgs:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run Appraiser agent for one or more Sentinel run output JSON files."
+        )
+    )
+    parser.add_argument(
+        "--sentinel-report-and-ticker",
+        action="append",
+        required=True,
+        dest="selectors",
+        metavar="SELECTOR",
+        help=(
+            "Sentinel artefact selector (repeatable): either "
+            "'<sentinel_run_output.json>' for that run "
+            "or '<sentinel_run_output.json>:<TICKER>' to require a ticker match."
+        ),
+    )
+    parser.add_argument(
+        "--risk-free-rate",
+        type=float,
+        required=True,
+        dest="risk_free_rate_pct",
+        help="Risk-free rate as a percentage (e.g. 4.5 means 4.5%%).",
+    )
+    add_agent_cli_model_argument(parser)
+    add_agent_cli_web_search_arguments(parser)
+    parser.add_argument(
+        "--no-mcp",
+        action="store_true",
+        help=(
+            "Do not register EODHD/FMP MCP toolsets (required for Google models; "
+            "optional for Anthropic/OpenAI)."
+        ),
+    )
+    add_agent_terminal_argument(parser)
+
+    raw = parser.parse_args()
+
+    if not (1 <= raw.risk_free_rate_pct <= 15):
+        parser.error(
+            f"--risk-free-rate must be a percentage between 1 and 15 (e.g. 4.5 for 4.5%%). "
+            f"Got {raw.risk_free_rate_pct}."
+        )
+
+    selectors = [
+        parse_report_selector(
+            value,
+            parser,
+            flag_name="--sentinel-report-and-ticker",
+            artefact_label="Sentinel",
+        )
+        for value in raw.selectors
+    ]
+    return AppraiserCliArgs(
+        model=raw.model,
+        selectors=selectors,
+        risk_free_rate_pct=raw.risk_free_rate_pct,
+        use_perplexity=raw.use_perplexity,
+        use_mcp_financial_data=not raw.no_mcp,
+        use_terminal=not raw.no_terminal,
+    )
+
+
+def _load_sentinel_run_output(path: Path) -> SentinelRunOutput:
+    try:
+        return SentinelRunOutput.model_validate_json(path.read_text())
+    except ValidationError as exc:
+        raise ValueError(
+            f"Invalid Sentinel run output JSON shape at {path}: {exc}"
+        ) from exc
+
+
+def _load_surveyor_run_output(path: Path) -> SurveyorRunOutput:
+    try:
+        return SurveyorRunOutput.model_validate_json(path.read_text())
+    except ValidationError as exc:
+        raise ValueError(
+            f"Invalid Surveyor run output JSON shape at {path}: {exc}"
+        ) from exc
+
+
+def _load_researcher_run_output(path: Path) -> ResearcherRunOutput:
+    try:
+        return ResearcherRunOutput.model_validate_json(path.read_text())
+    except ValidationError as exc:
+        raise ValueError(
+            f"Invalid Researcher run output JSON shape at {path}: {exc}"
+        ) from exc
+
+
+def _load_strategist_run_output(path: Path) -> StrategistRunOutput:
+    try:
+        return StrategistRunOutput.model_validate_json(path.read_text())
+    except ValidationError as exc:
+        raise ValueError(
+            f"Invalid Strategist run output JSON shape at {path}: {exc}"
+        ) from exc
+
+
+def _resolve_target(
+    selector: Selector, *, risk_free_rate_pct: float
+) -> AppraiserTarget:
+    sent = _load_sentinel_run_output(selector.report_path)
+    if selector.ticker is not None:
+        ticker_folded = selector.ticker.casefold()
+        if sent.ticker.casefold() != ticker_folded:
+            raise ValueError(
+                f"Ticker '{selector.ticker}' does not match Sentinel artefact "
+                f"{selector.report_path} (ticker={sent.ticker})."
+            )
+
+    surveyor_path = Path(sent.source_surveyor_report).expanduser().resolve()
+    researcher_path = Path(sent.source_researcher_report).expanduser().resolve()
+    strategist_path = Path(sent.source_strategist_report).expanduser().resolve()
+    for label, p in (
+        ("Surveyor", surveyor_path),
+        ("Researcher", researcher_path),
+        ("Strategist", strategist_path),
+    ):
+        if not p.is_file():
+            raise ValueError(
+                f"Sentinel artefact {selector.report_path} references "
+                f"{label} report that is not a file: {p}"
+            )
+
+    surveyor = _load_surveyor_run_output(surveyor_path)
+    idx = sent.source_candidate_index
+    if idx < 0 or idx >= len(surveyor.output.candidates):
+        raise ValueError(
+            f"Sentinel artefact {selector.report_path} references "
+            f"candidate_index={idx} but Surveyor report has "
+            f"{len(surveyor.output.candidates)} candidates ({surveyor_path})."
+        )
+    surveyor_candidate = surveyor.output.candidates[idx]
+
+    researcher = _load_researcher_run_output(researcher_path)
+    strategist = _load_strategist_run_output(strategist_path)
+
+    appraiser_input = AppraiserInput(
+        lane_context=surveyor_candidate.to_lane_context(),
+        deep_research=researcher.output,
+        thesis=strategist.output,
+        evaluation=sent.output,
+        risk_free_rate_pct=risk_free_rate_pct,
+    )
+
+    return AppraiserTarget(
+        sentinel_report_path=selector.report_path,
+        sentinel_run=sent,
+        appraiser_input=appraiser_input,
+    )
+
+
+def resolve_targets(
+    selectors: list[Selector], *, risk_free_rate_pct: float
+) -> list[AppraiserTarget]:
+    return [
+        _resolve_target(s, risk_free_rate_pct=risk_free_rate_pct) for s in selectors
+    ]
+
+
+def _build_suffixes(targets: list[AppraiserTarget]) -> list[str]:
+    ticker_counts = Counter(t.sentinel_run.ticker.casefold() for t in targets)
+    ticker_seen: Counter[str] = Counter()
+    suffixes: list[str] = []
+
+    for target in targets:
+        folded = target.sentinel_run.ticker.casefold()
+        ticker_seen[folded] += 1
+        if ticker_counts[folded] > 1:
+            suffixes.append(
+                f"{target.sentinel_run.ticker.upper()}-{ticker_seen[folded]}"
+            )
+        else:
+            suffixes.append(target.sentinel_run.ticker.upper())
+    return suffixes
+
+
+def _appraiser_run_context(
+    lane_context: SurveyorLaneContext, shared: SharedArgs
+) -> AppraiserRunContext:
+    return AppraiserRunContext(
+        lane_context=lane_context,
+        risk_free_rate_pct=shared.risk_free_rate_pct,
+        model=shared.model,
+    )
+
+
+async def run_agent(
+    args: AppraiserRunContext,
+    appraiser_input: AppraiserInput,
+    *,
+    use_perplexity: bool = DEFAULT_AGENT_CLI_DEFAULTS.use_perplexity,
+    use_mcp_financial_data: bool = True,
+    terminal: TerminalRunOptions,
+) -> AgentRunResult:
+    """Run the Appraiser agent and return output with usage stats."""
+    ai_models_config = AIModelsConfig(model_name=args.model)
+    agent = create_appraiser_agent(
+        ai_models_config,
+        use_perplexity=use_perplexity,
+        use_mcp_financial_data=use_mcp_financial_data,
+        terminal=terminal,
+    )
+    user_prompt = create_user_prompt(appraiser_input=appraiser_input)
+
+    start = time.perf_counter()
+    outcome = await run_streamed_agent(
+        agent=agent,
+        user_prompt=user_prompt,
+        usage_limits=ai_models_config.model.usage_limits,
+        on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
+        terminal=terminal,
+    )
+    agent_output = outcome.output
+    usage = outcome.usage
+    turn_usage = extract_turn_usage(outcome.all_messages)
+
+    for turn in turn_usage:
+        console.log(
+            f"Turn {turn.turn} usage: in={turn.input_tokens} "
+            f"out={turn.output_tokens} total={turn.total_tokens} "
+            f"(cum_in={turn.cumulative_input_tokens} "
+            f"cum_out={turn.cumulative_output_tokens})"
+        )
+    elapsed_s = time.perf_counter() - start
+
+    return AgentRunResult(
+        output=agent_output,
+        elapsed_s=elapsed_s,
+        input_tokens=usage.input_tokens,
+        output_tokens=usage.output_tokens,
+        cache_write_tokens=getattr(usage, "cache_write_tokens", 0),
+        cache_read_tokens=getattr(usage, "cache_read_tokens", 0),
+        tool_calls=getattr(usage, "tool_calls", 0),
+        turn_usage=turn_usage,
+    )
+
+
+def build_distribution_table(output: AppraiserOutput) -> Table:
+    """Build a Rich table from the agent's intrinsic-value distribution."""
+    distribution = output.valuation_distribution
+    table = Table(
+        title=f"{output.company_name} ({output.ticker}) - Valuation Distribution",
+        show_header=True,
+        header_style="bold magenta",
+    )
+    table.add_column("Metric", style="cyan", no_wrap=True)
+    table.add_column("Value", style="green", justify="right")
+    table.add_column("Notes")
+    table.add_row(
+        "Current Share Price",
+        f"{distribution.current_share_price:.2f} {distribution.currency}",
+        "Market reference",
+    )
+    table.add_row(
+        "Expected Intrinsic Value",
+        f"{distribution.expected_intrinsic_value:.2f} {distribution.currency}",
+        "Deterministic policy anchor",
+    )
+    table.add_row(
+        "P10 / P25",
+        f"{distribution.p10_intrinsic_value:.2f} / "
+        f"{distribution.p25_intrinsic_value:.2f}",
+        "Downside range",
+    )
+    table.add_row(
+        "P50",
+        f"{distribution.p50_intrinsic_value:.2f} {distribution.currency}",
+        "Median / central case",
+    )
+    table.add_row(
+        "P75 / P90",
+        f"{distribution.p75_intrinsic_value:.2f} / "
+        f"{distribution.p90_intrinsic_value:.2f}",
+        "Upside range",
+    )
+    table.add_row(
+        "Distribution Method",
+        distribution.distribution_method,
+        distribution.distribution_reasoning,
+    )
+    return table
+
+
+def build_methods_table(output: AppraiserOutput) -> Table:
+    """Build a Rich table from method evidence summaries."""
+    table = Table(
+        title="Valuation Methods",
+        show_header=True,
+        header_style="bold yellow",
+    )
+    table.add_column("Method", style="cyan")
+    table.add_column("Role", style="yellow")
+    table.add_column("Value/share", justify="right")
+    table.add_column("Range", justify="right")
+    table.add_column("Weight", justify="right")
+    for method in output.methods:
+        value = (
+            "" if method.value_per_share is None else f"{method.value_per_share:.2f}"
+        )
+        value_range = (
+            ""
+            if method.low_value_per_share is None or method.high_value_per_share is None
+            else f"{method.low_value_per_share:.2f}-{method.high_value_per_share:.2f}"
+        )
+        weight = "" if method.weight_pct is None else f"{method.weight_pct:.1f}%"
+        table.add_row(method.method.value, method.role, value, value_range, weight)
+    return table
+
+
+def display_agent_output(output: AppraiserOutput) -> None:
+    """Print the Appraiser agent output section."""
+    distribution_table = build_distribution_table(output)
+    methods_table = build_methods_table(output)
+    summary_panel = Panel.fit(
+        output.summary,
+        title="Appraiser Summary",
+        border_style="blue",
+        padding=(1, 2),
+    )
+    console.print("\n")
+    console.print(
+        Panel.fit(
+            "[bold green]APPRAISER AGENT OUTPUT[/bold green]",
+            border_style="green",
+            padding=(1, 2),
+        )
+    )
+    console.print(distribution_table)
+    console.print(methods_table)
+    console.print(summary_panel)
+
+
+def save_run_output(
+    args: AppraiserRunContext,
+    agent_output: AppraiserOutput,
+    agent_result: AgentRunResult,
+    *,
+    source_surveyor_report: str,
+    source_candidate_index: int,
+    source_researcher_report: str,
+    source_strategist_report: str,
+    source_sentinel_report: str,
+    filename_suffix: str | None = None,
+) -> Path:
+    """Build ``AppraiserRunOutput``, write JSON via ``write_agent_json``, return path."""
+    suffix = filename_suffix or args.lane_context.ticker.upper()
+    run_output = AppraiserRunOutput(
+        ticker=args.lane_context.ticker,
+        model_name=args.model.value,
+        risk_free_rate_pct=args.risk_free_rate_pct,
+        appraiser=agent_output,
+        elapsed_s=agent_result.elapsed_s,
+        input_tokens=agent_result.input_tokens,
+        output_tokens=agent_result.output_tokens,
+        cache_write_tokens=agent_result.cache_write_tokens,
+        cache_read_tokens=agent_result.cache_read_tokens,
+        tool_calls=agent_result.tool_calls,
+        turn_usage=agent_result.turn_usage,
+        source_surveyor_report=source_surveyor_report,
+        source_candidate_index=source_candidate_index,
+        source_researcher_report=source_researcher_report,
+        source_strategist_report=source_strategist_report,
+        source_sentinel_report=source_sentinel_report,
+    )
+    return write_agent_json(
+        payload=run_output,
+        model_name=args.model,
+        agent_name=AgentName.APPRAISER,
+        filename_suffix=suffix,
+    )
+
+
+async def main() -> None:
+    cli = parse_args()
+    shared = SharedArgs(
+        risk_free_rate_pct=cli.risk_free_rate_pct,
+        model=cli.model,
+        use_perplexity=cli.use_perplexity,
+        use_mcp_financial_data=cli.use_mcp_financial_data,
+        terminal=terminal_run_options_for_cli(
+            no_terminal=not cli.use_terminal
+        ).bind_session_id(),
+    )
+    targets = resolve_targets(cli.selectors, risk_free_rate_pct=cli.risk_free_rate_pct)
+    if not targets:
+        raise SystemExit("No Sentinel artefacts selected to run Appraiser.")
+
+    suffixes = _build_suffixes(targets)
+
+    for i, target in enumerate(targets):
+        if i > 0:
+            console.print("\n[bold]─── Next target ───[/bold]\n")
+
+        sent = target.sentinel_run
+        if suffixes[i] != sent.ticker.upper():
+            console.print(
+                f"[yellow]Duplicate ticker '{sent.ticker}' detected; "
+                f"using output suffix '{suffixes[i]}'.[/yellow]"
+            )
+
+        candidate = target.appraiser_input.lane_context
+        run_context = _appraiser_run_context(candidate, shared)
+
+        console.log(
+            f"Initializing Appraiser Agent for {candidate.ticker} "
+            f"(source={target.sentinel_report_path}, using {shared.model} model)..."
+        )
+        console.log("Running agent...")
+        agent_result = await run_agent(
+            run_context,
+            target.appraiser_input,
+            use_perplexity=shared.use_perplexity,
+            use_mcp_financial_data=shared.use_mcp_financial_data,
+            terminal=shared.terminal,
+        )
+
+        display_agent_output(agent_result.output)
+
+        out_path = save_run_output(
+            run_context,
+            agent_result.output,
+            agent_result,
+            source_surveyor_report=sent.source_surveyor_report,
+            source_candidate_index=sent.source_candidate_index,
+            source_researcher_report=sent.source_researcher_report,
+            source_strategist_report=sent.source_strategist_report,
+            source_sentinel_report=str(target.sentinel_report_path.resolve()),
+            filename_suffix=suffixes[i],
+        )
+        console.print(f"\nSaved [dim]{out_path}[/dim]")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

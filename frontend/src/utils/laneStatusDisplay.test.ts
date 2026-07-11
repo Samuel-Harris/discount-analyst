@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { TickerRunDetail } from "../api";
+import type { TickerRunDetail } from "@/api";
 import { laneStatusDisplay } from "./laneStatusDisplay";
 
 function run(overrides: Partial<TickerRunDetail>): TickerRunDetail {

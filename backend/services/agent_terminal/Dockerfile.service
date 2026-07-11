@@ -1,0 +1,25 @@
+# Orchestrator: creates gVisor-backed sandbox containers and runs docker exec.
+# Requires the sandbox image (build separately):
+#   docker build -f backend/services/agent_terminal/Dockerfile.sandbox -t discount-analyst-terminal-sandbox:local .
+FROM python:3.14.5-slim-trixie
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+# Apply Debian security updates for OS packages in the slim base (glibc, openssl, etc.).
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY backend/services/agent_terminal/requirements-service.txt /tmp/requirements-service.txt
+RUN pip install --upgrade pip \
+    && pip install -r /tmp/requirements-service.txt \
+    && rm /tmp/requirements-service.txt
+
+COPY backend/services/agent_terminal/app ./app
+
+EXPOSE 8001
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]

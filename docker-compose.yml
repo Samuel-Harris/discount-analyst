@@ -8,7 +8,7 @@ services:
   agent-terminal:
     build:
       context: .
-      dockerfile: docker/agent-terminal/Dockerfile.service
+      dockerfile: backend/services/agent_terminal/Dockerfile.service
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:

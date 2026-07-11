@@ -12,7 +12,7 @@ The tool supports a five-stage pipeline: Surveyor, Researcher, Strategist, Senti
 Run the Surveyor agent to screen for promising small-cap stocks across UK and US markets:
 
 ```bash
-uv run python scripts/agents/run_surveyor.py
+uv run discount-analyst agent surveyor
 ```
 
 The agent uses AI-powered web research to surface a ranked list of candidates with market caps, exchange listings, and a rationale for each.
@@ -23,14 +23,14 @@ The **Researcher** agent takes each `SurveyorCandidate` (value vs growth is part
 Run the full chain (Surveyor → Researcher → Strategist) in one go:
 
 ```bash
-uv run python scripts/workflows/run_surveyor_researcher_strategist.py
+uv run discount-analyst workflow run
 ```
 
 Or run agents separately after Surveyor, using selectors of the form `path/to/surveyor.json` (all candidates) or `path/to/surveyor.json:TICKER` (one ticker):
 
 ```bash
-uv run python scripts/agents/run_researcher.py --surveyor-report-and-ticker <selector>
-uv run python scripts/agents/run_strategist.py --researcher-report-and-ticker <selector>
+uv run discount-analyst agent researcher --surveyor-report-and-ticker <selector>
+uv run discount-analyst agent strategist --researcher-report-and-ticker <selector>
 ```
 
 You can still narrow scope by passing a single-ticker selector instead of treating “shortlist” and “categorise” as separate manual stages.
@@ -39,12 +39,12 @@ You can still narrow scope by passing a single-ticker selector instead of treati
 Pass names that are ready for valuation to the Appraiser agent for a method-agnostic intrinsic-value distribution:
 
 ```bash
-uv run python scripts/agents/run_appraiser.py \
-  --sentinel-report-and-ticker scripts/outputs/<sentinel-run>.json \
+uv run discount-analyst agent appraiser \
+  --sentinel-report-and-ticker backend/outputs/<sentinel-run>.json \
   --risk-free-rate <RATE>
 ```
 
-Use the Sentinel artefact written under `scripts/outputs/` after `run_sentinel.py` (or the full pipeline). The script follows the same `path.json` / `path.json:TICKER` selector pattern as Sentinel; it loads Surveyor, Researcher, and Strategist JSON paths from fields inside the Sentinel run record.
+Use the Sentinel artefact written under `backend/outputs/` after `run_sentinel.py` (or the full pipeline). The script follows the same `path.json` / `path.json:TICKER` selector pattern as Sentinel; it loads Surveyor, Researcher, and Strategist JSON paths from fields inside the Sentinel run record.
 
 **4. Evaluate — AI buy recommendation**
 Use an AI model (Claude, Gemini, or ChatGPT) to evaluate whether to buy each stock based on the research report, Strategist thesis, Sentinel review, and Appraiser valuation output.
@@ -57,14 +57,14 @@ Review the Appraiser distributions across all analysed stocks. Buy the stocks wi
 1. [Install uv](https://docs.astral.sh/uv/getting-started/installation/) if needed
 2. Configure environment variables for the agents you run (see [Environment variables](#environment-variables))
 3. Install dependencies: `uv sync`
-4. Run the Surveyor to find candidates: `uv run python scripts/agents/run_surveyor.py`, or run survey → research → strategy in one command: `uv run python scripts/workflows/run_surveyor_researcher_strategist.py`
-5. After Researcher/Strategist/Sentinel (step 2 above — or `scripts/workflows/run_full_workflow.py` for the full gated pipeline through deterministic rating and verdicts JSON), run Appraiser valuation: `uv run python scripts/agents/run_appraiser.py --sentinel-report-and-ticker scripts/outputs/<sentinel>.json --risk-free-rate <percentage e.g. 4.5>`
+4. Run the Surveyor to find candidates: `uv run discount-analyst agent surveyor`, or run survey → research → strategy in one command: `uv run discount-analyst workflow run`
+5. After Researcher/Strategist/Sentinel (step 2 above — or `scripts/workflows/run_full_workflow.py` for the full gated pipeline through deterministic rating and verdicts JSON), run Appraiser valuation: `uv run discount-analyst agent appraiser --sentinel-report-and-ticker backend/outputs/<sentinel>.json --risk-free-rate <percentage e.g. 4.5>`
 
 ## Environment variables
 
 ### Application settings (pipeline + dashboard)
 
-All configuration lives in a single [`common/config.py`](common/config.py) model (`Settings`, `load_settings`, module-level `settings`). Values load from **`discount_analyst/.env`**, then the **repository root** `.env` if it exists (later keys override earlier ones). The FastAPI app and agents import from `common.config`.
+All configuration lives in a single [`discount_analyst.config.settings`](backend/src/discount_analyst/config/settings.py) model (`Settings`, `load_settings`, module-level `settings`). Values load from **`backend/src/discount_analyst/.env`**, then the **repository root** `.env` if it exists (later keys override earlier ones). The FastAPI app and agents import from `discount_analyst.config.settings`.
 
 Nested groups use double underscores, for example `PERPLEXITY__API_KEY`, `LOGGING__LOGFIRE_API_KEY`, `EODHD__DISABLED`.
 
@@ -94,16 +94,16 @@ When `--perplexity` is not set, agents use Pydantic AI's `WebSearch` and `WebFet
 
 ### Frontend (Vite)
 
-| Variable                | Default                 | Purpose                                                                                           |
-| ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------- |
-| `VITE_API_PREFIX`       | `/api`                  | Prefix for browser `fetch` calls (see [`frontend/src/api/client.ts`](frontend/src/api/client.ts)) |
-| `VITE_DEV_PROXY_TARGET` | `http://127.0.0.1:8000` | Vite dev/preview proxy target for `/api` (host API on **8000**)                                   |
+| Variable                | Default                 | Purpose                                                                                                         |
+| ----------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `VITE_API_PREFIX`       | `/api`                  | Prefix for browser `fetch` calls (see [`frontend/src/api/orval-mutator.ts`](frontend/src/api/orval-mutator.ts)) |
+| `VITE_DEV_PROXY_TARGET` | `http://127.0.0.1:8000` | Vite dev/preview proxy target for `/api` (host API on **8000**)                                                 |
 
 ## Local dashboard (API and UI)
 
 The dashboard is a **local-only** FastAPI app under [`backend/`](backend/) plus a Vite + React UI under [`frontend/`](frontend/). With a workflow run open, use **Recommendations** for a full-width sortable verdict table; the URL can include `?run=<workflow_run_id>&view=recommendations` for deep links.
 
-Logfire is configured with **FastAPI**, **PydanticAI**, and **HTTPX** instrumentation ([`backend/observability/logging.py`](backend/observability/logging.py)), so inbound `/api` requests and outbound model/MCP HTTP traffic emit spans with standard HTTP attributes (including response status when present), consistent with the CLI setup in [`scripts/utils/setup_logfire.py`](scripts/utils/setup_logfire.py).
+Logfire is configured with **FastAPI**, **PydanticAI**, and **HTTPX** instrumentation ([`adapters/observability/logging.py`](backend/src/discount_analyst/adapters/observability/logging.py)), so inbound `/api` requests and outbound model/MCP HTTP traffic emit spans with standard HTTP attributes (including response status when present), consistent with the CLI setup in [`agents/runtime` logging / `script_setup`](backend/src/discount_analyst/adapters/observability/script_setup.py).
 
 ### Install
 
@@ -116,16 +116,16 @@ cd frontend && pnpm install --frozen-lockfile && cd ..
 
 Migrations run **automatically** when the API starts: `create_app` calls `migrate_to_head` with your configured SQLite URL ([`backend/app/main.py`](backend/app/main.py), [`backend/db/migrate.py`](backend/db/migrate.py)).
 
-To run Alembic manually against the same revision bundle, set `sqlalchemy.url` in [`backend/db/alembic.ini`](backend/db/alembic.ini) (or override via Alembic’s `-x` mechanism) so it points at your database file, then from the repository root:
+To run Alembic manually against the same revision bundle, set `sqlalchemy.url` in [`backend/migrations/alembic.ini`](backend/migrations/alembic.ini) (or override via Alembic’s `-x` mechanism) so it points at your database file, then from the repository root:
 
 ```bash
-uv run alembic -c backend/db/alembic.ini upgrade head
+uv run alembic -c backend/migrations/alembic.ini upgrade head
 ```
 
 After changing ORM models in [`backend/db/models.py`](backend/db/models.py), autogenerate a revision, review it manually, then verify metadata matches the migration head:
 
 ```bash
-uv run python scripts/check_alembic_schema.py
+uv run python backend/tools/check_alembic_schema.py
 ```
 
 ### Seeding mock workflow data
@@ -154,7 +154,7 @@ print('Seeded', settings.database_path)
 Terminal 1 — API (reload optional):
 
 ```bash
-uv run uvicorn backend.app.main:create_app --factory --reload --host 127.0.0.1 --port 8000
+uv run uvicorn discount_analyst.composition.api:create_app --factory --reload --host 127.0.0.1 --port 8000
 ```
 
 Terminal 2 — UI:
@@ -181,7 +181,7 @@ uv run pyright
 cd frontend && pnpm test
 ```
 
-Continuous integration runs `uv run pre-commit run --all-files`, `uv run pytest` (with coverage for `discount_analyst/` and `backend/`), `uv run pyright`, a Node job that runs `pnpm run build` and `pnpm test` in `frontend/`, and a job that regenerates the dashboard OpenAPI spec and Orval client then fails on `git diff` drift (see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
+Continuous integration runs `uv run pre-commit run --all-files`, `uv run pytest` (with coverage for `discount_analyst/` and `backend/`), `uv run pyright`, a Node job that runs `pnpm lint`, `pnpm run build`, and `pnpm test` in `frontend/`, and a job that regenerates the dashboard OpenAPI spec and Orval client then fails on `git diff` drift (see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
 
 ## Docker Compose
 
@@ -213,7 +213,7 @@ The terminal listens on **<http://127.0.0.1:8001>**.
 | API (`ENV=PROD`, production uvicorn) | Host — background task `dashboard:api-prod`                 | **8000** |
 | Terminal                             | Docker — `agent-terminal`                                   | **8001** |
 
-Launch **Dashboard: PROD stack** from [`.vscode/launch.json`](.vscode/launch.json). The `preLaunchTask` `dashboard:prod-stack-prep` (see [`.vscode/tasks.json`](.vscode/tasks.json)) starts terminal + alembic + API + `pnpm build` with `ENV=PROD` and `DASHBOARD_DATABASE_PATH=data/dashboard.prod.sqlite`, then opens preview. The DEV debug compound uses `DASHBOARD_DATABASE_PATH=data/dashboard.dev.sqlite`; the application default remains **`data/dashboard.sqlite`** on the host ([`common/config.py`](common/config.py)) for direct commands that do not override it. Add a repository root `.env` with at least **`LOGGING__LOGFIRE_API_KEY`** and other keys required by settings.
+Launch **Dashboard: PROD stack** from [`.vscode/launch.json`](.vscode/launch.json). The `preLaunchTask` `dashboard:prod-stack-prep` (see [`.vscode/tasks.json`](.vscode/tasks.json)) starts terminal + alembic + API + `pnpm build` with `ENV=PROD` and `DASHBOARD_DATABASE_PATH=data/dashboard.prod.sqlite`, then opens preview. The DEV debug compound uses `DASHBOARD_DATABASE_PATH=data/dashboard.dev.sqlite`; the application default remains **`data/dashboard.sqlite`** on the host ([`discount_analyst.config.settings`](backend/src/discount_analyst/config/settings.py)) for direct commands that do not override it. Add a repository root `.env` with at least **`LOGGING__LOGFIRE_API_KEY`** and other keys required by settings.
 
 For **DEV** debugging (reload, debugpy, Vite dev server), use **Dashboard: API + Frontend** on **5173** / **8000** instead.
 
