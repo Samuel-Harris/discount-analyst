@@ -16,6 +16,7 @@ from backend.crud.run_executions import (
     RetryWorkflowRunNotTerminalError,
     get_agent_execution_id_by_run_and_agent,
     insert_ticker_run_with_agents,
+    mark_lane_abort,
     prepare_retry_failed_agents,
 )
 from backend.crud.workflow_runs import (
@@ -226,6 +227,7 @@ def test_fetch_workflow_detail_can_retry_for_gate_abort_lane(
     workflow.completed_at = utc_now()
     run.status = WorkflowRunStatusDb.FAILED
     run.completed_at = utc_now()
+    run.lane_aborted = True
     for agent_name in SURVEYOR_ENTRY_AGENT_NAMES:
         _set_agent_status(
             db_session,
@@ -238,6 +240,36 @@ def test_fetch_workflow_detail_can_retry_for_gate_abort_lane(
     detail = fetch_workflow_detail(db_session, workflow_run_id)
     assert detail is not None
     assert detail["can_retry_failed_agents"] is True
+
+
+def test_fetch_workflow_detail_can_retry_false_for_all_skipped_without_lane_abort(
+    db_session: Session,
+) -> None:
+    workflow_run_id, _surveyor_execution_id, run_id = (
+        _insert_workflow_with_surveyor_lane(db_session)
+    )
+    workflow = db_session.get(WorkflowRun, workflow_run_id)
+    run = db_session.get(Run, run_id)
+    assert workflow is not None
+    assert run is not None
+
+    workflow.status = WorkflowRunStatusDb.FAILED
+    workflow.completed_at = utc_now()
+    run.status = WorkflowRunStatusDb.FAILED
+    run.completed_at = utc_now()
+    run.lane_aborted = False
+    for agent_name in SURVEYOR_ENTRY_AGENT_NAMES:
+        _set_agent_status(
+            db_session,
+            run_id=run_id,
+            agent_name=agent_name,
+            status=ExecutionStatusDb.SKIPPED,
+        )
+    db_session.commit()
+
+    detail = fetch_workflow_detail(db_session, workflow_run_id)
+    assert detail is not None
+    assert detail["can_retry_failed_agents"] is False
 
 
 def test_fetch_workflow_detail_can_retry_false_for_running_workflow(
@@ -273,6 +305,7 @@ def test_prepare_retry_failed_agents_resets_gate_abort_lane_with_all_skipped_age
     workflow.completed_at = utc_now()
     run.status = WorkflowRunStatusDb.FAILED
     run.completed_at = utc_now()
+    run.lane_aborted = True
     run.error_message = (
         "Client error '429 Too Many Requests' for url "
         "'https://financialmodelingprep.com/stable/profile?symbol=NATR'"
@@ -300,6 +333,7 @@ def test_prepare_retry_failed_agents_resets_gate_abort_lane_with_all_skipped_age
     refreshed_run = db_session.get(Run, run_id)
     assert refreshed_run is not None
     assert refreshed_run.error_message is None
+    assert refreshed_run.lane_aborted is False
     statuses = {row["agent_name"]: row["status"] for row in lane["agent_executions"]}
     assert statuses == {
         "researcher": "pending",
@@ -393,6 +427,31 @@ def test_prepare_retry_failed_agents_resets_cancelled_children_after_surveyor_fa
     lane = detail["runs"][0]
     assert lane["status"] == "running"
     assert {row["status"] for row in lane["agent_executions"]} == {"pending"}
+
+
+def test_mark_lane_abort_sets_lane_aborted_and_skips_pending_agents(
+    db_session: Session,
+) -> None:
+    _workflow_run_id, _surveyor_execution_id, run_id = (
+        _insert_workflow_with_surveyor_lane(db_session)
+    )
+    mark_lane_abort(
+        db_session,
+        run_id=run_id,
+        error_message="Client error '429 Too Many Requests'",
+    )
+    db_session.commit()
+
+    run = db_session.get(Run, run_id)
+    assert run is not None
+    assert run.lane_aborted is True
+    statuses = {
+        execution.agent_name.value: execution.status
+        for execution in db_session.scalars(
+            select(AgentExecution).where(col(AgentExecution.run_id) == run_id)
+        )
+    }
+    assert set(statuses.values()) == {ExecutionStatusDb.SKIPPED}
 
 
 def test_prepare_retry_failed_agents_missing_workflow(db_session: Session) -> None:

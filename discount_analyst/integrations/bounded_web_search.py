@@ -3,40 +3,17 @@
 from __future__ import annotations
 
 import asyncio
-import functools
 import random
 import time
 from dataclasses import KW_ONLY, dataclass
-from typing import Any, Protocol, cast
+from typing import Any
 
-import anyio.to_thread
-from pydantic import TypeAdapter
+from ddgs.ddgs import DDGS
+from pydantic_ai.common_tools.duckduckgo import DuckDuckGoResult, DuckDuckGoSearchTool
 from pydantic_ai.tools import Tool
-from typing_extensions import TypedDict
 
 from discount_analyst.agents.common.ai_logging import AI_LOGFIRE
 
-try:
-    from ddgs.ddgs import DDGS as _DDGS
-except ImportError as _import_error:
-    raise ImportError(
-        "Please install `ddgs` to use the bounded DuckDuckGo search tool."
-    ) from _import_error
-
-
-class DuckDuckGoClient(Protocol):
-    def text(self, query: str, *, max_results: int | None = None) -> object: ...
-
-
-class DuckDuckGoResult(TypedDict):
-    """A DuckDuckGo search result."""
-
-    title: str
-    href: str
-    body: str
-
-
-_DUCKDUCKGO_RESULT_ADAPTER = TypeAdapter(list[DuckDuckGoResult])
 _DDGS_SEARCH_SEMAPHORE = asyncio.Semaphore(1)
 _TRANSIENT_ERROR_MESSAGES = (
     "timed out",
@@ -59,7 +36,6 @@ _TRANSIENT_ERROR_TYPES = (
     "TransportError",
     "ConnectionError",
 )
-_DDGS_CLIENT_CLASS = cast("type[DuckDuckGoClient]", _DDGS)
 
 
 def _search_unavailable_result(
@@ -104,12 +80,10 @@ def _failure_category(error: Exception) -> str:
 
 
 @dataclass
-class BoundedDuckDuckGoSearchTool:
+class BoundedDuckDuckGoSearchTool(DuckDuckGoSearchTool):
     """DuckDuckGo search with global concurrency and retry bounds."""
 
-    client: DuckDuckGoClient
     _: KW_ONLY
-    max_results: int | None = None
     max_attempts: int = 3
     base_delay_s: float = 1.0
     max_delay_s: float = 8.0
@@ -132,7 +106,7 @@ class BoundedDuckDuckGoSearchTool:
                     attempt=attempt,
                     max_attempts=self.max_attempts,
                 )
-                results = await self._search_once(query)
+                results = await super().__call__(query)
                 AI_LOGFIRE.info(
                     "DuckDuckGo search attempt succeeded",
                     query=query,
@@ -174,11 +148,6 @@ class BoundedDuckDuckGoSearchTool:
             query=query, failure_category=failure_category
         )
 
-    async def _search_once(self, query: str) -> list[DuckDuckGoResult]:
-        search = functools.partial(self.client.text, max_results=self.max_results)
-        results = await anyio.to_thread.run_sync(search, query)
-        return _DUCKDUCKGO_RESULT_ADAPTER.validate_python(results)
-
     def _delay_for_attempt(self, attempt: int) -> float:
         delay = min(self.max_delay_s, self.base_delay_s * (2 ** (attempt - 1)))
         if self.jitter_s <= 0:
@@ -188,7 +157,7 @@ class BoundedDuckDuckGoSearchTool:
 
 def create_bounded_duckduckgo_search_tool(
     *,
-    duckduckgo_client: DuckDuckGoClient | None = None,
+    duckduckgo_client: DDGS | None = None,
     max_results: int | None = None,
     max_attempts: int = 3,
     base_delay_s: float = 1.0,
@@ -198,7 +167,7 @@ def create_bounded_duckduckgo_search_tool(
     """Create a bounded DuckDuckGo local search tool for Pydantic AI."""
     return Tool[Any](
         BoundedDuckDuckGoSearchTool(
-            client=duckduckgo_client or _DDGS_CLIENT_CLASS(),
+            client=duckduckgo_client or DDGS(),
             max_results=max_results,
             max_attempts=max_attempts,
             base_delay_s=base_delay_s,

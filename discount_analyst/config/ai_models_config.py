@@ -17,8 +17,9 @@ from pydantic_ai.models.openai import (
     OpenAIResponsesModelSettings,
 )
 
+_MAX_TOOL_CALLS = 60
 _MAX_TOKENS = 30_000
-_USAGE_LIMITS = UsageLimits()
+_USAGE_LIMITS = UsageLimits(tool_calls_limit=_MAX_TOOL_CALLS)
 _MAX_THINKING_BUDGET_TOKENS = 16_000
 _OPENAI_COMPACTION_THRESHOLD_TOKENS = 200_000
 

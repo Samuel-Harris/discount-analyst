@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-04-05 | Updated: 2026-07-06 -->
+<!-- Generated: 2026-04-05 | Updated: 2026-07-11 -->
 
 # integrations
 
@@ -61,7 +61,7 @@ No EODHD MCP tool calls appeared in Logfire over the same window (no HTTP to `mc
 
 | File                         | Description                                                                                                                                                              |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `bounded_web_search.py`      | Bounded DuckDuckGo local search tool with one-at-a-time DDGS calls, retries, fallback result, and Logfire telemetry.                                                     |
+| `bounded_web_search.py`      | Subclasses pydantic-ai `DuckDuckGoSearchTool` with one-at-a-time DDGS calls, retries, soft-failure fallback, and Logfire telemetry.                                      |
 | `perplexity.py`              | `create_perplexity_toolset(AgentName)` for web/SEC search.                                                                                                               |
 | `financial_data_mcp.py`      | `create_financial_data_mcp_servers()` (EODHD + FMP URLs; EODHD omitted if `EODHD__DISABLED`); wraps each `MCPToolset` with `BlacklistedMcpToolset`.                      |
 | `mcp_tool_blacklist.py`      | `McpBlacklistPolicy`, `FMP_BLACKLIST` / `EODHD_BLACKLIST`, policy lookup, endpoint schema narrowing, and call-time block checks for plan-gated FMP endpoints.            |

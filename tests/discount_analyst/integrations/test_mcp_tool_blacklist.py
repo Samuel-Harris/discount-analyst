@@ -77,6 +77,28 @@ def test_narrow_endpoint_json_schema_removes_blocked_endpoint_enum_values() -> N
     ]
 
 
+def test_narrow_endpoint_json_schema_strips_any_of_endpoint_enums() -> None:
+    schema: dict[str, Any] = {
+        "type": "object",
+        "properties": {
+            "endpoint": {
+                "anyOf": [
+                    {"type": "string", "enum": ["profile-symbol", "batch-market-cap"]},
+                    {"type": "null"},
+                ]
+            }
+        },
+    }
+
+    narrowed_schema = narrow_endpoint_json_schema(
+        schema, frozenset({"batch-market-cap"})
+    )
+
+    assert narrowed_schema["properties"]["endpoint"]["anyOf"][0]["enum"] == [
+        "profile-symbol"
+    ]
+
+
 def test_block_message_with_and_without_endpoint() -> None:
     assert "financial-scores" in block_message("statements", "financial-scores")
     assert "not offered" in block_message("analyst", None).lower()

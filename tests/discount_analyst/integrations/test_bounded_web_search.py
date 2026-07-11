@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 
+import anyio.to_thread
 import pytest
 from pydantic_ai.tools import Tool
 
@@ -50,6 +51,25 @@ def reset_search_semaphore(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(module, "_DDGS_SEARCH_SEMAPHORE", asyncio.Semaphore(1))
 
 
+def _bounded_tool(
+    client: FakeDuckDuckGoClient,
+    *,
+    max_results: int | None = None,
+    max_attempts: int = 3,
+    base_delay_s: float = 1.0,
+    max_delay_s: float = 8.0,
+    jitter_s: float = 0.5,
+) -> BoundedDuckDuckGoSearchTool:
+    return BoundedDuckDuckGoSearchTool(
+        client=client,  # type: ignore[arg-type]
+        max_results=max_results,
+        max_attempts=max_attempts,
+        base_delay_s=base_delay_s,
+        max_delay_s=max_delay_s,
+        jitter_s=jitter_s,
+    )
+
+
 async def test_bounded_search_returns_validated_results() -> None:
     client = FakeDuckDuckGoClient(
         responses=[
@@ -62,7 +82,7 @@ async def test_bounded_search_returns_validated_results() -> None:
             ]
         ]
     )
-    tool = BoundedDuckDuckGoSearchTool(client=client, max_results=5)
+    tool = _bounded_tool(client, max_results=5)
 
     results = await tool("example query")
 
@@ -91,8 +111,8 @@ async def test_concurrent_searches_execute_sequentially(
         active_calls -= 1
         return result
 
-    monkeypatch.setattr(module.anyio.to_thread, "run_sync", fake_run_sync)
-    tool = BoundedDuckDuckGoSearchTool(client=FakeDuckDuckGoClient())
+    monkeypatch.setattr(anyio.to_thread, "run_sync", fake_run_sync)
+    tool = _bounded_tool(FakeDuckDuckGoClient())
 
     await asyncio.gather(tool("first query"), tool("second query"))
 
@@ -120,8 +140,8 @@ async def test_transient_failures_retry_then_succeed(
             ]
         ],
     )
-    tool = BoundedDuckDuckGoSearchTool(
-        client=client,
+    tool = _bounded_tool(
+        client,
         max_attempts=2,
         base_delay_s=0.1,
         jitter_s=0,
@@ -147,8 +167,8 @@ async def test_final_transient_failure_returns_unavailable_result(
             TimeoutError("timed out"),
         ]
     )
-    tool = BoundedDuckDuckGoSearchTool(
-        client=client,
+    tool = _bounded_tool(
+        client,
         max_attempts=2,
         base_delay_s=0,
         jitter_s=0,
@@ -171,7 +191,7 @@ async def test_final_transient_failure_returns_unavailable_result(
 
 async def test_non_transient_failures_raise() -> None:
     client = FakeDuckDuckGoClient(errors=[ValueError("invalid response")])
-    tool = BoundedDuckDuckGoSearchTool(client=client)
+    tool = _bounded_tool(client)
 
     with pytest.raises(ValueError, match="invalid response"):
         await tool("programmer error")
@@ -179,7 +199,7 @@ async def test_non_transient_failures_raise() -> None:
 
 def test_create_bounded_duckduckgo_search_tool_returns_named_tool() -> None:
     tool = create_bounded_duckduckgo_search_tool(
-        duckduckgo_client=FakeDuckDuckGoClient()
+        duckduckgo_client=FakeDuckDuckGoClient()  # type: ignore[arg-type]
     )
 
     assert isinstance(tool, Tool)

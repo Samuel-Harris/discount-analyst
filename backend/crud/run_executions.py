@@ -121,6 +121,7 @@ def _clear_run_completion_fields(run: Run) -> None:
     run.status = WorkflowRunStatusDb.RUNNING
     run.completed_at = None
     run.error_message = None
+    run.lane_aborted = False
     run.final_rating = None
     run.decision_type = None
     run.recommended_action = None
@@ -163,20 +164,10 @@ def _first_retry_lane_order(run: Run, executions: list[AgentExecution]) -> int |
     if failed_orders:
         return min(failed_orders)
 
-    if run.status != WorkflowRunStatusDb.FAILED:
-        return None
-
-    if not lane_executions:
-        return None
-
-    if any(
-        execution.status in (ExecutionStatusDb.FAILED, ExecutionStatusDb.COMPLETED)
-        for execution in lane_executions
-    ):
-        return None
-
-    if all(
-        execution.status == ExecutionStatusDb.SKIPPED for execution in lane_executions
+    if (
+        run.lane_aborted
+        and run.status == WorkflowRunStatusDb.FAILED
+        and lane_executions
     ):
         return min(
             _AGENT_LANE_ORDER[execution.agent_name] for execution in lane_executions
@@ -669,7 +660,12 @@ def mark_lane_abort(
     run_id: str,
     error_message: str,
 ) -> None:
-    """Fail the active stage and mark unreached downstream stages as skipped."""
+    """Fail the active stage, skip unreached stages, and mark the run as lane-aborted."""
+    run = session.get(Run, run_id)
+    if run is not None:
+        run.lane_aborted = True
+        session.add(run)
+
     executions = sorted(
         session.scalars(
             select(AgentExecution).where(col(AgentExecution.run_id) == run_id)

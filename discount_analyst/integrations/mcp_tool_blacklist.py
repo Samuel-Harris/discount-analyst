@@ -2,7 +2,15 @@
 
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any, TypeIs
+
+
+def _is_json_object(node: object) -> TypeIs[dict[str, Any]]:
+    return isinstance(node, dict)
+
+
+def _is_json_array(node: object) -> TypeIs[list[Any]]:
+    return isinstance(node, list)
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,54 +107,37 @@ def blocked_endpoints_for_tool(
 def narrow_endpoint_json_schema(
     parameters_json_schema: dict[str, Any], blocked_endpoints: frozenset[str]
 ) -> dict[str, Any]:
-    """Return a copy of a tool schema with blocked endpoint enum values removed."""
+    """Return a copy of a tool schema with blocked ``properties.endpoint`` enum values removed."""
     narrowed_schema = deepcopy(parameters_json_schema)
-    _remove_blocked_endpoint_values(narrowed_schema, blocked_endpoints)
+    properties = narrowed_schema.get("properties")
+    if not _is_json_object(properties):
+        return narrowed_schema
+
+    endpoint_schema = properties.get("endpoint")
+    if _is_json_object(endpoint_schema):
+        _strip_blocked_endpoint_enums(endpoint_schema, blocked_endpoints)
     return narrowed_schema
 
 
-def _remove_blocked_endpoint_values(
-    schema_node: object, blocked_endpoints: frozenset[str]
+def _strip_blocked_endpoint_enums(
+    endpoint_schema: dict[str, Any], blocked_endpoints: frozenset[str]
 ) -> None:
-    if not isinstance(schema_node, dict):
-        return
-    schema = cast(dict[str, Any], schema_node)
-
-    properties = schema.get("properties")
-    if isinstance(properties, dict):
-        endpoint_schema = cast(dict[str, Any], properties).get("endpoint")
-        if isinstance(endpoint_schema, dict):
-            _remove_enum_values(
-                cast(dict[str, Any], endpoint_schema), blocked_endpoints
-            )
-
-    for value in schema.values():
-        if isinstance(value, dict):
-            _remove_blocked_endpoint_values(
-                cast(dict[str, Any], value), blocked_endpoints
-            )
-        elif isinstance(value, list):
-            for item in cast(list[object], value):
-                _remove_blocked_endpoint_values(item, blocked_endpoints)
-
-
-def _remove_enum_values(
-    schema_node: dict[str, Any], blocked_values: frozenset[str]
-) -> None:
-    enum_values = schema_node.get("enum")
-    if isinstance(enum_values, list):
-        schema_node["enum"] = [
+    """Strip blocked values from an endpoint parameter schema (enum / anyOf / oneOf / allOf)."""
+    enum_values = endpoint_schema.get("enum")
+    if _is_json_array(enum_values):
+        endpoint_schema["enum"] = [
             value
-            for value in cast(list[object], enum_values)
-            if not (isinstance(value, str) and value in blocked_values)
+            for value in enum_values
+            if not (isinstance(value, str) and value in blocked_endpoints)
         ]
 
     for keyword in ("anyOf", "oneOf", "allOf"):
-        variants = schema_node.get(keyword)
-        if isinstance(variants, list):
-            for variant in cast(list[object], variants):
-                if isinstance(variant, dict):
-                    _remove_enum_values(cast(dict[str, Any], variant), blocked_values)
+        variants = endpoint_schema.get(keyword)
+        if not _is_json_array(variants):
+            continue
+        for variant in variants:
+            if _is_json_object(variant):
+                _strip_blocked_endpoint_enums(variant, blocked_endpoints)
 
 
 def block_message(tool_name: str, endpoint: str | None) -> str:
