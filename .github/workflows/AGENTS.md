@@ -9,9 +9,9 @@ The `workflows/` directory contains GitHub Actions workflow definitions that aut
 
 ## Key Files
 
-| File     | Description                                                                                                                                                                                                                                                         |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ci.yml` | The primary Continuous Integration workflow: pre-commit, pytest (with coverage for `discount_analyst/` and `backend/`), pyright, Alembic schema drift check (`scripts/check_alembic_schema.py`), a Node-only frontend job (`pnpm lint`, build, Vitest), and an OpenAPI/Orval drift check that rebuilds the dashboard client after regeneration. |
+| File     | Description                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ci.yml` | The primary Continuous Integration workflow: pre-commit, pytest (with coverage for `discount_analyst`; suite under `backend/tests/`), pyright, import-linter, Tach `check-external` (pyproject dependency accuracy), Alembic schema drift check (`backend/tools/check_alembic_schema.py`), a Node-only frontend job (`pnpm lint`, build, Vitest), and an OpenAPI/Orval drift check that rebuilds the dashboard client after regeneration. |
 
 ## Subdirectories
 

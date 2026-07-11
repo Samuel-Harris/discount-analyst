@@ -76,7 +76,33 @@ jobs:
         env:
           DASHBOARD_DATABASE_PATH: ${{ runner.temp }}/alembic-check.sqlite
         run: |
-          uv run python scripts/check_alembic_schema.py
+          uv run python backend/tools/check_alembic_schema.py
+
+  import-linter:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python and Dependencies
+        uses: ./.github/actions/setup-python
+
+      - name: Run import-linter
+        run: |
+          uv run lint-imports
+
+  tach-check-external:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python and Dependencies
+        uses: ./.github/actions/setup-python
+
+      - name: Validate pyproject.toml dependencies with Tach
+        run: |
+          uv run tach check-external
 
   frontend-api-drift:
     runs-on: ubuntu-latest
@@ -93,21 +119,21 @@ jobs:
       - name: Regenerate OpenAPI and Orval client
         env:
           DASHBOARD_DATABASE_PATH: ${{ runner.temp }}/dashboard-openapi.sqlite
-          # Dummy values only: ``common.config`` builds ``Settings`` at import time (matches ``tests/conftest.py``).
+          # Dummy values only: ``discount_analyst.config.settings`` builds ``Settings`` at import time (matches ``backend/tests/conftest.py``).
           LOGGING__LOGFIRE_API_KEY: pytest-dummy-logfire-token
           PERPLEXITY__API_KEY: pytest-dummy-perplexity
           PERPLEXITY__RATE_LIMIT_PER_MINUTE: "60"
           FMP__API_KEY: pytest-dummy-fmp
           EODHD__API_KEY: pytest-dummy-eodhd
         run: |
-          uv run python scripts/export_dashboard_openapi.py
+          uv run python backend/tools/export_dashboard_openapi.py
           cd frontend && pnpm run generate:api && pnpm run build
 
       - name: Fail if OpenAPI or generated client drifted
         run: |
           git diff --exit-code -- frontend/openapi.json frontend/src/api/generated.ts || {
             echo "Regenerated API artefacts differ from the committed tree."
-            echo "From the repo root run: uv run python scripts/export_dashboard_openapi.py"
+            echo "From the repo root run: uv run python backend/tools/export_dashboard_openapi.py"
             echo "Then: cd frontend && pnpm run generate:api"
             echo "Commit frontend/openapi.json and frontend/src/api/generated.ts"
             exit 1

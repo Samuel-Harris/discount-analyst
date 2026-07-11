@@ -66,7 +66,7 @@ class Logging(BaseModel):
 
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-_DISCOUNT_ANALYST_DIR = _REPO_ROOT / "discount_analyst"
+_DISCOUNT_ANALYST_DIR = _REPO_ROOT / "backend" / "src" / "discount_analyst"
 
 
 class Settings(BaseSettings):

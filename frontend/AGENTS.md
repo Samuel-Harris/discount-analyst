@@ -66,7 +66,7 @@ src/
 ### Working In This Directory
 
 - Use **pnpm** (see `packageManager` in `package.json`), not npm/yarn.
-- After OpenAPI changes: regenerate from the repo root (`uv run python scripts/export_dashboard_openapi.py`) then `pnpm run generate:api`; commit `openapi.json` and `src/api/generated.ts` together.
+- After OpenAPI changes: regenerate from the repo root (`uv run python backend/tools/export_dashboard_openapi.py`) then `pnpm run generate:api`; commit `openapi.json` and `src/api/generated.ts` together.
 - Prefer co-located `*.test.ts(x)` next to the module under test.
 - British English applies to AGENTS.md prose; code identifiers stay as in the API/codebase.
 - When moving files, update ESLint zones and any backend sync paths (e.g. `agentLaneOrder.ts`) in the same change.

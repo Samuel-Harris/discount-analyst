@@ -2,18 +2,17 @@
   "venvPath": ".",
   "venv": ".venv",
   "include": [
-    "backend/**/*.py",
-    "discount_analyst/**/*.py",
-    "docker/agent-terminal/**/*.py",
-    "scripts/**/*.py",
-    "tests/**/*.py",
+    "backend/src/**/*.py",
+    "backend/tools/**/*.py",
+    "backend/services/**/*.py",
+    "backend/tests/**/*.py",
     ".cursor/**/*.py"
   ],
   "exclude": [
     "**/__pycache__/**",
     "**/.venv/**",
     "**/venv/**",
-    "discount_analyst/notebooks/**"
+    "backend/src/discount_analyst/notebooks/**"
   ],
   "typeCheckingMode": "strict",
   "pythonVersion": "3.14",
