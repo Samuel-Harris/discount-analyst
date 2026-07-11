@@ -1,4 +1,4 @@
-import type { TickerRunDetail } from "../api";
+import type { TickerRunDetail } from "@/api";
 
 export type LaneStatusDisplayLabel =
   | "COMPLETED"

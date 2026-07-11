@@ -94,10 +94,10 @@ When `--perplexity` is not set, agents use Pydantic AI's `WebSearch` and `WebFet
 
 ### Frontend (Vite)
 
-| Variable                | Default                 | Purpose                                                                                           |
-| ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------- |
-| `VITE_API_PREFIX`       | `/api`                  | Prefix for browser `fetch` calls (see [`frontend/src/api/client.ts`](frontend/src/api/client.ts)) |
-| `VITE_DEV_PROXY_TARGET` | `http://127.0.0.1:8000` | Vite dev/preview proxy target for `/api` (host API on **8000**)                                   |
+| Variable                | Default                 | Purpose                                                                                                         |
+| ----------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `VITE_API_PREFIX`       | `/api`                  | Prefix for browser `fetch` calls (see [`frontend/src/api/orval-mutator.ts`](frontend/src/api/orval-mutator.ts)) |
+| `VITE_DEV_PROXY_TARGET` | `http://127.0.0.1:8000` | Vite dev/preview proxy target for `/api` (host API on **8000**)                                                 |
 
 ## Local dashboard (API and UI)
 
@@ -181,7 +181,7 @@ uv run pyright
 cd frontend && pnpm test
 ```
 
-Continuous integration runs `uv run pre-commit run --all-files`, `uv run pytest` (with coverage for `discount_analyst/` and `backend/`), `uv run pyright`, a Node job that runs `pnpm run build` and `pnpm test` in `frontend/`, and a job that regenerates the dashboard OpenAPI spec and Orval client then fails on `git diff` drift (see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
+Continuous integration runs `uv run pre-commit run --all-files`, `uv run pytest` (with coverage for `discount_analyst/` and `backend/`), `uv run pyright`, a Node job that runs `pnpm lint`, `pnpm run build`, and `pnpm test` in `frontend/`, and a job that regenerates the dashboard OpenAPI spec and Orval client then fails on `git diff` drift (see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
 
 ## Docker Compose
 

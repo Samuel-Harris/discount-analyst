@@ -23,7 +23,8 @@ def _extract_ts_const_array(ts_text: str, const_name: str) -> tuple[str, ...]:
 
 def test_typescript_agent_lane_order_matches_backend_contract() -> None:
     ts_path = (
-        Path(__file__).resolve().parents[3] / "frontend/src/graph/agentLaneOrder.ts"
+        Path(__file__).resolve().parents[3]
+        / "frontend/src/features/pipeline-graph/agentLaneOrder.ts"
     )
     text = ts_path.read_text(encoding="utf-8")
     assert _extract_ts_const_array(text, "PROFILER_ENTRY_AGENT_NAMES") == (

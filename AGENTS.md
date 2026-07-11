@@ -1,4 +1,4 @@
-<!-- Generated: 2026-02-23 | Updated: 2026-05-31 (Appraiser valuation distribution) -->
+<!-- Generated: 2026-02-23 | Updated: 2026-07-11 (frontend BPR structure) -->
 
 # Discount Analyst
 
@@ -71,6 +71,7 @@ The analyst reviews the Appraiser distributions and AI buy recommendations acros
 | ------------------- | ---------------------------------------------------------------------------- |
 | `common/`           | Shared modules used across the package and backend (see `common/config.py`). |
 | `discount_analyst/` | Core source code for the analysis engine (see `discount_analyst/AGENTS.md`)  |
+| `frontend/`         | Vite + React dashboard SPA (see `frontend/AGENTS.md`)                        |
 | `scripts/`          | Entry point scripts for running analyses (see `scripts/AGENTS.md`)           |
 | `tests/`            | Comprehensive unit and integration tests (see `tests/AGENTS.md`)             |
 

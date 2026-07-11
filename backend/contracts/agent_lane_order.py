@@ -4,7 +4,7 @@ Ticker runs created with ``entry_path="profiler"`` use ``PROFILER_ENTRY_AGENT_NA
 Surveyor-discovered lanes use ``SURVEYOR_ENTRY_AGENT_NAMES`` (no profiler execution).
 
 The graph column order for profiler-entry lanes matches ``PROFILER_ENTRY_AGENT_NAMES``;
-the dashboard frontend mirrors these tuples in ``frontend/src/graph/agentLaneOrder.ts``.
+the dashboard frontend mirrors these tuples in ``frontend/src/features/pipeline-graph/agentLaneOrder.ts``.
 ``LANE_AGENT_SLUGS`` is the superset used when filtering ticker-lane agent rows.
 ``tests/backend/unit/test_agent_lane_order_sync.py`` asserts both stay aligned.
 """

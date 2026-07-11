@@ -46,9 +46,9 @@ jobs:
       - name: Setup frontend (pnpm)
         uses: ./.github/actions/setup-frontend
 
-      - name: Build and test frontend
+      - name: Lint, build and test frontend
         run: |
-          cd frontend && pnpm run build && pnpm test
+          cd frontend && pnpm lint && pnpm run build && pnpm test
 
   pyright:
     runs-on: ubuntu-latest

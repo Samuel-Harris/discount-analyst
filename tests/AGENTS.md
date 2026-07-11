@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-23 | Updated: 2026-05-31 (canonical toolkit DCF tests) -->
+<!-- Generated: 2026-02-23 | Updated: 2026-07-11 (agentLaneOrder path) -->
 
 # tests
 
@@ -25,7 +25,7 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | `tests/discount_analyst/pipeline/test_builders.py`                 | Tests for `build_sentinel_rejection` and `verdict_from_decision`.                                                                      |
 | `tests/backend/unit/test_dashboard_settings.py`                    | Unified ``Settings`` validation (e.g. non-empty ``LOGGING__LOGFIRE_API_KEY``).                                                         |
 | `tests/backend/unit/test_workflow_api.py`                          | HTTP contract tests for the FastAPI dashboard (`backend`) with isolated SQLite.                                                        |
-| `tests/backend/unit/test_agent_lane_order_sync.py`                 | Keeps `backend/contracts/agent_lane_order.py` aligned with `frontend/src/graph/agentLaneOrder.ts`.                                     |
+| `tests/backend/unit/test_agent_lane_order_sync.py`                 | Keeps `backend/contracts/agent_lane_order.py` aligned with `frontend/src/features/pipeline-graph/agentLaneOrder.ts`. |
 | `tests/backend/unit/test_profiler_stage.py`                        | Unit tests for the extracted dashboard `ProfilerStage` and its persistence port.                                                       |
 | `tests/backend/unit/test_mock_surveyor_discoveries.py`             | Mock Surveyor discovery helpers and deterministic mock Sentinel pass/fail parity for the dashboard.                                    |
 | `tests/backend/unit/test_mock_rating_table_dashboard.py`           | Deterministic mock `RatingTableDecision` helpers for dashboard payloads.                                                               |
