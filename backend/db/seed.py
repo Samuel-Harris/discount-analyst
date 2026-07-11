@@ -8,7 +8,6 @@ from sqlmodel import Session
 
 from backend.crud.conversations import (
     insert_conversation_for_agent_execution,
-    insert_conversation_for_workflow_agent,
 )
 from backend.contracts.agent_lane_order import (
     PROFILER_ENTRY_AGENT_NAMES,
@@ -21,7 +20,6 @@ from backend.crud.run_executions import (
     insert_ticker_run_with_agents,
     update_agent_execution,
     update_ticker_run_completion,
-    update_workflow_agent_execution,
 )
 from backend.crud.workflow_runs import (
     insert_surveyor_workflow_execution,
@@ -54,7 +52,7 @@ def seed(session: Session) -> None:
     )
 
     surveyor_output = mock_outputs.mock_surveyor_output(extra_tickers=portfolio)
-    update_workflow_agent_execution(
+    update_agent_execution(
         session,
         execution_id=surveyor_exec_id,
         status="completed",
@@ -62,10 +60,10 @@ def seed(session: Session) -> None:
         completed_at=utc_now_iso(),
         output_json=surveyor_output.model_dump_json(),
     )
-    insert_conversation_for_workflow_agent(
+    insert_conversation_for_agent_execution(
         session,
         conversation_id=new_id(),
-        workflow_agent_execution_id=surveyor_exec_id,
+        agent_execution_id=surveyor_exec_id,
         system_prompt="seed surveyor system",
         messages=None,
         messages_json=mock_conversation_messages.surveyor_messages_json(),

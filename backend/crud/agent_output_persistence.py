@@ -10,7 +10,7 @@ from sqlalchemy import delete, select
 from sqlmodel import Session, col
 
 from backend.crud.candidate_snapshots import candidate_to_snapshot
-from backend.crud.db_utils import new_id
+from backend.crud.db_utils import new_id, require_lane_run_id
 from backend.db.models import (
     AgentExecution,
     AppraiserReport,
@@ -36,7 +36,6 @@ from backend.db.models import (
     RunFinalDecision,
     RunFinalDecisionMitigatingFactor,
     RunFinalDecisionSupportingFactor,
-    WorkflowAgentExecution,
 )
 from discount_analyst.agents.appraiser.schema import (
     AppraiserOutput,
@@ -58,7 +57,7 @@ from discount_analyst.agents.surveyor.schema import SurveyorCandidate
 
 def persist_surveyor_output(
     session: Session,
-    execution: WorkflowAgentExecution,
+    execution: AgentExecution,
     output_json: str,
 ) -> None:
     raw: object = json.loads(output_json)
@@ -71,7 +70,7 @@ def persist_surveyor_output(
     candidates = [SurveyorCandidate.model_validate(c) for c in candidates_raw]
     session.exec(
         delete(CandidateSnapshot).where(
-            col(CandidateSnapshot.workflow_agent_execution_id) == execution.id
+            col(CandidateSnapshot.agent_execution_id) == execution.id
         )
     )
     for idx, candidate in enumerate(candidates):
@@ -79,8 +78,7 @@ def persist_surveyor_output(
             candidate_to_snapshot(
                 candidate=candidate,
                 sort_order=idx,
-                workflow_agent_execution_id=execution.id,
-                agent_execution_id=None,
+                agent_execution_id=execution.id,
             )
         )
 
@@ -99,11 +97,10 @@ def persist_profiler_output(
     snap = candidate_to_snapshot(
         candidate=output.candidate,
         sort_order=0,
-        workflow_agent_execution_id=None,
         agent_execution_id=execution.id,
     )
     session.add(snap)
-    run = session.get(Run, execution.run_id)
+    run = session.get(Run, require_lane_run_id(execution))
     if run is not None:
         run.candidate_snapshot_id = snap.id
         run.company_name = output.candidate.company_name
@@ -115,7 +112,7 @@ def replace_research_report(
     output_json: str,
 ) -> None:
     output = DeepResearchReport.model_validate_json(output_json)
-    run = session.get(Run, execution.run_id)
+    run = session.get(Run, require_lane_run_id(execution))
     if run is None or run.candidate_snapshot_id is None:
         return
     existing = session.scalars(

@@ -38,8 +38,7 @@ def test_replace_conversation_messages_persists_thinking_parts_as_text(
 ) -> None:
     conversation = AgentConversation(
         id="conversation-1",
-        workflow_agent_execution_id="workflow-agent-execution-1",
-        agent_execution_id=None,
+        agent_execution_id="agent-execution-1",
         system_prompt="System prompt",
     )
     db_session.add(conversation)
@@ -85,8 +84,7 @@ def test_replace_conversation_messages_persists_builtin_tool_call(
 ) -> None:
     conversation = AgentConversation(
         id="conversation-1",
-        workflow_agent_execution_id="workflow-agent-execution-1",
-        agent_execution_id=None,
+        agent_execution_id="agent-execution-1",
         system_prompt="System prompt",
     )
     db_session.add(conversation)
@@ -138,8 +136,7 @@ def test_replace_conversation_messages_warns_and_persists_unknown_part_kind(
 ) -> None:
     conversation = AgentConversation(
         id="conversation-1",
-        workflow_agent_execution_id="workflow-agent-execution-1",
-        agent_execution_id=None,
+        agent_execution_id="agent-execution-1",
         system_prompt="System prompt",
     )
     db_session.add(conversation)
@@ -199,7 +196,6 @@ def test_research_report_without_candidate_persists_and_rehydrates(
     snapshot = candidate_to_snapshot(
         candidate=candidate,
         sort_order=0,
-        workflow_agent_execution_id=None,
         agent_execution_id=execution_id,
     )
     db_session.add(snapshot)

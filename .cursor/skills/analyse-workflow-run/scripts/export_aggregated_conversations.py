@@ -534,10 +534,10 @@ def main() -> None:
 
     surveyor = con.execute(
         """
-        SELECT ac.id AS conversation_id, wae.id AS execution_id, ac.system_prompt
+        SELECT ac.id AS conversation_id, ae.id AS execution_id, ac.system_prompt
         FROM agent_conversations ac
-        JOIN workflow_agent_executions wae ON wae.id = ac.workflow_agent_execution_id
-        WHERE wae.workflow_run_id = ? AND wae.agent_name = 'SURVEYOR'
+        JOIN agent_executions ae ON ae.id = ac.agent_execution_id
+        WHERE ae.workflow_run_id = ? AND ae.agent_name = 'surveyor'
         """,
         (workflow_id,),
     ).fetchone()

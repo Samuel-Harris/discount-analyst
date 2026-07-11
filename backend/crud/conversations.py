@@ -40,7 +40,6 @@ from backend.db.models import (
     ResearchReportRisk,
     ResearchReportSourceNote,
     Run,
-    WorkflowAgentExecution,
 )
 from discount_analyst.agents.profiler.schema import ProfilerOutput
 from discount_analyst.agents.researcher.schema import (
@@ -272,42 +271,6 @@ def build_messages_json(session: Session, conversation_id: str) -> str:
     return json.dumps(out, separators=(",", ":"), ensure_ascii=False)
 
 
-def insert_conversation_for_workflow_agent(
-    session: Session,
-    *,
-    conversation_id: str,
-    workflow_agent_execution_id: str,
-    system_prompt: str,
-    messages_json: str | None = None,
-    assistant_response: str | None = None,
-    messages: list[object] | None = None,
-) -> None:
-    del assistant_response
-    existing = session.scalars(
-        select(AgentConversation).where(
-            col(AgentConversation.workflow_agent_execution_id)
-            == workflow_agent_execution_id
-        )
-    ).first()
-    if existing is not None:
-        conversation_id = existing.id
-        existing.system_prompt = system_prompt
-        session.add(existing)
-    else:
-        session.add(
-            AgentConversation(
-                id=conversation_id,
-                workflow_agent_execution_id=workflow_agent_execution_id,
-                agent_execution_id=None,
-                system_prompt=system_prompt,
-            )
-        )
-    payload = parse_messages_payload(messages=messages, messages_json=messages_json)
-    replace_conversation_messages(
-        session, conversation_id=conversation_id, messages_payload=payload
-    )
-
-
 def insert_conversation_for_agent_execution(
     session: Session,
     *,
@@ -332,7 +295,6 @@ def insert_conversation_for_agent_execution(
         session.add(
             AgentConversation(
                 id=conversation_id,
-                workflow_agent_execution_id=None,
                 agent_execution_id=agent_execution_id,
                 system_prompt=system_prompt,
             )
@@ -343,25 +305,22 @@ def insert_conversation_for_agent_execution(
     )
 
 
-def assistant_response_for_workflow_execution(
-    session: Session, execution: WorkflowAgentExecution
-) -> str:
-    snapshots = list(
-        session.scalars(
-            select(CandidateSnapshot)
-            .where(col(CandidateSnapshot.workflow_agent_execution_id) == execution.id)
-            .order_by(col(CandidateSnapshot.sort_order))
-        )
-    )
-    output = SurveyorOutput.model_construct(
-        candidates=[snapshot_to_candidate(s) for s in snapshots]
-    )
-    return output.model_dump_json()
-
-
 def assistant_response_for_run_agent(
     session: Session, execution: AgentExecution
 ) -> str:
+    if execution.agent_name == AgentNameDb.SURVEYOR:
+        snapshots = list(
+            session.scalars(
+                select(CandidateSnapshot)
+                .where(col(CandidateSnapshot.agent_execution_id) == execution.id)
+                .order_by(col(CandidateSnapshot.sort_order))
+            )
+        )
+        output = SurveyorOutput.model_construct(
+            candidates=[snapshot_to_candidate(s) for s in snapshots]
+        )
+        return output.model_dump_json()
+
     if execution.agent_name == AgentNameDb.PROFILER:
         snapshot = session.scalars(
             select(CandidateSnapshot).where(
@@ -646,16 +605,16 @@ def get_conversation_for_workflow_surveyor(
     workflow_run_id: str,
 ) -> dict[str, str] | None:
     execution = session.scalars(
-        select(WorkflowAgentExecution).where(
-            col(WorkflowAgentExecution.workflow_run_id) == workflow_run_id,
-            col(WorkflowAgentExecution.agent_name) == AgentNameDb.SURVEYOR,
+        select(AgentExecution).where(
+            col(AgentExecution.workflow_run_id) == workflow_run_id,
+            col(AgentExecution.agent_name) == AgentNameDb.SURVEYOR,
         )
     ).first()
     if execution is None:
         return None
     conversation = session.scalars(
         select(AgentConversation).where(
-            col(AgentConversation.workflow_agent_execution_id) == execution.id
+            col(AgentConversation.agent_execution_id) == execution.id
         )
     ).first()
     if conversation is None:
@@ -663,9 +622,7 @@ def get_conversation_for_workflow_surveyor(
     return {
         "system_prompt": conversation.system_prompt,
         "messages_json": build_messages_json(session, conversation.id),
-        "assistant_response": assistant_response_for_workflow_execution(
-            session, execution
-        ),
+        "assistant_response": assistant_response_for_run_agent(session, execution),
     }
 
 

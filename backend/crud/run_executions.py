@@ -29,7 +29,6 @@ from backend.crud.candidate_snapshots import snapshot_to_candidate
 from backend.crud.conversations import (
     assistant_response_for_run_agent,
     insert_conversation_for_agent_execution,
-    insert_conversation_for_workflow_agent,
 )
 from backend.crud.db_utils import (
     ACTIVE_EXECUTION_STATUSES,
@@ -47,7 +46,6 @@ from backend.db.models import (
     AppraiserReport,
     Run,
     WorkflowRun,
-    WorkflowAgentExecution,
     WorkflowRunStatusDb,
 )
 from discount_analyst.agents.appraiser.schema import AppraiserOutput
@@ -101,14 +99,6 @@ class NoFailedAgentsToRetryError(RetryFailedAgentsError):
     """Raised when no failed surveyor or lane execution exists."""
 
 
-def _reset_workflow_agent_execution(execution: WorkflowAgentExecution) -> None:
-    execution.status = ExecutionStatusDb.PENDING
-    execution.started_at = None
-    execution.completed_at = None
-    execution.error_message = None
-    execution.model_name = None
-
-
 def _reset_agent_execution(execution: AgentExecution) -> None:
     execution.status = ExecutionStatusDb.PENDING
     execution.started_at = None
@@ -138,7 +128,7 @@ def _lane_executions(executions: list[AgentExecution]) -> list[AgentExecution]:
 def workflow_can_retry_failed_agents(
     *,
     workflow_status: WorkflowRunStatusDb,
-    surveyor: WorkflowAgentExecution | None,
+    surveyor: AgentExecution | None,
     runs: list[Run],
     executions_by_run_id: dict[str, list[AgentExecution]],
 ) -> bool:
@@ -192,13 +182,13 @@ def prepare_retry_failed_agents(
     agent_execution_reset_count = 0
 
     surveyor = session.scalars(
-        select(WorkflowAgentExecution).where(
-            col(WorkflowAgentExecution.workflow_run_id) == workflow_run_id,
-            col(WorkflowAgentExecution.agent_name) == AgentNameDb.SURVEYOR,
+        select(AgentExecution).where(
+            col(AgentExecution.workflow_run_id) == workflow_run_id,
+            col(AgentExecution.agent_name) == AgentNameDb.SURVEYOR,
         )
     ).first()
     if surveyor is not None and surveyor.status == ExecutionStatusDb.FAILED:
-        _reset_workflow_agent_execution(surveyor)
+        _reset_agent_execution(surveyor)
         session.add(surveyor)
         surveyor_reset = True
 
@@ -293,6 +283,7 @@ def insert_ticker_run_with_agents(
         session.add(
             AgentExecution(
                 id=new_id(),
+                workflow_run_id=None,
                 run_id=run_id,
                 agent_name=AgentNameDb(name),
                 status=ExecutionStatusDb.PENDING,
@@ -337,9 +328,9 @@ def get_workflow_surveyor_execution_id(
     session: Session, workflow_run_id: str
 ) -> str | None:
     row = session.scalars(
-        select(col(WorkflowAgentExecution.id)).where(
-            col(WorkflowAgentExecution.workflow_run_id) == workflow_run_id,
-            col(WorkflowAgentExecution.agent_name) == AgentNameDb.SURVEYOR,
+        select(col(AgentExecution.id)).where(
+            col(AgentExecution.workflow_run_id) == workflow_run_id,
+            col(AgentExecution.agent_name) == AgentNameDb.SURVEYOR,
         )
     ).first()
     return row
@@ -349,9 +340,9 @@ def get_workflow_surveyor_execution_status(
     session: Session, workflow_run_id: str
 ) -> str | None:
     row = session.scalars(
-        select(WorkflowAgentExecution).where(
-            col(WorkflowAgentExecution.workflow_run_id) == workflow_run_id,
-            col(WorkflowAgentExecution.agent_name) == AgentNameDb.SURVEYOR,
+        select(AgentExecution).where(
+            col(AgentExecution.workflow_run_id) == workflow_run_id,
+            col(AgentExecution.agent_name) == AgentNameDb.SURVEYOR,
         )
     ).first()
     return None if row is None else row.status.value
@@ -362,7 +353,7 @@ def get_workflow_candidate_snapshot_id(
 ) -> str | None:
     row = session.scalars(
         select(col(CandidateSnapshot.id)).where(
-            col(CandidateSnapshot.workflow_agent_execution_id) == workflow_execution_id,
+            col(CandidateSnapshot.agent_execution_id) == workflow_execution_id,
             col(CandidateSnapshot.ticker) == ticker,
         )
     ).first()
@@ -435,109 +426,6 @@ def get_appraiser_output_for_run(
     return appraiser_output_from_report(row)
 
 
-def apply_workflow_agent_execution_status(
-    session: Session,
-    *,
-    execution_id: str,
-    status: str,
-    started_at: str | None = None,
-    completed_at: str | None = None,
-    error_message: str | None = None,
-    model_name: ModelName | None = None,
-) -> WorkflowAgentExecution | None:
-    """Update workflow-level execution status and timestamps only (no output rows)."""
-    execution = session.get(WorkflowAgentExecution, execution_id)
-    if execution is None:
-        return None
-    next_status = ExecutionStatusDb(status)
-    current_status = execution.status.value
-    if current_status == ExecutionStatusDb.CANCELLED.value and (
-        next_status.value != ExecutionStatusDb.CANCELLED.value
-    ):
-        return None
-    if (
-        current_status in TERMINAL_EXECUTION_STATUSES
-        and next_status.value in ACTIVE_EXECUTION_STATUSES
-    ):
-        return None
-    execution.status = next_status
-    if started_at is not None:
-        execution.started_at = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
-    if completed_at is not None:
-        execution.completed_at = datetime.fromisoformat(
-            completed_at.replace("Z", "+00:00")
-        )
-    if error_message is not None:
-        execution.error_message = error_message
-    if model_name is not None:
-        execution.model_name = model_name
-    session.add(execution)
-    return execution
-
-
-def persist_workflow_agent_execution_structured_output(
-    session: Session,
-    execution: WorkflowAgentExecution,
-    output_json: str | None,
-) -> None:
-    """Persist heavyweight structured rows derived from agent JSON (e.g. surveyor)."""
-    if output_json and execution.agent_name == AgentNameDb.SURVEYOR:
-        persist_surveyor_output(session, execution, output_json)
-
-
-def update_workflow_agent_execution(
-    session: Session,
-    *,
-    execution_id: str,
-    status: str,
-    output_json: str | None = None,
-    started_at: str | None = None,
-    completed_at: str | None = None,
-    error_message: str | None = None,
-    model_name: ModelName | None = None,
-) -> None:
-    execution = apply_workflow_agent_execution_status(
-        session,
-        execution_id=execution_id,
-        status=status,
-        started_at=started_at,
-        completed_at=completed_at,
-        error_message=error_message,
-        model_name=model_name,
-    )
-    if execution is None:
-        return
-    persist_workflow_agent_execution_structured_output(session, execution, output_json)
-
-
-def complete_workflow_agent_execution_with_conversation(
-    session: Session,
-    *,
-    execution_id: str,
-    conversation_id: str,
-    system_prompt: str,
-    output_json: str | None,
-    completed_at: str,
-    messages: list[Any] | None = None,
-    messages_json: str | None = None,
-) -> None:
-    insert_conversation_for_workflow_agent(
-        session,
-        conversation_id=conversation_id,
-        workflow_agent_execution_id=execution_id,
-        system_prompt=system_prompt,
-        messages=messages,
-        messages_json=messages_json,
-    )
-    update_workflow_agent_execution(
-        session,
-        execution_id=execution_id,
-        status=ExecutionStatusDb.COMPLETED.value,
-        output_json=output_json,
-        completed_at=completed_at,
-    )
-
-
 def apply_agent_execution_status(
     session: Session,
     *,
@@ -548,7 +436,7 @@ def apply_agent_execution_status(
     error_message: str | None = None,
     model_name: ModelName | None = None,
 ) -> AgentExecution | None:
-    """Update per-ticker agent execution status and timestamps only (no output rows)."""
+    """Update agent execution status and timestamps only (no output rows)."""
     execution = session.get(AgentExecution, execution_id)
     if execution is None:
         return None
@@ -587,6 +475,8 @@ def persist_agent_execution_structured_output(
     if not output_json:
         return
     match execution.agent_name:
+        case AgentNameDb.SURVEYOR:
+            persist_surveyor_output(session, execution, output_json)
         case AgentNameDb.PROFILER:
             persist_profiler_output(session, execution, output_json)
         case AgentNameDb.RESEARCHER:

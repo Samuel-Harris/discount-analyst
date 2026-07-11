@@ -25,12 +25,10 @@ def candidate_to_snapshot(
     *,
     candidate: SurveyorCandidate,
     sort_order: int,
-    workflow_agent_execution_id: str | None,
-    agent_execution_id: str | None,
+    agent_execution_id: str,
 ) -> CandidateSnapshot:
     return CandidateSnapshot(
         id=new_id(),
-        workflow_agent_execution_id=workflow_agent_execution_id,
         agent_execution_id=agent_execution_id,
         sort_order=sort_order,
         ticker=candidate.ticker,
