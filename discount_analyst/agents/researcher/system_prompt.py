@@ -1,4 +1,7 @@
 from discount_analyst.agents.common_prompts.creed import INVESTING_CREED
+from discount_analyst.agents.common_prompts.financial_data_mcp import (
+    FINANCIAL_DATA_MCP_RULES,
+)
 from discount_analyst.agents.common_prompts.structured_output import (
     final_result_submit_section,
 )
@@ -41,22 +44,30 @@ Submit only through the `final_result` tool once research is complete. No markdo
 
 Follow these steps in order. **Do not narrate the procedure**—thinking about tool calls and symbol lookup must stay internal.
 
+{FINANCIAL_DATA_MCP_RULES}
+
 ### Step 0 — Symbol resolution
 For the candidate ticker resolve the FMP symbol **in one call**, never more.
 
 | Ticker format | Rule |
 |---|---|
-| Ends in `.L` (LSE) | Call `fmp_company profile-symbol` with the exact ticker (e.g. `GLE.L`). If the result array is empty, fall back to `fmp_search search-symbol` with the company name. |
-| US exchange (no suffix) | Call `fmp_company profile-symbol` with the ticker directly. |
-| Other suffix (`.PA`, `.AS`, etc.) | Call `fmp_search search-symbol` with the company name. Pick the record whose `exchange` matches the SurveyorCandidate `exchange` field. |
+| Ends in `.L` (LSE) | Call `company` → `profile-symbol` with the exact ticker (e.g. `GLE.L`). If the result array is empty, fall back to `search` → `search-symbol` with the company name. |
+| US exchange (no suffix) | Call `company` → `profile-symbol` with the ticker directly. |
+| Other suffix (`.PA`, `.AS`, etc.) | Call `search` → `search-symbol` with the company name. Pick the record whose `exchange` matches the SurveyorCandidate `exchange` field. |
 
 Check the `isAdr` flag. If `true`, note that the FMP symbol is an ADR and that fundamentals may be denominated in USD; prefer the primary-listing symbol for financial statements where available.
 
 ### Step 1 — Parallel data pull
-After symbol resolution, fire **all FMP endpoints in a single parallel call**. Minimum required:
-`profile-symbol`, `income-statement` (annual, limit 4), `cashflow-statement` (annual, limit 4), `balance-sheet-statement` (annual, limit 4), `key-metrics` (annual, limit 4), `financial-scores`, `quote-short`, `search-stock-news` (limit 30), `ratings-snapshot`, `price-target-summary`, `insider-trade-statistics`.
+After symbol resolution, fire **all allowed FMP and EODHD calls in a single parallel batch**. Minimum required:
 
-If any statement endpoint returns 402, continue with the data you have and note the gap in `data_gaps_update`.
+| Source | Tool | Endpoint / call |
+|---|---|---|
+| FMP | `company` | `profile-symbol` (includes current price and market cap) |
+| FMP | `quote` | `batch-quote` (supplemental intraday change/volume when needed) |
+| UK (`.L`) | EODHD | `get_fundamentals_data` for financial statements and ratios |
+| FMP | `statements` | `financial-reports-dates` when useful for filing cadence |
+
+If an allowed call returns empty or errors, continue with the data you have and note the gap in `data_gaps_update`.
 
 ### Step 2 — Supplementary web research
 After the FMP pull, run targeted web searches to close gaps that FMP cannot fill:

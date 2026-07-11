@@ -14,6 +14,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlmodel import Session, col
 
+from backend.contracts.agent_lane_order import LANE_AGENT_SLUGS
 from backend.crud.agent_output_persistence import (
     appraiser_output_from_report,
     persist_profiler_output,
@@ -120,9 +121,59 @@ def _clear_run_completion_fields(run: Run) -> None:
     run.status = WorkflowRunStatusDb.RUNNING
     run.completed_at = None
     run.error_message = None
+    run.lane_aborted = False
     run.final_rating = None
     run.decision_type = None
     run.recommended_action = None
+
+
+def _lane_executions(executions: list[AgentExecution]) -> list[AgentExecution]:
+    return [
+        execution
+        for execution in executions
+        if execution.agent_name.value in LANE_AGENT_SLUGS
+    ]
+
+
+def workflow_can_retry_failed_agents(
+    *,
+    workflow_status: WorkflowRunStatusDb,
+    surveyor: WorkflowAgentExecution | None,
+    runs: list[Run],
+    executions_by_run_id: dict[str, list[AgentExecution]],
+) -> bool:
+    """Return whether a terminal workflow has failed surveyor or lane work to retry."""
+    if workflow_status.value not in _TERMINAL_RUN_STATUSES:
+        return False
+    if surveyor is not None and surveyor.status == ExecutionStatusDb.FAILED:
+        return True
+    return any(
+        _first_retry_lane_order(run, executions_by_run_id.get(run.id, [])) is not None
+        for run in runs
+    )
+
+
+def _first_retry_lane_order(run: Run, executions: list[AgentExecution]) -> int | None:
+    """Return the first lane agent order to reset, or None when the run is not retriable."""
+    lane_executions = _lane_executions(executions)
+    failed_orders = [
+        _AGENT_LANE_ORDER[execution.agent_name]
+        for execution in lane_executions
+        if execution.status == ExecutionStatusDb.FAILED
+    ]
+    if failed_orders:
+        return min(failed_orders)
+
+    if (
+        run.lane_aborted
+        and run.status == WorkflowRunStatusDb.FAILED
+        and lane_executions
+    ):
+        return min(
+            _AGENT_LANE_ORDER[execution.agent_name] for execution in lane_executions
+        )
+
+    return None
 
 
 def prepare_retry_failed_agents(
@@ -161,15 +212,9 @@ def prepare_retry_failed_agents(
             ),
             key=lambda execution: _AGENT_LANE_ORDER.get(execution.agent_name, 99),
         )
-        failed_orders = [
-            _AGENT_LANE_ORDER[execution.agent_name]
-            for execution in executions
-            if execution.status == ExecutionStatusDb.FAILED
-            and execution.agent_name in _AGENT_LANE_ORDER
-        ]
-        if not failed_orders:
+        first_failed_order = _first_retry_lane_order(run, executions)
+        if first_failed_order is None:
             continue
-        first_failed_order = min(failed_orders)
         for execution in executions:
             order = _AGENT_LANE_ORDER.get(execution.agent_name)
             if order is None or order < first_failed_order:
@@ -615,7 +660,12 @@ def mark_lane_abort(
     run_id: str,
     error_message: str,
 ) -> None:
-    """Fail the active stage and mark unreached downstream stages as skipped."""
+    """Fail the active stage, skip unreached stages, and mark the run as lane-aborted."""
+    run = session.get(Run, run_id)
+    if run is not None:
+        run.lane_aborted = True
+        session.add(run)
+
     executions = sorted(
         session.scalars(
             select(AgentExecution).where(col(AgentExecution.run_id) == run_id)

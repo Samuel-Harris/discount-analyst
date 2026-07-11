@@ -291,7 +291,6 @@ async def _check_listing_status(
     eodhd_disabled: bool,
 ) -> ListingProbe | RejectedCandidateGate:
     try:
-        quotes = await fmp.quote_short(resolved_ticker)
         profiles = await fmp.profile(resolved_ticker)
     except FmpAccessDeniedError as exc:
         if (
@@ -315,13 +314,12 @@ async def _check_listing_status(
             data_source="fmp",
         )
 
-    has_quote = bool(quotes) and quotes[0].price is not None and quotes[0].price > 0
     profile = profiles[0] if profiles else None
     actively_trading = profile.is_actively_trading if profile else None
 
-    if has_quote and actively_trading is not False:
+    if actively_trading is True:
         return ListingProbe(
-            resolution_notes="FMP quote-short and profile indicate active listing.",
+            resolution_notes="FMP profile indicates active listing.",
             is_actively_trading=True,
             data_source="fmp",
         )
@@ -336,15 +334,18 @@ async def _check_listing_status(
             eodhd=eodhd,
             resolution_notes=(
                 "FMP listing probe inconclusive "
-                f"(quote={has_quote}, isActivelyTrading={actively_trading})."
+                f"(profile present={profile is not None}, "
+                f"isActivelyTrading={actively_trading})."
             ),
         )
 
     reason_parts: list[str] = []
-    if not has_quote:
-        reason_parts.append("no valid FMP quote-short")
+    if profile is None:
+        reason_parts.append("no FMP profile")
     if actively_trading is False:
         reason_parts.append("isActivelyTrading is false")
+    elif actively_trading is None and profile is not None:
+        reason_parts.append("isActivelyTrading is unknown")
     return _rejection(
         source_ticker=resolved_ticker,
         resolved_ticker=resolved_ticker,

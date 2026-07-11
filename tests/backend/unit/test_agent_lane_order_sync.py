@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 from backend.contracts.agent_lane_order import (
+    LANE_AGENT_SLUGS,
     PROFILER_ENTRY_AGENT_NAMES,
     SURVEYOR_ENTRY_AGENT_NAMES,
 )
@@ -30,4 +31,7 @@ def test_typescript_agent_lane_order_matches_backend_contract() -> None:
     )
     assert _extract_ts_const_array(text, "SURVEYOR_ENTRY_AGENT_NAMES") == (
         SURVEYOR_ENTRY_AGENT_NAMES
+    )
+    assert set(_extract_ts_const_array(text, "PROFILER_ENTRY_AGENT_NAMES")) == (
+        LANE_AGENT_SLUGS
     )

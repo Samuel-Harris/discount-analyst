@@ -9,12 +9,12 @@ The `researcher` directory contains the implementation of the "Researcher" AI ag
 
 ## Key Files
 
-| File               | Description                                                                                                               |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| `researcher.py`    | Factory for the Researcher agent (`create_researcher_agent`).                                                             |
-| `system_prompt.py` | System prompt defining neutral-evidence behavior (no recommendation/valuation calls) and schema-only output requirements. |
-| `user_prompt.py`   | `create_user_prompt`: injects one `SurveyorCandidate` JSON block and requires `DeepResearchReport` output.                |
-| `__init__.py`      | Package initialization for the researcher module.                                                                         |
+| File               | Description                                                                                                                                |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `researcher.py`    | Factory for the Researcher agent (`create_researcher_agent`).                                                                              |
+| `system_prompt.py` | System prompt defining neutral-evidence behaviour, FMP/EODHD tool usage aligned with `FMP_BLACKLIST`, and schema-only output requirements. |
+| `user_prompt.py`   | `create_user_prompt`: injects one `SurveyorCandidate` JSON block and requires `DeepResearchReport` output.                                 |
+| `__init__.py`      | Package initialization for the researcher module.                                                                                          |
 
 ## Subdirectories
 

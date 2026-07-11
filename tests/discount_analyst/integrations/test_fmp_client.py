@@ -4,11 +4,26 @@ from __future__ import annotations
 
 import httpx
 import pytest
+from httpx import HTTPStatusError
 
 from discount_analyst.integrations.fmp_client import (
     FmpAccessDeniedError,
     FmpClient,
 )
+
+
+class _HttpStatusErrorClient:
+    def __init__(self, error: HTTPStatusError) -> None:
+        self._error = error
+
+    async def __aenter__(self) -> _HttpStatusErrorClient:
+        return self
+
+    async def __aexit__(self, *_args: object) -> None:
+        return None
+
+    async def get(self, *_args: object, **_kwargs: object) -> httpx.Response:
+        raise self._error
 
 
 @pytest.mark.anyio
@@ -70,3 +85,20 @@ async def test_fmp_profile_raises_on_402() -> None:
         await client.profile("POLN.L")
 
     assert exc_info.value.status_code == 402
+
+
+@pytest.mark.anyio
+async def test_fmp_profile_maps_transport_http_status_error_to_access_denied(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = httpx.Request("GET", "https://financialmodelingprep.com/stable/profile")
+    response = httpx.Response(402, request=request, json={"error": "premium"})
+    error = HTTPStatusError("402", request=request, response=response)
+    client = FmpClient("test-key")
+    monkeypatch.setattr(client, "_client", lambda: _HttpStatusErrorClient(error))
+
+    with pytest.raises(FmpAccessDeniedError) as exc_info:
+        await client.profile("AOUT")
+
+    assert exc_info.value.status_code == 402
+    assert exc_info.value.symbol_or_query == "AOUT"

@@ -73,6 +73,7 @@ class WorkflowRunDetailResponse(BaseModel):
     status: WorkflowRunStatusApi
     is_mock: bool
     error_message: str | None
+    can_retry_failed_agents: bool
     surveyor_execution: SurveyorExecutionSummary | None
     runs: list[TickerRunDetail]
 

@@ -17,6 +17,7 @@ function minimalDetail(id: string): WorkflowRunDetailResponse {
     status: "running",
     is_mock: true,
     error_message: null,
+    can_retry_failed_agents: false,
     surveyor_execution: {
       id: "wfe-1",
       agent_name: "surveyor",

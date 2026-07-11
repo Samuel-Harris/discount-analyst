@@ -29,12 +29,8 @@ export function WorkflowRunDetailHeader({
   const isTerminalWorkflow = ["completed", "failed", "cancelled"].includes(
     detail.status,
   );
-  const hasFailedAgent =
-    detail.surveyor_execution?.status === "failed" ||
-    detail.runs.some((run) =>
-      run.agent_executions.some((execution) => execution.status === "failed"),
-    );
-  const canRetryFailedAgents = isTerminalWorkflow && hasFailedAgent;
+  const canRetryFailedAgents =
+    isTerminalWorkflow && detail.can_retry_failed_agents;
 
   return (
     <div className="detail-header">

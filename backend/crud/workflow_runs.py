@@ -23,6 +23,7 @@ from backend.crud.db_utils import (
     new_id,
     utc_now,
 )
+from backend.crud.run_executions import workflow_can_retry_failed_agents
 from backend.db.models import (
     AgentExecution,
     AgentNameDb,
@@ -320,6 +321,7 @@ def fetch_workflow_detail(
             .order_by(col(Run.started_at))
         )
     )
+    executions_by_run_id: dict[str, list[AgentExecution]] = {}
     runs_out: list[TickerRunRow] = []
     for run in runs:
         agents = list(
@@ -327,6 +329,7 @@ def fetch_workflow_detail(
                 select(AgentExecution).where(col(AgentExecution.run_id) == run.id)
             )
         )
+        executions_by_run_id[run.id] = agents
         agents_sorted = sorted(
             agents, key=lambda a: agent_order.get(a.agent_name.value, 99)
         )
@@ -368,6 +371,12 @@ def fetch_workflow_detail(
 
     detail: WorkflowRunDetailRecord = {
         **wf,
+        "can_retry_failed_agents": workflow_can_retry_failed_agents(
+            workflow_status=WorkflowRunStatusDb(wf["status"]),
+            surveyor=se,
+            runs=runs,
+            executions_by_run_id=executions_by_run_id,
+        ),
         "surveyor_execution": surveyor_execution,
         "runs": runs_out,
     }

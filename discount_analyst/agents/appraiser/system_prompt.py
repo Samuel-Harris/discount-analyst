@@ -1,4 +1,7 @@
 from discount_analyst.agents.common_prompts.creed import INVESTING_CREED
+from discount_analyst.agents.common_prompts.financial_data_mcp import (
+    FINANCIAL_DATA_MCP_RULES,
+)
 from discount_analyst.agents.common_prompts.structured_output import (
     final_result_submit_section,
 )
@@ -35,6 +38,8 @@ You will be given a company ticker or name. Use available search, filing, MCP fi
 ## Analysis Process
 
 ### Step 1: Gather Current Market and Financial Facts
+
+{FINANCIAL_DATA_MCP_RULES}
 
 Use the strongest available source for each fact:
 - Current share price, currency, market cap, and shares outstanding.

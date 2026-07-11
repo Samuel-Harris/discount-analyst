@@ -1,4 +1,7 @@
 from discount_analyst.agents.common_prompts.creed import INVESTING_CREED
+from discount_analyst.agents.common_prompts.financial_data_mcp import (
+    FINANCIAL_DATA_MCP_RULES,
+)
 from discount_analyst.agents.common_prompts.structured_output import (
     final_result_submit_section,
 )
@@ -21,20 +24,20 @@ you begin — it defines the quality bar your output must meet.
 
 Use available tools to gather data.
 
+{FINANCIAL_DATA_MCP_RULES}
+
 Work through the following in order:
 
 1. Pull company profile, price, and market cap.
 2. Pull financial statements (income, cash flow, balance sheet) for the last 3-4 annual periods.
 3. Pull key metrics and ratios (TTM). If a ratio endpoint fails, derive it from the statements.
-4. Pull financial scores (Piotroski, Altman) from the dedicated endpoint. If unavailable, leave null.
+4. Pull financial scores (Piotroski, Altman) when available via MCP or web search. If unavailable, leave null.
 5. Search for insider transactions in the last 6 months. For UK stocks, search RNS director
    dealings. Record in data_gaps if not found.
 6. Search for analyst coverage count. Record null if you cannot find a specific number — do not
    estimate.
 7. Search recent news for red flags: litigation, governance issues, regulatory exposure,
    earnings deterioration, competitive position changes.
-
-If a tool call returns a 402 or rate-limit error, skip it and note the gap in data_gaps.
 
 
 ## The central bias you must resist

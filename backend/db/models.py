@@ -143,6 +143,7 @@ class Run(SQLModel, table=True):
     status: WorkflowRunStatusDb = Field(default=WorkflowRunStatusDb.RUNNING)
     is_mock: bool
     error_message: str | None = None
+    lane_aborted: bool = False
     final_rating: str | None = None
     decision_type: DecisionTypeDb | None = None
     recommended_action: str | None = None

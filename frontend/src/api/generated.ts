@@ -204,6 +204,7 @@ export type WorkflowRunDetailResponseErrorMessage = string | null;
 export type WorkflowRunDetailResponseSurveyorExecution = SurveyorExecutionSummary | null;
 
 export interface WorkflowRunDetailResponse {
+  can_retry_failed_agents: boolean;
   completed_at: WorkflowRunDetailResponseCompletedAt;
   error_message: WorkflowRunDetailResponseErrorMessage;
   id: string;

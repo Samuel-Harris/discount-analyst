@@ -1,7 +1,8 @@
+from types import SimpleNamespace
+
 import pytest
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.tools import Tool
-from types import SimpleNamespace
 
 from discount_analyst.agents.common import agent_factory
 from discount_analyst.agents.common.agent_factory import (
@@ -9,8 +10,8 @@ from discount_analyst.agents.common.agent_factory import (
     create_agent,
     create_web_research_tooling,
 )
-from discount_analyst.agents.common_prompts.current_date import format_current_date_line
 from discount_analyst.agents.common.agent_names import AgentName
+from discount_analyst.agents.common_prompts.current_date import format_current_date_line
 from discount_analyst.config.ai_models_config import (
     AIModelConfig,
     AIModelsConfig,
@@ -23,6 +24,7 @@ def test_create_web_research_tooling_uses_pydantic_web_capabilities(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     created_capabilities: list[tuple[str, bool, object]] = []
+    search_tool = Tool(lambda query: None, name="duckduckgo_search")
 
     class FakeWebSearch:
         def __init__(self, *, native: bool, local: object) -> None:
@@ -34,6 +36,11 @@ def test_create_web_research_tooling_uses_pydantic_web_capabilities(
 
     monkeypatch.setattr(agent_factory, "WebSearch", FakeWebSearch)
     monkeypatch.setattr(agent_factory, "WebFetch", FakeWebFetch)
+    monkeypatch.setattr(
+        agent_factory,
+        "create_bounded_duckduckgo_search_tool",
+        lambda: search_tool,
+    )
 
     tooling = create_web_research_tooling(
         agent_name=AgentName.SURVEYOR,
@@ -44,7 +51,7 @@ def test_create_web_research_tooling_uses_pydantic_web_capabilities(
     assert not tooling.toolsets
     assert len(tooling.capabilities) == 2
     assert created_capabilities == [
-        ("web_search", True, "duckduckgo"),
+        ("web_search", True, search_tool),
         ("web_fetch", True, True),
     ]
 
@@ -53,6 +60,7 @@ def test_create_web_research_tooling_uses_text_only_fetch_for_deepseek(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     created_capabilities: list[tuple[str, bool, object]] = []
+    search_tool = Tool(lambda query: None, name="duckduckgo_search")
     fake_tool = Tool(lambda url: None, name="web_fetch")
 
     class FakeWebSearch:
@@ -65,6 +73,11 @@ def test_create_web_research_tooling_uses_text_only_fetch_for_deepseek(
 
     monkeypatch.setattr(agent_factory, "WebSearch", FakeWebSearch)
     monkeypatch.setattr(agent_factory, "WebFetch", FakeWebFetch)
+    monkeypatch.setattr(
+        agent_factory,
+        "create_bounded_duckduckgo_search_tool",
+        lambda: search_tool,
+    )
     monkeypatch.setattr(
         agent_factory,
         "create_text_only_web_fetch_tool",
@@ -80,7 +93,7 @@ def test_create_web_research_tooling_uses_text_only_fetch_for_deepseek(
     assert not tooling.toolsets
     assert len(tooling.capabilities) == 2
     assert created_capabilities == [
-        ("web_search", True, "duckduckgo"),
+        ("web_search", True, search_tool),
         ("web_fetch", True, fake_tool),
     ]
 

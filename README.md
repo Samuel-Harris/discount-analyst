@@ -217,4 +217,4 @@ Launch **Dashboard: PROD stack** from [`.vscode/launch.json`](.vscode/launch.jso
 
 For **DEV** debugging (reload, debugpy, Vite dev server), use **Dashboard: API + Frontend** on **5173** / **8000** instead.
 
-**Teardown:** Stopping the PROD debug session does not stop background tasks. Run `docker compose down` and stop the uvicorn process on port **8000** if needed (`lsof -i :8000` or Activity Monitor).
+**Teardown:** Stopping either service in **Dashboard: DEV stack** or **Dashboard: PROD stack** (`stopAll`) terminates the other launch session. PROD also runs `dashboard:prod-stack-teardown` on stop (agent-terminal container plus ports **8000** and **8080**). DEV runs `dashboard:dev-stack-teardown` on stop (ports **8000** and **5173**). Relaunching PROD stops existing services before prep. To tear down manually without relaunching, run `docker compose down` and stop uvicorn on port **8000** if needed (`lsof -i :8000` or Activity Monitor).

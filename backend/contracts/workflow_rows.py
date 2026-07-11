@@ -78,5 +78,6 @@ class TickerRunResumeRow(TypedDict):
 
 
 class WorkflowRunDetailRecord(WorkflowRunHeaderRow):
+    can_retry_failed_agents: bool
     surveyor_execution: SurveyorExecutionRow | None
     runs: list[TickerRunRow]

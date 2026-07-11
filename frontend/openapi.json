@@ -485,6 +485,10 @@
       },
       "WorkflowRunDetailResponse": {
         "properties": {
+          "can_retry_failed_agents": {
+            "title": "Can Retry Failed Agents",
+            "type": "boolean"
+          },
           "completed_at": {
             "anyOf": [
               {
@@ -549,6 +553,7 @@
           "status",
           "is_mock",
           "error_message",
+          "can_retry_failed_agents",
           "surveyor_execution",
           "runs"
         ],
