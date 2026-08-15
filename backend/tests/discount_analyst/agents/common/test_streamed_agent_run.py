@@ -35,6 +35,7 @@ class _FakeStreamedRunResult:
     async def get_output(self) -> str:
         return "done"
 
+    @property
     def usage(self) -> RunUsage:
         return self._usage
 

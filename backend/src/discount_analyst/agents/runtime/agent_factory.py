@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic_ai import AbstractToolset, Agent, Tool, ToolOutput
 from pydantic_ai.capabilities import AgentCapability, WebFetch, WebSearch
+from pydantic_ai_harness.tool_output_limits import Band, ToolOutputLimits, Truncate
 
 from discount_analyst.config.settings import settings as app_settings
 from discount_analyst.agents.runtime.agent_names import AgentName
@@ -39,6 +40,16 @@ from discount_analyst.agents.tools.terminal.client import (
     Terminal,
     TerminalLimits,
     TerminalSessionState,
+)
+
+TOOL_OUTPUT_CHAR_LIMIT = 10_000
+TOOL_OUTPUT_LIMITS = ToolOutputLimits[None](
+    bands=[
+        Band(
+            over=TOOL_OUTPUT_CHAR_LIMIT,
+            action=Truncate(max_chars=TOOL_OUTPUT_CHAR_LIMIT),
+        )
+    ],
 )
 
 
@@ -97,9 +108,11 @@ def create_agent[OutT](
     ``settings.use_terminal`` only (independent of web/MCP flags).
 
     Structured output is always registered via ``ToolOutput`` (tool mode, ``final_result``)
-    for cross-provider uniformity.
+    for cross-provider uniformity. Oversized tool returns are truncated at
+    ``TOOL_OUTPUT_CHAR_LIMIT`` characters (output tools such as ``final_result`` are
+    excluded by pydantic-ai).
     """
-    capabilities: list[AgentCapability[None]] = []
+    capabilities: list[AgentCapability[None]] = [TOOL_OUTPUT_LIMITS]
     toolsets: list[AbstractToolset[None]] = []
 
     terminal_opts = (

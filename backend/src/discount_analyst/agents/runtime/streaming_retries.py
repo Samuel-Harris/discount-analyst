@@ -398,7 +398,7 @@ class StreamWithRetriesContext[T]:
         if active_result is None:
             return False
         self._next_message_history = deepcopy(active_result.all_messages())
-        self._next_usage = deepcopy(active_result.usage())
+        self._next_usage = deepcopy(active_result.usage)
         return True
 
     def _checkpoint_captured_messages(self, messages: list[ModelMessage]) -> bool:
@@ -535,8 +535,9 @@ class StreamedResultWrapper[T]:
                 await self._retries_context.reopen_after_stream_interrupt(exc)
         raise RuntimeError("Output retries exhausted without terminal result")
 
+    @property
     def usage(self) -> RunUsage:
-        return self._active_result.usage()
+        return self._active_result.usage
 
     def all_messages(
         self, *, output_tool_return_content: str | None = None

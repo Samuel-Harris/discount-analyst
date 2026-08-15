@@ -6,7 +6,7 @@ from typing import Any, cast
 import httpx
 import pytest
 from openai import APIError
-from pydantic_ai import capture_run_messages
+from pydantic_ai._agent_graph import get_captured_run_messages
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.messages import (
     ModelRequest,
@@ -135,6 +135,7 @@ class _FakeStreamedRunResult:
             raise self._get_output_error
         return self._final_output
 
+    @property
     def usage(self) -> RunUsage:
         return self._usage
 
@@ -180,8 +181,8 @@ class _FakeRunStreamContextManager:
 
     async def __aenter__(self) -> _FakeStreamedRunResult:
         if self._captured_messages is not None:
-            with capture_run_messages() as messages:
-                messages.extend(self._captured_messages)
+            # pydantic-ai 2.x isolates nested capture_run_messages(); extend the active one.
+            get_captured_run_messages().messages.extend(self._captured_messages)
         if (
             self._open_stream_events is not None
             and self._event_stream_handler is not None
@@ -304,7 +305,7 @@ async def test_stream_with_retries_resumes_with_copied_history_and_usage(
         async for chunk in result.stream_output(debounce_by=None):
             outputs.append(chunk)
         output = await result.get_output()
-        usage = result.usage()
+        usage = result.usage
 
     assert outputs == ["partial", "final"]
     assert output == "done"
@@ -604,11 +605,11 @@ async def test_stream_with_retries_get_output_retry_preserves_history_and_usage(
         async for chunk in result.stream_output(debounce_by=None):
             outputs.append(chunk)
         output = await result.get_output()
-        usage = result.usage()
+        usage = result.usage
 
     assert outputs == ["partial"]
     assert output == "done"
-    assert usage is second_result.usage()
+    assert usage is second_result.usage
 
     assert len(agent_impl.calls) == 2
     first_call, second_call = agent_impl.calls

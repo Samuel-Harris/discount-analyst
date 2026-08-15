@@ -85,7 +85,7 @@ async def run_streamed_agent[T](
                         if on_stream_chunk is not None:
                             on_stream_chunk(chunk)
                     output = await result.get_output()
-                    usage = result.usage()
+                    usage = result.usage
                     all_messages = result.all_messages()
             finally:
                 if terminal_opts.enabled:

@@ -28,8 +28,8 @@ Human decision sits after that `Verdict`. One-shot agents remain available via `
 | `backend/migrations/`                          | Alembic config + revision chain.                                                                                     |
 | `backend/tools/`                               | OpenAPI export, Alembic check, terminal verify.                                                                      |
 | `backend/services/agent_terminal/`             | Separate terminal orchestrator (HTTP only from the monolith).                                                        |
-| `.cursor/skills/analyse-workflow-run/SKILL.md`           | Analyse a dashboard `workflow_run_id`.                                                                               |
-| `.cursor/skills/sync-workflow/SKILL.md`                  | Regenerate `current_workflow.md` from live pipeline code.                                                            |
+| `.cursor/skills/analyse-workflow-run/SKILL.md` | Analyse a dashboard `workflow_run_id`.                                                                               |
+| `.cursor/skills/sync-workflow/SKILL.md`        | Regenerate `current_workflow.md` from live pipeline code.                                                            |
 
 ## Subdirectories
 
@@ -63,6 +63,6 @@ Human decision sits after that `Verdict`. One-shot agents remain available via `
 
 ### External
 
-- **pydantic-ai**, **yfinance**, **perplexityai**, **logfire**, **httpx**, **rich**, **FastAPI**, **SQLModel**, **Alembic**.
+- **pydantic-ai**, **pydantic-ai-harness**, **yfinance**, **perplexityai**, **logfire**, **httpx**, **rich**, **FastAPI**, **SQLModel**, **Alembic**.
 
 <!-- MANUAL: Any manually added notes below this line are preserved on regeneration -->
