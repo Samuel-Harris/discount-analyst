@@ -1,4 +1,4 @@
-<!-- Generated: 2026-02-23 | Updated: 2026-07-11 (backend modular monorepo) -->
+<!-- Generated: 2026-02-23 | Updated: 2026-08-15 (workflow-sync skill) -->
 
 # Discount Analyst
 
@@ -51,7 +51,8 @@ Buy where market price is furthest below expected intrinsic value.
 | `backend/migrations/`                          | Alembic config + revision chain.                                                                                     |
 | `backend/tools/`                               | OpenAPI export, Alembic check, terminal verify.                                                                      |
 | `backend/services/agent_terminal/`             | Separate terminal orchestrator (HTTP only from the monolith).                                                        |
-| `.cursor/skills/analyse-workflow-run/SKILL.md` | Analyse a dashboard `workflow_run_id`.                                                                               |
+| `.cursor/skills/analyse-workflow-run/SKILL.md`           | Analyse a dashboard `workflow_run_id`.                                                                               |
+| `.cursor/skills/discount-analyst-workflow-sync/SKILL.md` | Regenerate `current_workflow.md` from live pipeline code.                                                            |
 
 ## Subdirectories
 
