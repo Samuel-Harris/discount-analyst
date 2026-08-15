@@ -1,4 +1,4 @@
-<!-- Generated: 2026-02-23 | Updated: 2026-07-11 (backend modular monorepo) -->
+<!-- Generated: 2026-02-23 | Updated: 2026-08-15 (sync-workflow skill) -->
 
 # Discount Analyst
 
@@ -8,35 +8,11 @@ An AI-powered stock analysis tool ("Discount Analyst") for identifying and valui
 
 ## Investment Workflow
 
-The tool supports a seven-stage pipeline. Stages 1 and 5 are automated by AI agents in this repo, and stage 4 can be generated in-repo via the Researcher agent; stages 2–3 remain lightweight manual steps, stage 6 uses an external AI model to evaluate buy recommendations, and stage 7 is a human investment decision.
+The live automated pipeline is documented in [`current_workflow.md`](current_workflow.md) (regenerate with the `sync-workflow` skill). Dashboard and CLI run:
 
-### Stage 1 — Survey (automated)
+**Surveyor** (universe screen) and/or **Profiler** (named portfolio tickers) → deterministic candidate gate (dashboard only) → **Researcher** → **Strategist** → **Sentinel** (valuation gate) → **Appraiser** (if the gate passes) → deterministic rating table → `Verdict`.
 
-`uv run discount-analyst agent surveyor` runs the Surveyor agent (`backend/src/discount_analyst/agents/surveyor/`), which screens for promising small-cap stocks and writes JSON under `backend/outputs/`.
-
-### Stage 2 — Shortlist (manual)
-
-The analyst reviews Surveyor output and selects the top ~10 candidates.
-
-### Stage 3 — Categorise (manual)
-
-Each shortlisted stock is categorised as **value** or **growth**.
-
-### Stage 4 — Deep research and checklist scoring
-
-Deep research via `uv run discount-analyst agent researcher` (or `workflow run` for the full gated pipeline) or an external AI. Checklist scoring may still be external.
-
-### Stage 5 — Intrinsic-value distribution (automated)
-
-`uv run discount-analyst agent appraiser` (from Sentinel selectors) writes a method-agnostic intrinsic-value distribution to `backend/outputs/`.
-
-### Stage 6 — Evaluate (external AI)
-
-Use Claude, Gemini, or ChatGPT against the research report and Appraiser output.
-
-### Stage 7 — Buy (human decision)
-
-Buy where market price is furthest below expected intrinsic value.
+Human decision sits after that `Verdict`. One-shot agents remain available via `uv run discount-analyst agent {surveyor,profiler,researcher,strategist,sentinel,appraiser}`.
 
 ## Key Files
 
@@ -45,13 +21,15 @@ Buy where market price is furthest below expected intrinsic value.
 | `pyproject.toml`                               | Package metadata, `module-root = "backend/src"`, Import Linter, console script `discount-analyst`.                   |
 | `uv.lock`                                      | Locked dependencies.                                                                                                 |
 | `README.md`                                    | Quick start and high-level docs.                                                                                     |
+| `current_workflow.md`                          | Implementation-accurate snapshot of the agentic pipeline (schemas, gates, orchestration).                            |
 | `pytest.ini`                                   | Coverage for `discount_analyst`; `testpaths = backend/tests`.                                                        |
 | `backend/AGENTS.md`                            | **Placement guide** for the modular monolith (domain / agents / application / adapters / entrypoints / composition). |
 | `backend/src/discount_analyst/`                | Installable Python package.                                                                                          |
 | `backend/migrations/`                          | Alembic config + revision chain.                                                                                     |
 | `backend/tools/`                               | OpenAPI export, Alembic check, terminal verify.                                                                      |
 | `backend/services/agent_terminal/`             | Separate terminal orchestrator (HTTP only from the monolith).                                                        |
-| `.cursor/skills/analyse-workflow-run/SKILL.md` | Analyse a dashboard `workflow_run_id`.                                                                               |
+| `.cursor/skills/analyse-workflow-run/SKILL.md`           | Analyse a dashboard `workflow_run_id`.                                                                               |
+| `.cursor/skills/sync-workflow/SKILL.md`                  | Regenerate `current_workflow.md` from live pipeline code.                                                            |
 
 ## Subdirectories
 
