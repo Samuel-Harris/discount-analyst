@@ -17,13 +17,24 @@ SENTINEL_AGENT_SPEC = AgentSpec(
 def create_sentinel_agent(
     ai_models_config: AIModelsConfig,
     *,
+    use_perplexity: bool = False,
+    use_mcp_financial_data: bool = True,
     terminal: TerminalRunOptions | None = None,
 ) -> Agent[None, EvaluationReport]:
-    """Create and configure the Sentinel agent (no web/MCP tools).
+    """Create and configure the Sentinel agent.
 
     Args:
         ai_models_config: Model and caching configuration.
-        terminal: Per-run terminal options; omitted terminal is off unless passed explicitly.
+        use_perplexity: When True, registers Perplexity-backed
+            ``web_search`` and ``sec_filings_search`` tools. When False (default),
+            uses pydantic-ai's ``WebSearch`` and ``WebFetch`` capabilities,
+            which use provider-native tools where supported and Pydantic AI
+            local fallbacks otherwise.
+        use_mcp_financial_data: When True (default), registers EODHD and FMP
+            MCP toolsets for providers that support MCP (Anthropic, OpenAI,
+            DeepSeek).
+            Use False or ``--no-mcp`` for Google or when MCP should be omitted.
+        terminal: Per-run terminal sandbox options; defaults from process settings.
 
     Returns:
         A configured Agent instance for producing `EvaluationReport` output.
@@ -31,7 +42,7 @@ def create_sentinel_agent(
     return create_agent(
         spec=SENTINEL_AGENT_SPEC,
         ai_models_config=ai_models_config,
-        enable_web_research_tools=False,
-        use_mcp_financial_data=False,
+        use_perplexity=use_perplexity,
+        use_mcp_financial_data=use_mcp_financial_data,
         terminal=terminal,
     )

@@ -359,7 +359,12 @@ class TickerLaneStage:
                 settings=host.settings,
                 session_id=strategist_exec_id,
                 runtime=host.cached_terminal_runtime(),
-                build_agent=lambda t: create_strategist_agent(ai_cfg, terminal=t),
+                build_agent=lambda t: create_strategist_agent(
+                    ai_cfg,
+                    use_perplexity=host.settings.use_perplexity,
+                    use_mcp_financial_data=host.settings.use_mcp_financial_data,
+                    terminal=t,
+                ),
                 user_prompt=create_strategist_user_prompt(
                     lane_context=lane_context, deep_research=research_out
                 ),
@@ -453,7 +458,12 @@ class TickerLaneStage:
                 settings=host.settings,
                 session_id=sentinel_exec_id,
                 runtime=host.cached_terminal_runtime(),
-                build_agent=lambda t: create_sentinel_agent(ai_cfg, terminal=t),
+                build_agent=lambda t: create_sentinel_agent(
+                    ai_cfg,
+                    use_perplexity=host.settings.use_perplexity,
+                    use_mcp_financial_data=host.settings.use_mcp_financial_data,
+                    terminal=t,
+                ),
                 user_prompt=create_sentinel_user_prompt(
                     lane_context=lane_context,
                     deep_research=research_out,

@@ -32,7 +32,7 @@ def _capability_tree_contains_terminal(root: AbstractCapability[None]) -> bool:
     return found
 
 
-def test_default_terminal_follows_settings_for_interpretation_agents(
+def test_default_terminal_follows_settings_when_web_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(

@@ -179,7 +179,52 @@ Args:
     question: A specific question that includes company/ticker, metric/disclosure,
         and desired period (e.g. latest 10-K or most recent 10-Q).
 
-Returns:
+        Returns:
     Evidence extracted from SEC filings.""",
+    ),
+    AgentName.STRATEGIST: SearchToolDescriptions(
+        web_search="""Optional web check against the packed Surveyor and Researcher context.
+
+Use this only to falsify a specific claim already in that context (a date, a
+market event, or a quoted fact). Do not start a new research programme or
+re-run full discovery.
+
+Args:
+    question: A narrow question that names the claim to falsify and the ticker.
+
+Returns:
+    A short check against web sources.""",
+        sec_filings_search="""Optional SEC-filings check to falsify a US-listed claim in the packed context.
+
+Use this to confirm or refute one filing fact already in play. Do not start a
+new research programme.
+
+Args:
+    question: Include ticker or company and the single filing claim to check.
+
+Returns:
+    A short check based on SEC filings.""",
+    ),
+    AgentName.SENTINEL: SearchToolDescriptions(
+        web_search="""Optional web check to verify a red flag or a factual claim in the packed context.
+
+Use this only to confirm or refute a specific red flag, filing fact, or event
+already raised by Researcher or Strategist. Do not re-run full research.
+
+Args:
+    question: A narrow question that names the red flag or fact and the ticker.
+
+Returns:
+    A short check against web sources.""",
+        sec_filings_search="""Optional SEC-filings check to verify a red flag or filing fact for a US name.
+
+Use this to confirm or refute one disclosure already in the packed context.
+Do not start a new research programme.
+
+Args:
+    question: Include ticker or company and the red flag or filing fact to verify.
+
+Returns:
+    A short check based on SEC filings.""",
     ),
 }

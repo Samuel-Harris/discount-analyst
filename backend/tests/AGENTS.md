@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-23 | Updated: 2026-07-11 (agentLaneOrder path) -->
+<!-- Generated: 2026-02-23 | Updated: 2026-08-15 -->
 
 # tests
 
@@ -17,6 +17,7 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | `tests/discount_analyst/valuation/test_toolkit.py`                 | Tests for deterministic valuation toolkit helpers, including DCF real-world scenarios.                                                 |
 | `tests/discount_analyst/http/test_streaming_retries.py`            | Unit tests for agent streaming retry helpers (`stream_with_retries`, sleep parsing).                                                   |
 | `tests/discount_analyst/integrations/test_financial_data_mcp.py`   | EODHD MCP optional registration (`EODHD__DISABLED`).                                                                                   |
+| `tests/discount_analyst/integrations/test_frankfurter.py`          | Frankfurter `convert_currency` mocked HTTP tests plus live EUR→USD smoke (`@pytest.mark.network`).                                     |
 | `tests/discount_analyst/integrations/test_text_only_web_fetch.py`  | Text-only local web fetch (markitdown binary conversion, DeepSeek wiring).                                                             |
 | `tests/fixtures/web_fetch/`                                        | Minimal PDF and DOCX fixtures with known extractable strings for markitdown integration tests.                                         |
 | `tests/discount_analyst/integrations/test_terminal.py`             | Terminal HTTP client mocks; optional `@pytest.mark.docker` orchestrator integration.                                                   |
@@ -40,7 +41,7 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | Directory                            | Purpose                                                                                              |
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------- |
 | `discount_analyst/http/`             | Tests for streaming retry behaviour (`discount_analyst.agents.common.streaming_retries`).            |
-| `discount_analyst/integrations/`     | Tests for MCP adapter wiring (`financial_data_mcp`).                                                 |
+| `discount_analyst/integrations/`     | Tests for MCP, Frankfurter FX, web-fetch, and terminal tool wiring.                                  |
 | `discount_analyst/agents/common/`    | Tests for streamed agent orchestration.                                                              |
 | `discount_analyst/agents/appraiser/` | Tests for Appraiser schema contracts.                                                                |
 | `discount_analyst/agents/sentinel/`  | Tests for Sentinel schema helpers.                                                                   |

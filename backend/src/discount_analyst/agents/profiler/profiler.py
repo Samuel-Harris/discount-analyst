@@ -25,7 +25,6 @@ def create_profiler_agent(
     return create_agent(
         spec=PROFILER_AGENT_SPEC,
         ai_models_config=ai_models_config,
-        enable_web_research_tools=True,
         use_perplexity=use_perplexity,
         use_mcp_financial_data=use_mcp_financial_data,
         terminal=terminal,

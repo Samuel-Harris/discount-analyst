@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-04-05 -->
+<!-- Generated: 2026-04-05 | Updated: 2026-08-15 -->
 
 # sentinel
 
@@ -25,7 +25,7 @@ None.
 
 ### Working In This Directory
 
-- **No web/MCP tools**: No `WebSearch`, `WebFetch`, Perplexity, or financial MCP. Optional docker-backed `terminal_exec` follows `settings.use_terminal` / `--no-terminal` like other pipeline agents.
+- **Agent tools**: Same flag contract as Surveyor. Default (`use_perplexity=False`) uses pydantic-ai `WebSearch` and `WebFetch`. With `use_perplexity=True`, Perplexity tools come from `create_perplexity_toolset(AgentName.SENTINEL)` — descriptions are optional checks to verify a red flag or filing fact, not a licence to re-run research. MCP follows `use_mcp_financial_data` (False for Google / `--no-mcp`). Frankfurter `convert_currency` is always attached. Terminal follows `settings.use_terminal` / `--no-terminal`.
 - **Output contract**: Keep output constrained to `EvaluationReport` in `schema.py`. Use `sentinel_proceeds_to_valuation(evaluation)` for the valuation gate; do not add a duplicate persisted recommendation field.
 
 ### Testing Requirements
