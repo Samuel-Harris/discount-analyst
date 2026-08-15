@@ -1,4 +1,4 @@
-<!-- Generated: 2026-02-23 | Updated: 2026-08-15 (workflow-sync skill) -->
+<!-- Generated: 2026-02-23 | Updated: 2026-08-15 (sync-workflow skill) -->
 
 # Discount Analyst
 
@@ -52,7 +52,7 @@ Buy where market price is furthest below expected intrinsic value.
 | `backend/tools/`                               | OpenAPI export, Alembic check, terminal verify.                                                                      |
 | `backend/services/agent_terminal/`             | Separate terminal orchestrator (HTTP only from the monolith).                                                        |
 | `.cursor/skills/analyse-workflow-run/SKILL.md`           | Analyse a dashboard `workflow_run_id`.                                                                               |
-| `.cursor/skills/discount-analyst-workflow-sync/SKILL.md` | Regenerate `current_workflow.md` from live pipeline code.                                                            |
+| `.cursor/skills/sync-workflow/SKILL.md`                  | Regenerate `current_workflow.md` from live pipeline code.                                                            |
 
 ## Subdirectories
 

@@ -1,5 +1,5 @@
 ---
-name: discount-analyst-workflow-sync
+name: sync-workflow
 description: >-
   Investigates the Discount Analyst codebase (agents, Pydantic schemas,
   orchestration, gates, tools/MCP/data sources) and regenerates
