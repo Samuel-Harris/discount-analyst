@@ -1,11 +1,11 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-04-04 -->
+<!-- Generated: 2026-04-04 | Updated: 2026-08-15 -->
 
 # strategist
 
 ## Purpose
 
-The `strategist` directory contains the implementation of the "Strategist" AI agent. This agent consumes a `SurveyorCandidate` plus a `DeepResearchReport` and produces a structured `MispricingThesis` focused on falsifiable interpretation (no further research tools).
+The `strategist` directory contains the implementation of the "Strategist" AI agent. This agent consumes a `SurveyorCandidate` plus a `DeepResearchReport` and produces a structured `MispricingThesis` focused on falsifiable interpretation. It shares the same web/MCP/terminal flags as the other pipeline agents, plus always-on Frankfurter FX.
 
 ## Key Files
 
@@ -24,7 +24,7 @@ None.
 
 ### Working In This Directory
 
-- **No web/MCP tools**: No `WebSearch`, `WebFetch`, Perplexity, or financial MCP. Optional docker-backed `terminal_exec` follows `settings.use_terminal` / `--no-terminal` like other pipeline agents.
+- **Agent tools**: Same flag contract as Surveyor. Default (`use_perplexity=False`) uses pydantic-ai `WebSearch` and `WebFetch`. With `use_perplexity=True`, Perplexity tools come from `create_perplexity_toolset(AgentName.STRATEGIST)` — descriptions are optional checks to falsify a packed-context claim, not a licence to re-run research. MCP follows `use_mcp_financial_data` (False for Google / `--no-mcp`). Frankfurter `convert_currency` is always attached. Terminal follows `settings.use_terminal` / `--no-terminal`.
 - **Output contract**: Keep output constrained to `MispricingThesis` in `schema.py`.
 
 ### Testing Requirements

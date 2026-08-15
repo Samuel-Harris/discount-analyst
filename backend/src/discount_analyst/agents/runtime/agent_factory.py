@@ -23,6 +23,9 @@ from discount_analyst.config.provider_features import (
     Provider,
     ProviderFeature,
 )
+from discount_analyst.agents.tools.market_data.frankfurter import (
+    create_frankfurter_toolset,
+)
 from discount_analyst.agents.tools.web_research.bounded_web_search import (
     create_bounded_duckduckgo_search_tool,
 )
@@ -88,10 +91,10 @@ def create_agent[OutT](
 
     By default, the factory enables Pydantic AI's native-or-local web search
     and fetch capabilities, optional Perplexity search, and optional financial
-    MCP toolsets.
-    Set ``enable_web_research_tools=False`` for interpretation-only agents
-    (for example, Strategist and Sentinel). When ``terminal`` is omitted, terminal
-    follows ``settings.use_terminal`` only (independent of web/MCP flags).
+    MCP toolsets. A Frankfurter ``convert_currency`` toolset is always attached.
+    Set ``enable_web_research_tools=False`` to omit web search/fetch/Perplexity
+    (test isolation only). When ``terminal`` is omitted, terminal follows
+    ``settings.use_terminal`` only (independent of web/MCP flags).
 
     Structured output is always registered via ``ToolOutput`` (tool mode, ``final_result``)
     for cross-provider uniformity.
@@ -131,6 +134,8 @@ def create_agent[OutT](
             toolsets=toolsets,
             provider=ai_models_config.model.provider,
         )
+
+    toolsets.append(create_frankfurter_toolset())
 
     return Agent(
         name=spec.name,

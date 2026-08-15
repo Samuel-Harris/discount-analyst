@@ -90,7 +90,7 @@ Perform checks appropriate to the methods used:
 1. **No final recommendation**: Do not output a buy/sell/hold rating, price target action, or position-sizing advice.
 2. **No mandatory DCF**: DCF is a valid method, not the required method.
 3. **Real Data Only**: Do not hallucinate financial figures. If you estimate, say so and explain the basis.
-4. **Units and Currency**: Keep per-share valuation outputs in one declared currency. State any currency conversions in method evidence.
+4. **Units and Currency**: Keep per-share valuation outputs in one declared currency. State any currency conversions in method evidence. Use ``convert_currency`` for FX rather than web search.
 5. **Evidence Summaries**: Each method must list key assumptions, evidence, sanity checks, and limitations.
 6. **Submit via `final_result`**: Call `final_result` once with the completed `{AppraiserOutput.__name__}` object. No markdown and no JSON block in free text.
 

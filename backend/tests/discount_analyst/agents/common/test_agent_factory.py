@@ -11,7 +11,12 @@ from discount_analyst.agents.runtime.agent_factory import (
     create_web_research_tooling,
 )
 from discount_analyst.agents.runtime.agent_names import AgentName
+from discount_analyst.agents.runtime.tool_descriptions import AGENT_TOOL_DESCRIPTIONS
 from discount_analyst.agents.common_prompts.current_date import format_current_date_line
+from discount_analyst.agents.sentinel import sentinel as sentinel_module
+from discount_analyst.agents.sentinel.sentinel import create_sentinel_agent
+from discount_analyst.agents.strategist import strategist as strategist_module
+from discount_analyst.agents.strategist.strategist import create_strategist_agent
 from discount_analyst.config.ai_models_config import (
     AIModelConfig,
     AIModelsConfig,
@@ -147,3 +152,112 @@ def test_create_agent_accepts_deepseek_web_research_tooling(
     )
 
     assert agent.name == AgentName.SURVEYOR
+
+
+def test_create_agent_attaches_fx_when_web_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fx_toolset = object()
+    captured: dict[str, object] = {}
+
+    def fake_create_model_from_config(_config: AIModelConfig) -> TestModel:
+        return TestModel()
+
+    def fake_agent(**kwargs: object) -> SimpleNamespace:
+        captured["toolsets"] = kwargs.get("toolsets")
+        return SimpleNamespace(name=kwargs.get("name"))
+
+    monkeypatch.setattr(agent_factory, "create_frankfurter_toolset", lambda: fx_toolset)
+    monkeypatch.setattr(
+        agent_factory,
+        "create_model_from_config",
+        fake_create_model_from_config,
+    )
+    monkeypatch.setattr(agent_factory, "Agent", fake_agent)
+
+    create_agent(
+        spec=AgentSpec(name=AgentName.SURVEYOR, output_type=str, system_prompt="test"),
+        ai_models_config=AIModelsConfig(model_name=ModelName.DEEPSEEK_V4_PRO),
+        enable_web_research_tools=False,
+        use_mcp_financial_data=False,
+    )
+
+    assert captured["toolsets"] == [fx_toolset]
+
+
+def test_create_strategist_agent_does_not_force_web_mcp_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_create_agent(**kwargs: object) -> SimpleNamespace:
+        captured.update(kwargs)
+        return SimpleNamespace()
+
+    monkeypatch.setattr(strategist_module, "create_agent", fake_create_agent)
+    create_strategist_agent(AIModelsConfig(model_name=ModelName.DEEPSEEK_V4_PRO))
+
+    assert captured.get("enable_web_research_tools", True) is True
+    assert captured["use_perplexity"] is False
+    assert captured["use_mcp_financial_data"] is True
+
+
+def test_create_strategist_agent_forwards_web_mcp_flags(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_create_agent(**kwargs: object) -> SimpleNamespace:
+        captured.update(kwargs)
+        return SimpleNamespace()
+
+    monkeypatch.setattr(strategist_module, "create_agent", fake_create_agent)
+    create_strategist_agent(
+        AIModelsConfig(model_name=ModelName.DEEPSEEK_V4_PRO),
+        use_perplexity=True,
+        use_mcp_financial_data=False,
+    )
+
+    assert captured["use_perplexity"] is True
+    assert captured["use_mcp_financial_data"] is False
+
+
+def test_create_sentinel_agent_does_not_force_web_mcp_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_create_agent(**kwargs: object) -> SimpleNamespace:
+        captured.update(kwargs)
+        return SimpleNamespace()
+
+    monkeypatch.setattr(sentinel_module, "create_agent", fake_create_agent)
+    create_sentinel_agent(AIModelsConfig(model_name=ModelName.DEEPSEEK_V4_PRO))
+
+    assert captured.get("enable_web_research_tools", True) is True
+    assert captured["use_perplexity"] is False
+    assert captured["use_mcp_financial_data"] is True
+
+
+def test_create_sentinel_agent_forwards_web_mcp_flags(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_create_agent(**kwargs: object) -> SimpleNamespace:
+        captured.update(kwargs)
+        return SimpleNamespace()
+
+    monkeypatch.setattr(sentinel_module, "create_agent", fake_create_agent)
+    create_sentinel_agent(
+        AIModelsConfig(model_name=ModelName.DEEPSEEK_V4_PRO),
+        use_perplexity=True,
+        use_mcp_financial_data=False,
+    )
+
+    assert captured["use_perplexity"] is True
+    assert captured["use_mcp_financial_data"] is False
+
+
+def test_perplexity_descriptions_cover_every_agent() -> None:
+    assert set(AGENT_TOOL_DESCRIPTIONS) == set(AgentName)

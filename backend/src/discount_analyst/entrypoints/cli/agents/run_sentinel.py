@@ -29,6 +29,7 @@ from discount_analyst.entrypoints.cli.shared.artefacts import write_agent_json
 from discount_analyst.agents.runtime.terminal_run import TerminalRunOptions
 from discount_analyst.entrypoints.cli.shared.cli import (
     add_agent_cli_model_argument,
+    add_agent_cli_web_search_arguments,
     add_agent_terminal_argument,
     terminal_run_options_for_cli,
 )
@@ -79,6 +80,8 @@ class FailedSentinelRun:
 
 class SentinelArgs(BaseModel):
     model: ModelName
+    use_perplexity: bool
+    use_mcp_financial_data: bool
     use_terminal: bool
     selectors: list[Selector]
 
@@ -102,6 +105,15 @@ def parse_args() -> SentinelArgs:
         ),
     )
     add_agent_cli_model_argument(parser)
+    add_agent_cli_web_search_arguments(parser)
+    parser.add_argument(
+        "--no-mcp",
+        action="store_true",
+        help=(
+            "Do not register EODHD/FMP MCP toolsets (required for Google models; "
+            "optional for Anthropic/OpenAI)."
+        ),
+    )
     add_agent_terminal_argument(parser)
     raw = parser.parse_args()
     selectors = [
@@ -115,6 +127,8 @@ def parse_args() -> SentinelArgs:
     ]
     return SentinelArgs(
         model=raw.model,
+        use_perplexity=raw.use_perplexity,
+        use_mcp_financial_data=not raw.no_mcp,
         use_terminal=not raw.no_terminal,
         selectors=selectors,
     )
@@ -236,11 +250,18 @@ async def run_agent(
     surveyor_candidate: SurveyorCandidate,
     deep_research: DeepResearchReport,
     thesis: MispricingThesis,
+    use_perplexity: bool,
+    use_mcp_financial_data: bool,
     terminal: TerminalRunOptions,
 ) -> AgentRunResult:
     """Run the Sentinel agent and return output with usage stats."""
     ai_models_config = AIModelsConfig(model_name=model_name)
-    agent = create_sentinel_agent(ai_models_config, terminal=terminal)
+    agent = create_sentinel_agent(
+        ai_models_config,
+        use_perplexity=use_perplexity,
+        use_mcp_financial_data=use_mcp_financial_data,
+        terminal=terminal,
+    )
     user_prompt = create_user_prompt(
         lane_context=surveyor_candidate.to_lane_context(),
         deep_research=deep_research,
@@ -358,6 +379,8 @@ async def main() -> None:
                 surveyor_candidate=target.surveyor_candidate,
                 deep_research=target.deep_research,
                 thesis=so.output,
+                use_perplexity=args.use_perplexity,
+                use_mcp_financial_data=args.use_mcp_financial_data,
                 terminal=terminal,
             )
             display_output(run_result.output)

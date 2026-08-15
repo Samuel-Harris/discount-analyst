@@ -378,10 +378,17 @@ async def run_strategist_once(
     model_name: ModelName,
     surveyor_candidate: SurveyorCandidate,
     deep_research: DeepResearchReport,
+    use_perplexity: bool,
+    use_mcp_financial_data: bool,
     terminal: TerminalRunOptions,
 ) -> StrategistAgentRunResult:
     ai_models_config = AIModelsConfig(model_name=model_name)
-    agent = create_strategist_agent(ai_models_config, terminal=terminal)
+    agent = create_strategist_agent(
+        ai_models_config,
+        use_perplexity=use_perplexity,
+        use_mcp_financial_data=use_mcp_financial_data,
+        terminal=terminal,
+    )
     user_prompt = create_strategist_user_prompt(
         lane_context=surveyor_candidate.to_lane_context(),
         deep_research=deep_research,
@@ -417,10 +424,17 @@ async def run_sentinel_once(
     surveyor_candidate: SurveyorCandidate,
     deep_research: DeepResearchReport,
     thesis: MispricingThesis,
+    use_perplexity: bool,
+    use_mcp_financial_data: bool,
     terminal: TerminalRunOptions,
 ) -> SentinelAgentRunResult:
     ai_models_config = AIModelsConfig(model_name=model_name)
-    agent = create_sentinel_agent(ai_models_config, terminal=terminal)
+    agent = create_sentinel_agent(
+        ai_models_config,
+        use_perplexity=use_perplexity,
+        use_mcp_financial_data=use_mcp_financial_data,
+        terminal=terminal,
+    )
     user_prompt = create_sentinel_user_prompt(
         lane_context=surveyor_candidate.to_lane_context(),
         deep_research=deep_research,
@@ -748,6 +762,8 @@ async def main() -> None:
                 model_name=args.model,
                 surveyor_candidate=candidate,
                 deep_research=run_result.output,
+                use_perplexity=args.use_perplexity,
+                use_mcp_financial_data=args.use_mcp_financial_data,
                 terminal=terminal,
             )
         except Exception as exc:
@@ -784,6 +800,8 @@ async def main() -> None:
                 surveyor_candidate=candidate,
                 deep_research=run_result.output,
                 thesis=strat_result.output,
+                use_perplexity=args.use_perplexity,
+                use_mcp_financial_data=args.use_mcp_financial_data,
                 terminal=terminal,
             )
         except Exception as exc:

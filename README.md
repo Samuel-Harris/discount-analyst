@@ -18,7 +18,7 @@ uv run discount-analyst agent surveyor
 The agent uses AI-powered web research to surface a ranked list of candidates with market caps, exchange listings, and a rationale for each.
 
 **2. Research & strategy — in-repo agents**
-The **Researcher** agent takes each `SurveyorCandidate` (value vs growth is part of the surveyor context) and produces a structured, neutral **deep research** report (`DeepResearchReport`). The **Strategist** agent then reads that report plus the same candidate and outputs a structured **mispricing thesis** (`MispricingThesis`) — interpretation only, no extra web research.
+The **Researcher** agent takes each `SurveyorCandidate` (value vs growth is part of the surveyor context) and produces a structured, neutral **deep research** report (`DeepResearchReport`). The **Strategist** agent then reads that report plus the same candidate and outputs a structured **mispricing thesis** (`MispricingThesis`). It shares the same web/MCP/terminal flags as the other pipeline agents.
 
 Run the full chain (Surveyor → Researcher → Strategist) in one go:
 
