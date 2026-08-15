@@ -162,4 +162,4 @@ async def test_live_eur_usd_smoke() -> None:
     assert result.from_currency == "EUR"
     assert result.to_currency == "USD"
     assert result.rate > 0
-    assert result.converted_amount == pytest.approx(result.amount * result.rate)
+    assert result.converted_amount == result.amount * result.rate
