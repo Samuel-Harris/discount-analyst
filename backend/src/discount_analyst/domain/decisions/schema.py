@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -14,6 +14,7 @@ SentinelRejectionRating = Literal[
 class SentinelRejection(BaseModel):
     """Programmatic rejection when Sentinel blocks valuation (short-circuit path)."""
 
+    decision_kind: Literal["sentinel_rejection"]
     ticker: str
     company_name: str
     decision_date: str
@@ -29,6 +30,7 @@ class SentinelRejection(BaseModel):
 class DataQualityRejection(BaseModel):
     """Programmatic rejection when pre-Researcher data-quality gates fail."""
 
+    decision_kind: Literal["data_quality_rejection"]
     ticker: str
     company_name: str
     decision_date: str
@@ -54,6 +56,7 @@ class RatingTableRationale(BaseModel):
 class RatingTableDecision(BaseModel):
     """Deterministic valuation-gated rating built from Appraiser distribution."""
 
+    decision_kind: Literal["rating_table"]
     decision_rule_id: Literal["rating_table_v1"]
     ticker: str
     company_name: str
@@ -80,4 +83,7 @@ class Verdict(BaseModel):
     rating: InvestmentRating
     recommended_action: str
 
-    decision: RatingTableDecision | SentinelRejection | DataQualityRejection
+    decision: Annotated[
+        RatingTableDecision | SentinelRejection | DataQualityRejection,
+        Field(discriminator="decision_kind"),
+    ]

@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-23 | Updated: 2026-08-15 -->
+<!-- Generated: 2026-02-23 | Updated: 2026-08-16 -->
 
 # tests
 
@@ -23,7 +23,10 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | `tests/discount_analyst/integrations/test_terminal.py`             | Terminal HTTP client mocks; optional `@pytest.mark.docker` orchestrator integration.                                                   |
 | `tests/discount_analyst/agents/common/test_streamed_agent_run.py`  | Tests for `run_streamed_agent`.                                                                                                        |
 | `tests/discount_analyst/agents/sentinel/test_sentinel_gate.py`     | Tests for `sentinel_proceeds_to_valuation` (thesis + red-flag gate).                                                                   |
-| `tests/discount_analyst/pipeline/test_builders.py`                 | Tests for `build_sentinel_rejection` and `verdict_from_decision`.                                                                      |
+| `tests/discount_analyst/pipeline/test_builders.py`                 | Tests for `build_sentinel_rejection`, `verdict_from_decision`, and tagged `Verdict` JSON round-trip of all three decision kinds.       |
+| `tests/discount_analyst/pipeline/test_candidate_gates.py`          | Pre-Researcher FMP/EODHD gates: ticker search (source, stem, name), exact `.L`+exchange accept, listing fallback.                      |
+| `tests/discount_analyst/integrations/test_infallible_toolset.py`   | `format_tool_error` plus `InfallibleToolExecution.wrap_tool_execute` (function-tool errors vs output-kind re-raise).                   |
+| `tests/backend/unit/test_persist_ticker_run_final_verdict.py`      | DQR persist source lookup: Profiler if present, else workflow Surveyor; Researcher id unused.                                          |
 | `tests/backend/unit/test_dashboard_settings.py`                    | Unified ``Settings`` validation (e.g. non-empty ``LOGGING__LOGFIRE_API_KEY``).                                                         |
 | `tests/backend/unit/test_workflow_api.py`                          | HTTP contract tests for the FastAPI dashboard (`backend`) with isolated SQLite.                                                        |
 | `tests/backend/unit/test_agent_lane_order_sync.py`                 | Keeps `discount_analyst.application.workflows.agent_lane_order` aligned with `frontend/src/features/pipeline-graph/agentLaneOrder.ts`. |
@@ -45,7 +48,7 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | `discount_analyst/agents/common/`    | Tests for streamed agent orchestration.                                                              |
 | `discount_analyst/agents/appraiser/` | Tests for Appraiser schema contracts.                                                                |
 | `discount_analyst/agents/sentinel/`  | Tests for Sentinel schema helpers.                                                                   |
-| `discount_analyst/pipeline/`         | Tests for programmatic verdict builders and the deterministic rating table.                          |
+| `discount_analyst/pipeline/`         | Tests for programmatic verdict builders, tagged `Verdict` JSON, candidate gates, and the rating table. |
 | `discount_analyst/valuation/`        | Tests for deterministic valuation toolkit helpers (`discount_analyst.valuation.toolkit`).            |
 | `scripts/`                           | Tests for script helpers where present.                                                              |
 | `backend/`                           | Tests for the FastAPI `backend` package (`unit/`, `integration/`); shared fixtures in `conftest.py`. |

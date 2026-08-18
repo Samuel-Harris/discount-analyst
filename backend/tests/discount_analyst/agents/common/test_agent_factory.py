@@ -187,7 +187,10 @@ def test_create_agent_attaches_always_on_tooling(
     )
 
     assert captured["toolsets"] == [fx_toolset]
-    assert captured["capabilities"] == [TOOL_OUTPUT_LIMITS]
+    assert captured["capabilities"] == [
+        TOOL_OUTPUT_LIMITS,
+        agent_factory.INFALLIBLE_TOOL_EXECUTION,
+    ]
     bands = list(TOOL_OUTPUT_LIMITS.bands)
     assert len(bands) == 1
     assert bands[0].over == TOOL_OUTPUT_CHAR_LIMIT

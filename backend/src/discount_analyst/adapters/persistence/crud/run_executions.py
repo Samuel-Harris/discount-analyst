@@ -629,6 +629,20 @@ def apply_ticker_run_completion_fields(
     return run
 
 
+def _data_quality_rejection_source_execution_id(
+    session: Session, *, run_id: str
+) -> str | None:
+    profiler_id = get_agent_execution_id_by_run_and_agent(
+        session, run_id=run_id, agent_name=AgentNameDb.PROFILER.value
+    )
+    if profiler_id is not None:
+        return profiler_id
+    run = session.get(Run, run_id)
+    if run is None:
+        return None
+    return get_workflow_surveyor_execution_id(session, run.workflow_run_id)
+
+
 def persist_ticker_run_final_verdict(
     session: Session,
     *,
@@ -703,8 +717,8 @@ def persist_ticker_run_final_verdict(
             mitigating_factors=[],
         )
     elif decision_type == DecisionTypeDb.DATA_QUALITY_REJECTION.value:
-        source_execution_id = get_agent_execution_id_by_run_and_agent(
-            session, run_id=run_id, agent_name=AgentNameDb.RESEARCHER.value
+        source_execution_id = _data_quality_rejection_source_execution_id(
+            session, run_id=run_id
         )
         if source_execution_id is None:
             return

@@ -72,6 +72,7 @@ def build_sentinel_rejection(
     rejection_reason = " ".join(reason_parts)
 
     return SentinelRejection(
+        decision_kind="sentinel_rejection",
         ticker=evaluation.ticker,
         company_name=evaluation.company_name,
         decision_date=decision_date,
@@ -95,6 +96,7 @@ def build_data_quality_rejection(
     else:
         recommended_action = "Do not initiate; data quality gate failed."
     return DataQualityRejection(
+        decision_kind="data_quality_rejection",
         ticker=lane_context.ticker,
         company_name=lane_context.company_name,
         decision_date=decision_date,
@@ -154,6 +156,7 @@ def build_rating_table_decision(
         "Material data gaps noted in Sentinel output; table path does not re-open them."
     )
     return RatingTableDecision(
+        decision_kind="rating_table",
         decision_rule_id="rating_table_v1",
         ticker=lane_context.ticker,
         company_name=lane_context.company_name,

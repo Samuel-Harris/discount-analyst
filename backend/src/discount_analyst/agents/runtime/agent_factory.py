@@ -41,6 +41,9 @@ from discount_analyst.agents.tools.terminal.client import (
     TerminalLimits,
     TerminalSessionState,
 )
+from discount_analyst.agents.tools.terminal.infallible_toolset import (
+    INFALLIBLE_TOOL_EXECUTION,
+)
 
 TOOL_OUTPUT_CHAR_LIMIT = 10_000
 TOOL_OUTPUT_LIMITS = ToolOutputLimits[None](
@@ -110,9 +113,13 @@ def create_agent[OutT](
     Structured output is always registered via ``ToolOutput`` (tool mode, ``final_result``)
     for cross-provider uniformity. Oversized tool returns are truncated at
     ``TOOL_OUTPUT_CHAR_LIMIT`` characters (output tools such as ``final_result`` are
-    excluded by pydantic-ai).
+    excluded by pydantic-ai). Non-output tool exceptions are converted to error strings
+    via ``InfallibleToolExecution`` so a blocked URL or timeout does not abort the run.
     """
-    capabilities: list[AgentCapability[None]] = [TOOL_OUTPUT_LIMITS]
+    capabilities: list[AgentCapability[None]] = [
+        TOOL_OUTPUT_LIMITS,
+        INFALLIBLE_TOOL_EXECUTION,
+    ]
     toolsets: list[AbstractToolset[None]] = []
 
     terminal_opts = (

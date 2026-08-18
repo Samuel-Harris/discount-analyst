@@ -21,6 +21,7 @@ from discount_analyst.domain.decisions.schema import (
     RatingTableDecision,
     RatingTableRationale,
     SentinelRejection,
+    Verdict,
 )
 from discount_analyst.domain.decisions.investment_rating import InvestmentRating
 from discount_analyst.domain.decisions.margin_of_safety import MarginOfSafetyAssessment
@@ -160,6 +161,7 @@ def test_build_sentinel_rejection_ticker_mismatch_raises() -> None:
 
 def test_verdict_from_decision_hoists_sentinel_fields() -> None:
     sr = SentinelRejection(
+        decision_kind="sentinel_rejection",
         ticker="T",
         company_name="C",
         decision_date="2026-04-05",
@@ -178,14 +180,15 @@ def test_verdict_from_decision_hoists_sentinel_fields() -> None:
     assert v.decision is sr
 
 
-def test_verdict_from_decision_hoists_rating_table_fields() -> None:
+def _rating_table_decision() -> RatingTableDecision:
     mos = MarginOfSafetyAssessment(
         current_price=10.0,
         expected_intrinsic_value=12.0,
         p10_intrinsic_value=8.0,
         p90_intrinsic_value=16.0,
     )
-    rtd = RatingTableDecision(
+    return RatingTableDecision(
+        decision_kind="rating_table",
         decision_rule_id="rating_table_v1",
         ticker="T",
         company_name="C",
@@ -204,7 +207,50 @@ def test_verdict_from_decision_hoists_rating_table_fields() -> None:
         ),
         thesis_expiry_note="12-18 months",
     )
+
+
+def test_verdict_from_decision_hoists_rating_table_fields() -> None:
+    rtd = _rating_table_decision()
     v = verdict_from_decision(rtd)
     assert v.rating == rtd.rating
     assert v.recommended_action == rtd.recommended_action
     assert v.decision is rtd
+
+
+def test_verdict_json_round_trip_preserves_data_quality_rejection() -> None:
+    lane_context = mock_surveyor_candidate(ticker="BAD.L").to_lane_context()
+    rejection = build_data_quality_rejection(
+        lane_context,
+        gate_failure_reason="Ticker mismatch.",
+        is_existing_position=False,
+        decision_date="2026-06-21",
+    )
+    restored = Verdict.model_validate_json(
+        verdict_from_decision(rejection).model_dump_json()
+    )
+    assert isinstance(restored.decision, DataQualityRejection)
+    assert restored.decision.decision_kind == "data_quality_rejection"
+    assert restored.decision.rejection_reason == "Ticker mismatch."
+
+
+def test_verdict_json_round_trip_preserves_sentinel_rejection() -> None:
+    ev = _evaluation(
+        thesis_verdict=ThesisVerdict.WEAKENED_DO_NOT_PROCEED,
+        red_flag=OverallRedFlagVerdict.CLEAR,
+    )
+    rejection = build_sentinel_rejection(
+        ev, _thesis(), is_existing_position=False, decision_date="2026-04-05"
+    )
+    restored = Verdict.model_validate_json(
+        verdict_from_decision(rejection).model_dump_json()
+    )
+    assert isinstance(restored.decision, SentinelRejection)
+    assert restored.decision.decision_kind == "sentinel_rejection"
+
+
+def test_verdict_json_round_trip_preserves_rating_table_decision() -> None:
+    rtd = _rating_table_decision()
+    restored = Verdict.model_validate_json(verdict_from_decision(rtd).model_dump_json())
+    assert isinstance(restored.decision, RatingTableDecision)
+    assert restored.decision.decision_kind == "rating_table"
+    assert restored.decision.decision_rule_id == "rating_table_v1"

@@ -9,6 +9,7 @@ from discount_analyst.adapters.market_data.eodhd_client import EodhdClient
 from discount_analyst.adapters.market_data.fmp_client import (
     FmpAccessDeniedError,
     FmpClient,
+    FmpSearchResult,
 )
 from discount_analyst.agents.surveyor.schema import (
     Exchange,
@@ -179,6 +180,34 @@ async def _resolve_ticker(
     )
 
 
+def _fmp_search_queries(source_ticker: str, company_name: str) -> list[str]:
+    queries = [source_ticker]
+    if source_ticker.casefold().endswith(".l"):
+        stem = source_ticker[:-2]
+        if stem and all(stem.casefold() != query.casefold() for query in queries):
+            queries.append(stem)
+    if company_name.strip() and all(
+        company_name.casefold() != query.casefold() for query in queries
+    ):
+        queries.append(company_name)
+    return queries
+
+
+async def _search_symbol_rows(
+    fmp: FmpClient, queries: list[str]
+) -> list[FmpSearchResult]:
+    seen_symbols: set[str] = set()
+    rows: list[FmpSearchResult] = []
+    for query in queries:
+        for row in await fmp.search_symbol(query):
+            symbol_key = row.symbol.casefold()
+            if symbol_key in seen_symbols:
+                continue
+            seen_symbols.add(symbol_key)
+            rows.append(row)
+    return rows
+
+
 async def _resolve_via_search(
     candidate: SurveyorCandidate,
     *,
@@ -186,20 +215,26 @@ async def _resolve_via_search(
     notes: list[str],
 ) -> TickerResolution | RejectedCandidateGate:
     source_ticker = candidate.ticker
+    queries = _fmp_search_queries(source_ticker, candidate.company_name)
     try:
-        results = await fmp.search_symbol(candidate.company_name)
+        results = await _search_symbol_rows(fmp, queries)
     except FmpAccessDeniedError as exc:
         return _rejection(
             source_ticker=source_ticker,
             resolved_ticker=None,
             resolution_notes=" ".join(notes + [str(exc)]),
             gate_failure_reason=(
-                f"FMP symbol search denied for {candidate.company_name!r} "
-                f"(HTTP {exc.status_code})."
+                f"FMP symbol search denied for {queries!r} (HTTP {exc.status_code})."
             ),
             data_source="fmp",
         )
 
+    exact_matches = [
+        row
+        for row in results
+        if row.symbol.casefold() == source_ticker.casefold()
+        and _exchange_matches(candidate.exchange, row.exchange)
+    ]
     exchange_matches = [
         row for row in results if _exchange_matches(candidate.exchange, row.exchange)
     ]
@@ -210,12 +245,17 @@ async def _resolve_via_search(
         >= _SEARCH_MATCH_THRESHOLD
     ]
     notes.append(
-        f"FMP search returned {len(results)} row(s); "
+        f"FMP search queries {queries} returned {len(results)} unique row(s); "
         f"{len(exchange_matches)} on {candidate.exchange.value}; "
         f"{len(strong_matches)} strong name match(es)."
     )
-    if len(strong_matches) == 1:
+
+    resolved: str | None = None
+    if exact_matches:
+        resolved = exact_matches[0].symbol
+    elif len(strong_matches) == 1:
         resolved = strong_matches[0].symbol
+    if resolved is not None:
         if resolved != source_ticker:
             notes.append(f"Search resolved {source_ticker!r} → {resolved!r}.")
         return TickerResolution(
