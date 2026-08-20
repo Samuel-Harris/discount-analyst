@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-23 | Updated: 2026-08-19 -->
+<!-- Generated: 2026-02-23 | Updated: 2026-08-20 -->
 
 # tests
 
@@ -25,7 +25,7 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | `tests/discount_analyst/agents/common/test_streamed_agent_run.py`  | Tests for `run_streamed_agent`.                                                                                                        |
 | `tests/discount_analyst/agents/sentinel/test_sentinel_gate.py`     | Tests for `sentinel_proceeds_to_valuation` (thesis + red-flag gate).                                                                   |
 | `tests/discount_analyst/pipeline/test_builders.py`                 | Tests for `build_sentinel_rejection`, `verdict_from_decision`, and tagged `Verdict` JSON round-trip of all three decision kinds.       |
-| `tests/discount_analyst/pipeline/test_candidate_gates.py`          | Pre-Researcher FMP/EODHD gates: ticker search (source, stem, name), exact `.L`+exchange accept, listing fallback including NA close when not delisted. |
+| `tests/discount_analyst/pipeline/test_candidate_gates.py`          | Pre-Researcher FMP/EODHD gates: auto-correct only on exact or unique strong match; unknown/ambiguous identity keeps the source ticker; listing rejects only on FMP inactive (non-`.L`) or EODHD `IsDelisted`. |
 | `tests/discount_analyst/integrations/test_eodhd_client.py`         | EODHD REST client: real-time quote (including `"NA"` close → `None`), fundamentals `IsDelisted`.                                      |
 | `tests/discount_analyst/integrations/test_infallible_toolset.py`   | `format_tool_error` plus `InfallibleToolExecution.wrap_tool_execute` (function-tool errors vs output-kind re-raise).                   |
 | `tests/backend/unit/test_persist_ticker_run_final_verdict.py`      | DQR persist source lookup: Profiler if present, else workflow Surveyor; Researcher id unused.                                          |

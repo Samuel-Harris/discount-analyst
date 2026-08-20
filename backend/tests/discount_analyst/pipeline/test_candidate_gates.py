@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import httpx
 import pytest
 
 from discount_analyst.adapters.simulation.mock_outputs import (
@@ -93,6 +94,7 @@ class _StubEodhdClient:
     is_delisted: bool | None = False
     quote_missing: bool = False
     general_missing: bool = False
+    fundamentals_http_status: int | None = None
 
     async def real_time(self, symbol: str) -> EodhdRealTimeQuote | None:
         if self.quote_missing:
@@ -100,6 +102,16 @@ class _StubEodhdClient:
         return EodhdRealTimeQuote(code=symbol, close=self.close)
 
     async def fundamentals_general(self, symbol: str) -> EodhdGeneralInfo | None:
+        if self.fundamentals_http_status is not None:
+            request = httpx.Request(
+                "GET", f"https://eodhd.com/api/fundamentals/{symbol}"
+            )
+            response = httpx.Response(self.fundamentals_http_status, request=request)
+            raise httpx.HTTPStatusError(
+                str(self.fundamentals_http_status),
+                request=request,
+                response=response,
+            )
         if self.general_missing:
             return None
         return EodhdGeneralInfo(code=symbol, IsDelisted=self.is_delisted)
@@ -220,7 +232,7 @@ def test_candidate_to_lane_context_matches_gate_output_shape() -> None:
 
 
 @pytest.mark.anyio
-async def test_validate_candidate_rejects_us_ticker_when_fmp_profile_denied() -> None:
+async def test_validate_candidate_passes_us_ticker_when_fmp_profile_denied() -> None:
     candidate = _candidate(
         ticker="AOUT",
         company_name="American Outdoor Brands Inc",
@@ -239,10 +251,10 @@ async def test_validate_candidate_rejects_us_ticker_when_fmp_profile_denied() ->
         ),  # type: ignore[arg-type]
     )
 
-    assert result.gate_status == "rejected"
-    assert isinstance(result, RejectedCandidateGate)
-    assert "FMP profile lookup denied" in result.gate_failure_reason
-    assert result.data_source == "fmp"
+    assert result.gate_status == "passed"
+    assert result.resolved_ticker == "AOUT"
+    assert result.source_ticker == "AOUT"
+    assert "unconfirmed" in result.resolution_notes.casefold()
 
 
 _BOWL_LSE = {
@@ -373,7 +385,7 @@ async def test_validate_candidate_rejects_when_eodhd_close_is_na_and_delisted() 
 
 
 @pytest.mark.anyio
-async def test_validate_candidate_rejects_when_eodhd_quote_and_fundamentals_missing() -> (
+async def test_validate_candidate_passes_when_eodhd_quote_and_fundamentals_missing() -> (
     None
 ):
     result, _fmp = await _validate_uk_denied_profile(
@@ -383,6 +395,119 @@ async def test_validate_candidate_rejects_when_eodhd_quote_and_fundamentals_miss
         eodhd_client=_StubEodhdClient(quote_missing=True, general_missing=True),
     )
 
+    assert result.gate_status == "passed"
+    assert result.is_actively_trading is True
+    assert "unconfirmed" in result.resolution_notes.casefold()
+
+
+@pytest.mark.anyio
+async def test_validate_candidate_admits_source_ticker_when_fmp_search_empty() -> None:
+    candidate = _candidate(ticker="ZZZ.L", company_name="Unknown Widgets plc")
+    fmp = _RecordingFmpClient(profile_rows=[], search_by_query={})
+    settings = dashboard_settings_for_tests()
+
+    result = await validate_candidate(
+        candidate,
+        fmp_api_key=settings.fmp.api_key,
+        eodhd_api_key=settings.eodhd.api_key,
+        eodhd_disabled=settings.eodhd.disabled,
+        fmp_client=fmp,  # type: ignore[arg-type]
+        eodhd_client=_StubEodhdClient(is_delisted=False),  # type: ignore[arg-type]
+    )
+
+    assert result.gate_status == "passed"
+    assert result.resolved_ticker == "ZZZ.L"
+    assert result.source_ticker == "ZZZ.L"
+    assert "keeping source ticker" in result.resolution_notes
+
+
+@pytest.mark.anyio
+async def test_validate_candidate_keeps_source_ticker_when_two_strong_lse_matches() -> (
+    None
+):
+    candidate = _candidate(ticker="FOO.L", company_name="Acme Industries")
+    fmp = _RecordingFmpClient(
+        profile_rows=[],
+        search_by_query={
+            "Acme Industries": [
+                {
+                    "symbol": "ACME.L",
+                    "name": "Acme Industries plc",
+                    "exchange": "LSE",
+                },
+                {
+                    "symbol": "ACMI.L",
+                    "name": "Acme Industries Group plc",
+                    "exchange": "LSE",
+                },
+            ]
+        },
+    )
+    settings = dashboard_settings_for_tests()
+
+    result = await validate_candidate(
+        candidate,
+        fmp_api_key=settings.fmp.api_key,
+        eodhd_api_key=settings.eodhd.api_key,
+        eodhd_disabled=settings.eodhd.disabled,
+        fmp_client=fmp,  # type: ignore[arg-type]
+        eodhd_client=_StubEodhdClient(is_delisted=False),  # type: ignore[arg-type]
+    )
+
+    assert company_name_similarity("Acme Industries", "Acme Industries plc") >= 0.75
+    assert (
+        company_name_similarity("Acme Industries", "Acme Industries Group plc") >= 0.75
+    )
+    assert result.gate_status == "passed"
+    assert result.resolved_ticker == "FOO.L"
+    assert result.resolved_ticker not in {"ACME.L", "ACMI.L"}
+    assert "Ambiguous FMP search matches" in result.resolution_notes
+
+
+@pytest.mark.anyio
+async def test_validate_candidate_rejects_nasdaq_when_not_actively_trading() -> None:
+    candidate = _candidate(
+        ticker="DEAD",
+        company_name="Dead Co Inc",
+        exchange=Exchange.NASDAQ,
+    )
+    fmp = _RecordingFmpClient(
+        profile_rows=[
+            {
+                "symbol": "DEAD",
+                "companyName": "Dead Co Inc",
+                "exchange": "NASDAQ",
+                "isActivelyTrading": False,
+            }
+        ],
+    )
+    settings = dashboard_settings_for_tests()
+
+    result = await validate_candidate(
+        candidate,
+        fmp_api_key=settings.fmp.api_key,
+        eodhd_api_key=settings.eodhd.api_key,
+        eodhd_disabled=settings.eodhd.disabled,
+        fmp_client=fmp,  # type: ignore[arg-type]
+    )
+
     assert result.gate_status == "rejected"
     assert isinstance(result, RejectedCandidateGate)
-    assert "could not confirm listing" in result.gate_failure_reason
+    assert result.is_actively_trading is False
+    assert result.data_source == "fmp"
+    assert "isActivelyTrading is false" in result.gate_failure_reason
+
+
+@pytest.mark.anyio
+async def test_validate_candidate_passes_when_eodhd_fundamentals_http_403() -> None:
+    result, _fmp = await _validate_uk_denied_profile(
+        ticker="BOWL.L",
+        company_name="Hollywood Bowl Group plc",
+        search_by_query=_BOWL_DENIED_SEARCH,
+        eodhd_client=_StubEodhdClient(fundamentals_http_status=403),
+    )
+
+    assert result.gate_status == "passed"
+    assert result.is_actively_trading is True
+    assert "unconfirmed" in result.resolution_notes.casefold()
+    assert "httpx.HTTPStatusError HTTP 403" in result.resolution_notes

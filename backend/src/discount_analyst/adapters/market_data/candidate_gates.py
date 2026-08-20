@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import re
+from collections.abc import Awaitable
 from difflib import SequenceMatcher
+
+from httpx import HTTPStatusError, TransportError
 
 from discount_analyst.adapters.market_data.eodhd_client import EodhdClient
 from discount_analyst.adapters.market_data.fmp_client import (
@@ -18,7 +21,7 @@ from discount_analyst.agents.surveyor.schema import (
 )
 from discount_analyst.application.candidates.gate_results import (
     CandidateGateResult,
-    GateDataSource,
+    ListingDelisted,
     ListingProbe,
     PassedCandidateGate,
     RejectedCandidateGate,
@@ -98,37 +101,31 @@ async def validate_candidate(
         eodhd = EodhdClient(eodhd_api_key)
 
     resolution = await _resolve_ticker(candidate, fmp=fmp)
-    if isinstance(resolution, RejectedCandidateGate):
-        return resolution
-
     listing = await _check_listing_status(
         resolution.resolved_ticker,
         fmp=fmp,
         eodhd=eodhd,
         eodhd_disabled=eodhd_disabled,
     )
-    if isinstance(listing, RejectedCandidateGate):
+    notes = f"{resolution.resolution_notes} {listing.resolution_notes}"
+    if isinstance(listing, ListingDelisted):
         return RejectedCandidateGate(
             source_ticker=source_ticker,
             resolved_ticker=resolution.resolved_ticker,
-            resolution_notes=(
-                f"{resolution.resolution_notes} {listing.resolution_notes}"
-            ),
+            resolution_notes=notes,
             gate_failure_reason=listing.gate_failure_reason,
-            is_actively_trading=listing.is_actively_trading,
+            is_actively_trading=False,
             data_source=listing.data_source,
         )
-
-    lane_context = candidate.to_lane_context(
-        resolved_ticker=resolution.resolved_ticker,
-    )
     return PassedCandidateGate(
         source_ticker=source_ticker,
         resolved_ticker=resolution.resolved_ticker,
-        resolution_notes=f"{resolution.resolution_notes} {listing.resolution_notes}",
-        is_actively_trading=listing.is_actively_trading,
+        resolution_notes=notes,
+        is_actively_trading=True,
         data_source=listing.data_source,
-        lane_context=lane_context,
+        lane_context=candidate.to_lane_context(
+            resolved_ticker=resolution.resolved_ticker,
+        ),
     )
 
 
@@ -136,23 +133,13 @@ async def _resolve_ticker(
     candidate: SurveyorCandidate,
     *,
     fmp: FmpClient,
-) -> TickerResolution | RejectedCandidateGate:
+) -> TickerResolution:
     source_ticker = candidate.ticker
     notes: list[str] = []
     try:
         profiles = await fmp.profile(source_ticker)
     except FmpAccessDeniedError as exc:
-        if source_ticker.casefold().endswith(".l"):
-            return await _resolve_via_search(candidate, fmp=fmp, notes=[str(exc)])
-        return _rejection(
-            source_ticker=source_ticker,
-            resolved_ticker=None,
-            resolution_notes=str(exc),
-            gate_failure_reason=(
-                f"FMP profile lookup denied for {source_ticker!r} (HTTP {exc.status_code})."
-            ),
-            data_source="fmp",
-        )
+        return await _resolve_via_search(candidate, fmp=fmp, notes=[str(exc)])
 
     if profiles:
         profile = profiles[0]
@@ -167,12 +154,7 @@ async def _resolve_ticker(
             resolved = profile.symbol or source_ticker
             if resolved != source_ticker:
                 notes.append(f"Auto-corrected ticker {source_ticker!r} → {resolved!r}.")
-            return TickerResolution(
-                source_ticker=source_ticker,
-                resolved_ticker=resolved,
-                resolution_notes=" ".join(notes),
-                data_source="fmp",
-            )
+            return _resolution(candidate, notes, resolved)
 
     return await _resolve_via_search(
         candidate,
@@ -214,21 +196,18 @@ async def _resolve_via_search(
     *,
     fmp: FmpClient,
     notes: list[str],
-) -> TickerResolution | RejectedCandidateGate:
+) -> TickerResolution:
     source_ticker = candidate.ticker
     queries = _fmp_search_queries(source_ticker, candidate.company_name)
     try:
         results = await _search_symbol_rows(fmp, queries)
     except FmpAccessDeniedError as exc:
-        return _rejection(
-            source_ticker=source_ticker,
-            resolved_ticker=None,
-            resolution_notes=" ".join(notes + [str(exc)]),
-            gate_failure_reason=(
-                f"FMP symbol search denied for {queries!r} (HTTP {exc.status_code})."
-            ),
-            data_source="fmp",
+        notes.append(str(exc))
+        notes.append(
+            f"FMP symbol search denied for {queries!r} (HTTP {exc.status_code}); "
+            "keeping source ticker."
         )
+        return _resolution(candidate, notes, source_ticker)
 
     exact_matches = [
         row
@@ -251,41 +230,40 @@ async def _resolve_via_search(
         f"{len(strong_matches)} strong name match(es)."
     )
 
-    resolved: str | None = None
-    if exact_matches:
-        resolved = exact_matches[0].symbol
-    elif len(strong_matches) == 1:
-        resolved = strong_matches[0].symbol
+    resolved = (
+        exact_matches[0].symbol
+        if exact_matches
+        else (strong_matches[0].symbol if len(strong_matches) == 1 else None)
+    )
     if resolved is not None:
         if resolved != source_ticker:
             notes.append(f"Search resolved {source_ticker!r} → {resolved!r}.")
-        return TickerResolution(
-            source_ticker=source_ticker,
-            resolved_ticker=resolved,
-            resolution_notes=" ".join(notes),
-            data_source="fmp",
-        )
+        return _resolution(candidate, notes, resolved)
 
     if len(strong_matches) > 1:
         symbols = ", ".join(sorted({row.symbol for row in strong_matches}))
-        return _rejection(
-            source_ticker=source_ticker,
-            resolved_ticker=None,
-            resolution_notes=" ".join(notes),
-            gate_failure_reason=(
-                f"Ambiguous FMP search matches for {candidate.company_name!r}: {symbols}."
-            ),
-            data_source="fmp",
+        notes.append(
+            f"Ambiguous FMP search matches for {candidate.company_name!r}: {symbols}; "
+            "keeping source ticker."
         )
-
-    return _rejection(
-        source_ticker=source_ticker,
-        resolved_ticker=None,
-        resolution_notes=" ".join(notes),
-        gate_failure_reason=(
+    else:
+        notes.append(
             f"No confident FMP symbol match for {candidate.company_name!r} "
-            f"on {candidate.exchange.value} (source ticker {source_ticker!r})."
-        ),
+            f"on {candidate.exchange.value} (source ticker {source_ticker!r}); "
+            "keeping source ticker."
+        )
+    return _resolution(candidate, notes, source_ticker)
+
+
+def _resolution(
+    candidate: SurveyorCandidate,
+    notes: list[str],
+    resolved_ticker: str,
+) -> TickerResolution:
+    return TickerResolution(
+        source_ticker=candidate.ticker,
+        resolved_ticker=resolved_ticker,
+        resolution_notes=" ".join(notes),
         data_source="fmp",
     )
 
@@ -296,30 +274,13 @@ async def _check_listing_status(
     fmp: FmpClient,
     eodhd: EodhdClient | None,
     eodhd_disabled: bool,
-) -> ListingProbe | RejectedCandidateGate:
+) -> ListingProbe | ListingDelisted:
+    denied: FmpAccessDeniedError | None = None
     try:
         profiles = await fmp.profile(resolved_ticker)
     except FmpAccessDeniedError as exc:
-        if (
-            resolved_ticker.casefold().endswith(".l")
-            and not eodhd_disabled
-            and eodhd is not None
-        ):
-            return await _check_listing_via_eodhd(
-                resolved_ticker,
-                eodhd=eodhd,
-                resolution_notes=str(exc),
-            )
-        return _rejection(
-            source_ticker=resolved_ticker,
-            resolved_ticker=resolved_ticker,
-            resolution_notes=str(exc),
-            gate_failure_reason=(
-                f"FMP listing probe denied for {resolved_ticker!r} "
-                f"(HTTP {exc.status_code})."
-            ),
-            data_source="fmp",
-        )
+        denied = exc
+        profiles = []
 
     profile = profiles[0] if profiles else None
     actively_trading = profile.is_actively_trading if profile else None
@@ -327,41 +288,54 @@ async def _check_listing_status(
     if actively_trading is True:
         return ListingProbe(
             resolution_notes="FMP profile indicates active listing.",
-            is_actively_trading=True,
             data_source="fmp",
         )
 
     if (
-        resolved_ticker.casefold().endswith(".l")
+        eodhd is not None
         and not eodhd_disabled
-        and eodhd is not None
+        and resolved_ticker.casefold().endswith(".l")
     ):
-        return await _check_listing_via_eodhd(
-            resolved_ticker,
-            eodhd=eodhd,
-            resolution_notes=(
+        eodhd_notes = (
+            str(denied)
+            if denied is not None
+            else (
                 "FMP listing probe inconclusive "
                 f"(profile present={profile is not None}, "
                 f"isActivelyTrading={actively_trading})."
-            ),
+            )
+        )
+        return await _check_listing_via_eodhd(
+            resolved_ticker,
+            eodhd=eodhd,
+            resolution_notes=eodhd_notes,
         )
 
-    reason_parts: list[str] = []
-    if profile is None:
-        reason_parts.append("no FMP profile")
     if actively_trading is False:
-        reason_parts.append("isActivelyTrading is false")
-    elif actively_trading is None and profile is not None:
-        reason_parts.append("isActivelyTrading is unknown")
-    return _rejection(
-        source_ticker=resolved_ticker,
-        resolved_ticker=resolved_ticker,
-        resolution_notes="FMP listing probe failed.",
-        gate_failure_reason=(
-            f"{resolved_ticker!r} is not actively trading: {', '.join(reason_parts)}."
+        return ListingDelisted(
+            resolution_notes="FMP listing probe failed.",
+            gate_failure_reason=(
+                f"{resolved_ticker!r} is not actively trading: "
+                "isActivelyTrading is false."
+            ),
+            data_source="fmp",
+        )
+
+    if denied is not None:
+        return ListingProbe(
+            resolution_notes=(
+                f"{denied} Listing unconfirmed: FMP listing probe denied for "
+                f"{resolved_ticker!r} (HTTP {denied.status_code})."
+            ),
+            data_source="fmp",
+        )
+    return ListingProbe(
+        resolution_notes=(
+            "FMP listing unconfirmed "
+            f"(profile present={profile is not None}, "
+            f"isActivelyTrading={actively_trading})."
         ),
         data_source="fmp",
-        is_actively_trading=False,
     )
 
 
@@ -370,70 +344,46 @@ async def _check_listing_via_eodhd(
     *,
     eodhd: EodhdClient,
     resolution_notes: str,
-) -> ListingProbe | RejectedCandidateGate:
-    quote, general = await asyncio.gather(
-        eodhd.real_time(resolved_ticker),
-        eodhd.fundamentals_general(resolved_ticker),
+) -> ListingProbe | ListingDelisted:
+    (quote, quote_error), (general, general_error) = await asyncio.gather(
+        _eodhd_listing_call(eodhd.real_time(resolved_ticker)),
+        _eodhd_listing_call(eodhd.fundamentals_general(resolved_ticker)),
     )
 
     if general is not None and general.is_delisted is True:
-        return _rejection(
-            source_ticker=resolved_ticker,
-            resolved_ticker=resolved_ticker,
+        return ListingDelisted(
             resolution_notes=resolution_notes,
             gate_failure_reason=(
                 f"{resolved_ticker!r} is not actively trading: "
                 "EODHD marks symbol as delisted."
             ),
             data_source="eodhd",
-            is_actively_trading=False,
         )
 
-    listing_confirmed = quote is not None or (
-        general is not None and general.is_delisted is False
-    )
-    if not listing_confirmed:
-        return _rejection(
-            source_ticker=resolved_ticker,
-            resolved_ticker=resolved_ticker,
-            resolution_notes=resolution_notes,
-            gate_failure_reason=(
-                f"{resolved_ticker!r} is not actively trading: "
-                "could not confirm listing (no real-time quote and no fundamentals)."
-            ),
-            data_source="eodhd",
-            is_actively_trading=False,
-        )
-
+    error_bits = [bit for bit in (quote_error, general_error) if bit is not None]
     has_positive_close = (
         quote is not None and quote.close is not None and quote.close > 0
     )
-    note = (
-        "EODHD real-time quote present."
-        if has_positive_close
-        else "EODHD real-time close unavailable; symbol not marked delisted."
-    )
+    if error_bits:
+        note = f"EODHD listing unconfirmed ({'; '.join(error_bits)})."
+    elif quote is None and general is None:
+        note = "EODHD listing unconfirmed (no real-time quote and no fundamentals)."
+    elif has_positive_close:
+        note = "EODHD real-time quote present."
+    else:
+        note = "EODHD real-time close unavailable; symbol not marked delisted."
     return ListingProbe(
         resolution_notes=f"{resolution_notes} {note}",
-        is_actively_trading=True,
         data_source="eodhd",
     )
 
 
-def _rejection(
-    *,
-    source_ticker: str,
-    resolved_ticker: str | None,
-    resolution_notes: str,
-    gate_failure_reason: str,
-    data_source: GateDataSource,
-    is_actively_trading: bool | None = None,
-) -> RejectedCandidateGate:
-    return RejectedCandidateGate(
-        source_ticker=source_ticker,
-        resolved_ticker=resolved_ticker,
-        resolution_notes=resolution_notes,
-        gate_failure_reason=gate_failure_reason,
-        is_actively_trading=is_actively_trading,
-        data_source=data_source,
-    )
+async def _eodhd_listing_call[T](
+    awaitable: Awaitable[T],
+) -> tuple[T | None, str | None]:
+    try:
+        return await awaitable, None
+    except HTTPStatusError as exc:
+        return None, f"httpx.HTTPStatusError HTTP {exc.response.status_code}"
+    except TransportError as exc:
+        return None, f"httpx.{type(exc).__name__}"
