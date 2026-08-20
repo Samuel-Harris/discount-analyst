@@ -86,7 +86,7 @@ Set null if you cannot find a specific number. Do not estimate.
 
 ## Output format
 
-The `final_result` payload must be a single object with this exact top-level shape. No preamble, no commentary, no markdown fences, and no JSON block in free text.
+The `final_result` arguments must be a single object with this exact top-level shape. No preamble, no commentary, no markdown fences, and no JSON block in free text.
 
 <output_schema>
 {ProfilerOutput.model_json_schema()}

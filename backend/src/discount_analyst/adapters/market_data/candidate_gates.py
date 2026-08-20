@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 from difflib import SequenceMatcher
 
@@ -370,32 +371,52 @@ async def _check_listing_via_eodhd(
     eodhd: EodhdClient,
     resolution_notes: str,
 ) -> ListingProbe | RejectedCandidateGate:
-    quote = await eodhd.real_time(resolved_ticker)
-    general = await eodhd.fundamentals_general(resolved_ticker)
-    has_price = quote is not None and quote.close is not None and quote.close > 0
-    is_delisted = general is not None and general.is_delisted is True
+    quote, general = await asyncio.gather(
+        eodhd.real_time(resolved_ticker),
+        eodhd.fundamentals_general(resolved_ticker),
+    )
 
-    if has_price and not is_delisted:
-        return ListingProbe(
-            resolution_notes=f"{resolution_notes} EODHD real-time quote present.",
-            is_actively_trading=True,
+    if general is not None and general.is_delisted is True:
+        return _rejection(
+            source_ticker=resolved_ticker,
+            resolved_ticker=resolved_ticker,
+            resolution_notes=resolution_notes,
+            gate_failure_reason=(
+                f"{resolved_ticker!r} is not actively trading: "
+                "EODHD marks symbol as delisted."
+            ),
             data_source="eodhd",
+            is_actively_trading=False,
         )
 
-    reason_parts: list[str] = []
-    if is_delisted:
-        reason_parts.append("EODHD marks symbol as delisted")
-    if not has_price:
-        reason_parts.append("no valid EODHD real-time quote")
-    return _rejection(
-        source_ticker=resolved_ticker,
-        resolved_ticker=resolved_ticker,
-        resolution_notes=resolution_notes,
-        gate_failure_reason=(
-            f"{resolved_ticker!r} is not actively trading: {', '.join(reason_parts)}."
-        ),
+    listing_confirmed = quote is not None or (
+        general is not None and general.is_delisted is False
+    )
+    if not listing_confirmed:
+        return _rejection(
+            source_ticker=resolved_ticker,
+            resolved_ticker=resolved_ticker,
+            resolution_notes=resolution_notes,
+            gate_failure_reason=(
+                f"{resolved_ticker!r} is not actively trading: "
+                "could not confirm listing (no real-time quote and no fundamentals)."
+            ),
+            data_source="eodhd",
+            is_actively_trading=False,
+        )
+
+    has_positive_close = (
+        quote is not None and quote.close is not None and quote.close > 0
+    )
+    note = (
+        "EODHD real-time quote present."
+        if has_positive_close
+        else "EODHD real-time close unavailable; symbol not marked delisted."
+    )
+    return ListingProbe(
+        resolution_notes=f"{resolution_notes} {note}",
+        is_actively_trading=True,
         data_source="eodhd",
-        is_actively_trading=False,
     )
 
 

@@ -785,6 +785,7 @@ async def test_stream_with_retries_repairs_validation_failure_during_stream() ->
     repair_prompt = _user_prompt_text(second_call["message_history"][1])
     assert "could not be validated" in repair_prompt
     assert "Invalid JSON" in repair_prompt
+    assert "payload" in repair_prompt
     assert second_call["usage"].input_tokens == 20
     assert len(first_cm.exit_calls) == 1
     assert first_cm.exit_calls[0][0] is UnexpectedModelBehavior

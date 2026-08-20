@@ -11,6 +11,9 @@ from discount_analyst.config.settings import settings as app_settings
 from discount_analyst.agents.runtime.agent_names import AgentName
 from discount_analyst.agents.common_prompts.current_date import with_current_date
 from discount_analyst.agents.runtime.model import create_model_from_config
+from discount_analyst.agents.runtime.structured_output_unwrap import (
+    unwrapping_output_type,
+)
 from discount_analyst.agents.runtime.terminal_run import (
     TerminalRunOptions,
     terminal_run_options,
@@ -159,7 +162,7 @@ def create_agent[OutT](
 
     return Agent(
         name=spec.name,
-        output_type=ToolOutput(spec.output_type),
+        output_type=ToolOutput(unwrapping_output_type(spec.output_type)),
         model=create_model_from_config(ai_models_config.model),
         model_settings=ai_models_config.model.model_settings,
         system_prompt=with_current_date(spec.system_prompt),

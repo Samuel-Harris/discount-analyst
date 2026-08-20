@@ -39,6 +39,9 @@ from discount_analyst.agents.tools.http.retrying_client import (
     RETRY_WAIT_MULTIPLIER,
 )
 from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
+from discount_analyst.agents.runtime.structured_output_unwrap import (
+    singleton_envelope_keys_for_prompt,
+)
 
 # Streaming can fail mid-`stream_output()` (e.g. OpenAI TPM) after a successful `run_stream` start.
 MAX_STREAM_RETRY_ATTEMPTS = 6
@@ -60,11 +63,14 @@ def _partial_output_retry_prompt(partial_output: str) -> str:
 
 
 def _structured_output_repair_prompt(exc: BaseException) -> str:
+    envelope_keys = singleton_envelope_keys_for_prompt()
     return (
         "Your previous response could not be validated against the required "
         "structured output schema. Return a complete corrected output object "
         "that satisfies the schema. Do not include a preamble, markdown, or "
         "explanatory text.\n\n"
+        f"If the object was nested under {envelope_keys}, call `final_result` "
+        "again with those fields at the top level.\n\n"
         "Validation failure:\n\n"
         f"{exc}"
     )

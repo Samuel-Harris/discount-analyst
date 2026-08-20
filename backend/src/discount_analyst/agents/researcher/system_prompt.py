@@ -161,7 +161,7 @@ Log every material claim to a source. Format each entry as short attribution: `"
 
 ## Output schema
 
-The `final_result` payload must match this structure. All string fields are prose; all numeric fields are numbers or `null`; boolean fields are `true`, `false`, or `null`.
+The `final_result` arguments must match this structure. All string fields are prose; all numeric fields are numbers or `null`; boolean fields are `true`, `false`, or `null`.
 
 <output_schema>
 {DeepResearchReport.model_json_schema()}

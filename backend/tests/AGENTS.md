@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-23 | Updated: 2026-08-16 -->
+<!-- Generated: 2026-02-23 | Updated: 2026-08-19 -->
 
 # tests
 
@@ -15,7 +15,8 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | `tests/discount_analyst/agents/appraiser/test_appraiser_schema.py` | Tests for method-agnostic Appraiser output validation and percentile rules.                                                            |
 | `tests/discount_analyst/agents/surveyor/test_surveyor_schema.py`   | Tests for Surveyor output validation (unique candidate tickers).                                                                       |
 | `tests/discount_analyst/valuation/test_toolkit.py`                 | Tests for deterministic valuation toolkit helpers, including DCF real-world scenarios.                                                 |
-| `tests/discount_analyst/http/test_streaming_retries.py`            | Unit tests for agent streaming retry helpers (`stream_with_retries`, sleep parsing).                                                   |
+| `tests/discount_analyst/http/test_streaming_retries.py`            | Unit tests for agent streaming retry helpers (`stream_with_retries`, sleep parsing, structured-output repair prompt).                  |
+| `tests/discount_analyst/agents/common/test_structured_output_unwrap.py` | Singleton `final_result` envelope unwrap, `EvaluationReport` round-trip of an unwrapped FLXS payload, and factory `final_result` schema staying flat (`ticker` top-level, no `payload`). |
 | `tests/discount_analyst/integrations/test_financial_data_mcp.py`   | EODHD MCP optional registration (`EODHD__DISABLED`).                                                                                   |
 | `tests/discount_analyst/integrations/test_frankfurter.py`          | Frankfurter `convert_currency` mocked HTTP tests plus live EUR→USD smoke (`@pytest.mark.network`).                                     |
 | `tests/discount_analyst/integrations/test_text_only_web_fetch.py`  | Text-only local web fetch (markitdown binary conversion, DeepSeek wiring).                                                             |
@@ -24,7 +25,8 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | `tests/discount_analyst/agents/common/test_streamed_agent_run.py`  | Tests for `run_streamed_agent`.                                                                                                        |
 | `tests/discount_analyst/agents/sentinel/test_sentinel_gate.py`     | Tests for `sentinel_proceeds_to_valuation` (thesis + red-flag gate).                                                                   |
 | `tests/discount_analyst/pipeline/test_builders.py`                 | Tests for `build_sentinel_rejection`, `verdict_from_decision`, and tagged `Verdict` JSON round-trip of all three decision kinds.       |
-| `tests/discount_analyst/pipeline/test_candidate_gates.py`          | Pre-Researcher FMP/EODHD gates: ticker search (source, stem, name), exact `.L`+exchange accept, listing fallback.                      |
+| `tests/discount_analyst/pipeline/test_candidate_gates.py`          | Pre-Researcher FMP/EODHD gates: ticker search (source, stem, name), exact `.L`+exchange accept, listing fallback including NA close when not delisted. |
+| `tests/discount_analyst/integrations/test_eodhd_client.py`         | EODHD REST client: real-time quote (including `"NA"` close → `None`), fundamentals `IsDelisted`.                                      |
 | `tests/discount_analyst/integrations/test_infallible_toolset.py`   | `format_tool_error` plus `InfallibleToolExecution.wrap_tool_execute` (function-tool errors vs output-kind re-raise).                   |
 | `tests/backend/unit/test_persist_ticker_run_final_verdict.py`      | DQR persist source lookup: Profiler if present, else workflow Surveyor; Researcher id unused.                                          |
 | `tests/backend/unit/test_dashboard_settings.py`                    | Unified ``Settings`` validation (e.g. non-empty ``LOGGING__LOGFIRE_API_KEY``).                                                         |
@@ -45,7 +47,7 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------- |
 | `discount_analyst/http/`             | Tests for streaming retry behaviour (`discount_analyst.agents.common.streaming_retries`).            |
 | `discount_analyst/integrations/`     | Tests for MCP, Frankfurter FX, web-fetch, and terminal tool wiring.                                  |
-| `discount_analyst/agents/common/`    | Tests for streamed agent orchestration.                                                              |
+| `discount_analyst/agents/common/`    | Tests for streamed agent orchestration and structured-output unwrap.                                 |
 | `discount_analyst/agents/appraiser/` | Tests for Appraiser schema contracts.                                                                |
 | `discount_analyst/agents/sentinel/`  | Tests for Sentinel schema helpers.                                                                   |
 | `discount_analyst/pipeline/`         | Tests for programmatic verdict builders, tagged `Verdict` JSON, candidate gates, and the rating table. |

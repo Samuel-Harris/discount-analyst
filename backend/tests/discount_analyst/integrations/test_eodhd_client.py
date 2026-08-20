@@ -22,6 +22,32 @@ async def test_eodhd_real_time_happy_path() -> None:
 
 
 @pytest.mark.anyio
+async def test_eodhd_real_time_coerces_na_close_to_none() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "/real-time/BOWL.L" in str(request.url)
+        return httpx.Response(200, json={"code": "BOWL.L", "close": "NA"})
+
+    client = EodhdClient("test-key", transport=httpx.MockTransport(handler))
+    quote = await client.real_time("BOWL.L")
+
+    assert quote is not None
+    assert quote.close is None
+
+
+@pytest.mark.anyio
+async def test_eodhd_real_time_parses_numeric_string_close() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(200, json={"code": "BOWL.L", "close": "278.5"})
+
+    client = EodhdClient("test-key", transport=httpx.MockTransport(handler))
+    quote = await client.real_time("BOWL.L")
+
+    assert quote is not None
+    assert quote.close == 278.5
+
+
+@pytest.mark.anyio
 async def test_eodhd_fundamentals_general_parses_is_delisted() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         del request

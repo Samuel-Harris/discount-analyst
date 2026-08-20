@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import pytest
 
 from discount_analyst.adapters.simulation.mock_outputs import (
@@ -85,22 +87,22 @@ class _RecordingFmpClient:
         return [FmpSearchResult.model_validate(row) for row in rows]
 
 
-class _QuotedEodhdClient:
-    async def real_time(self, symbol: str) -> EodhdRealTimeQuote:
-        return EodhdRealTimeQuote(code=symbol, close=278.5)
+@dataclass(frozen=True, slots=True)
+class _StubEodhdClient:
+    close: float | None = 278.5
+    is_delisted: bool | None = False
+    quote_missing: bool = False
+    general_missing: bool = False
 
-    async def fundamentals_general(self, symbol: str) -> EodhdGeneralInfo:
-        return EodhdGeneralInfo(code=symbol, IsDelisted=False)
-
-
-class _DelistedEodhdClient:
     async def real_time(self, symbol: str) -> EodhdRealTimeQuote | None:
-        del symbol
-        return None
+        if self.quote_missing:
+            return None
+        return EodhdRealTimeQuote(code=symbol, close=self.close)
 
-    async def fundamentals_general(self, symbol: str) -> EodhdGeneralInfo:
-        del symbol
-        return EodhdGeneralInfo(code="RNO.L", IsDelisted=True)
+    async def fundamentals_general(self, symbol: str) -> EodhdGeneralInfo | None:
+        if self.general_missing:
+            return None
+        return EodhdGeneralInfo(code=symbol, IsDelisted=self.is_delisted)
 
 
 @pytest.mark.anyio
@@ -164,7 +166,7 @@ async def test_validate_candidate_rejects_delisted_rno() -> None:
         eodhd_api_key=settings.eodhd.api_key,
         eodhd_disabled=settings.eodhd.disabled,
         fmp_client=fmp,  # type: ignore[arg-type]
-        eodhd_client=_DelistedEodhdClient(),  # type: ignore[arg-type]
+        eodhd_client=_StubEodhdClient(quote_missing=True, is_delisted=True),  # type: ignore[arg-type]
     )
 
     assert result.gate_status == "rejected"
@@ -260,6 +262,7 @@ async def _validate_uk_denied_profile(
     ticker: str,
     company_name: str,
     search_by_query: dict[str, list[dict[str, object]]],
+    eodhd_client: object | None = None,
 ) -> tuple[CandidateGateResult, _RecordingFmpClient]:
     candidate = _candidate(ticker=ticker, company_name=company_name)
     fmp = _RecordingFmpClient(
@@ -274,7 +277,7 @@ async def _validate_uk_denied_profile(
         eodhd_api_key=settings.eodhd.api_key,
         eodhd_disabled=settings.eodhd.disabled,
         fmp_client=fmp,  # type: ignore[arg-type]
-        eodhd_client=_QuotedEodhdClient(),  # type: ignore[arg-type]
+        eodhd_client=(eodhd_client if eodhd_client is not None else _StubEodhdClient()),  # type: ignore[arg-type]
     )
     return result, fmp
 
@@ -331,3 +334,55 @@ async def test_validate_candidate_passes_yu_l_exact_ticker_below_name_threshold(
     assert company_name_similarity("Yu Group", "Yü Group PLC") < 0.75
     assert result.gate_status == "passed"
     assert result.resolved_ticker == "YU.L"
+
+
+_BOWL_DENIED_SEARCH = {"BOWL.L": [_BOWL_LSE]}
+
+
+@pytest.mark.anyio
+async def test_validate_candidate_passes_when_eodhd_close_is_na_and_not_delisted() -> (
+    None
+):
+    result, _fmp = await _validate_uk_denied_profile(
+        ticker="BOWL.L",
+        company_name="Hollywood Bowl Group plc",
+        search_by_query=_BOWL_DENIED_SEARCH,
+        eodhd_client=_StubEodhdClient(close=None, is_delisted=False),
+    )
+
+    assert result.gate_status == "passed"
+    assert result.is_actively_trading is True
+    assert result.data_source == "eodhd"
+    assert "close unavailable" in result.resolution_notes
+
+
+@pytest.mark.anyio
+async def test_validate_candidate_rejects_when_eodhd_close_is_na_and_delisted() -> None:
+    result, _fmp = await _validate_uk_denied_profile(
+        ticker="BOWL.L",
+        company_name="Hollywood Bowl Group plc",
+        search_by_query=_BOWL_DENIED_SEARCH,
+        eodhd_client=_StubEodhdClient(close=None, is_delisted=True),
+    )
+
+    assert result.gate_status == "rejected"
+    assert isinstance(result, RejectedCandidateGate)
+    assert result.is_actively_trading is False
+    assert result.data_source == "eodhd"
+    assert "EODHD marks symbol as delisted" in result.gate_failure_reason
+
+
+@pytest.mark.anyio
+async def test_validate_candidate_rejects_when_eodhd_quote_and_fundamentals_missing() -> (
+    None
+):
+    result, _fmp = await _validate_uk_denied_profile(
+        ticker="BOWL.L",
+        company_name="Hollywood Bowl Group plc",
+        search_by_query=_BOWL_DENIED_SEARCH,
+        eodhd_client=_StubEodhdClient(quote_missing=True, general_missing=True),
+    )
+
+    assert result.gate_status == "rejected"
+    assert isinstance(result, RejectedCandidateGate)
+    assert "could not confirm listing" in result.gate_failure_reason
