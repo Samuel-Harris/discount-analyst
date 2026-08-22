@@ -28,7 +28,6 @@ from discount_analyst.application.workflows.appraiser_run_context import (
 )
 
 from discount_analyst.entrypoints.cli.shared.cli import (
-    DEFAULT_AGENT_CLI_DEFAULTS,
     add_agent_cli_model_argument,
     add_agent_cli_web_search_arguments,
     add_agent_terminal_argument,
@@ -284,7 +283,7 @@ async def run_agent(
     args: AppraiserRunContext,
     appraiser_input: AppraiserInput,
     *,
-    use_perplexity: bool = DEFAULT_AGENT_CLI_DEFAULTS.use_perplexity,
+    use_perplexity: bool = False,
     use_mcp_financial_data: bool = True,
     terminal: TerminalRunOptions,
 ) -> AgentRunResult:

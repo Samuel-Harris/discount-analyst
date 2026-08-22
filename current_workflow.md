@@ -187,18 +187,18 @@ Introspected 2026-08-15 via `model_json_schema()` / enum values. Nested models a
 
 ### Enums
 
-| Enum                     | Values                                                                                                                                                                                                                        |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Exchange`               | `LSE`, `AIM`, `NYSE`, `NASDAQ`                                                                                                                                                                                                |
-| `Currency`               | `GBP`, `USD`                                                                                                                                                                                                                  |
-| `StockCategory`          | `value`, `growth` — **defined in `surveyor.schema` but unused** (no field on `SurveyorCandidate`)                                                                                                                             |
-| `ThesisVerdict`          | `Thesis intact — proceed to valuation`, `Thesis intact with reservations — proceed with noted caveats`, `Thesis weakened — do not proceed`, `Thesis broken — do not proceed`                                                  |
-| `OverallRedFlagVerdict`  | `Clear`, `Monitor`, `Serious concern`                                                                                                                                                                                         |
-| `ValuationMethod`        | `dcf`, `reverse_dcf`, `comparable_multiples`, `sum_of_parts`, `asset_value`, `unit_economics`, `scenario_weighting`, `monte_carlo`, `other`                                                                                   |
-| `InvestmentRating`       | see [Rating system](#rating-system)                                                                                                                                                                                           |
-| `AgentName` (runtime)    | `APPRAISER`, `PROFILER`, `RESEARCHER`, `SENTINEL`, `STRATEGIST`, `SURVEYOR`                                                                                                                                                   |
-| `AgentNameDb` / API slug | lowercase: `surveyor`, `profiler`, `researcher`, `strategist`, `sentinel`, `appraiser`                                                                                                                                        |
-| `ModelName`              | `claude-opus-4-5`, `claude-sonnet-4-5`, `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-6`, `gpt-5.1`, `gpt-5.2`, `gpt-5.4`, `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `deepseek-v4-flash`, `deepseek-v4-pro` |
+| Enum                     | Values                                                                                                                                                                                                                                        |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Exchange`               | `LSE`, `AIM`, `NYSE`, `NASDAQ`                                                                                                                                                                                                                |
+| `Currency`               | `GBP`, `USD`                                                                                                                                                                                                                                  |
+| `StockCategory`          | `value`, `growth` — **defined in `surveyor.schema` but unused** (no field on `SurveyorCandidate`)                                                                                                                                             |
+| `ThesisVerdict`          | `Thesis intact — proceed to valuation`, `Thesis intact with reservations — proceed with noted caveats`, `Thesis weakened — do not proceed`, `Thesis broken — do not proceed`                                                                  |
+| `OverallRedFlagVerdict`  | `Clear`, `Monitor`, `Serious concern`                                                                                                                                                                                                         |
+| `ValuationMethod`        | `dcf`, `reverse_dcf`, `comparable_multiples`, `sum_of_parts`, `asset_value`, `unit_economics`, `scenario_weighting`, `monte_carlo`, `other`                                                                                                   |
+| `InvestmentRating`       | see [Rating system](#rating-system)                                                                                                                                                                                                           |
+| `AgentName` (runtime)    | `APPRAISER`, `PROFILER`, `RESEARCHER`, `SENTINEL`, `STRATEGIST`, `SURVEYOR`                                                                                                                                                                   |
+| `AgentNameDb` / API slug | lowercase: `surveyor`, `profiler`, `researcher`, `strategist`, `sentinel`, `appraiser`                                                                                                                                                        |
+| `ModelName`              | `claude-opus-4-5`, `claude-sonnet-4-5`, `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-6`, `gpt-5.1`, `gpt-5.2`, `gpt-5.4`, `gpt-5.6-luna`, `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `deepseek-v4-flash`, `deepseek-v4-pro` |
 
 ### `KeyMetrics`
 
@@ -376,15 +376,15 @@ A completed dashboard run with `is_mock=true` did **not** hit live LLM/MCP/FMP f
 
 Configuration: `discount_analyst.config.settings.Settings` (root / package `.env`, nested `ENV__` keys).
 
-| Setting                                                       | Default (code)    | Role                                                                                                                  |
-| ------------------------------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `default_model` / `DASHBOARD_DEFAULT_MODEL`                   | `deepseek-v4-pro` | All dashboard pipeline agents via `AIModelsConfig(model_name=settings.default_model)` — **one model for every stage** |
-| `use_perplexity` / `DASHBOARD_USE_PERPLEXITY`                 | `False`           | Perplexity `web_search` + `sec_filings_search` instead of pydantic-ai WebSearch/WebFetch                              |
-| `use_mcp_financial_data` / `DASHBOARD_USE_MCP_FINANCIAL_DATA` | `True`            | EODHD + FMP MCP toolsets                                                                                              |
-| `use_terminal` / `DASHBOARD_USE_TERMINAL`                     | `True`            | Docker-backed `terminal_exec` via `TERMINAL_SERVICE_URL`                                                              |
-| `eodhd.disabled` / `EODHD__DISABLED`                          | `False`           | Omits EODHD MCP (and EODHD listing fallback)                                                                          |
-| `risk_free_rate_pct`                                          | `3.7`             | Injected into Appraiser user prompt                                                                                   |
-| `deploy_env` / `ENV`                                          | `DEV`             | DEV forces dashboard `is_mock`                                                                                        |
+| Setting                                                       | Default (code) | Role                                                                                                                  |
+| ------------------------------------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `default_model` / `DASHBOARD_DEFAULT_MODEL`                   | `gpt-5.6-luna` | All dashboard pipeline agents via `AIModelsConfig(model_name=settings.default_model)` — **one model for every stage** |
+| `use_perplexity` / `DASHBOARD_USE_PERPLEXITY`                 | `False`        | Perplexity `web_search` + `sec_filings_search` instead of pydantic-ai WebSearch/WebFetch                              |
+| `use_mcp_financial_data` / `DASHBOARD_USE_MCP_FINANCIAL_DATA` | `True`         | EODHD + FMP MCP toolsets                                                                                              |
+| `use_terminal` / `DASHBOARD_USE_TERMINAL`                     | `True`         | Docker-backed `terminal_exec` via `TERMINAL_SERVICE_URL`                                                              |
+| `eodhd.disabled` / `EODHD__DISABLED`                          | `False`        | Omits EODHD MCP (and EODHD listing fallback)                                                                          |
+| `risk_free_rate_pct`                                          | `3.7`          | Injected into Appraiser user prompt                                                                                   |
+| `deploy_env` / `ENV`                                          | `DEV`          | DEV forces dashboard `is_mock`                                                                                        |
 
 MCP (`agents/tools/market_data/financial_data_mcp.py`): `https://mcp.eodhd.dev/mcp`, `https://financialmodelingprep.com/mcp`. Providers that support MCP: Anthropic, OpenAI, DeepSeek (`provider_features.py`). Google is **not** in that set — enabling MCP with a Google model raises `NotImplementedError`.
 
