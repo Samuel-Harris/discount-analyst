@@ -16,7 +16,7 @@ from openai import (
 from pydantic import BaseModel
 from pydantic_ai import capture_run_messages
 from pydantic_ai.agent.abstract import AbstractAgent
-from pydantic_ai.exceptions import UnexpectedModelBehavior
+from pydantic_ai.exceptions import ModelAPIError, UnexpectedModelBehavior
 from pydantic_ai.messages import (
     AgentStreamEvent,
     ModelMessage,
@@ -100,15 +100,31 @@ def api_error_indicates_rate_limit(exc: APIError) -> bool:
     )
 
 
+def _is_connection_error(exc: BaseException) -> bool:
+    """True for transport/connect failures, including pydantic-ai's ModelAPIError wrap."""
+    if isinstance(
+        exc,
+        (APIConnectionError, httpx.ConnectError, httpx.ConnectTimeout),
+    ):
+        return True
+    if isinstance(exc, ModelAPIError):
+        if "connection error" in str(exc).casefold():
+            return True
+        cause = exc.__cause__
+        return cause is not None and _is_connection_error(cause)
+    return False
+
+
 def _is_retryable_single_error(exc: BaseException) -> bool:
     """Check if a single exception (not a group) is retryable."""
+    if _is_connection_error(exc):
+        return True
     if isinstance(
         exc,
         (
             RateLimitError,
             InternalServerError,
             APITimeoutError,
-            APIConnectionError,
             httpx.RemoteProtocolError,
             TimeoutError,  # MCP and other transient timeouts
         ),
@@ -160,14 +176,12 @@ def should_repair_structured_output_error(exc: BaseException) -> bool:
     )
 
 
-def _is_tool_startup_timeout(exc: BaseException) -> bool:
-    """True for MCP/tool startup timeouts that occur before model progress."""
-    if type(exc) is TimeoutError:
-        return True
+def _can_retry_open_without_checkpoint(exc: BaseException) -> bool:
+    """True when stream start failed before any messages and replaying the prompt is safe."""
     if isinstance(exc, BaseExceptionGroup):
         group = cast(BaseExceptionGroup[BaseException], exc)
-        return all(_is_tool_startup_timeout(sub) for sub in group.exceptions)
-    return False
+        return all(_can_retry_open_without_checkpoint(sub) for sub in group.exceptions)
+    return type(exc) is TimeoutError or _is_connection_error(exc)
 
 
 def _stream_wait(attempt: int) -> float:
@@ -368,10 +382,10 @@ class StreamWithRetriesContext[T]:
                     ):
                         raise
                     if self._next_message_history is None:
-                        if not _is_tool_startup_timeout(exc):
+                        if not _can_retry_open_without_checkpoint(exc):
                             self._raise_unresumable_open_failure(exc)
                         AI_LOGFIRE.info(
-                            "Agent tool startup failed before stream progress, retrying",
+                            "Agent stream start failed before stream progress, retrying",
                             attempt=self._attempt_index + 1,
                             max_attempts=MAX_STREAM_RETRY_ATTEMPTS,
                             error=str(exc),

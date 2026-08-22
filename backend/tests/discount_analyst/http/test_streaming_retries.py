@@ -5,9 +5,9 @@ from typing import Any, cast
 
 import httpx
 import pytest
-from openai import APIError
+from openai import APIConnectionError, APIError
 from pydantic_ai._agent_graph import get_captured_run_messages
-from pydantic_ai.exceptions import UnexpectedModelBehavior
+from pydantic_ai.exceptions import ModelAPIError, UnexpectedModelBehavior
 from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
@@ -30,6 +30,20 @@ from discount_analyst.agents.runtime.streaming_retries import (
 def _api_error(message: str) -> APIError:
     """Minimal ``APIError`` for unit tests (SDK types ``request`` as non-optional)."""
     return APIError(message, request=cast(Any, None), body=None)
+
+
+def _httpx_request() -> httpx.Request:
+    return httpx.Request("POST", "https://example.test/v1/chat/completions")
+
+
+def _api_connection_error() -> APIConnectionError:
+    return APIConnectionError(request=_httpx_request())
+
+
+def _model_api_connection_error() -> ModelAPIError:
+    wrapped = ModelAPIError("deepseek-v4-pro", "Connection error.")
+    wrapped.__cause__ = _api_connection_error()
+    return wrapped
 
 
 def test_api_error_indicates_rate_limit_tpm_message() -> None:
@@ -61,6 +75,20 @@ def test_should_retry_streaming_error_remote_protocol_error() -> None:
 def test_should_retry_streaming_error_timeout_error() -> None:
     exc = TimeoutError("MCP server connection timed out")
     assert should_retry_streaming_error(exc) is True
+
+
+def test_should_retry_streaming_error_model_api_connection_error() -> None:
+    assert should_retry_streaming_error(_model_api_connection_error()) is True
+
+
+def test_should_retry_streaming_error_httpx_connect_error() -> None:
+    exc = httpx.ConnectError("All connection attempts failed")
+    assert should_retry_streaming_error(exc) is True
+
+
+def test_should_not_retry_non_connection_model_api_error() -> None:
+    exc = ModelAPIError("deepseek-v4-pro", "Invalid request")
+    assert should_retry_streaming_error(exc) is False
 
 
 def test_should_retry_streaming_error_exception_group_with_timeout() -> None:
@@ -558,6 +586,61 @@ async def test_stream_with_retries_retries_tool_startup_timeout_before_checkpoin
     assert second_call["user_prompt"] == "hello"
     assert second_call["message_history"] is None
     assert second_call["usage"] is None
+    assert failed_open_cm.exit_calls == []
+    assert len(final_cm.exit_calls) == 1
+    assert final_cm.exit_calls[0] == (None, None)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "enter_error",
+    [
+        _model_api_connection_error(),
+        httpx.ConnectError("All connection attempts failed"),
+        _api_connection_error(),
+    ],
+    ids=["model-api-connection", "httpx-connect", "openai-api-connection"],
+)
+async def test_stream_with_retries_retries_connection_error_before_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+    enter_error: BaseException,
+) -> None:
+    def _no_wait(exc: BaseException, attempt: int) -> float:
+        del exc, attempt
+        return 0.0
+
+    monkeypatch.setattr(
+        streaming_retries_mod,
+        "streaming_retry_sleep_seconds",
+        _no_wait,
+    )
+
+    failed_open_cm = _FakeRunStreamContextManager(enter_error=enter_error)
+    final_result = _FakeStreamedRunResult(
+        outputs=["started"],
+        final_output="done",
+        messages=[{"turn": {"text": "started"}}],
+        usage=RunUsage(input_tokens=8, output_tokens=3),
+    )
+    final_cm = _FakeRunStreamContextManager(result=final_result)
+    agent_impl = _FakeAgent([failed_open_cm, final_cm])
+
+    outputs: list[str] = []
+    async with stream_with_retries(
+        agent=cast(Any, agent_impl),
+        user_prompt="hello",
+        usage_limits=UsageLimits(request_limit=5),
+    ) as result:
+        async for chunk in result.stream_output(debounce_by=None):
+            outputs.append(chunk)
+
+    assert outputs == ["started"]
+    assert len(agent_impl.calls) == 2
+    first_call, second_call = agent_impl.calls
+    assert first_call["user_prompt"] == "hello"
+    assert first_call["message_history"] is None
+    assert second_call["user_prompt"] == "hello"
+    assert second_call["message_history"] is None
     assert failed_open_cm.exit_calls == []
     assert len(final_cm.exit_calls) == 1
     assert final_cm.exit_calls[0] == (None, None)
