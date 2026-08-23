@@ -1,6 +1,7 @@
 """Unwrap singleton envelopes around pydantic-ai ``final_result`` arguments."""
 
 from functools import cache
+from typing import cast
 
 from pydantic import BaseModel, model_validator
 
@@ -14,12 +15,17 @@ def unwrap_singleton_output_envelope(value: object) -> object:
     dict is unwrapped. Two-key dicts, non-dict inners, and already-flat objects are
     returned unchanged.
     """
-    if not isinstance(value, dict) or len(value) != 1:
+    if not isinstance(value, dict):
         return value
-    key, inner = next(iter(value.items()))
-    if key not in SINGLETON_ENVELOPE_KEYS or not isinstance(inner, dict):
-        return value
-    return inner
+    envelope = cast(dict[object, object], value)
+    if len(envelope) != 1:
+        return envelope
+    key, inner = next(iter(envelope.items()))
+    if not isinstance(key, str) or key not in SINGLETON_ENVELOPE_KEYS:
+        return envelope
+    if not isinstance(inner, dict):
+        return envelope
+    return cast(dict[object, object], inner)
 
 
 def singleton_envelope_keys_for_prompt() -> str:
@@ -34,7 +40,7 @@ def unwrapping_output_type[OutT](output_type: type[OutT]) -> type[OutT]:
     pydantic-ai wraps the JSON schema under ``response``. A private subclass keeps
     ``final_result`` parameters as the flat stage fields.
     """
-    if not (isinstance(output_type, type) and issubclass(output_type, BaseModel)):
+    if not issubclass(output_type, BaseModel):
         return output_type
 
     class UnwrappingOutput(output_type):

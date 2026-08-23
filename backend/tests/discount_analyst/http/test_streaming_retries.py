@@ -115,12 +115,18 @@ def test_should_repair_structured_output_error_tool_failure_negative() -> None:
     assert should_repair_structured_output_error(exc) is False
 
 
+def _low_jitter(low: float, high: float) -> float:
+    del high
+    return low
+
+
+def _high_jitter(low: float, high: float) -> float:
+    del low
+    return high
+
+
 def _patch_zero_rate_limit_jitter(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        streaming_retries_mod.random,
-        "uniform",
-        lambda low, high: low,
-    )
+    monkeypatch.setattr(streaming_retries_mod.random, "uniform", _low_jitter)
 
 
 def test_streaming_retry_sleep_rate_limit_ignores_short_provider_wait(
@@ -151,11 +157,7 @@ def test_streaming_retry_sleep_rate_limit_exponential_grows_then_caps(
 def test_streaming_retry_sleep_rate_limit_adds_high_side_jitter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        streaming_retries_mod.random,
-        "uniform",
-        lambda low, high: high,
-    )
+    monkeypatch.setattr(streaming_retries_mod.random, "uniform", _high_jitter)
     exc = _api_error(
         "Rate limit reached on requests per min (RPM). Please try again in 2s."
     )

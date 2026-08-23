@@ -160,12 +160,13 @@ def create_agent[OutT](
 
     toolsets.append(create_frankfurter_toolset())
 
+    output_type: type[OutT] = unwrapping_output_type(spec.output_type)
     return Agent(
         name=spec.name,
-        output_type=ToolOutput(unwrapping_output_type(spec.output_type)),
+        output_type=ToolOutput(output_type),
         model=create_model_from_config(ai_models_config.model),
         model_settings=ai_models_config.model.model_settings,
         system_prompt=with_current_date(spec.system_prompt),
         capabilities=capabilities,
         toolsets=toolsets,
-    )
+    )  # type: ignore[return-value, call-overload]

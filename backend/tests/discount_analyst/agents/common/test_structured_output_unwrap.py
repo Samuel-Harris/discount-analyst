@@ -1,6 +1,7 @@
 """Tests for singleton ``final_result`` envelope unwrapping."""
 
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 from pydantic import BaseModel, TypeAdapter
@@ -119,9 +120,12 @@ def test_create_agent_final_result_schema_stays_flat_and_unwraps_payload(
         use_mcp_financial_data=False,
     )
 
-    tool_output = captured["output_type"]
-    assert isinstance(tool_output, ToolOutput)
-    adapter = TypeAdapter(tool_output.output)
+    registered = captured["output_type"]
+    assert isinstance(registered, ToolOutput)
+    maybe_output = getattr(cast(object, registered), "output")
+    assert isinstance(maybe_output, type)
+    assert issubclass(maybe_output, EvaluationReport)
+    adapter = TypeAdapter(maybe_output)
     properties = adapter.json_schema()["properties"]
     assert "ticker" in properties
     assert "payload" not in properties

@@ -270,12 +270,12 @@ async def test_validate_candidate_passes_us_ticker_when_fmp_profile_denied() -> 
     assert "unconfirmed" in result.resolution_notes.casefold()
 
 
-_BOWL_LSE = {
+_BOWL_LSE: dict[str, object] = {
     "symbol": "BOWL.L",
     "name": "Hollywood Bowl Group plc",
     "exchange": "LSE",
 }
-_BOWL_NYSE = {
+_BOWL_NYSE: dict[str, object] = {
     "symbol": "BOWL",
     "name": "Bowlero Corp",
     "exchange": "NYSE",
@@ -363,7 +363,7 @@ async def test_validate_candidate_passes_yu_l_exact_ticker_below_name_threshold(
     assert result.resolved_ticker == "YU.L"
 
 
-_BOWL_DENIED_SEARCH = {"BOWL.L": [_BOWL_LSE]}
+_BOWL_DENIED_SEARCH: dict[str, list[dict[str, object]]] = {"BOWL.L": [_BOWL_LSE]}
 
 
 @pytest.mark.anyio
