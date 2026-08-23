@@ -8,6 +8,7 @@ from collections.abc import Awaitable
 from difflib import SequenceMatcher
 
 from httpx import HTTPStatusError, TransportError
+from pydantic import ValidationError
 
 from discount_analyst.adapters.market_data.eodhd_client import EodhdClient
 from discount_analyst.adapters.market_data.fmp_client import (
@@ -177,12 +178,21 @@ def _fmp_search_queries(source_ticker: str, company_name: str) -> list[str]:
 
 
 async def _search_symbol_rows(
-    fmp: FmpClient, queries: list[str]
+    fmp: FmpClient,
+    queries: list[str],
+    notes: list[str],
 ) -> list[FmpSearchResult]:
     seen_symbols: set[str] = set()
     rows: list[FmpSearchResult] = []
     for query in queries:
-        for row in await fmp.search_symbol(query):
+        try:
+            found = await fmp.search_symbol(query)
+        except FmpAccessDeniedError as exc:
+            notes.append(
+                f"FMP symbol search denied for {query!r} (HTTP {exc.status_code})."
+            )
+            continue
+        for row in found:
             symbol_key = row.symbol.casefold()
             if symbol_key in seen_symbols:
                 continue
@@ -199,13 +209,10 @@ async def _resolve_via_search(
 ) -> TickerResolution:
     source_ticker = candidate.ticker
     queries = _fmp_search_queries(source_ticker, candidate.company_name)
-    try:
-        results = await _search_symbol_rows(fmp, queries)
-    except FmpAccessDeniedError as exc:
-        notes.append(str(exc))
+    results = await _search_symbol_rows(fmp, queries, notes)
+    if not results and any("symbol search denied" in note for note in notes):
         notes.append(
-            f"FMP symbol search denied for {queries!r} (HTTP {exc.status_code}); "
-            "keeping source ticker."
+            f"FMP symbol search denied for {queries!r}; keeping source ticker."
         )
         return _resolution(candidate, notes, source_ticker)
 
@@ -387,3 +394,7 @@ async def _eodhd_listing_call[T](
         return None, f"httpx.HTTPStatusError HTTP {exc.response.status_code}"
     except TransportError as exc:
         return None, f"httpx.{type(exc).__name__}"
+    except ValidationError:
+        return None, "pydantic.ValidationError"
+    except ValueError as exc:
+        return None, type(exc).__name__

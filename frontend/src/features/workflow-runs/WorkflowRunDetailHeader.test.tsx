@@ -273,7 +273,7 @@ describe("WorkflowRunDetailHeader", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "Retrying unfinished agents..." }),
+      screen.getByRole("button", { name: "Retrying failed and cancelled agents..." }),
     ).toBeDisabled();
   });
 });

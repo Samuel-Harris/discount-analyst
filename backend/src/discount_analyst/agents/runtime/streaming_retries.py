@@ -18,7 +18,11 @@ from openai import (
 from pydantic import BaseModel
 from pydantic_ai import capture_run_messages
 from pydantic_ai.agent.abstract import AbstractAgent
-from pydantic_ai.exceptions import ModelAPIError, UnexpectedModelBehavior
+from pydantic_ai.exceptions import (
+    ModelAPIError,
+    ModelHTTPError,
+    UnexpectedModelBehavior,
+)
 from pydantic_ai.messages import (
     AgentStreamEvent,
     ModelMessage,
@@ -98,7 +102,20 @@ def _openai_error_text(exc: BaseException) -> str:
         msg = getattr(exc, "message", None)
         if msg:
             return str(msg)
+    if isinstance(exc, ModelHTTPError):
+        return f"{exc.status_code} {exc.body}"
     return str(exc)
+
+
+def _combined_error_text(exc: BaseException) -> str:
+    parts: list[str] = []
+    current: BaseException | None = exc
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        parts.append(_openai_error_text(current))
+        current = current.__cause__
+    return "\n".join(parts)
 
 
 def _error_text_indicates_rate_limit(text: str) -> bool:
@@ -114,9 +131,16 @@ def api_error_indicates_rate_limit(exc: APIError) -> bool:
 def _is_rate_limit_error(exc: BaseException) -> bool:
     if isinstance(exc, RateLimitError):
         return True
+    if isinstance(exc, ModelHTTPError) and exc.status_code == 429:
+        return True
+    if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 429:
+        return True
     if isinstance(exc, APIError):
         return api_error_indicates_rate_limit(exc)
-    return False
+    if _error_text_indicates_rate_limit(_openai_error_text(exc)):
+        return True
+    cause = exc.__cause__
+    return cause is not None and _is_rate_limit_error(cause)
 
 
 def _is_connection_error(exc: BaseException) -> bool:
@@ -246,8 +270,8 @@ def _rate_limit_wait_seconds(attempt: int, error_text: str) -> float:
 
 def streaming_retry_sleep_seconds(exc: BaseException, attempt: int) -> float:
     """Sleep before retry; rate limits use a 60s-floored exponential wait with jitter."""
-    text = _openai_error_text(exc)
-    if _error_text_indicates_rate_limit(text):
+    text = _combined_error_text(exc)
+    if _is_rate_limit_error(exc) or _error_text_indicates_rate_limit(text):
         return _rate_limit_wait_seconds(attempt, text)
     return min(_stream_wait(attempt), FALLBACK_MAX_WEIGHT_SECONDS)
 

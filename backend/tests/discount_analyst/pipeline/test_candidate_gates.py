@@ -7,6 +7,8 @@ from dataclasses import dataclass
 import httpx
 import pytest
 
+from pydantic import ValidationError
+
 from discount_analyst.adapters.simulation.mock_outputs import (
     mock_key_metrics,
     mock_surveyor_candidate,
@@ -64,6 +66,7 @@ class _RecordingFmpClient:
         search_by_query: dict[str, list[dict[str, object]]] | None = None,
         denied_profile_symbols: frozenset[str] = frozenset(),
         denied_profile_status: int = 402,
+        denied_search_queries: frozenset[str] = frozenset(),
     ) -> None:
         self._profile_rows = profile_rows or []
         self._search_by_query = {
@@ -73,6 +76,9 @@ class _RecordingFmpClient:
             symbol.casefold() for symbol in denied_profile_symbols
         }
         self._denied_profile_status = denied_profile_status
+        self._denied_search_queries = {
+            query.casefold() for query in denied_search_queries
+        }
         self.search_queries: list[str] = []
 
     async def profile(self, symbol: str) -> list[FmpProfile]:
@@ -84,6 +90,10 @@ class _RecordingFmpClient:
 
     async def search_symbol(self, query: str) -> list[FmpSearchResult]:
         self.search_queries.append(query)
+        if query.casefold() in self._denied_search_queries:
+            raise FmpAccessDeniedError(
+                status_code=self._denied_profile_status, symbol_or_query=query
+            )
         rows = self._search_by_query.get(query.casefold(), [])
         return [FmpSearchResult.model_validate(row) for row in rows]
 
@@ -95,8 +105,11 @@ class _StubEodhdClient:
     quote_missing: bool = False
     general_missing: bool = False
     fundamentals_http_status: int | None = None
+    quote_exception: Exception | None = None
 
     async def real_time(self, symbol: str) -> EodhdRealTimeQuote | None:
+        if self.quote_exception is not None:
+            raise self.quote_exception
         if self.quote_missing:
             return None
         return EodhdRealTimeQuote(code=symbol, close=self.close)
@@ -275,12 +288,14 @@ async def _validate_uk_denied_profile(
     company_name: str,
     search_by_query: dict[str, list[dict[str, object]]],
     eodhd_client: object | None = None,
+    denied_search_queries: frozenset[str] = frozenset(),
 ) -> tuple[CandidateGateResult, _RecordingFmpClient]:
     candidate = _candidate(ticker=ticker, company_name=company_name)
     fmp = _RecordingFmpClient(
         profile_rows=[],
         denied_profile_symbols=frozenset({ticker}),
         search_by_query=search_by_query,
+        denied_search_queries=denied_search_queries,
     )
     settings = dashboard_settings_for_tests()
     result = await validate_candidate(
@@ -511,3 +526,39 @@ async def test_validate_candidate_passes_when_eodhd_fundamentals_http_403() -> N
     assert result.is_actively_trading is True
     assert "unconfirmed" in result.resolution_notes.casefold()
     assert "httpx.HTTPStatusError HTTP 403" in result.resolution_notes
+
+
+@pytest.mark.anyio
+async def test_validate_candidate_continues_search_when_ticker_query_denied() -> None:
+    result, fmp = await _validate_uk_denied_profile(
+        ticker="BOWL.L",
+        company_name="Hollywood Bowl Group plc",
+        search_by_query={"BOWL": [_BOWL_LSE]},
+        denied_search_queries=frozenset({"BOWL.L"}),
+    )
+
+    assert result.gate_status == "passed"
+    assert result.resolved_ticker == "BOWL.L"
+    assert fmp.search_queries[:2] == ["BOWL.L", "BOWL"]
+    assert any(
+        "BOWL.L" in note and "denied" in note.casefold()
+        for note in [result.resolution_notes]
+    )
+
+
+@pytest.mark.anyio
+async def test_validate_candidate_passes_when_eodhd_quote_validation_fails() -> None:
+    result, _fmp = await _validate_uk_denied_profile(
+        ticker="BOWL.L",
+        company_name="Hollywood Bowl Group plc",
+        search_by_query=_BOWL_DENIED_SEARCH,
+        eodhd_client=_StubEodhdClient(
+            quote_exception=ValidationError.from_exception_data(
+                "EodhdRealTimeQuote",
+                [],
+            ),
+        ),
+    )
+
+    assert result.gate_status == "passed"
+    assert "pydantic.ValidationError" in result.resolution_notes

@@ -7,7 +7,11 @@ import httpx
 import pytest
 from openai import APIConnectionError, APIError
 from pydantic_ai._agent_graph import get_captured_run_messages
-from pydantic_ai.exceptions import ModelAPIError, UnexpectedModelBehavior
+from pydantic_ai.exceptions import (
+    ModelAPIError,
+    ModelHTTPError,
+    UnexpectedModelBehavior,
+)
 from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
@@ -181,6 +185,55 @@ def test_streaming_retry_sleep_rate_limit_caps_long_provider_wait() -> None:
 def test_streaming_retry_sleep_fallback_exponential() -> None:
     exc = _api_error("Invalid API key")
     assert streaming_retry_sleep_seconds(exc, attempt=0) == 10.0
+
+
+def _model_http_error(status_code: int, body: object) -> ModelHTTPError:
+    return ModelHTTPError(status_code, "gpt-5.6-luna", body)
+
+
+def test_should_retry_streaming_error_model_http_429() -> None:
+    exc = _model_http_error(429, {"message": "Rate limit reached"})
+    assert should_retry_streaming_error(exc) is True
+
+
+def test_should_not_retry_model_http_400() -> None:
+    exc = _model_http_error(400, {"message": "invalid request"})
+    assert should_retry_streaming_error(exc) is False
+
+
+def test_should_retry_streaming_error_model_api_wrapped_httpx_429() -> None:
+    request = _httpx_request()
+    http_exc = httpx.HTTPStatusError(
+        "429 Too Many Requests",
+        request=request,
+        response=httpx.Response(429, request=request),
+    )
+    wrapped = ModelAPIError("gpt-5.6-luna", "Connection error.")
+    wrapped.__cause__ = http_exc
+    assert should_retry_streaming_error(wrapped) is True
+
+
+def test_streaming_retry_sleep_model_http_429_uses_floor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_zero_rate_limit_jitter(monkeypatch)
+    exc = _model_http_error(429, {"message": "slow down"})
+    assert streaming_retry_sleep_seconds(exc, attempt=0) == 60.0
+
+
+def test_streaming_retry_sleep_wrapped_httpx_429_uses_floor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_zero_rate_limit_jitter(monkeypatch)
+    request = _httpx_request()
+    http_exc = httpx.HTTPStatusError(
+        "429 Too Many Requests",
+        request=request,
+        response=httpx.Response(429, request=request),
+    )
+    wrapped = ModelAPIError("gpt-5.6-luna", "Connection error.")
+    wrapped.__cause__ = http_exc
+    assert streaming_retry_sleep_seconds(wrapped, attempt=0) == 60.0
 
 
 class _FakeStreamedRunResult:

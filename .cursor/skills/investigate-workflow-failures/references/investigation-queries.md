@@ -74,7 +74,7 @@ Call `query_schema_reference` once. DataFusion SQL. Filter `attributes->>'workfl
 
 Window = SQLite `started_at` − 1h through `completed_at` + 1h, still **≤ 14 days**. Always `LIMIT`. Project often `discount-analyst`.
 
-Redact `api_token=` from every quoted `exception_message`.
+Redact `api_token=` and `apikey=` from every quoted `exception_message`.
 
 ```sql
 SELECT exception_type, COUNT(*) AS n

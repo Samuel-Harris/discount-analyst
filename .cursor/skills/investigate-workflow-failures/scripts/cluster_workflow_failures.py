@@ -16,7 +16,7 @@ from rich.console import Console
 from rich.table import Table
 
 _SECRET_QUERY_RE = re.compile(
-    r"(?i)(api[_-]?token=)([^&\s]+)",
+    r"(?i)((?:api[_-]?token|api[_-]?key)=)([^&\s]+)",
 )
 _IN_SCOPE_RUN_STATUSES = frozenset({"failed", "cancelled"})
 _IN_SCOPE_EXECUTION_STATUSES = frozenset({"failed", "cancelled"})
@@ -85,12 +85,16 @@ def require_tables(connection: sqlite3.Connection) -> None:
         sys.exit(1)
 
 
-def fetch_workflow(connection: sqlite3.Connection, workflow_id: str) -> sqlite3.Row | None:
+def fetch_workflow(
+    connection: sqlite3.Connection, workflow_id: str
+) -> sqlite3.Row | None:
     columns = table_columns(connection, "workflow_runs")
     needed = {"id", "status", "started_at", "completed_at", "error_message"}
     missing = needed - columns
     if missing:
-        console.print(f"[red]workflow_runs missing columns:[/red] {', '.join(sorted(missing))}")
+        console.print(
+            f"[red]workflow_runs missing columns:[/red] {', '.join(sorted(missing))}"
+        )
         sys.exit(1)
     return connection.execute(
         """
@@ -129,7 +133,9 @@ def fetch_runs(connection: sqlite3.Connection, workflow_id: str) -> list[sqlite3
     ).fetchall()
 
 
-def fetch_executions(connection: sqlite3.Connection, workflow_id: str) -> list[sqlite3.Row]:
+def fetch_executions(
+    connection: sqlite3.Connection, workflow_id: str
+) -> list[sqlite3.Row]:
     columns = table_columns(connection, "agent_executions")
     needed = {"agent_name", "status", "started_at", "error_message"}
     missing = needed - columns
@@ -152,7 +158,9 @@ def fetch_executions(connection: sqlite3.Connection, workflow_id: str) -> list[s
     ).fetchall()
 
 
-def fetch_snapshots(connection: sqlite3.Connection, workflow_id: str) -> list[sqlite3.Row]:
+def fetch_snapshots(
+    connection: sqlite3.Connection, workflow_id: str
+) -> list[sqlite3.Row]:
     columns = table_columns(connection, "candidate_snapshots")
     needed = {
         "ticker",
@@ -190,7 +198,9 @@ def print_header(workflow: sqlite3.Row, sqlite_path: Path) -> None:
     console.print(f"status: {workflow['status']}")
     console.print(f"started_at: {workflow['started_at']}")
     console.print(f"completed_at: {workflow['completed_at']}")
-    console.print(f"error_message: {redact_secrets(workflow['error_message']) or '(null)'}")
+    console.print(
+        f"error_message: {redact_secrets(workflow['error_message']) or '(null)'}"
+    )
 
 
 def print_status_counts(runs: list[sqlite3.Row]) -> None:
@@ -246,7 +256,9 @@ def print_error_buckets(runs: list[sqlite3.Row]) -> None:
     table.add_column("kind")
     table.add_column("count", justify="right")
     table.add_column("tickers")
-    for kind, tickers in sorted(buckets.items(), key=lambda item: (-len(item[1]), item[0])):
+    for kind, tickers in sorted(
+        buckets.items(), key=lambda item: (-len(item[1]), item[0])
+    ):
         table.add_row(kind, str(len(tickers)), ", ".join(tickers))
     console.print(table)
 
@@ -306,7 +318,7 @@ def print_snapshots(snapshots: list[sqlite3.Row], in_scope_tickers: set[str]) ->
     table.add_column("notes")
     shown = 0
     for row in snapshots:
-        if in_scope_tickers and row["ticker"] not in in_scope_tickers:
+        if row["ticker"] not in in_scope_tickers:
             continue
         notes = redact_secrets(row["resolution_notes"]).replace("\n", " ")[:200]
         table.add_row(

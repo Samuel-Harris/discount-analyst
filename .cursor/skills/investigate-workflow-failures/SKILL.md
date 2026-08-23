@@ -21,7 +21,7 @@ Intended COMPLETED outcomes (`data_quality_rejection`, `sentinel_rejection`, rat
 
 - **Diagnose only.** Do not patch code, open a fix PR, POST `/retry_failed_agents`, cancel, or delete.
 - **Do not destroy data.** Host dashboard SQLite is read-only (`mode=ro` or a copy). Artefacts are new files only.
-- **Redact credentials** (`api_token=`, similar query secrets) in chat and in `diagnosis.md`. Ticker text and conversations are not confidential; keys are.
+- **Redact credentials** (`api_token=`, `apikey=`, similar query secrets) in chat and in `diagnosis.md`. Ticker text and conversations are not confidential; keys are.
 - **Never trust one field.** `workflow_runs.error_message` is often null. API detail omits per-run `error_message`. Stored SQLite text is the **last** attempt after retries. Terminal scrollback is the **last** crash.
 - **Do not copy SQL from `analyse-workflow-run`.** That skill’s canned queries are stale (`finished_at`, `backend/db/models.py`, `"exit_code": 0` JSON). PRAGMA first; columns from `backend/src/discount_analyst/adapters/persistence/models.py`.
 
@@ -158,7 +158,7 @@ Taxonomy: [failure-kinds.md](references/failure-kinds.md).
 
 Allowed and encouraged when SQLite + Logfire do not explain an in-scope lane:
 
-- Conversation digest export (reuse analyse-workflow-run scripts; `--output-dir` = this numbered artefact folder). XOR-join Surveyor or you drop it.
+- Conversation digest export (reuse analyse-workflow-run scripts; `--output-dir` = this numbered artefact folder). Point `--sqlite-path` at the artefact copy, not the live host DB — the exporter opens SQLite read-write. XOR-join Surveyor or you drop it.
 - `agent_conversation_message_parts`: `part_kind = 'tool_return'`, `tool_name` in (`web_fetch`, `terminal_exec`). Terminal bodies are text `exit_code: 0`, **not** JSON `"exit_code": 0`. `%timeout%` matches `timeout 600` in commands — prefer `exit_code: 124` or Logfire Timeout types.
 - Live FMP/EODHD **GET** probes when a vendor-plan or identity cause is suspected. Do not write vendor data into the dashboard DB.
 
