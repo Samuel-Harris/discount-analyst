@@ -111,7 +111,18 @@ def test_should_repair_structured_output_error_tool_failure_negative() -> None:
     assert should_repair_structured_output_error(exc) is False
 
 
-def test_streaming_retry_sleep_tpm_waits_60s() -> None:
+def _patch_zero_rate_limit_jitter(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        streaming_retries_mod.random,
+        "uniform",
+        lambda low, high: low,
+    )
+
+
+def test_streaming_retry_sleep_rate_limit_ignores_short_provider_wait(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_zero_rate_limit_jitter(monkeypatch)
     exc = _api_error(
         "Rate limit reached for gpt-5.1 on tokens per min (TPM): "
         "Limit 500000. Please try again in 1.5s."
@@ -119,11 +130,52 @@ def test_streaming_retry_sleep_tpm_waits_60s() -> None:
     assert streaming_retry_sleep_seconds(exc, attempt=0) == 60.0
 
 
-def test_streaming_retry_sleep_rpm_waits_60s() -> None:
+def test_streaming_retry_sleep_rate_limit_exponential_grows_then_caps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_zero_rate_limit_jitter(monkeypatch)
     exc = _api_error(
         "Rate limit reached on requests per min (RPM). Please try again in 2s."
     )
     assert streaming_retry_sleep_seconds(exc, attempt=0) == 60.0
+    assert streaming_retry_sleep_seconds(exc, attempt=1) == 120.0
+    assert streaming_retry_sleep_seconds(exc, attempt=2) == 240.0
+    assert streaming_retry_sleep_seconds(exc, attempt=3) == 480.0
+    assert streaming_retry_sleep_seconds(exc, attempt=4) == 480.0
+
+
+def test_streaming_retry_sleep_rate_limit_adds_high_side_jitter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        streaming_retries_mod.random,
+        "uniform",
+        lambda low, high: high,
+    )
+    exc = _api_error(
+        "Rate limit reached on requests per min (RPM). Please try again in 2s."
+    )
+    assert streaming_retry_sleep_seconds(exc, attempt=0) == 75.0
+    assert streaming_retry_sleep_seconds(exc, attempt=1) == 150.0
+    assert streaming_retry_sleep_seconds(exc, attempt=2) == 300.0
+    assert streaming_retry_sleep_seconds(exc, attempt=3) == 480.0
+
+
+def test_streaming_retry_sleep_rate_limit_honours_longer_provider_wait(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_zero_rate_limit_jitter(monkeypatch)
+    exc = _api_error(
+        "Rate limit reached for gpt-5.6-luna on tokens per min (TPM): "
+        "Please try again in 90s."
+    )
+    assert streaming_retry_sleep_seconds(exc, attempt=0) == 90.0
+    assert streaming_retry_sleep_seconds(exc, attempt=1) == 120.0
+
+
+def test_streaming_retry_sleep_rate_limit_caps_long_provider_wait() -> None:
+    exc = _api_error("Rate limit reached. Please try again in 900s.")
+    assert streaming_retry_sleep_seconds(exc, attempt=0) == 480.0
 
 
 def test_streaming_retry_sleep_fallback_exponential() -> None:
@@ -483,7 +535,8 @@ async def test_stream_with_retries_checkpoints_captured_open_messages_on_tpm(
             outputs.append(chunk)
 
     assert outputs == ["resumed"]
-    assert sleep_calls == [60.0]
+    assert len(sleep_calls) == 1
+    assert 60.0 <= sleep_calls[0] <= 75.0
 
     assert len(agent_impl.calls) == 2
     first_call, second_call = agent_impl.calls
@@ -508,14 +561,63 @@ async def test_stream_with_retries_checkpoints_captured_open_messages_on_tpm(
 
 
 @pytest.mark.anyio
-async def test_stream_with_retries_does_not_replay_prompt_on_uncheckpointed_open_failure() -> (
+async def test_stream_with_retries_retries_uncheckpointed_rate_limit_at_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _no_wait(exc: BaseException, attempt: int) -> float:
+        del exc, attempt
+        return 0.0
+
+    monkeypatch.setattr(
+        streaming_retries_mod,
+        "streaming_retry_sleep_seconds",
+        _no_wait,
+    )
+
+    failed_open_cm = _FakeRunStreamContextManager(
+        enter_error=_api_error("Rate limit reached while opening stream.")
+    )
+    final_result = _FakeStreamedRunResult(
+        outputs=["started"],
+        final_output="done",
+        messages=[{"turn": {"text": "started"}}],
+        usage=RunUsage(input_tokens=8, output_tokens=3),
+    )
+    final_cm = _FakeRunStreamContextManager(result=final_result)
+    agent_impl = _FakeAgent([failed_open_cm, final_cm])
+
+    outputs: list[str] = []
+    async with stream_with_retries(
+        agent=cast(Any, agent_impl),
+        user_prompt="hello",
+        usage_limits=UsageLimits(request_limit=5),
+    ) as result:
+        async for chunk in result.stream_output(debounce_by=None):
+            outputs.append(chunk)
+
+    assert outputs == ["started"]
+    assert len(agent_impl.calls) == 2
+    first_call, second_call = agent_impl.calls
+    assert first_call["user_prompt"] == "hello"
+    assert first_call["message_history"] is None
+    assert second_call["user_prompt"] == "hello"
+    assert second_call["message_history"] is None
+    assert failed_open_cm.exit_calls == []
+    assert len(final_cm.exit_calls) == 1
+    assert final_cm.exit_calls[0] == (None, None)
+
+
+@pytest.mark.anyio
+async def test_stream_with_retries_does_not_replay_prompt_on_uncheckpointed_protocol_error() -> (
     None
 ):
-    open_error = _api_error("Rate limit reached while opening stream.")
+    open_error = httpx.RemoteProtocolError(
+        "peer closed connection without sending complete message body"
+    )
     failed_open_cm = _FakeRunStreamContextManager(enter_error=open_error)
     agent_impl = _FakeAgent([failed_open_cm])
 
-    with pytest.raises(APIError, match="Rate limit reached") as exc_info:
+    with pytest.raises(httpx.RemoteProtocolError) as exc_info:
         async with stream_with_retries(
             agent=cast(Any, agent_impl),
             user_prompt="hello",

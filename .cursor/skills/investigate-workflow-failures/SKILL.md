@@ -131,6 +131,7 @@ Call Logfire `query_schema_reference` once. Queries: [investigation-queries.md](
 - Prefer `is_exception` / `exception_type` / `exception_message` / `span_name` / `attributes->>'ticker'`.
 - `attributes->>'agent_name'` is often **null** on pipeline-failed spans. Span names like `Surveyor entry pipeline failed` wrap **lane** failures, not Surveyor-agent guilt.
 - List exceptions **in time order**, not just counts. Retries (`Workflow failed-agent retry scheduled`, multiple `Workflow execution started`) mean SQLite holds the **last** error.
+- A week of retries will fill `LIMIT 80` with early-batch exceptions. Always also filter `attributes->>'ticker'` for each in-scope ticker, and page `start_timestamp > last_seen` until the window is exhausted.
 - Project is often `discount-analyst`. Generate a UI link for the user.
 - Sparse tagging: absence of a span does not prove the stage did not run — SQLite executions are occupancy.
 

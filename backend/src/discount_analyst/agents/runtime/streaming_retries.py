@@ -1,5 +1,7 @@
 import asyncio
 import json
+import random
+import re
 from collections.abc import AsyncIterable
 from copy import deepcopy
 from contextlib import AbstractAsyncContextManager
@@ -47,8 +49,23 @@ from discount_analyst.agents.runtime.structured_output_unwrap import (
 MAX_STREAM_RETRY_ATTEMPTS = 6
 MAX_STRUCTURED_OUTPUT_COMPLETIONS = 3
 
-
-_TPM_RPM_WAIT_SECONDS = 60.0
+# Provider Retry-After is often a few seconds and assumes no concurrent usage.
+# Floor at one TPM window, then double, so later attempts can drain org-wide load.
+_RATE_LIMIT_MIN_WAIT_SECONDS = 60.0
+_RATE_LIMIT_MAX_WAIT_SECONDS = 480.0
+_RATE_LIMIT_JITTER_RATIO = 0.25
+_RATE_LIMIT_TEXT_NEEDLES = (
+    "rate limit",
+    "tokens per min",
+    "requests per min",
+    "tpm",
+    "rpm",
+    "too many requests",
+)
+_TRY_AGAIN_IN_RE = re.compile(
+    r"try again in (?P<value>\d+(?:\.\d+)?)(?P<unit>ms|s)?",
+    re.IGNORECASE,
+)
 
 
 def _partial_output_retry_prompt(partial_output: str) -> str:
@@ -84,20 +101,22 @@ def _openai_error_text(exc: BaseException) -> str:
     return str(exc)
 
 
+def _error_text_indicates_rate_limit(text: str) -> bool:
+    lowered = text.lower()
+    return any(needle in lowered for needle in _RATE_LIMIT_TEXT_NEEDLES)
+
+
 def api_error_indicates_rate_limit(exc: APIError) -> bool:
     """True when OpenAI signals quota / TPM / RPM limits (not all APIError cases)."""
-    text = _openai_error_text(exc).lower()
-    return any(
-        needle in text
-        for needle in (
-            "rate limit",
-            "tokens per min",
-            "requests per min",
-            "tpm",
-            "rpm",
-            "too many requests",
-        )
-    )
+    return _error_text_indicates_rate_limit(_openai_error_text(exc))
+
+
+def _is_rate_limit_error(exc: BaseException) -> bool:
+    if isinstance(exc, RateLimitError):
+        return True
+    if isinstance(exc, APIError):
+        return api_error_indicates_rate_limit(exc)
+    return False
 
 
 def _is_connection_error(exc: BaseException) -> bool:
@@ -117,22 +136,17 @@ def _is_connection_error(exc: BaseException) -> bool:
 
 def _is_retryable_single_error(exc: BaseException) -> bool:
     """Check if a single exception (not a group) is retryable."""
-    if _is_connection_error(exc):
+    if _is_connection_error(exc) or _is_rate_limit_error(exc):
         return True
-    if isinstance(
+    return isinstance(
         exc,
         (
-            RateLimitError,
             InternalServerError,
             APITimeoutError,
             httpx.RemoteProtocolError,
             TimeoutError,  # MCP and other transient timeouts
         ),
-    ):
-        return True
-    if isinstance(exc, APIError):
-        return api_error_indicates_rate_limit(exc)
-    return False
+    )
 
 
 def _streaming_retryable_exception_group(
@@ -181,7 +195,11 @@ def _can_retry_open_without_checkpoint(exc: BaseException) -> bool:
     if isinstance(exc, BaseExceptionGroup):
         group = cast(BaseExceptionGroup[BaseException], exc)
         return all(_can_retry_open_without_checkpoint(sub) for sub in group.exceptions)
-    return type(exc) is TimeoutError or _is_connection_error(exc)
+    return (
+        type(exc) is TimeoutError
+        or _is_connection_error(exc)
+        or _is_rate_limit_error(exc)
+    )
 
 
 def _stream_wait(attempt: int) -> float:
@@ -192,25 +210,45 @@ def _stream_wait(attempt: int) -> float:
     )
 
 
-def _is_tpm_or_rpm_error(text: str) -> bool:
-    """Check if the error indicates a TPM or RPM rate limit."""
-    text_lower = text.lower()
-    return any(
-        indicator in text_lower
-        for indicator in ("tokens per min", "tpm", "requests per min", "rpm")
+def _provider_retry_after_seconds(text: str) -> float:
+    match = _TRY_AGAIN_IN_RE.search(text)
+    if match is None:
+        return 0.0
+    value = float(match.group("value"))
+    unit = (match.group("unit") or "s").casefold()
+    if unit == "ms":
+        return value / 1000.0
+    return value
+
+
+def _with_high_side_jitter(wait_seconds: float, *, cap: float) -> float:
+    """Add up to 25% extra wait so concurrent lanes do not retry in lockstep.
+
+    Never waits less than ``wait_seconds`` (the TPM floor must not shrink).
+    """
+    if wait_seconds >= cap:
+        return cap
+    spread = min(wait_seconds * _RATE_LIMIT_JITTER_RATIO, cap - wait_seconds)
+    if spread <= 0:
+        return wait_seconds
+    return wait_seconds + random.uniform(0.0, spread)
+
+
+def _rate_limit_wait_seconds(attempt: int, error_text: str) -> float:
+    exponential = min(
+        _RATE_LIMIT_MIN_WAIT_SECONDS * (2**attempt),
+        _RATE_LIMIT_MAX_WAIT_SECONDS,
     )
+    suggested = _provider_retry_after_seconds(error_text)
+    wait_seconds = min(max(exponential, suggested), _RATE_LIMIT_MAX_WAIT_SECONDS)
+    return _with_high_side_jitter(wait_seconds, cap=_RATE_LIMIT_MAX_WAIT_SECONDS)
 
 
 def streaming_retry_sleep_seconds(exc: BaseException, attempt: int) -> float:
-    """Sleep before retry; wait 60s for TPM/RPM limits to let the window clear."""
+    """Sleep before retry; rate limits use a 60s-floored exponential wait with jitter."""
     text = _openai_error_text(exc)
-
-    # TPM/RPM limits need a full window to clear — OpenAI's suggested wait is
-    # too short because it assumes no other requests are consuming quota.
-    if _is_tpm_or_rpm_error(text):
-        return _TPM_RPM_WAIT_SECONDS
-
-    # For other transient errors, use exponential backoff.
+    if _error_text_indicates_rate_limit(text):
+        return _rate_limit_wait_seconds(attempt, text)
     return min(_stream_wait(attempt), FALLBACK_MAX_WEIGHT_SECONDS)
 
 

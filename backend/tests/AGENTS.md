@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-23 | Updated: 2026-08-22 -->
+<!-- Generated: 2026-02-23 | Updated: 2026-08-23 -->
 
 # tests
 
@@ -15,7 +15,7 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | `tests/discount_analyst/agents/appraiser/test_appraiser_schema.py`      | Tests for method-agnostic Appraiser output validation and percentile rules.                                                                                                                                   |
 | `tests/discount_analyst/agents/surveyor/test_surveyor_schema.py`        | Tests for Surveyor output validation (unique candidate tickers).                                                                                                                                              |
 | `tests/discount_analyst/valuation/test_toolkit.py`                      | Tests for deterministic valuation toolkit helpers, including DCF real-world scenarios.                                                                                                                        |
-| `tests/discount_analyst/http/test_streaming_retries.py`                 | Unit tests for agent streaming retry helpers (`stream_with_retries`, sleep parsing, structured-output repair, connection errors at stream start).                                                             |
+| `tests/discount_analyst/http/test_streaming_retries.py`                 | Unit tests for agent streaming retry helpers (`stream_with_retries`, rate-limit exponential wait, structured-output repair, connection/rate-limit errors at stream start).                                    |
 | `tests/discount_analyst/agents/common/test_structured_output_unwrap.py` | Singleton `final_result` envelope unwrap, `EvaluationReport` round-trip of an unwrapped FLXS payload, and factory `final_result` schema staying flat (`ticker` top-level, no `payload`).                      |
 | `tests/discount_analyst/integrations/test_financial_data_mcp.py`        | EODHD MCP optional registration (`EODHD__DISABLED`).                                                                                                                                                          |
 | `tests/discount_analyst/integrations/test_frankfurter.py`               | Frankfurter `convert_currency` mocked HTTP tests plus live EUR→USD smoke (`@pytest.mark.network`).                                                                                                            |

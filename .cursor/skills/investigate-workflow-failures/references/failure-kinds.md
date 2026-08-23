@@ -38,7 +38,9 @@ Use these as **first-pass** labels in the cluster script, then confirm:
 
 - Surveyor: `agent_executions.workflow_run_id` set, `run_id` null. Filter `(ae.workflow_run_id = ? OR r.workflow_run_id = ?)`.
 - SKIPPED downstream rows copy the failing stage’s error. Originating row: FAILED/CANCELLED with `started_at` set.
-- `candidate_snapshots` often keep the **first** gate story after retries overwrite `runs.error_message`.
+- `candidate_snapshots` often keep the **first** gate story after retries overwrite `runs.error_message`. `gate_probed_at` can still be the last attempt.
+- Long-retried workflows: a global Logfire `LIMIT 80` is not the full timeline. Filter `attributes->>'ticker'` for each in-scope lane.
+- Last TPM / connection error after a failed-agent retry can leave **zero** conversation messages (prior transcript wiped; stream never checkpointed).
 - Agent names in SQLite are often **lowercase** (`profiler`). Digest filenames may be `PROFILER_…`. `runs.entry_path` may be stored as `SURVEYOR` / `PROFILER` even though `models.py` enum **values** are lowercase — filter with `lower(...)`.
 - Workflow/run/execution **status** in SQLite is commonly the enum **name** (`FAILED`, `CANCELLED`, `COMPLETED`), not the `models.py` value (`failed`). Always compare case-insensitively. `WHERE status = 'failed'` returns 0 rows on a FAILED workflow.
 - Terminal success is text `exit_code: 0` in `tool_return` parts, not JSON.

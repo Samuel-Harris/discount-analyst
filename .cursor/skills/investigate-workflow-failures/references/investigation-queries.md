@@ -99,6 +99,18 @@ WHERE attributes->>'workflow_run_id' = '<uuid>'
 ORDER BY start_timestamp
 LIMIT 80;
 
+-- Required when retries span days: LIMIT 80 on the global list stops mid-history.
+SELECT start_timestamp, span_name, exception_type,
+       substr(exception_message, 1, 280) AS exception_message
+FROM records
+WHERE attributes->>'workflow_run_id' = '<uuid>'
+  AND attributes->>'ticker' = '<in-scope-ticker>'
+  AND start_timestamp >= '<iso-start>'
+  AND start_timestamp < '<iso-end>'
+  AND (is_exception = true OR exception_type IS NOT NULL)
+ORDER BY start_timestamp
+LIMIT 50;
+
 SELECT start_timestamp, span_name, attributes->>'ticker' AS ticker
 FROM records
 WHERE attributes->>'workflow_run_id' = '<uuid>'
@@ -108,6 +120,8 @@ WHERE attributes->>'workflow_run_id' = '<uuid>'
 ORDER BY start_timestamp
 LIMIT 40;
 ```
+
+Many failed-agent retries fill `LIMIT 80` / `LIMIT 40` with the first attempt. Page with `start_timestamp > '<last-seen>'` and/or filter by in-scope ticker until the window is exhausted.
 
 Generate a UI link with `project_logfire_ui_link` / `project_logfire_link` after you have timestamps or trace ids.
 
