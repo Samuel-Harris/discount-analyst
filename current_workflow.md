@@ -314,7 +314,7 @@ Class validator: ≥1 method; **exactly one** `primary`; **≥1** `cross_check`;
 - Each non-empty portfolio ticker becomes a profiler-entry run with `PROFILER_ENTRY_AGENT_NAMES` and `is_existing_position=True`.
 - Schedules `DashboardPipelineRunner.schedule_workflow_execution`.
 
-Also: cancel; `retry_failed_agents` (resets failed executions then re-enters `execute_workflow`; completed stages are skipped by status checks).
+Also: cancel; `retry_failed_agents` (resets failed or cancelled lane executions from the first unfinished agent onward, then re-enters `execute_workflow`; completed stages and completed lanes are skipped by status checks).
 
 ### Surveyor
 

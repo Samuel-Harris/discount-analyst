@@ -155,7 +155,7 @@ describe("WorkflowRunDetailHeader", () => {
     );
 
     await user.click(
-      screen.getByRole("button", { name: "Retry all failed agents" }),
+      screen.getByRole("button", { name: "Retry failed and cancelled agents" }),
     );
 
     expect(onRequestRetryFailedAgents).toHaveBeenCalledTimes(1);
@@ -177,7 +177,9 @@ describe("WorkflowRunDetailHeader", () => {
     );
 
     expect(
-      screen.queryByRole("button", { name: "Retry all failed agents" }),
+      screen.queryByRole("button", {
+        name: "Retry failed and cancelled agents",
+      }),
     ).not.toBeInTheDocument();
   });
 
@@ -241,7 +243,7 @@ describe("WorkflowRunDetailHeader", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "Retry all failed agents" }),
+      screen.getByRole("button", { name: "Retry failed and cancelled agents" }),
     ).toBeInTheDocument();
   });
 
@@ -271,7 +273,7 @@ describe("WorkflowRunDetailHeader", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "Retrying failed agents..." }),
+      screen.getByRole("button", { name: "Retrying unfinished agents..." }),
     ).toBeDisabled();
   });
 });

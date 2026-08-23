@@ -68,6 +68,12 @@ _TERMINAL_RUN_STATUSES = frozenset(
         WorkflowRunStatusDb.CANCELLED.value,
     }
 )
+_RETRYABLE_LANE_EXECUTION_STATUSES = frozenset(
+    {
+        ExecutionStatusDb.FAILED,
+        ExecutionStatusDb.CANCELLED,
+    }
+)
 _AGENT_LANE_ORDER = {
     AgentNameDb.PROFILER: 0,
     AgentNameDb.RESEARCHER: 1,
@@ -134,7 +140,7 @@ def workflow_can_retry_failed_agents(
     runs: list[Run],
     executions_by_run_id: dict[str, list[AgentExecution]],
 ) -> bool:
-    """Return whether a terminal workflow has failed surveyor or lane work to retry."""
+    """Return whether a terminal workflow has failed or cancelled lane work to retry."""
     if workflow_status.value not in _TERMINAL_RUN_STATUSES:
         return False
     if surveyor is not None and surveyor.status == ExecutionStatusDb.FAILED:
@@ -148,13 +154,13 @@ def workflow_can_retry_failed_agents(
 def _first_retry_lane_order(run: Run, executions: list[AgentExecution]) -> int | None:
     """Return the first lane agent order to reset, or None when the run is not retriable."""
     lane_executions = _lane_executions(executions)
-    failed_orders = [
+    retry_orders = [
         _AGENT_LANE_ORDER[execution.agent_name]
         for execution in lane_executions
-        if execution.status == ExecutionStatusDb.FAILED
+        if execution.status in _RETRYABLE_LANE_EXECUTION_STATUSES
     ]
-    if failed_orders:
-        return min(failed_orders)
+    if retry_orders:
+        return min(retry_orders)
 
     if (
         run.lane_aborted
@@ -172,7 +178,7 @@ def prepare_retry_failed_agents(
     session: Session,
     workflow_run_id: str,
 ) -> RetryFailedAgentsPreparation:
-    """Reset failed agents, and downstream lane agents, for an explicit retry."""
+    """Reset failed or cancelled agents, and downstream lane agents, for an explicit retry."""
     workflow = session.get(WorkflowRun, workflow_run_id)
     if workflow is None:
         raise RetryWorkflowRunNotFoundError(workflow_run_id)

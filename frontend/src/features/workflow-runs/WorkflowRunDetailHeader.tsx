@@ -106,8 +106,8 @@ export function WorkflowRunDetailHeader({
             disabled={retryFailedAgentsPending}
           >
             {retryFailedAgentsPending
-              ? "Retrying failed agents..."
-              : "Retry all failed agents"}
+              ? "Retrying unfinished agents..."
+              : "Retry failed and cancelled agents"}
           </button>
         ) : null}
       </div>
