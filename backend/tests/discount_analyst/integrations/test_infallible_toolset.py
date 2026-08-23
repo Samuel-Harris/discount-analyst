@@ -1,6 +1,16 @@
 """Tests for InfallibleToolset wrapper."""
 
-from discount_analyst.agents.tools.terminal.infallible_toolset import format_tool_error
+from unittest.mock import MagicMock
+
+import httpx
+import pytest
+from pydantic_ai.exceptions import ModelRetry
+from pydantic_ai.tools import ToolDefinition
+
+from discount_analyst.agents.tools.terminal.infallible_toolset import (
+    INFALLIBLE_TOOL_EXECUTION,
+    format_tool_error,
+)
 
 
 def test_format_tool_error_402() -> None:
@@ -57,3 +67,39 @@ def test_format_tool_error_generic() -> None:
     assert "Unknown database error" in result
     assert "some_tool" in result
     assert "different approach" in result.lower()
+
+
+def _tool_def(*, name: str, kind: str) -> ToolDefinition:
+    return ToolDefinition(name=name, kind=kind)  # type: ignore[arg-type]
+
+
+async def _wrap_failing_handler(kind: str, exc: Exception) -> object:
+    async def handler(_args: dict[str, object]) -> str:
+        raise exc
+
+    return await INFALLIBLE_TOOL_EXECUTION.wrap_tool_execute(
+        MagicMock(),
+        call=MagicMock(),
+        tool_def=_tool_def(name="web_fetch", kind=kind),
+        args={},
+        handler=handler,
+    )
+
+
+async def test_wrap_tool_execute_converts_model_retry_403() -> None:
+    result = await _wrap_failing_handler("function", ModelRetry("403 Forbidden"))
+    assert isinstance(result, str)
+    assert result == format_tool_error("web_fetch", ModelRetry("403 Forbidden"))
+    assert "403" in result
+
+
+async def test_wrap_tool_execute_converts_read_timeout() -> None:
+    timeout = httpx.ReadTimeout("Read timeout")
+    result = await _wrap_failing_handler("function", timeout)
+    assert isinstance(result, str)
+    assert "timed out" in result.lower()
+
+
+async def test_wrap_tool_execute_output_kind_reraises_model_retry() -> None:
+    with pytest.raises(ModelRetry, match="schema failed"):
+        await _wrap_failing_handler("output", ModelRetry("schema failed"))

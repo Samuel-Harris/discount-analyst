@@ -2,14 +2,33 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Annotated, Any, cast
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, BeforeValidator, Field
 
 from discount_analyst.agents.tools.http.retrying_client import create_rate_limit_client
 
 EODHD_API_BASE_URL = "https://eodhd.com/api"
+
+_CLOSE_SENTINELS = frozenset({"", "na", "n/a", "nan", "-", "null", "none"})
+
+
+def _coerce_optional_close(value: object) -> float | None:
+    """Accept EODHD sentinel strings without raising; numeric strings stay floats."""
+    if value is None:
+        return None
+    if isinstance(value, int | float) and not isinstance(value, bool):
+        return float(value)
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped.casefold() in _CLOSE_SENTINELS:
+            return None
+        try:
+            return float(stripped)
+        except ValueError:
+            return None
+    return None
 
 
 class EodhdGeneralInfo(BaseModel):
@@ -21,7 +40,7 @@ class EodhdGeneralInfo(BaseModel):
 
 class EodhdRealTimeQuote(BaseModel):
     code: str | None = None
-    close: float | None = None
+    close: Annotated[float | None, BeforeValidator(_coerce_optional_close)] = None
 
 
 class EodhdClient:

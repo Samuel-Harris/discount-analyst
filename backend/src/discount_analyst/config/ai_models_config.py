@@ -1,4 +1,5 @@
-from typing import Annotated, Literal
+from enum import StrEnum
+from typing import Annotated, Final, Literal
 
 from anthropic.types.beta import BetaThinkingConfigEnabledParam
 from discount_analyst.domain.model_selection.model_name import ModelName
@@ -189,15 +190,52 @@ AIModelConfig = Annotated[
 ]
 
 
+class _ModelConfigKind(StrEnum):
+    ANTHROPIC_ADAPTIVE = "anthropic_adaptive"
+    ANTHROPIC_BUDGET = "anthropic_budget"
+    OPENAI = "openai"
+    GOOGLE = "google"
+    DEEPSEEK = "deepseek"
+
+
+_MODEL_CONFIG_KIND: Final[dict[ModelName, _ModelConfigKind]] = {
+    ModelName.CLAUDE_OPUS_4_6: _ModelConfigKind.ANTHROPIC_ADAPTIVE,
+    ModelName.CLAUDE_SONNET_4_6: _ModelConfigKind.ANTHROPIC_ADAPTIVE,
+    ModelName.CLAUDE_OPUS_4_5: _ModelConfigKind.ANTHROPIC_BUDGET,
+    ModelName.CLAUDE_SONNET_4_5: _ModelConfigKind.ANTHROPIC_BUDGET,
+    ModelName.CLAUDE_HAIKU_4_6: _ModelConfigKind.ANTHROPIC_BUDGET,
+    ModelName.GPT_5_1: _ModelConfigKind.OPENAI,
+    ModelName.GPT_5_2: _ModelConfigKind.OPENAI,
+    ModelName.GPT_5_4: _ModelConfigKind.OPENAI,
+    ModelName.GPT_5_6_LUNA: _ModelConfigKind.OPENAI,
+    ModelName.GEMINI_3_PRO_PREVIEW: _ModelConfigKind.GOOGLE,
+    ModelName.GEMINI_3_1_PRO_PREVIEW: _ModelConfigKind.GOOGLE,
+    ModelName.DEEPSEEK_V4_FLASH: _ModelConfigKind.DEEPSEEK,
+    ModelName.DEEPSEEK_V4_PRO: _ModelConfigKind.DEEPSEEK,
+}
+
+
+def _assert_model_config_kinds_complete() -> None:
+    missing = set(ModelName) - _MODEL_CONFIG_KIND.keys()
+    if missing:
+        raise RuntimeError(
+            "ModelName members missing config kind: "
+            + ", ".join(sorted(name.value for name in missing))
+        )
+
+
+_assert_model_config_kinds_complete()
+
+
 class AIModelsConfig(BaseModel):
-    model_name: ModelName = ModelName.CLAUDE_OPUS_4_5
+    model_name: ModelName
     cache_messages: bool = True
 
     @computed_field
     @property
     def model(self) -> AIModelConfig:
-        match self.model_name:
-            case ModelName.CLAUDE_OPUS_4_6 | ModelName.CLAUDE_SONNET_4_6:
+        match _MODEL_CONFIG_KIND[self.model_name]:
+            case _ModelConfigKind.ANTHROPIC_ADAPTIVE:
                 return AnthropicAIModelConfig(
                     model_name=self.model_name,
                     max_tokens=_MAX_TOKENS,
@@ -205,11 +243,7 @@ class AIModelsConfig(BaseModel):
                     cache_messages=self.cache_messages,
                     effort=_ANTHROPIC_REASONING_EFFORT,
                 )
-            case (
-                ModelName.CLAUDE_OPUS_4_5
-                | ModelName.CLAUDE_SONNET_4_5
-                | ModelName.CLAUDE_HAIKU_4_6
-            ):
+            case _ModelConfigKind.ANTHROPIC_BUDGET:
                 return AnthropicAIModelConfig(
                     model_name=self.model_name,
                     max_tokens=_MAX_TOKENS,
@@ -217,21 +251,21 @@ class AIModelsConfig(BaseModel):
                     usage_limits=_USAGE_LIMITS,
                     cache_messages=self.cache_messages,
                 )
-            case ModelName.GPT_5_1 | ModelName.GPT_5_2 | ModelName.GPT_5_4:
+            case _ModelConfigKind.OPENAI:
                 return OpenAIAIModelConfig(
                     model_name=self.model_name,
                     max_tokens=_MAX_TOKENS,
                     usage_limits=_USAGE_LIMITS,
                     reasoning_effort=_OPENAI_REASONING_EFFORT,
                 )
-            case ModelName.GEMINI_3_PRO_PREVIEW | ModelName.GEMINI_3_1_PRO_PREVIEW:
+            case _ModelConfigKind.GOOGLE:
                 return GoogleAIModelConfig(
                     model_name=self.model_name,
                     max_tokens=_MAX_TOKENS,
                     thinking_budget_tokens=_MAX_THINKING_BUDGET_TOKENS,
                     usage_limits=_USAGE_LIMITS,
                 )
-            case ModelName.DEEPSEEK_V4_FLASH | ModelName.DEEPSEEK_V4_PRO:
+            case _ModelConfigKind.DEEPSEEK:
                 return DeepSeekAIModelConfig(
                     model_name=self.model_name,
                     max_tokens=_MAX_TOKENS,

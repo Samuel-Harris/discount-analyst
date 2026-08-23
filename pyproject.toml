@@ -18,7 +18,7 @@ dependencies = [
     "pydantic-settings>=2.14.2,<3.0.0",
     "perplexityai (>=0.22.0,<0.23.0)",
     "aiolimiter (>=1.2.1,<2.0.0)",
-    "pydantic-ai-slim[duckduckgo,web-fetch,mcp,anthropic,openai,google,logfire]>=1.106.0",
+    "pydantic-ai-slim[anthropic,duckduckgo,google,logfire,mcp,openai,web-fetch]>=2.22.0",
     "logfire (>=4.16.0,<5.0.0)",
     "markitdown[pdf,docx] (>=0.1.6,<0.2.0)",
     "httpx (>=0.28.1,<0.29.0)",
@@ -30,6 +30,7 @@ dependencies = [
     "anthropic>=0.80.0,<1.0.0",
     "fastapi (>=0.115.0,<1.0.0)",
     "uvicorn[standard] (>=0.30.0,<1.0.0)",
+    "pydantic-ai-harness>=0.18.0",
 ]
 
 [build-system]

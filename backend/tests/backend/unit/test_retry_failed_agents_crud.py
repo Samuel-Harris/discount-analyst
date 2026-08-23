@@ -428,6 +428,120 @@ def test_prepare_retry_failed_agents_resets_cancelled_children_after_surveyor_fa
     assert {row["status"] for row in lane["agent_executions"]} == {"pending"}
 
 
+def test_fetch_workflow_detail_can_retry_for_cancelled_lanes(
+    db_session: Session,
+) -> None:
+    workflow_run_id, surveyor_execution_id, run_id = (
+        _insert_workflow_with_surveyor_lane(db_session)
+    )
+    workflow = db_session.get(WorkflowRun, workflow_run_id)
+    surveyor = db_session.get(AgentExecution, surveyor_execution_id)
+    run = db_session.get(Run, run_id)
+    assert workflow is not None
+    assert surveyor is not None
+    assert run is not None
+
+    workflow.status = WorkflowRunStatusDb.CANCELLED
+    workflow.completed_at = utc_now()
+    surveyor.status = ExecutionStatusDb.COMPLETED
+    surveyor.completed_at = utc_now()
+    run.status = WorkflowRunStatusDb.CANCELLED
+    run.completed_at = utc_now()
+    for agent_name in SURVEYOR_ENTRY_AGENT_NAMES:
+        _set_agent_status(
+            db_session,
+            run_id=run_id,
+            agent_name=agent_name,
+            status=ExecutionStatusDb.CANCELLED,
+        )
+    db_session.commit()
+
+    detail = fetch_workflow_detail(db_session, workflow_run_id)
+    assert detail is not None
+    assert detail["can_retry_failed_agents"] is True
+
+
+def test_prepare_retry_failed_agents_resets_cancelled_lanes_from_first_cancelled_agent(
+    db_session: Session,
+) -> None:
+    workflow_run_id, surveyor_execution_id, cancelled_run_id = (
+        _insert_workflow_with_surveyor_lane(db_session)
+    )
+    completed_run_id = new_id()
+    insert_ticker_run_with_agents(
+        db_session,
+        run_id=completed_run_id,
+        workflow_run_id=workflow_run_id,
+        ticker="WEYS",
+        company_name="Weyco",
+        entry_path="surveyor",
+        is_existing_position=False,
+        is_mock=True,
+        agent_names=SURVEYOR_ENTRY_AGENT_NAMES,
+    )
+    workflow = db_session.get(WorkflowRun, workflow_run_id)
+    surveyor = db_session.get(AgentExecution, surveyor_execution_id)
+    cancelled_run = db_session.get(Run, cancelled_run_id)
+    completed_run = db_session.get(Run, completed_run_id)
+    assert workflow is not None
+    assert surveyor is not None
+    assert cancelled_run is not None
+    assert completed_run is not None
+
+    workflow.status = WorkflowRunStatusDb.CANCELLED
+    workflow.completed_at = utc_now()
+    surveyor.status = ExecutionStatusDb.COMPLETED
+    surveyor.completed_at = utc_now()
+    cancelled_run.status = WorkflowRunStatusDb.CANCELLED
+    cancelled_run.completed_at = utc_now()
+    completed_run.status = WorkflowRunStatusDb.COMPLETED
+    completed_run.completed_at = utc_now()
+    _set_agent_status(
+        db_session,
+        run_id=cancelled_run_id,
+        agent_name="researcher",
+        status=ExecutionStatusDb.COMPLETED,
+    )
+    for agent_name in ("strategist", "sentinel", "appraiser"):
+        _set_agent_status(
+            db_session,
+            run_id=cancelled_run_id,
+            agent_name=agent_name,
+            status=ExecutionStatusDb.CANCELLED,
+        )
+    for agent_name in SURVEYOR_ENTRY_AGENT_NAMES:
+        _set_agent_status(
+            db_session,
+            run_id=completed_run_id,
+            agent_name=agent_name,
+            status=ExecutionStatusDb.COMPLETED,
+        )
+    db_session.commit()
+
+    preparation = prepare_retry_failed_agents(db_session, workflow_run_id)
+    db_session.commit()
+
+    assert preparation.surveyor_reset is False
+    assert preparation.lane_reset_count == 1
+    detail = fetch_workflow_detail(db_session, workflow_run_id)
+    assert detail is not None
+    assert detail["status"] == "running"
+    assert detail["surveyor_execution"] is not None
+    assert detail["surveyor_execution"]["status"] == "completed"
+    lanes = {lane["ticker"]: lane for lane in detail["runs"]}
+    assert lanes["WEYS"]["status"] == "completed"
+    assert lanes["NATR"]["status"] == "running"
+    cancelled_statuses = {
+        row["agent_name"]: row["status"] for row in lanes["NATR"]["agent_executions"]
+    }
+    assert cancelled_statuses == {
+        "researcher": "completed",
+        "strategist": "pending",
+        "sentinel": "pending",
+        "appraiser": "pending",
+    }
+
+
 def test_mark_lane_abort_sets_lane_aborted_and_skips_pending_agents(
     db_session: Session,
 ) -> None:

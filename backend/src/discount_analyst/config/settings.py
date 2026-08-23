@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from discount_analyst.domain.model_selection.model_name import ModelName
 
 DashboardLogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+DEFAULT_MODEL = ModelName.GPT_5_6_LUNA
 
 
 class Perplexity(BaseModel):
@@ -96,7 +97,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("DASHBOARD_DATABASE_PATH", "DATABASE_PATH"),
     )
     default_model: ModelName = Field(
-        default=ModelName.DEEPSEEK_V4_PRO,
+        default=DEFAULT_MODEL,
         validation_alias=AliasChoices("DASHBOARD_DEFAULT_MODEL"),
     )
     risk_free_rate_pct: float = Field(

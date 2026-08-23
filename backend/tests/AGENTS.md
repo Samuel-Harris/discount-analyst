@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-23 | Updated: 2026-08-15 -->
+<!-- Generated: 2026-02-23 | Updated: 2026-08-23 -->
 
 # tests
 
@@ -9,46 +9,51 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 
 ## Key Files
 
-| File                                                               | Description                                                                                                                            |
-| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `tests/conftest.py`                                                | Suite-wide defaults so `discount_analyst.config.settings` can import during collection (sets `LOGGING__LOGFIRE_API_KEY` unless already present). |
-| `tests/discount_analyst/agents/appraiser/test_appraiser_schema.py` | Tests for method-agnostic Appraiser output validation and percentile rules.                                                            |
-| `tests/discount_analyst/agents/surveyor/test_surveyor_schema.py`   | Tests for Surveyor output validation (unique candidate tickers).                                                                       |
-| `tests/discount_analyst/valuation/test_toolkit.py`                 | Tests for deterministic valuation toolkit helpers, including DCF real-world scenarios.                                                 |
-| `tests/discount_analyst/http/test_streaming_retries.py`            | Unit tests for agent streaming retry helpers (`stream_with_retries`, sleep parsing).                                                   |
-| `tests/discount_analyst/integrations/test_financial_data_mcp.py`   | EODHD MCP optional registration (`EODHD__DISABLED`).                                                                                   |
-| `tests/discount_analyst/integrations/test_frankfurter.py`          | Frankfurter `convert_currency` mocked HTTP tests plus live EUR→USD smoke (`@pytest.mark.network`).                                     |
-| `tests/discount_analyst/integrations/test_text_only_web_fetch.py`  | Text-only local web fetch (markitdown binary conversion, DeepSeek wiring).                                                             |
-| `tests/fixtures/web_fetch/`                                        | Minimal PDF and DOCX fixtures with known extractable strings for markitdown integration tests.                                         |
-| `tests/discount_analyst/integrations/test_terminal.py`             | Terminal HTTP client mocks; optional `@pytest.mark.docker` orchestrator integration.                                                   |
-| `tests/discount_analyst/agents/common/test_streamed_agent_run.py`  | Tests for `run_streamed_agent`.                                                                                                        |
-| `tests/discount_analyst/agents/sentinel/test_sentinel_gate.py`     | Tests for `sentinel_proceeds_to_valuation` (thesis + red-flag gate).                                                                   |
-| `tests/discount_analyst/pipeline/test_builders.py`                 | Tests for `build_sentinel_rejection` and `verdict_from_decision`.                                                                      |
-| `tests/backend/unit/test_dashboard_settings.py`                    | Unified ``Settings`` validation (e.g. non-empty ``LOGGING__LOGFIRE_API_KEY``).                                                         |
-| `tests/backend/unit/test_workflow_api.py`                          | HTTP contract tests for the FastAPI dashboard (`backend`) with isolated SQLite.                                                        |
-| `tests/backend/unit/test_agent_lane_order_sync.py`                 | Keeps `discount_analyst.application.workflows.agent_lane_order` aligned with `frontend/src/features/pipeline-graph/agentLaneOrder.ts`. |
-| `tests/backend/unit/test_profiler_stage.py`                        | Unit tests for the extracted dashboard `ProfilerStage` and its persistence port.                                                       |
-| `tests/backend/unit/test_mock_surveyor_discoveries.py`             | Mock Surveyor discovery helpers and deterministic mock Sentinel pass/fail parity for the dashboard.                                    |
-| `tests/backend/unit/test_mock_rating_table_dashboard.py`           | Deterministic mock `RatingTableDecision` helpers for dashboard payloads.                                                               |
-| `tests/backend/unit/test_appraiser_output_persistence.py`          | Appraiser `AppraiserReport` persistence and `get_appraiser_report_for_run` join behaviour.                                             |
-| `tests/backend/unit/test_agent_output_persistence.py`              | Profiler `CandidateSnapshot` persistence (exactly one row at `sort_order=0`).                                                          |
-| `tests/backend/unit/test_migration_startup.py`                     | Alembic head on startup, metadata verify, and 0009→head agent-execution unify remap.                                                   |
-| `tests/backend/integration/test_mock_workflow.py`                  | Mock pipeline persistence for `DashboardPipelineRunner` (no live LLM calls); mixed Sentinel lanes.                                     |
-| `tests/backend/integration/test_dashboard_http_e2e.py`             | Async HTTP path: create mock workflow run, poll until completed, assert detail and conversations.                                      |
+| File                                                                    | Description                                                                                                                                                                                                   |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/conftest.py`                                                     | Suite-wide defaults so `discount_analyst.config.settings` can import during collection (sets `LOGGING__LOGFIRE_API_KEY` unless already present).                                                              |
+| `tests/discount_analyst/agents/appraiser/test_appraiser_schema.py`      | Tests for method-agnostic Appraiser output validation and percentile rules.                                                                                                                                   |
+| `tests/discount_analyst/agents/surveyor/test_surveyor_schema.py`        | Tests for Surveyor output validation (unique candidate tickers).                                                                                                                                              |
+| `tests/discount_analyst/valuation/test_toolkit.py`                      | Tests for deterministic valuation toolkit helpers, including DCF real-world scenarios.                                                                                                                        |
+| `tests/discount_analyst/http/test_streaming_retries.py`                 | Unit tests for agent streaming retry helpers (`stream_with_retries`, rate-limit exponential wait, structured-output repair, connection/rate-limit errors at stream start).                                    |
+| `tests/discount_analyst/agents/common/test_structured_output_unwrap.py` | Singleton `final_result` envelope unwrap, `EvaluationReport` round-trip of an unwrapped FLXS payload, and factory `final_result` schema staying flat (`ticker` top-level, no `payload`).                      |
+| `tests/discount_analyst/integrations/test_financial_data_mcp.py`        | EODHD MCP optional registration (`EODHD__DISABLED`).                                                                                                                                                          |
+| `tests/discount_analyst/integrations/test_frankfurter.py`               | Frankfurter `convert_currency` mocked HTTP tests plus live EUR→USD smoke (`@pytest.mark.network`).                                                                                                            |
+| `tests/discount_analyst/integrations/test_text_only_web_fetch.py`       | Text-only local web fetch (markitdown binary conversion, DeepSeek wiring).                                                                                                                                    |
+| `tests/fixtures/web_fetch/`                                             | Minimal PDF and DOCX fixtures with known extractable strings for markitdown integration tests.                                                                                                                |
+| `tests/discount_analyst/integrations/test_terminal.py`                  | Terminal HTTP client mocks; optional `@pytest.mark.docker` orchestrator integration.                                                                                                                          |
+| `tests/discount_analyst/agents/common/test_streamed_agent_run.py`       | Tests for `run_streamed_agent`.                                                                                                                                                                               |
+| `tests/discount_analyst/agents/sentinel/test_sentinel_gate.py`          | Tests for `sentinel_proceeds_to_valuation` (thesis + red-flag gate).                                                                                                                                          |
+| `tests/discount_analyst/pipeline/test_builders.py`                      | Tests for `build_sentinel_rejection`, `verdict_from_decision`, and tagged `Verdict` JSON round-trip of all three decision kinds.                                                                              |
+| `tests/discount_analyst/pipeline/test_candidate_gates.py`               | Pre-Researcher FMP/EODHD gates: auto-correct only on exact or unique strong match; unknown/ambiguous identity keeps the source ticker; listing rejects only on FMP inactive (non-`.L`) or EODHD `IsDelisted`. |
+| `tests/discount_analyst/integrations/test_eodhd_client.py`              | EODHD REST client: real-time quote (including `"NA"` close → `None`), fundamentals `IsDelisted`.                                                                                                              |
+| `tests/discount_analyst/integrations/test_infallible_toolset.py`        | `format_tool_error` plus `InfallibleToolExecution.wrap_tool_execute` (function-tool errors vs output-kind re-raise).                                                                                          |
+| `tests/backend/unit/test_persist_ticker_run_final_verdict.py`           | DQR persist source lookup: Profiler if present, else workflow Surveyor; Researcher id unused.                                                                                                                 |
+| `tests/backend/unit/test_dashboard_settings.py`                         | Unified ``Settings`` validation (e.g. non-empty ``LOGGING__LOGFIRE_API_KEY``).                                                                                                                                |
+| `tests/backend/unit/test_workflow_api.py`                               | HTTP contract tests for the FastAPI dashboard (`backend`) with isolated SQLite.                                                                                                                               |
+| `tests/backend/unit/test_agent_lane_order_sync.py`                      | Keeps `discount_analyst.application.workflows.agent_lane_order` aligned with `frontend/src/features/pipeline-graph/agentLaneOrder.ts`.                                                                        |
+| `tests/backend/unit/test_profiler_stage.py`                             | Unit tests for the extracted dashboard `ProfilerStage` and its persistence port.                                                                                                                              |
+| `tests/backend/unit/test_mock_surveyor_discoveries.py`                  | Mock Surveyor discovery helpers and deterministic mock Sentinel pass/fail parity for the dashboard.                                                                                                           |
+| `tests/backend/unit/test_mock_rating_table_dashboard.py`                | Deterministic mock `RatingTableDecision` helpers for dashboard payloads.                                                                                                                                      |
+| `tests/backend/unit/test_appraiser_output_persistence.py`               | Appraiser `AppraiserReport` persistence and `get_appraiser_report_for_run` join behaviour.                                                                                                                    |
+| `tests/backend/unit/test_agent_output_persistence.py`                   | Profiler `CandidateSnapshot` persistence (exactly one row at `sort_order=0`).                                                                                                                                 |
+| `tests/backend/unit/test_migration_startup.py`                          | Alembic head on startup, metadata verify, and 0009→head agent-execution unify remap.                                                                                                                          |
+| `tests/backend/integration/test_mock_workflow.py`                       | Mock pipeline persistence for `DashboardPipelineRunner` (no live LLM calls); mixed Sentinel lanes.                                                                                                            |
+| `tests/backend/integration/test_dashboard_http_e2e.py`                  | Async HTTP path: create mock workflow run, poll until completed, assert detail and conversations.                                                                                                             |
 
 ## Subdirectories
 
-| Directory                            | Purpose                                                                                              |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `discount_analyst/http/`             | Tests for streaming retry behaviour (`discount_analyst.agents.common.streaming_retries`).            |
-| `discount_analyst/integrations/`     | Tests for MCP, Frankfurter FX, web-fetch, and terminal tool wiring.                                  |
-| `discount_analyst/agents/common/`    | Tests for streamed agent orchestration.                                                              |
-| `discount_analyst/agents/appraiser/` | Tests for Appraiser schema contracts.                                                                |
-| `discount_analyst/agents/sentinel/`  | Tests for Sentinel schema helpers.                                                                   |
-| `discount_analyst/pipeline/`         | Tests for programmatic verdict builders and the deterministic rating table.                          |
-| `discount_analyst/valuation/`        | Tests for deterministic valuation toolkit helpers (`discount_analyst.valuation.toolkit`).            |
-| `scripts/`                           | Tests for script helpers where present.                                                              |
-| `backend/`                           | Tests for the FastAPI `backend` package (`unit/`, `integration/`); shared fixtures in `conftest.py`. |
+| Directory                            | Purpose                                                                                                |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `discount_analyst/http/`             | Tests for streaming retry behaviour (`discount_analyst.agents.common.streaming_retries`).              |
+| `discount_analyst/integrations/`     | Tests for MCP, Frankfurter FX, web-fetch, and terminal tool wiring.                                    |
+| `discount_analyst/agents/common/`    | Tests for streamed agent orchestration and structured-output unwrap.                                   |
+| `discount_analyst/agents/appraiser/` | Tests for Appraiser schema contracts.                                                                  |
+| `discount_analyst/agents/sentinel/`  | Tests for Sentinel schema helpers.                                                                     |
+| `discount_analyst/pipeline/`         | Tests for programmatic verdict builders, tagged `Verdict` JSON, candidate gates, and the rating table. |
+| `discount_analyst/valuation/`        | Tests for deterministic valuation toolkit helpers (`discount_analyst.valuation.toolkit`).              |
+| `scripts/`                           | Tests for script helpers where present.                                                                |
+| `backend/`                           | Tests for the FastAPI `backend` package (`unit/`, `integration/`); shared fixtures in `conftest.py`.   |
 
 ## For AI Agents
 

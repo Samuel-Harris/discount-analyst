@@ -5,9 +5,13 @@ from typing import Any, cast
 
 import httpx
 import pytest
-from openai import APIError
-from pydantic_ai import capture_run_messages
-from pydantic_ai.exceptions import UnexpectedModelBehavior
+from openai import APIConnectionError, APIError
+from pydantic_ai._agent_graph import get_captured_run_messages
+from pydantic_ai.exceptions import (
+    ModelAPIError,
+    ModelHTTPError,
+    UnexpectedModelBehavior,
+)
 from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
@@ -30,6 +34,20 @@ from discount_analyst.agents.runtime.streaming_retries import (
 def _api_error(message: str) -> APIError:
     """Minimal ``APIError`` for unit tests (SDK types ``request`` as non-optional)."""
     return APIError(message, request=cast(Any, None), body=None)
+
+
+def _httpx_request() -> httpx.Request:
+    return httpx.Request("POST", "https://example.test/v1/chat/completions")
+
+
+def _api_connection_error() -> APIConnectionError:
+    return APIConnectionError(request=_httpx_request())
+
+
+def _model_api_connection_error() -> ModelAPIError:
+    wrapped = ModelAPIError("deepseek-v4-pro", "Connection error.")
+    wrapped.__cause__ = _api_connection_error()
+    return wrapped
 
 
 def test_api_error_indicates_rate_limit_tpm_message() -> None:
@@ -63,6 +81,20 @@ def test_should_retry_streaming_error_timeout_error() -> None:
     assert should_retry_streaming_error(exc) is True
 
 
+def test_should_retry_streaming_error_model_api_connection_error() -> None:
+    assert should_retry_streaming_error(_model_api_connection_error()) is True
+
+
+def test_should_retry_streaming_error_httpx_connect_error() -> None:
+    exc = httpx.ConnectError("All connection attempts failed")
+    assert should_retry_streaming_error(exc) is True
+
+
+def test_should_not_retry_non_connection_model_api_error() -> None:
+    exc = ModelAPIError("deepseek-v4-pro", "Invalid request")
+    assert should_retry_streaming_error(exc) is False
+
+
 def test_should_retry_streaming_error_exception_group_with_timeout() -> None:
     exc = ExceptionGroup("unhandled errors in a TaskGroup", [TimeoutError()])
     assert should_retry_streaming_error(exc) is True
@@ -83,7 +115,24 @@ def test_should_repair_structured_output_error_tool_failure_negative() -> None:
     assert should_repair_structured_output_error(exc) is False
 
 
-def test_streaming_retry_sleep_tpm_waits_60s() -> None:
+def _low_jitter(low: float, high: float) -> float:
+    del high
+    return low
+
+
+def _high_jitter(low: float, high: float) -> float:
+    del low
+    return high
+
+
+def _patch_zero_rate_limit_jitter(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(streaming_retries_mod.random, "uniform", _low_jitter)
+
+
+def test_streaming_retry_sleep_rate_limit_ignores_short_provider_wait(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_zero_rate_limit_jitter(monkeypatch)
     exc = _api_error(
         "Rate limit reached for gpt-5.1 on tokens per min (TPM): "
         "Limit 500000. Please try again in 1.5s."
@@ -91,16 +140,102 @@ def test_streaming_retry_sleep_tpm_waits_60s() -> None:
     assert streaming_retry_sleep_seconds(exc, attempt=0) == 60.0
 
 
-def test_streaming_retry_sleep_rpm_waits_60s() -> None:
+def test_streaming_retry_sleep_rate_limit_exponential_grows_then_caps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_zero_rate_limit_jitter(monkeypatch)
     exc = _api_error(
         "Rate limit reached on requests per min (RPM). Please try again in 2s."
     )
     assert streaming_retry_sleep_seconds(exc, attempt=0) == 60.0
+    assert streaming_retry_sleep_seconds(exc, attempt=1) == 120.0
+    assert streaming_retry_sleep_seconds(exc, attempt=2) == 240.0
+    assert streaming_retry_sleep_seconds(exc, attempt=3) == 480.0
+    assert streaming_retry_sleep_seconds(exc, attempt=4) == 480.0
+
+
+def test_streaming_retry_sleep_rate_limit_adds_high_side_jitter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(streaming_retries_mod.random, "uniform", _high_jitter)
+    exc = _api_error(
+        "Rate limit reached on requests per min (RPM). Please try again in 2s."
+    )
+    assert streaming_retry_sleep_seconds(exc, attempt=0) == 75.0
+    assert streaming_retry_sleep_seconds(exc, attempt=1) == 150.0
+    assert streaming_retry_sleep_seconds(exc, attempt=2) == 300.0
+    assert streaming_retry_sleep_seconds(exc, attempt=3) == 480.0
+
+
+def test_streaming_retry_sleep_rate_limit_honours_longer_provider_wait(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_zero_rate_limit_jitter(monkeypatch)
+    exc = _api_error(
+        "Rate limit reached for gpt-5.6-luna on tokens per min (TPM): "
+        "Please try again in 90s."
+    )
+    assert streaming_retry_sleep_seconds(exc, attempt=0) == 90.0
+    assert streaming_retry_sleep_seconds(exc, attempt=1) == 120.0
+
+
+def test_streaming_retry_sleep_rate_limit_caps_long_provider_wait() -> None:
+    exc = _api_error("Rate limit reached. Please try again in 900s.")
+    assert streaming_retry_sleep_seconds(exc, attempt=0) == 480.0
 
 
 def test_streaming_retry_sleep_fallback_exponential() -> None:
     exc = _api_error("Invalid API key")
     assert streaming_retry_sleep_seconds(exc, attempt=0) == 10.0
+
+
+def _model_http_error(status_code: int, body: object) -> ModelHTTPError:
+    return ModelHTTPError(status_code, "gpt-5.6-luna", body)
+
+
+def test_should_retry_streaming_error_model_http_429() -> None:
+    exc = _model_http_error(429, {"message": "Rate limit reached"})
+    assert should_retry_streaming_error(exc) is True
+
+
+def test_should_not_retry_model_http_400() -> None:
+    exc = _model_http_error(400, {"message": "invalid request"})
+    assert should_retry_streaming_error(exc) is False
+
+
+def test_should_retry_streaming_error_model_api_wrapped_httpx_429() -> None:
+    request = _httpx_request()
+    http_exc = httpx.HTTPStatusError(
+        "429 Too Many Requests",
+        request=request,
+        response=httpx.Response(429, request=request),
+    )
+    wrapped = ModelAPIError("gpt-5.6-luna", "Connection error.")
+    wrapped.__cause__ = http_exc
+    assert should_retry_streaming_error(wrapped) is True
+
+
+def test_streaming_retry_sleep_model_http_429_uses_floor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_zero_rate_limit_jitter(monkeypatch)
+    exc = _model_http_error(429, {"message": "slow down"})
+    assert streaming_retry_sleep_seconds(exc, attempt=0) == 60.0
+
+
+def test_streaming_retry_sleep_wrapped_httpx_429_uses_floor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_zero_rate_limit_jitter(monkeypatch)
+    request = _httpx_request()
+    http_exc = httpx.HTTPStatusError(
+        "429 Too Many Requests",
+        request=request,
+        response=httpx.Response(429, request=request),
+    )
+    wrapped = ModelAPIError("gpt-5.6-luna", "Connection error.")
+    wrapped.__cause__ = http_exc
+    assert streaming_retry_sleep_seconds(wrapped, attempt=0) == 60.0
 
 
 class _FakeStreamedRunResult:
@@ -135,6 +270,7 @@ class _FakeStreamedRunResult:
             raise self._get_output_error
         return self._final_output
 
+    @property
     def usage(self) -> RunUsage:
         return self._usage
 
@@ -180,8 +316,8 @@ class _FakeRunStreamContextManager:
 
     async def __aenter__(self) -> _FakeStreamedRunResult:
         if self._captured_messages is not None:
-            with capture_run_messages() as messages:
-                messages.extend(self._captured_messages)
+            # pydantic-ai 2.x isolates nested capture_run_messages(); extend the active one.
+            get_captured_run_messages().messages.extend(self._captured_messages)
         if (
             self._open_stream_events is not None
             and self._event_stream_handler is not None
@@ -304,7 +440,7 @@ async def test_stream_with_retries_resumes_with_copied_history_and_usage(
         async for chunk in result.stream_output(debounce_by=None):
             outputs.append(chunk)
         output = await result.get_output()
-        usage = result.usage()
+        usage = result.usage
 
     assert outputs == ["partial", "final"]
     assert output == "done"
@@ -454,7 +590,8 @@ async def test_stream_with_retries_checkpoints_captured_open_messages_on_tpm(
             outputs.append(chunk)
 
     assert outputs == ["resumed"]
-    assert sleep_calls == [60.0]
+    assert len(sleep_calls) == 1
+    assert 60.0 <= sleep_calls[0] <= 75.0
 
     assert len(agent_impl.calls) == 2
     first_call, second_call = agent_impl.calls
@@ -479,14 +616,63 @@ async def test_stream_with_retries_checkpoints_captured_open_messages_on_tpm(
 
 
 @pytest.mark.anyio
-async def test_stream_with_retries_does_not_replay_prompt_on_uncheckpointed_open_failure() -> (
+async def test_stream_with_retries_retries_uncheckpointed_rate_limit_at_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _no_wait(exc: BaseException, attempt: int) -> float:
+        del exc, attempt
+        return 0.0
+
+    monkeypatch.setattr(
+        streaming_retries_mod,
+        "streaming_retry_sleep_seconds",
+        _no_wait,
+    )
+
+    failed_open_cm = _FakeRunStreamContextManager(
+        enter_error=_api_error("Rate limit reached while opening stream.")
+    )
+    final_result = _FakeStreamedRunResult(
+        outputs=["started"],
+        final_output="done",
+        messages=[{"turn": {"text": "started"}}],
+        usage=RunUsage(input_tokens=8, output_tokens=3),
+    )
+    final_cm = _FakeRunStreamContextManager(result=final_result)
+    agent_impl = _FakeAgent([failed_open_cm, final_cm])
+
+    outputs: list[str] = []
+    async with stream_with_retries(
+        agent=cast(Any, agent_impl),
+        user_prompt="hello",
+        usage_limits=UsageLimits(request_limit=5),
+    ) as result:
+        async for chunk in result.stream_output(debounce_by=None):
+            outputs.append(chunk)
+
+    assert outputs == ["started"]
+    assert len(agent_impl.calls) == 2
+    first_call, second_call = agent_impl.calls
+    assert first_call["user_prompt"] == "hello"
+    assert first_call["message_history"] is None
+    assert second_call["user_prompt"] == "hello"
+    assert second_call["message_history"] is None
+    assert failed_open_cm.exit_calls == []
+    assert len(final_cm.exit_calls) == 1
+    assert final_cm.exit_calls[0] == (None, None)
+
+
+@pytest.mark.anyio
+async def test_stream_with_retries_does_not_replay_prompt_on_uncheckpointed_protocol_error() -> (
     None
 ):
-    open_error = _api_error("Rate limit reached while opening stream.")
+    open_error = httpx.RemoteProtocolError(
+        "peer closed connection without sending complete message body"
+    )
     failed_open_cm = _FakeRunStreamContextManager(enter_error=open_error)
     agent_impl = _FakeAgent([failed_open_cm])
 
-    with pytest.raises(APIError, match="Rate limit reached") as exc_info:
+    with pytest.raises(httpx.RemoteProtocolError) as exc_info:
         async with stream_with_retries(
             agent=cast(Any, agent_impl),
             user_prompt="hello",
@@ -563,6 +749,61 @@ async def test_stream_with_retries_retries_tool_startup_timeout_before_checkpoin
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize(
+    "enter_error",
+    [
+        _model_api_connection_error(),
+        httpx.ConnectError("All connection attempts failed"),
+        _api_connection_error(),
+    ],
+    ids=["model-api-connection", "httpx-connect", "openai-api-connection"],
+)
+async def test_stream_with_retries_retries_connection_error_before_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+    enter_error: BaseException,
+) -> None:
+    def _no_wait(exc: BaseException, attempt: int) -> float:
+        del exc, attempt
+        return 0.0
+
+    monkeypatch.setattr(
+        streaming_retries_mod,
+        "streaming_retry_sleep_seconds",
+        _no_wait,
+    )
+
+    failed_open_cm = _FakeRunStreamContextManager(enter_error=enter_error)
+    final_result = _FakeStreamedRunResult(
+        outputs=["started"],
+        final_output="done",
+        messages=[{"turn": {"text": "started"}}],
+        usage=RunUsage(input_tokens=8, output_tokens=3),
+    )
+    final_cm = _FakeRunStreamContextManager(result=final_result)
+    agent_impl = _FakeAgent([failed_open_cm, final_cm])
+
+    outputs: list[str] = []
+    async with stream_with_retries(
+        agent=cast(Any, agent_impl),
+        user_prompt="hello",
+        usage_limits=UsageLimits(request_limit=5),
+    ) as result:
+        async for chunk in result.stream_output(debounce_by=None):
+            outputs.append(chunk)
+
+    assert outputs == ["started"]
+    assert len(agent_impl.calls) == 2
+    first_call, second_call = agent_impl.calls
+    assert first_call["user_prompt"] == "hello"
+    assert first_call["message_history"] is None
+    assert second_call["user_prompt"] == "hello"
+    assert second_call["message_history"] is None
+    assert failed_open_cm.exit_calls == []
+    assert len(final_cm.exit_calls) == 1
+    assert final_cm.exit_calls[0] == (None, None)
+
+
+@pytest.mark.anyio
 async def test_stream_with_retries_get_output_retry_preserves_history_and_usage(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -604,11 +845,11 @@ async def test_stream_with_retries_get_output_retry_preserves_history_and_usage(
         async for chunk in result.stream_output(debounce_by=None):
             outputs.append(chunk)
         output = await result.get_output()
-        usage = result.usage()
+        usage = result.usage
 
     assert outputs == ["partial"]
     assert output == "done"
-    assert usage is second_result.usage()
+    assert usage is second_result.usage
 
     assert len(agent_impl.calls) == 2
     first_call, second_call = agent_impl.calls
@@ -784,6 +1025,7 @@ async def test_stream_with_retries_repairs_validation_failure_during_stream() ->
     repair_prompt = _user_prompt_text(second_call["message_history"][1])
     assert "could not be validated" in repair_prompt
     assert "Invalid JSON" in repair_prompt
+    assert "payload" in repair_prompt
     assert second_call["usage"].input_tokens == 20
     assert len(first_cm.exit_calls) == 1
     assert first_cm.exit_calls[0][0] is UnexpectedModelBehavior

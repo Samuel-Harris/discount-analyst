@@ -1,4 +1,4 @@
-<!-- Synced: 2026-08-15 from live code via `.cursor/skills/sync-workflow` -->
+<!-- Synced: 2026-08-20 from live code via `.cursor/skills/sync-workflow` -->
 
 # Discount Analyst — current workflow
 
@@ -6,20 +6,15 @@ Implementation-accurate snapshot of the agentic pipeline. Ground truth is the co
 
 ## Changes since last sync
 
-**No prior `current_workflow.md` existed in this tree** (git history has no copy). This is the initial generation, not a field-level diff against an old snapshot.
+Previous snapshot: 2026-08-15. Material change is the **dashboard candidate gate** (`validate_candidate` in `adapters/market_data/candidate_gates.py`). Other pipeline sections were re-checked against the same live paths as that snapshot (orchestration stages, CLI skip, mock skip, `DataQualityRejection` schema) and are unchanged except as noted.
 
-What the skill’s last-known paths implied vs what the repo actually contains:
+**Candidate gate — identity.** Auto-correct only when FMP is confident: profile name similarity ≥ 0.55, or search exact `symbol` + exchange match, or exactly one strong name match (≥ 0.75) on the candidate’s exchange. Unknown or ambiguous identity (empty search, weak hits, several strong matches, FMP 402/403 on profile or search) **admits the original ticker** (`resolved_ticker == source_ticker`). Identity never yields `RejectedCandidateGate`. Previously: ambiguous/no match and US profile 402/403 were `DataQualityRejection` SELLs.
 
-| Concern | Skill last-known path | Live path |
-| --- | --- | --- |
-| Dashboard orchestration | `backend/pipeline/sqlmodel_runner.py` | `backend/src/discount_analyst/adapters/orchestration/sqlmodel_runner.py` (`DashboardPipelineRunner`) |
-| Workflow HTTP API | `backend/routers/workflow_runs.py` | `backend/src/discount_analyst/entrypoints/api/routers/workflow_runs.py` |
-| CLI full pipeline | `scripts/workflows/run_full_workflow.py` | `backend/src/discount_analyst/entrypoints/cli/workflows/run_full_workflow.py` |
-| Verdict builders | `discount_analyst/pipeline/builders.py` | `discount_analyst/application/decisions/builders.py` |
-| Agent lane order | `backend/contracts/agent_lane_order.py` | `discount_analyst/application/workflows/agent_lane_order.py` |
-| Rating enum | `discount_analyst/rating.py` | `discount_analyst/domain/decisions/investment_rating.py` |
+**Candidate gate — listing.** Reject only on **positive** dead-listing evidence: FMP `isActivelyTrading is false` on a non-`.L` symbol, or EODHD `IsDelisted is true` for `.L` after the existing FMP→EODHD fallback. Unconfirmed listing (missing profile, unknown `isActivelyTrading`, FMP listing 402/403, EODHD missing quote and fundamentals, EODHD HTTP/transport errors on the listing probe) **admits**. `PassedCandidateGate.is_actively_trading` is `True` meaning not proven delisted; notes say listing was unconfirmed. Previously: inconclusive listing (including missing EODHD payloads) rejected.
 
-Live agent packages under `discount_analyst/agents/`: **surveyor, profiler, researcher, strategist, sentinel, appraiser**. There is **no Arbiter agent**. Final ratings after a passing Sentinel gate come from a deterministic table (`rating_table_v1` in `discount_analyst.domain.decisions.rating_decision_table`). Comments still say “Arbiter-era framing” for recommended-action wording.
+**Unchanged.** `DataQualityRejection` model, persist path, mock skip, CLI skip (no gate). No schema, API, or migration change. Agent packages, rating table, and Sentinel valuation gate are the same as 2026-08-15.
+
+Live agent packages under `discount_analyst/agents/`: **surveyor, profiler, researcher, strategist, sentinel, appraiser**. There is **no Arbiter agent**. Final ratings after a passing Sentinel gate come from a deterministic table (`rating_table_v1` in `discount_analyst.domain.decisions.rating_decision_table`).
 
 Checked and recorded below: schemas, agents, gates/orchestration, ratings, tools/data. Prompt vs code conflicts are listed in [Findings](#findings-prompt-vs-code), not silently “corrected” in the narrative.
 
@@ -85,16 +80,16 @@ CLI omits the candidate-gate diamond: Surveyor or Profiler output goes straight 
 
 ## Agent handoff table
 
-| Stage | Stance (from that agent’s system prompt) | Input | Output schema | Tools |
-| --- | --- | --- | --- | --- |
-| Surveyor | Disciplined **screener** in neglected small-caps | Open mandate (`USER_PROMPT`); no ticker | `SurveyorOutput` (`candidates` min 15) | Web research + financial MCP + optional terminal |
-| Profiler | Financial screener of a **named** stock; resist favourable framing | Ticker string | `ProfilerOutput` wrapping one `SurveyorCandidate` | Same as Surveyor |
-| Candidate gate | Deterministic, not an LLM | `SurveyorCandidate` | `PassedCandidateGate` / `RejectedCandidateGate` | FMP (+ EODHD fallback for `.L`). **Skipped in mock.** **Not used by CLI.** |
-| Researcher | **Neutral evidence assembler**; no recommendation language | `SurveyorLaneContext` | `DeepResearchReport` | Web research + financial MCP + optional terminal |
-| Strategist | **Second-level thinker**; interpreter not researcher | Lane context + `DeepResearchReport` | `MispricingThesis` | Optional terminal only (no web/MCP) |
-| Sentinel | **Adversary, not a validator** | Lane context + research + thesis | `EvaluationReport` | Optional terminal only (no web/MCP) |
-| Appraiser | Valuation specialist; **no Buy/Hold/Sell** | `AppraiserInput` | `AppraiserOutput` | Web research + financial MCP + optional terminal |
-| Rating table | Deterministic | Lane + thesis + evaluation + MoS | `RatingTableDecision` inside `Verdict` | None |
+| Stage          | Stance (from that agent’s system prompt)                           | Input                                   | Output schema                                     | Tools                                                                                                                                                  |
+| -------------- | ------------------------------------------------------------------ | --------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Surveyor       | Disciplined **screener** in neglected small-caps                   | Open mandate (`USER_PROMPT`); no ticker | `SurveyorOutput` (`candidates` min 15)            | Web research + financial MCP + optional terminal                                                                                                       |
+| Profiler       | Financial screener of a **named** stock; resist favourable framing | Ticker string                           | `ProfilerOutput` wrapping one `SurveyorCandidate` | Same as Surveyor                                                                                                                                       |
+| Candidate gate | Deterministic, not an LLM                                          | `SurveyorCandidate`                     | `PassedCandidateGate` / `RejectedCandidateGate`   | FMP (+ EODHD fallback for `.L`). Identity-unknown and listing-unconfirmed **admit**. DQR is **delist-only**. **Skipped in mock.** **Not used by CLI.** |
+| Researcher     | **Neutral evidence assembler**; no recommendation language         | `SurveyorLaneContext`                   | `DeepResearchReport`                              | Web research + financial MCP + optional terminal                                                                                                       |
+| Strategist     | **Second-level thinker**; interpreter not researcher               | Lane context + `DeepResearchReport`     | `MispricingThesis`                                | Optional terminal only (no web/MCP)                                                                                                                    |
+| Sentinel       | **Adversary, not a validator**                                     | Lane context + research + thesis        | `EvaluationReport`                                | Optional terminal only (no web/MCP)                                                                                                                    |
+| Appraiser      | Valuation specialist; **no Buy/Hold/Sell**                         | `AppraiserInput`                        | `AppraiserOutput`                                 | Web research + financial MCP + optional terminal                                                                                                       |
+| Rating table   | Deterministic                                                      | Lane + thesis + evaluation + MoS        | `RatingTableDecision` inside `Verdict`            | None                                                                                                                                                   |
 
 Shared investing creed: `discount_analyst.agents.common_prompts.creed.INVESTING_CREED` (prepended or wrapped by every agent system prompt).
 
@@ -106,12 +101,12 @@ Structured output is always pydantic-ai **tool mode** (`ToolOutput` → `final_r
 
 Enum `InvestmentRating` (`domain/decisions/investment_rating.py`):
 
-| Member | Value |
-| --- | --- |
-| `STRONG_BUY` | `STRONG BUY` |
-| `BUY` | `BUY` |
-| `HOLD` | `HOLD` |
-| `SELL` | `SELL` |
+| Member        | Value         |
+| ------------- | ------------- |
+| `STRONG_BUY`  | `STRONG BUY`  |
+| `BUY`         | `BUY`         |
+| `HOLD`        | `HOLD`        |
+| `SELL`        | `SELL`        |
 | `STRONG_SELL` | `STRONG SELL` |
 
 Persisted `decision_type` (`DecisionTypeDb` / `DecisionTypeApi`): `rating_table` | `sentinel_rejection` | `data_quality_rejection`.
@@ -120,11 +115,11 @@ Persisted `decision_type` (`DecisionTypeDb` / `DecisionTypeApi`): `rating_table`
 
 Threaded from dashboard entry path (profiler = true, surveyor-discovered = false) or CLI `--is-existing-position`.
 
-| Path | Rating | Action text |
-| --- | --- | --- |
-| Data-quality rejection | Always `SELL` | Existing: “Exit the position; data quality gate failed.” New: “Do not initiate; data quality gate failed.” (`build_data_quality_rejection`) |
-| Sentinel rejection | `STRONG_SELL` if thesis broken **or** red-flag `Serious concern`; else `SELL` | Existing: “Exit immediately.” / “Exit the position.” New: “Avoid.” / “Do not initiate.” (`build_sentinel_rejection`) |
-| Rating table | **Not** a function of `is_existing_position` | Action string **is** (`_recommended_action_for_rating_position`) |
+| Path                   | Rating                                                                        | Action text                                                                                                                                 |
+| ---------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Data-quality rejection | Always `SELL`                                                                 | Existing: “Exit the position; data quality gate failed.” New: “Do not initiate; data quality gate failed.” (`build_data_quality_rejection`) |
+| Sentinel rejection     | `STRONG_SELL` if thesis broken **or** red-flag `Serious concern`; else `SELL` | Existing: “Exit immediately.” / “Exit the position.” New: “Avoid.” / “Do not initiate.” (`build_sentinel_rejection`)                        |
+| Rating table           | **Not** a function of `is_existing_position`                                  | Action string **is** (`_recommended_action_for_rating_position`)                                                                            |
 
 So the flag still only **frames recommended action** on the valuation path; it also changes Sentinel/data-quality action wording. It does **not** change rating-table tiers.
 
@@ -150,12 +145,12 @@ On false: Appraiser execution is marked `skipped`; `SentinelRejection` is persis
 
 `margin_of_safety_base_pct = (expected − price) / price × 100`, then:
 
-| Bucket | Condition |
-| --- | --- |
-| Substantial — price implies significant downside in market expectations | `>= 40` |
-| Moderate — meaningful upside but not exceptional | `>= 20` |
-| Thin — limited margin for error | `> 0` |
-| None — stock appears fairly valued or overvalued | otherwise |
+| Bucket                                                                  | Condition |
+| ----------------------------------------------------------------------- | --------- |
+| Substantial — price implies significant downside in market expectations | `>= 40`   |
+| Moderate — meaningful upside but not exceptional                        | `>= 20`   |
+| Thin — limited margin for error                                         | `> 0`     |
+| None — stock appears fairly valued or overvalued                        | otherwise |
 
 Computed serialisation aliases on the class (not LLM fields): `intrinsic_value_base` / `_bear` / `_bull`, `margin_of_safety_base_pct`, `margin_of_safety_verdict`.
 
@@ -163,26 +158,26 @@ Computed serialisation aliases on the class (not LLM fields): `intrinsic_value_b
 
 Match on `(MoS bucket, Strategist conviction, sentinel_has_reservations)`:
 
-| MoS | Conviction | Reservations | Rating |
-| --- | --- | --- | --- |
-| Substantial | High | false | `STRONG BUY` |
-| Substantial | any other combination | | `BUY` |
-| Moderate | High or Medium | ignored | `BUY` |
-| Moderate | Low | ignored | `HOLD` |
-| Thin | ignored | ignored | `HOLD` |
-| None | ignored | ignored | `SELL` |
+| MoS         | Conviction            | Reservations | Rating       |
+| ----------- | --------------------- | ------------ | ------------ |
+| Substantial | High                  | false        | `STRONG BUY` |
+| Substantial | any other combination |              | `BUY`        |
+| Moderate    | High or Medium        | ignored      | `BUY`        |
+| Moderate    | Low                   | ignored      | `HOLD`       |
+| Thin        | ignored               | ignored      | `HOLD`       |
+| None        | ignored               | ignored      | `SELL`       |
 
 The table **never** emits `STRONG SELL`. That rating only appears on Sentinel rejection (broken thesis or serious red flag).
 
 Recommended action by `(rating, is_existing_position)`:
 
-| Rating | New candidate | Existing position |
-| --- | --- | --- |
-| STRONG BUY | Initiate at full position (core sizing) | Add to position (scale toward target) |
-| BUY | Initiate at half or quarter position (starter) | Hold; consider adding if position is underweight (add) |
-| HOLD | Does not clear the bar — do not initiate (pass) | Thesis intact; valuation roughly fair; continue holding (monitor) |
-| SELL | Stock is overvalued or thesis is broken — avoid (no new) | Exit the position (reduce) |
-| STRONG SELL | Serious concern; avoid (no new) | Exit immediately (urgent) |
+| Rating      | New candidate                                            | Existing position                                                 |
+| ----------- | -------------------------------------------------------- | ----------------------------------------------------------------- |
+| STRONG BUY  | Initiate at full position (core sizing)                  | Add to position (scale toward target)                             |
+| BUY         | Initiate at half or quarter position (starter)           | Hold; consider adding if position is underweight (add)            |
+| HOLD        | Does not clear the bar — do not initiate (pass)          | Thesis intact; valuation roughly fair; continue holding (monitor) |
+| SELL        | Stock is overvalued or thesis is broken — avoid (no new) | Exit the position (reduce)                                        |
+| STRONG SELL | Serious concern; avoid (no new)                          | Exit immediately (urgent)                                         |
 
 ---
 
@@ -192,18 +187,18 @@ Introspected 2026-08-15 via `model_json_schema()` / enum values. Nested models a
 
 ### Enums
 
-| Enum | Values |
-| --- | --- |
-| `Exchange` | `LSE`, `AIM`, `NYSE`, `NASDAQ` |
-| `Currency` | `GBP`, `USD` |
-| `StockCategory` | `value`, `growth` — **defined in `surveyor.schema` but unused** (no field on `SurveyorCandidate`) |
-| `ThesisVerdict` | `Thesis intact — proceed to valuation`, `Thesis intact with reservations — proceed with noted caveats`, `Thesis weakened — do not proceed`, `Thesis broken — do not proceed` |
-| `OverallRedFlagVerdict` | `Clear`, `Monitor`, `Serious concern` |
-| `ValuationMethod` | `dcf`, `reverse_dcf`, `comparable_multiples`, `sum_of_parts`, `asset_value`, `unit_economics`, `scenario_weighting`, `monte_carlo`, `other` |
-| `InvestmentRating` | see [Rating system](#rating-system) |
-| `AgentName` (runtime) | `APPRAISER`, `PROFILER`, `RESEARCHER`, `SENTINEL`, `STRATEGIST`, `SURVEYOR` |
-| `AgentNameDb` / API slug | lowercase: `surveyor`, `profiler`, `researcher`, `strategist`, `sentinel`, `appraiser` |
-| `ModelName` | `claude-opus-4-5`, `claude-sonnet-4-5`, `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-6`, `gpt-5.1`, `gpt-5.2`, `gpt-5.4`, `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `deepseek-v4-flash`, `deepseek-v4-pro` |
+| Enum                     | Values                                                                                                                                                                                                                                        |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Exchange`               | `LSE`, `AIM`, `NYSE`, `NASDAQ`                                                                                                                                                                                                                |
+| `Currency`               | `GBP`, `USD`                                                                                                                                                                                                                                  |
+| `StockCategory`          | `value`, `growth` — **defined in `surveyor.schema` but unused** (no field on `SurveyorCandidate`)                                                                                                                                             |
+| `ThesisVerdict`          | `Thesis intact — proceed to valuation`, `Thesis intact with reservations — proceed with noted caveats`, `Thesis weakened — do not proceed`, `Thesis broken — do not proceed`                                                                  |
+| `OverallRedFlagVerdict`  | `Clear`, `Monitor`, `Serious concern`                                                                                                                                                                                                         |
+| `ValuationMethod`        | `dcf`, `reverse_dcf`, `comparable_multiples`, `sum_of_parts`, `asset_value`, `unit_economics`, `scenario_weighting`, `monte_carlo`, `other`                                                                                                   |
+| `InvestmentRating`       | see [Rating system](#rating-system)                                                                                                                                                                                                           |
+| `AgentName` (runtime)    | `APPRAISER`, `PROFILER`, `RESEARCHER`, `SENTINEL`, `STRATEGIST`, `SURVEYOR`                                                                                                                                                                   |
+| `AgentNameDb` / API slug | lowercase: `surveyor`, `profiler`, `researcher`, `strategist`, `sentinel`, `appraiser`                                                                                                                                                        |
+| `ModelName`              | `claude-opus-4-5`, `claude-sonnet-4-5`, `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-6`, `gpt-5.1`, `gpt-5.2`, `gpt-5.4`, `gpt-5.6-luna`, `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `deepseek-v4-flash`, `deepseek-v4-pro` |
 
 ### `KeyMetrics`
 
@@ -231,17 +226,17 @@ All fields optional (`null` allowed). `piotroski_f_score`: integer 0–9 or null
 
 ### `DeepResearchReport` (all required)
 
-| Field | Type |
-| --- | --- |
-| `executive_overview` | string |
-| `business_model` | `BusinessModel`: `products_and_services`, `customer_segments`, `unit_economics`, `competitive_positioning`, `moat_and_durability` |
-| `financial_profile` | `FinancialProfile`: `key_metrics_updated` (`KeyMetrics`), `revenue_and_growth_quality`, `profitability_and_margin_structure`, `balance_sheet_and_liquidity`, `cash_flow_and_capital_intensity`, `capital_allocation` |
-| `management_assessment` | `ManagementAssessment`: `leadership_and_execution`, `governance_and_alignment`, `communication_quality`, `key_concerns` |
-| `market_narrative` | `MarketNarrative`: `dominant_narrative`, `bull_case_in_market`, `bear_case_in_market`, `expectations_implied_by_price`, `where_expectations_may_be_wrong`, `narrative_monitoring_signals` (string[]) |
-| `risks` | string[] |
-| `potential_catalysts` | string[] |
-| `data_gaps_update` | `DataGapsUpdate`: `original_data_gaps`, `closed_gaps`, `remaining_open_gaps`, `material_open_gaps` |
-| `source_notes` | string[] |
+| Field                   | Type                                                                                                                                                                                                                 |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `executive_overview`    | string                                                                                                                                                                                                               |
+| `business_model`        | `BusinessModel`: `products_and_services`, `customer_segments`, `unit_economics`, `competitive_positioning`, `moat_and_durability`                                                                                    |
+| `financial_profile`     | `FinancialProfile`: `key_metrics_updated` (`KeyMetrics`), `revenue_and_growth_quality`, `profitability_and_margin_structure`, `balance_sheet_and_liquidity`, `cash_flow_and_capital_intensity`, `capital_allocation` |
+| `management_assessment` | `ManagementAssessment`: `leadership_and_execution`, `governance_and_alignment`, `communication_quality`, `key_concerns`                                                                                              |
+| `market_narrative`      | `MarketNarrative`: `dominant_narrative`, `bull_case_in_market`, `bear_case_in_market`, `expectations_implied_by_price`, `where_expectations_may_be_wrong`, `narrative_monitoring_signals` (string[])                 |
+| `risks`                 | string[]                                                                                                                                                                                                             |
+| `potential_catalysts`   | string[]                                                                                                                                                                                                             |
+| `data_gaps_update`      | `DataGapsUpdate`: `original_data_gaps`, `closed_gaps`, `remaining_open_gaps`, `material_open_gaps`                                                                                                                   |
+| `source_notes`          | string[]                                                                                                                                                                                                             |
 
 No `minItems` on the lists.
 
@@ -287,7 +282,7 @@ Class validator: ≥1 method; **exactly one** `primary`; **≥1** `cross_check`;
 
 ### Gate result models
 
-`PassedCandidateGate`: `gate_status="passed"`, `source_ticker`, `resolved_ticker`, `resolution_notes`, `is_actively_trading`, `data_source` (`fmp` \| `eodhd` \| `mock`), `lane_context`.
+`PassedCandidateGate`: `gate_status="passed"`, `source_ticker`, `resolved_ticker`, `resolution_notes`, `is_actively_trading` (`True` means **not proven delisted**, including unconfirmed listing), `data_source` (`fmp` \| `eodhd` \| `mock`), `lane_context`.
 
 `RejectedCandidateGate`: `gate_status="rejected"`, `source_ticker`, `resolved_ticker` (nullable), `resolution_notes`, `gate_failure_reason`, `is_actively_trading` (nullable), `data_source`.
 
@@ -319,7 +314,7 @@ Class validator: ≥1 method; **exactly one** `primary`; **≥1** `cross_check`;
 - Each non-empty portfolio ticker becomes a profiler-entry run with `PROFILER_ENTRY_AGENT_NAMES` and `is_existing_position=True`.
 - Schedules `DashboardPipelineRunner.schedule_workflow_execution`.
 
-Also: cancel; `retry_failed_agents` (resets failed executions then re-enters `execute_workflow`; completed stages are skipped by status checks).
+Also: cancel; `retry_failed_agents` (resets failed or cancelled lane executions from the first unfinished agent onward, then re-enters `execute_workflow`; completed stages and completed lanes are skipped by status checks).
 
 ### Surveyor
 
@@ -341,14 +336,17 @@ No `profiler/AGENTS.md`. Runtime `AgentName.PROFILER` exists; `agents/AGENTS.md`
 
 `validate_candidate` (`adapters/market_data/candidate_gates.py`):
 
-1. **Ticker resolution** via FMP profile; company-name similarity ≥ 0.55 accepts, else search with exchange aliases and ≥ 0.75 name match. Ambiguous or no match → reject.
-2. **Listing probe**: FMP `isActivelyTrading`. For `.L` tickers, FMP denial/inconclusive falls back to EODHD real-time quote + not-delisted unless `eodhd.disabled`.
+1. **Ticker resolution** via FMP profile then symbol search (`_resolve_ticker` / `_resolve_via_search`). Auto-correct only when FMP is confident: profile company-name similarity ≥ 0.55, or search exact `symbol` + exchange match, or exactly one strong name match (≥ 0.75) on the candidate’s exchange (exchange aliases in `_EXCHANGE_FMP_ALIASES`). Unknown or ambiguous identity — empty search, weak name hits, several strong matches, FMP 402/403 on profile or search — **admits the original ticker** (`resolved_ticker == source_ticker`); `resolution_notes` records why identity was left unchanged. Identity never returns `RejectedCandidateGate`.
+2. **Listing probe** (`_check_listing_status` / `_check_listing_via_eodhd`). Reject only on **positive** dead-listing evidence:
+   - Non-`.L`: FMP `isActivelyTrading is false` (no EODHD override).
+   - `.L`: FMP inactive/missing/denied still falls through to EODHD unless `eodhd.disabled`; reject only if EODHD `IsDelisted is true`.
+   Unconfirmed listing **admits**: no FMP profile, `isActivelyTrading` unknown, FMP listing probe 402/403, EODHD missing quote **and** missing fundamentals, EODHD `close` NA/None but not delisted, EODHD HTTP 403/5xx or `httpx` transport errors on the listing probe (caught at the gate; client 404 already returns `None` without raising). Notes must say listing was unconfirmed. `is_actively_trading` is `True` meaning not proven delisted.
 
-Pass: `lane_context` with optional `resolved_ticker`; ticker run updated if the symbol changed. Fail: skip Researcher–Appraiser; persist `DataQualityRejection`.
+Pass: `lane_context` with `resolved_ticker`; ticker run updated if the symbol changed (`CandidateGateStage._apply_resolved_ticker`). Fail: skip Researcher–Appraiser; persist `DataQualityRejection` (delist-only). `validate_candidate` is the only composer of `PassedCandidateGate` / `RejectedCandidateGate` (from `TickerResolution` plus `ListingProbe` or `ListingDelisted`). `is_actively_trading` is set at compose time (`True` on pass, `False` on reject).
 
 Mock: always `PassedCandidateGate` with notes `"Mock run: gate skipped."`
 
-CLI: **no gate**.
+CLI: **no gate** (`run_full_workflow.py` uses `SurveyorCandidate.to_lane_context()` directly).
 
 ### Researcher / Strategist / Sentinel
 
@@ -378,15 +376,15 @@ A completed dashboard run with `is_mock=true` did **not** hit live LLM/MCP/FMP f
 
 Configuration: `discount_analyst.config.settings.Settings` (root / package `.env`, nested `ENV__` keys).
 
-| Setting | Default (code) | Role |
-| --- | --- | --- |
-| `default_model` / `DASHBOARD_DEFAULT_MODEL` | `deepseek-v4-pro` | All dashboard pipeline agents via `AIModelsConfig(model_name=settings.default_model)` — **one model for every stage** |
-| `use_perplexity` / `DASHBOARD_USE_PERPLEXITY` | `False` | Perplexity `web_search` + `sec_filings_search` instead of pydantic-ai WebSearch/WebFetch |
-| `use_mcp_financial_data` / `DASHBOARD_USE_MCP_FINANCIAL_DATA` | `True` | EODHD + FMP MCP toolsets |
-| `use_terminal` / `DASHBOARD_USE_TERMINAL` | `True` | Docker-backed `terminal_exec` via `TERMINAL_SERVICE_URL` |
-| `eodhd.disabled` / `EODHD__DISABLED` | `False` | Omits EODHD MCP (and EODHD listing fallback) |
-| `risk_free_rate_pct` | `3.7` | Injected into Appraiser user prompt |
-| `deploy_env` / `ENV` | `DEV` | DEV forces dashboard `is_mock` |
+| Setting                                                       | Default (code) | Role                                                                                                                  |
+| ------------------------------------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `default_model` / `DASHBOARD_DEFAULT_MODEL`                   | `gpt-5.6-luna` | All dashboard pipeline agents via `AIModelsConfig(model_name=settings.default_model)` — **one model for every stage** |
+| `use_perplexity` / `DASHBOARD_USE_PERPLEXITY`                 | `False`        | Perplexity `web_search` + `sec_filings_search` instead of pydantic-ai WebSearch/WebFetch                              |
+| `use_mcp_financial_data` / `DASHBOARD_USE_MCP_FINANCIAL_DATA` | `True`         | EODHD + FMP MCP toolsets                                                                                              |
+| `use_terminal` / `DASHBOARD_USE_TERMINAL`                     | `True`         | Docker-backed `terminal_exec` via `TERMINAL_SERVICE_URL`                                                              |
+| `eodhd.disabled` / `EODHD__DISABLED`                          | `False`        | Omits EODHD MCP (and EODHD listing fallback)                                                                          |
+| `risk_free_rate_pct`                                          | `3.7`          | Injected into Appraiser user prompt                                                                                   |
+| `deploy_env` / `ENV`                                          | `DEV`          | DEV forces dashboard `is_mock`                                                                                        |
 
 MCP (`agents/tools/market_data/financial_data_mcp.py`): `https://mcp.eodhd.dev/mcp`, `https://financialmodelingprep.com/mcp`. Providers that support MCP: Anthropic, OpenAI, DeepSeek (`provider_features.py`). Google is **not** in that set — enabling MCP with a Google model raises `NotImplementedError`.
 
@@ -435,23 +433,23 @@ Dashboard persists agent `output_json`, conversations, candidate-snapshot gate c
 
 ## Where to look in the repo
 
-| What | Where |
-| --- | --- |
-| Dashboard runner | `backend/src/discount_analyst/adapters/orchestration/sqlmodel_runner.py` |
-| Stages | `.../adapters/orchestration/stages/{surveyor,profiler,candidate_gate,ticker_lane}_stage.py` |
-| Lane order | `application/workflows/agent_lane_order.py` (mirrored in `frontend/src/features/pipeline-graph/agentLaneOrder.ts`) |
-| HTTP create/cancel/retry | `entrypoints/api/routers/workflow_runs.py` |
-| CLI workflow | `entrypoints/cli/workflows/run_full_workflow.py` |
-| Decision builders | `application/decisions/builders.py` |
-| Rating table | `domain/decisions/rating_decision_table.py` |
-| Verdict schemas | `domain/decisions/schema.py` |
-| Agent factories / prompts / schemas | `agents/<name>/` |
-| Shared agent runtime | `agents/runtime/` (`create_agent`, streaming, terminal bind) |
-| MCP + blacklist | `agents/tools/market_data/` |
-| Candidate gate | `adapters/market_data/candidate_gates.py` |
-| Mock payloads | `adapters/simulation/mock_outputs.py` |
-| Settings | `config/settings.py` |
-| Valuation toolkit (optional Appraiser helpers) | `domain/valuation/toolkit/` |
+| What                                           | Where                                                                                                              |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Dashboard runner                               | `backend/src/discount_analyst/adapters/orchestration/sqlmodel_runner.py`                                           |
+| Stages                                         | `.../adapters/orchestration/stages/{surveyor,profiler,candidate_gate,ticker_lane}_stage.py`                        |
+| Lane order                                     | `application/workflows/agent_lane_order.py` (mirrored in `frontend/src/features/pipeline-graph/agentLaneOrder.ts`) |
+| HTTP create/cancel/retry                       | `entrypoints/api/routers/workflow_runs.py`                                                                         |
+| CLI workflow                                   | `entrypoints/cli/workflows/run_full_workflow.py`                                                                   |
+| Decision builders                              | `application/decisions/builders.py`                                                                                |
+| Rating table                                   | `domain/decisions/rating_decision_table.py`                                                                        |
+| Verdict schemas                                | `domain/decisions/schema.py`                                                                                       |
+| Agent factories / prompts / schemas            | `agents/<name>/`                                                                                                   |
+| Shared agent runtime                           | `agents/runtime/` (`create_agent`, streaming, terminal bind)                                                       |
+| MCP + blacklist                                | `agents/tools/market_data/`                                                                                        |
+| Candidate gate                                 | `adapters/market_data/candidate_gates.py`                                                                          |
+| Mock payloads                                  | `adapters/simulation/mock_outputs.py`                                                                              |
+| Settings                                       | `config/settings.py`                                                                                               |
+| Valuation toolkit (optional Appraiser helpers) | `domain/valuation/toolkit/`                                                                                        |
 
 CLI one-shots: `uv run discount-analyst agent {surveyor,profiler,researcher,strategist,sentinel,appraiser}`.
 

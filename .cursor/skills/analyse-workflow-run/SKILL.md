@@ -6,13 +6,16 @@ description: >-
   saved production runs), per-agent qualitative review via subagents, and a single
   HTML report. Writes all artefacts under
   `.cursor/artefacts/analyse-workflow-run/<workflow-run-id>/`. Use when the user
-  asks to analyse, review, or audit a workflow run, agent conversations for a
-  run, or `workflow_run_id` / UUID from the dashboard pipeline.
+  asks to analyse, review, or audit agent quality, conversations, or Appraiser
+  valuations for a `workflow_run_id`. Do not use to diagnose why a workflow
+  failed (see investigate-workflow-failures).
 ---
 
 # Analyse workflow run
 
 Repeatable workflow to produce **telemetry + conversation** review for one `workflow_runs.id` (UUID).
+
+If the user asked **why this workflow failed** (or `/investigate-workflow-failures`), use [investigate-workflow-failures](../investigate-workflow-failures/SKILL.md) instead. This skill is the qualitative HTML path, not failure triage.
 
 ## Artefact layout (required)
 

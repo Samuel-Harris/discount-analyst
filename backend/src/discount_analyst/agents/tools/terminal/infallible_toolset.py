@@ -7,9 +7,19 @@ decide to try a different approach or report the limitation.
 This is particularly useful for MCP tools where we don't control the error handling.
 """
 
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from typing import Any
 
-from pydantic_ai import RunContext
+from pydantic_ai import (
+    ApprovalRequired,
+    CallDeferred,
+    RunContext,
+    SkipToolExecution,
+)
+from pydantic_ai.capabilities import AbstractCapability
+from pydantic_ai.messages import ToolCallPart
+from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.toolsets.abstract import ToolsetTool
 from pydantic_ai.toolsets.wrapper import WrapperToolset
 
@@ -33,6 +43,39 @@ class InfallibleToolset[AgentDepsT](WrapperToolset[AgentDepsT]):
             return await super().call_tool(name, tool_args, ctx, tool)
         except Exception as exc:
             return format_tool_error(name, exc)
+
+
+@dataclass
+class InfallibleToolExecution[AgentDepsT](AbstractCapability[AgentDepsT]):
+    """Convert non-output tool exceptions into ``format_tool_error`` strings.
+
+    pydantic-ai re-raises ``ModelRetry`` before ``on_tool_execute_error``, so
+    local ``web_fetch`` HTTP failures never reach that hook. This wraps execution
+    instead. Output tools (``final_result``) still raise so structured-output
+    repair stays intact.
+    """
+
+    async def wrap_tool_execute(
+        self,
+        ctx: RunContext[AgentDepsT],
+        *,
+        call: ToolCallPart,
+        tool_def: ToolDefinition,
+        args: dict[str, Any],
+        handler: Callable[[dict[str, Any]], Awaitable[Any]],
+    ) -> Any:
+        del ctx, call
+        try:
+            return await handler(args)
+        except (SkipToolExecution, CallDeferred, ApprovalRequired):
+            raise
+        except Exception as exc:
+            if tool_def.kind == "output":
+                raise
+            return format_tool_error(tool_def.name, exc)
+
+
+INFALLIBLE_TOOL_EXECUTION = InfallibleToolExecution[None]()
 
 
 def format_tool_error(tool_name: str, exc: Exception) -> str:

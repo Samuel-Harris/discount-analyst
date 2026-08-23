@@ -1,4 +1,4 @@
-<!-- Generated: 2026-02-23 | Updated: 2026-08-15 (sync-workflow skill) -->
+<!-- Generated: 2026-02-23 | Updated: 2026-08-23 (investigate-workflow-failures skill) -->
 
 # Discount Analyst
 
@@ -16,20 +16,21 @@ Human decision sits after that `Verdict`. One-shot agents remain available via `
 
 ## Key Files
 
-| File                                           | Description                                                                                                          |
-| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `pyproject.toml`                               | Package metadata, `module-root = "backend/src"`, Import Linter, console script `discount-analyst`.                   |
-| `uv.lock`                                      | Locked dependencies.                                                                                                 |
-| `README.md`                                    | Quick start and high-level docs.                                                                                     |
-| `current_workflow.md`                          | Implementation-accurate snapshot of the agentic pipeline (schemas, gates, orchestration).                            |
-| `pytest.ini`                                   | Coverage for `discount_analyst`; `testpaths = backend/tests`.                                                        |
-| `backend/AGENTS.md`                            | **Placement guide** for the modular monolith (domain / agents / application / adapters / entrypoints / composition). |
-| `backend/src/discount_analyst/`                | Installable Python package.                                                                                          |
-| `backend/migrations/`                          | Alembic config + revision chain.                                                                                     |
-| `backend/tools/`                               | OpenAPI export, Alembic check, terminal verify.                                                                      |
-| `backend/services/agent_terminal/`             | Separate terminal orchestrator (HTTP only from the monolith).                                                        |
-| `.cursor/skills/analyse-workflow-run/SKILL.md`           | Analyse a dashboard `workflow_run_id`.                                                                               |
-| `.cursor/skills/sync-workflow/SKILL.md`                  | Regenerate `current_workflow.md` from live pipeline code.                                                            |
+| File                                                    | Description                                                                                                          |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `pyproject.toml`                                        | Package metadata, `module-root = "backend/src"`, Import Linter, console script `discount-analyst`.                   |
+| `uv.lock`                                               | Locked dependencies.                                                                                                 |
+| `README.md`                                             | Quick start and high-level docs.                                                                                     |
+| `current_workflow.md`                                   | Implementation-accurate snapshot of the agentic pipeline (schemas, gates, orchestration).                            |
+| `pytest.ini`                                            | Coverage for `discount_analyst`; `testpaths = backend/tests`.                                                        |
+| `backend/AGENTS.md`                                     | **Placement guide** for the modular monolith (domain / agents / application / adapters / entrypoints / composition). |
+| `backend/src/discount_analyst/`                         | Installable Python package.                                                                                          |
+| `backend/migrations/`                                   | Alembic config + revision chain.                                                                                     |
+| `backend/tools/`                                        | OpenAPI export, Alembic check, terminal verify.                                                                      |
+| `backend/services/agent_terminal/`                      | Separate terminal orchestrator (HTTP only from the monolith).                                                        |
+| `.cursor/skills/analyse-workflow-run/SKILL.md`          | Analyse a dashboard `workflow_run_id` (qualitative HTML review).                                                     |
+| `.cursor/skills/investigate-workflow-failures/SKILL.md` | Diagnose FAILED/CANCELLED lanes for a `workflow_run_id` (no fixes).                                                  |
+| `.cursor/skills/sync-workflow/SKILL.md`                 | Regenerates `current_workflow.md` from live pipeline code.                                                           |
 
 ## Subdirectories
 
@@ -63,6 +64,6 @@ Human decision sits after that `Verdict`. One-shot agents remain available via `
 
 ### External
 
-- **pydantic-ai**, **yfinance**, **perplexityai**, **logfire**, **httpx**, **rich**, **FastAPI**, **SQLModel**, **Alembic**.
+- **pydantic-ai**, **pydantic-ai-harness**, **yfinance**, **perplexityai**, **logfire**, **httpx**, **rich**, **FastAPI**, **SQLModel**, **Alembic**.
 
 <!-- MANUAL: Any manually added notes below this line are preserved on regeneration -->

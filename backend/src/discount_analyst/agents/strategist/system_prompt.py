@@ -77,7 +77,7 @@ Within this brief reasoning block, you **MUST** include one explicit sentence in
 
 ## Output Format
 
-The `final_result` payload must be a valid `{MispricingThesis.__name__}` object with all fields populated. Sparse or placeholder responses are not acceptable. Your output must conform to this schema:
+The `final_result` arguments must be a valid `{MispricingThesis.__name__}` object with all fields populated. Sparse or placeholder responses are not acceptable. Your output must conform to this schema:
 
 <output_schema>
 {MispricingThesis.model_json_schema()}

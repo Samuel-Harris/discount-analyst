@@ -50,5 +50,6 @@ Contains AI agent packages used by the project workflows. This directory groups 
 ### External
 
 - **pydantic-ai**: Agent framework used by both subpackages.
+- **pydantic-ai-harness**: `ToolOutputLimits` truncation of oversized tool returns.
 
 <!-- MANUAL: Any manually added notes below this line are preserved on regeneration -->

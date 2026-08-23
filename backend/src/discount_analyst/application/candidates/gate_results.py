@@ -21,7 +21,12 @@ class TickerResolution(BaseModel):
 
 class ListingProbe(BaseModel):
     resolution_notes: str
-    is_actively_trading: bool
+    data_source: GateDataSource
+
+
+class ListingDelisted(BaseModel):
+    resolution_notes: str
+    gate_failure_reason: str
     data_source: GateDataSource
 
 

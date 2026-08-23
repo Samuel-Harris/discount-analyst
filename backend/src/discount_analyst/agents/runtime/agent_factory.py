@@ -5,11 +5,15 @@ from typing import Any
 
 from pydantic_ai import AbstractToolset, Agent, Tool, ToolOutput
 from pydantic_ai.capabilities import AgentCapability, WebFetch, WebSearch
+from pydantic_ai_harness.tool_output_limits import Band, ToolOutputLimits, Truncate
 
 from discount_analyst.config.settings import settings as app_settings
 from discount_analyst.agents.runtime.agent_names import AgentName
 from discount_analyst.agents.common_prompts.current_date import with_current_date
 from discount_analyst.agents.runtime.model import create_model_from_config
+from discount_analyst.agents.runtime.structured_output_unwrap import (
+    unwrapping_output_type,
+)
 from discount_analyst.agents.runtime.terminal_run import (
     TerminalRunOptions,
     terminal_run_options,
@@ -39,6 +43,19 @@ from discount_analyst.agents.tools.terminal.client import (
     Terminal,
     TerminalLimits,
     TerminalSessionState,
+)
+from discount_analyst.agents.tools.terminal.infallible_toolset import (
+    INFALLIBLE_TOOL_EXECUTION,
+)
+
+TOOL_OUTPUT_CHAR_LIMIT = 10_000
+TOOL_OUTPUT_LIMITS = ToolOutputLimits[None](
+    bands=[
+        Band(
+            over=TOOL_OUTPUT_CHAR_LIMIT,
+            action=Truncate(max_chars=TOOL_OUTPUT_CHAR_LIMIT),
+        )
+    ],
 )
 
 
@@ -97,9 +114,15 @@ def create_agent[OutT](
     ``settings.use_terminal`` only (independent of web/MCP flags).
 
     Structured output is always registered via ``ToolOutput`` (tool mode, ``final_result``)
-    for cross-provider uniformity.
+    for cross-provider uniformity. Oversized tool returns are truncated at
+    ``TOOL_OUTPUT_CHAR_LIMIT`` characters (output tools such as ``final_result`` are
+    excluded by pydantic-ai). Non-output tool exceptions are converted to error strings
+    via ``InfallibleToolExecution`` so a blocked URL or timeout does not abort the run.
     """
-    capabilities: list[AgentCapability[None]] = []
+    capabilities: list[AgentCapability[None]] = [
+        TOOL_OUTPUT_LIMITS,
+        INFALLIBLE_TOOL_EXECUTION,
+    ]
     toolsets: list[AbstractToolset[None]] = []
 
     terminal_opts = (
@@ -137,12 +160,13 @@ def create_agent[OutT](
 
     toolsets.append(create_frankfurter_toolset())
 
+    output_type: type[OutT] = unwrapping_output_type(spec.output_type)
     return Agent(
         name=spec.name,
-        output_type=ToolOutput(spec.output_type),
+        output_type=ToolOutput(output_type),
         model=create_model_from_config(ai_models_config.model),
         model_settings=ai_models_config.model.model_settings,
         system_prompt=with_current_date(spec.system_prompt),
         capabilities=capabilities,
         toolsets=toolsets,
-    )
+    )  # type: ignore[return-value, call-overload]

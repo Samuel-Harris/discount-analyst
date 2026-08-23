@@ -1,5 +1,7 @@
 import asyncio
 import json
+import random
+import re
 from collections.abc import AsyncIterable
 from copy import deepcopy
 from contextlib import AbstractAsyncContextManager
@@ -16,7 +18,11 @@ from openai import (
 from pydantic import BaseModel
 from pydantic_ai import capture_run_messages
 from pydantic_ai.agent.abstract import AbstractAgent
-from pydantic_ai.exceptions import UnexpectedModelBehavior
+from pydantic_ai.exceptions import (
+    ModelAPIError,
+    ModelHTTPError,
+    UnexpectedModelBehavior,
+)
 from pydantic_ai.messages import (
     AgentStreamEvent,
     ModelMessage,
@@ -39,13 +45,31 @@ from discount_analyst.agents.tools.http.retrying_client import (
     RETRY_WAIT_MULTIPLIER,
 )
 from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
+from discount_analyst.agents.runtime.structured_output_unwrap import (
+    singleton_envelope_keys_for_prompt,
+)
 
 # Streaming can fail mid-`stream_output()` (e.g. OpenAI TPM) after a successful `run_stream` start.
 MAX_STREAM_RETRY_ATTEMPTS = 6
 MAX_STRUCTURED_OUTPUT_COMPLETIONS = 3
 
-
-_TPM_RPM_WAIT_SECONDS = 60.0
+# Provider Retry-After is often a few seconds and assumes no concurrent usage.
+# Floor at one TPM window, then double, so later attempts can drain org-wide load.
+_RATE_LIMIT_MIN_WAIT_SECONDS = 60.0
+_RATE_LIMIT_MAX_WAIT_SECONDS = 480.0
+_RATE_LIMIT_JITTER_RATIO = 0.25
+_RATE_LIMIT_TEXT_NEEDLES = (
+    "rate limit",
+    "tokens per min",
+    "requests per min",
+    "tpm",
+    "rpm",
+    "too many requests",
+)
+_TRY_AGAIN_IN_RE = re.compile(
+    r"try again in (?P<value>\d+(?:\.\d+)?)(?P<unit>ms|s)?",
+    re.IGNORECASE,
+)
 
 
 def _partial_output_retry_prompt(partial_output: str) -> str:
@@ -60,11 +84,14 @@ def _partial_output_retry_prompt(partial_output: str) -> str:
 
 
 def _structured_output_repair_prompt(exc: BaseException) -> str:
+    envelope_keys = singleton_envelope_keys_for_prompt()
     return (
         "Your previous response could not be validated against the required "
         "structured output schema. Return a complete corrected output object "
         "that satisfies the schema. Do not include a preamble, markdown, or "
         "explanatory text.\n\n"
+        f"If the object was nested under {envelope_keys}, call `final_result` "
+        "again with those fields at the top level.\n\n"
         "Validation failure:\n\n"
         f"{exc}"
     )
@@ -75,42 +102,75 @@ def _openai_error_text(exc: BaseException) -> str:
         msg = getattr(exc, "message", None)
         if msg:
             return str(msg)
+    if isinstance(exc, ModelHTTPError):
+        return f"{exc.status_code} {exc.body}"
     return str(exc)
+
+
+def _combined_error_text(exc: BaseException) -> str:
+    parts: list[str] = []
+    current: BaseException | None = exc
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        parts.append(_openai_error_text(current))
+        current = current.__cause__
+    return "\n".join(parts)
+
+
+def _error_text_indicates_rate_limit(text: str) -> bool:
+    lowered = text.lower()
+    return any(needle in lowered for needle in _RATE_LIMIT_TEXT_NEEDLES)
 
 
 def api_error_indicates_rate_limit(exc: APIError) -> bool:
     """True when OpenAI signals quota / TPM / RPM limits (not all APIError cases)."""
-    text = _openai_error_text(exc).lower()
-    return any(
-        needle in text
-        for needle in (
-            "rate limit",
-            "tokens per min",
-            "requests per min",
-            "tpm",
-            "rpm",
-            "too many requests",
-        )
-    )
+    return _error_text_indicates_rate_limit(_openai_error_text(exc))
+
+
+def _is_rate_limit_error(exc: BaseException) -> bool:
+    if isinstance(exc, RateLimitError):
+        return True
+    if isinstance(exc, ModelHTTPError) and exc.status_code == 429:
+        return True
+    if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 429:
+        return True
+    if isinstance(exc, APIError):
+        return api_error_indicates_rate_limit(exc)
+    if _error_text_indicates_rate_limit(_openai_error_text(exc)):
+        return True
+    cause = exc.__cause__
+    return cause is not None and _is_rate_limit_error(cause)
+
+
+def _is_connection_error(exc: BaseException) -> bool:
+    """True for transport/connect failures, including pydantic-ai's ModelAPIError wrap."""
+    if isinstance(
+        exc,
+        (APIConnectionError, httpx.ConnectError, httpx.ConnectTimeout),
+    ):
+        return True
+    if isinstance(exc, ModelAPIError):
+        if "connection error" in str(exc).casefold():
+            return True
+        cause = exc.__cause__
+        return cause is not None and _is_connection_error(cause)
+    return False
 
 
 def _is_retryable_single_error(exc: BaseException) -> bool:
     """Check if a single exception (not a group) is retryable."""
-    if isinstance(
+    if _is_connection_error(exc) or _is_rate_limit_error(exc):
+        return True
+    return isinstance(
         exc,
         (
-            RateLimitError,
             InternalServerError,
             APITimeoutError,
-            APIConnectionError,
             httpx.RemoteProtocolError,
             TimeoutError,  # MCP and other transient timeouts
         ),
-    ):
-        return True
-    if isinstance(exc, APIError):
-        return api_error_indicates_rate_limit(exc)
-    return False
+    )
 
 
 def _streaming_retryable_exception_group(
@@ -154,14 +214,16 @@ def should_repair_structured_output_error(exc: BaseException) -> bool:
     )
 
 
-def _is_tool_startup_timeout(exc: BaseException) -> bool:
-    """True for MCP/tool startup timeouts that occur before model progress."""
-    if type(exc) is TimeoutError:
-        return True
+def _can_retry_open_without_checkpoint(exc: BaseException) -> bool:
+    """True when stream start failed before any messages and replaying the prompt is safe."""
     if isinstance(exc, BaseExceptionGroup):
         group = cast(BaseExceptionGroup[BaseException], exc)
-        return all(_is_tool_startup_timeout(sub) for sub in group.exceptions)
-    return False
+        return all(_can_retry_open_without_checkpoint(sub) for sub in group.exceptions)
+    return (
+        type(exc) is TimeoutError
+        or _is_connection_error(exc)
+        or _is_rate_limit_error(exc)
+    )
 
 
 def _stream_wait(attempt: int) -> float:
@@ -172,25 +234,45 @@ def _stream_wait(attempt: int) -> float:
     )
 
 
-def _is_tpm_or_rpm_error(text: str) -> bool:
-    """Check if the error indicates a TPM or RPM rate limit."""
-    text_lower = text.lower()
-    return any(
-        indicator in text_lower
-        for indicator in ("tokens per min", "tpm", "requests per min", "rpm")
+def _provider_retry_after_seconds(text: str) -> float:
+    match = _TRY_AGAIN_IN_RE.search(text)
+    if match is None:
+        return 0.0
+    value = float(match.group("value"))
+    unit = (match.group("unit") or "s").casefold()
+    if unit == "ms":
+        return value / 1000.0
+    return value
+
+
+def _with_high_side_jitter(wait_seconds: float, *, cap: float) -> float:
+    """Add up to 25% extra wait so concurrent lanes do not retry in lockstep.
+
+    Never waits less than ``wait_seconds`` (the TPM floor must not shrink).
+    """
+    if wait_seconds >= cap:
+        return cap
+    spread = min(wait_seconds * _RATE_LIMIT_JITTER_RATIO, cap - wait_seconds)
+    if spread <= 0:
+        return wait_seconds
+    return wait_seconds + random.uniform(0.0, spread)
+
+
+def _rate_limit_wait_seconds(attempt: int, error_text: str) -> float:
+    exponential = min(
+        _RATE_LIMIT_MIN_WAIT_SECONDS * (2**attempt),
+        _RATE_LIMIT_MAX_WAIT_SECONDS,
     )
+    suggested = _provider_retry_after_seconds(error_text)
+    wait_seconds = min(max(exponential, suggested), _RATE_LIMIT_MAX_WAIT_SECONDS)
+    return _with_high_side_jitter(wait_seconds, cap=_RATE_LIMIT_MAX_WAIT_SECONDS)
 
 
 def streaming_retry_sleep_seconds(exc: BaseException, attempt: int) -> float:
-    """Sleep before retry; wait 60s for TPM/RPM limits to let the window clear."""
-    text = _openai_error_text(exc)
-
-    # TPM/RPM limits need a full window to clear — OpenAI's suggested wait is
-    # too short because it assumes no other requests are consuming quota.
-    if _is_tpm_or_rpm_error(text):
-        return _TPM_RPM_WAIT_SECONDS
-
-    # For other transient errors, use exponential backoff.
+    """Sleep before retry; rate limits use a 60s-floored exponential wait with jitter."""
+    text = _combined_error_text(exc)
+    if _is_rate_limit_error(exc) or _error_text_indicates_rate_limit(text):
+        return _rate_limit_wait_seconds(attempt, text)
     return min(_stream_wait(attempt), FALLBACK_MAX_WEIGHT_SECONDS)
 
 
@@ -362,10 +444,10 @@ class StreamWithRetriesContext[T]:
                     ):
                         raise
                     if self._next_message_history is None:
-                        if not _is_tool_startup_timeout(exc):
+                        if not _can_retry_open_without_checkpoint(exc):
                             self._raise_unresumable_open_failure(exc)
                         AI_LOGFIRE.info(
-                            "Agent tool startup failed before stream progress, retrying",
+                            "Agent stream start failed before stream progress, retrying",
                             attempt=self._attempt_index + 1,
                             max_attempts=MAX_STREAM_RETRY_ATTEMPTS,
                             error=str(exc),
@@ -398,7 +480,7 @@ class StreamWithRetriesContext[T]:
         if active_result is None:
             return False
         self._next_message_history = deepcopy(active_result.all_messages())
-        self._next_usage = deepcopy(active_result.usage())
+        self._next_usage = deepcopy(active_result.usage)
         return True
 
     def _checkpoint_captured_messages(self, messages: list[ModelMessage]) -> bool:
@@ -535,8 +617,9 @@ class StreamedResultWrapper[T]:
                 await self._retries_context.reopen_after_stream_interrupt(exc)
         raise RuntimeError("Output retries exhausted without terminal result")
 
+    @property
     def usage(self) -> RunUsage:
-        return self._active_result.usage()
+        return self._active_result.usage
 
     def all_messages(
         self, *, output_tool_return_content: str | None = None

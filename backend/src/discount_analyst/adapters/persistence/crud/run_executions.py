@@ -68,6 +68,12 @@ _TERMINAL_RUN_STATUSES = frozenset(
         WorkflowRunStatusDb.CANCELLED.value,
     }
 )
+_RETRYABLE_LANE_EXECUTION_STATUSES = frozenset(
+    {
+        ExecutionStatusDb.FAILED,
+        ExecutionStatusDb.CANCELLED,
+    }
+)
 _AGENT_LANE_ORDER = {
     AgentNameDb.PROFILER: 0,
     AgentNameDb.RESEARCHER: 1,
@@ -134,7 +140,7 @@ def workflow_can_retry_failed_agents(
     runs: list[Run],
     executions_by_run_id: dict[str, list[AgentExecution]],
 ) -> bool:
-    """Return whether a terminal workflow has failed surveyor or lane work to retry."""
+    """Return whether a terminal workflow has failed or cancelled lane work to retry."""
     if workflow_status.value not in _TERMINAL_RUN_STATUSES:
         return False
     if surveyor is not None and surveyor.status == ExecutionStatusDb.FAILED:
@@ -148,13 +154,13 @@ def workflow_can_retry_failed_agents(
 def _first_retry_lane_order(run: Run, executions: list[AgentExecution]) -> int | None:
     """Return the first lane agent order to reset, or None when the run is not retriable."""
     lane_executions = _lane_executions(executions)
-    failed_orders = [
+    retry_orders = [
         _AGENT_LANE_ORDER[execution.agent_name]
         for execution in lane_executions
-        if execution.status == ExecutionStatusDb.FAILED
+        if execution.status in _RETRYABLE_LANE_EXECUTION_STATUSES
     ]
-    if failed_orders:
-        return min(failed_orders)
+    if retry_orders:
+        return min(retry_orders)
 
     if (
         run.lane_aborted
@@ -172,7 +178,7 @@ def prepare_retry_failed_agents(
     session: Session,
     workflow_run_id: str,
 ) -> RetryFailedAgentsPreparation:
-    """Reset failed agents, and downstream lane agents, for an explicit retry."""
+    """Reset failed or cancelled agents, and downstream lane agents, for an explicit retry."""
     workflow = session.get(WorkflowRun, workflow_run_id)
     if workflow is None:
         raise RetryWorkflowRunNotFoundError(workflow_run_id)
@@ -629,6 +635,20 @@ def apply_ticker_run_completion_fields(
     return run
 
 
+def _data_quality_rejection_source_execution_id(
+    session: Session, *, run_id: str
+) -> str | None:
+    profiler_id = get_agent_execution_id_by_run_and_agent(
+        session, run_id=run_id, agent_name=AgentNameDb.PROFILER.value
+    )
+    if profiler_id is not None:
+        return profiler_id
+    run = session.get(Run, run_id)
+    if run is None:
+        return None
+    return get_workflow_surveyor_execution_id(session, run.workflow_run_id)
+
+
 def persist_ticker_run_final_verdict(
     session: Session,
     *,
@@ -703,8 +723,8 @@ def persist_ticker_run_final_verdict(
             mitigating_factors=[],
         )
     elif decision_type == DecisionTypeDb.DATA_QUALITY_REJECTION.value:
-        source_execution_id = get_agent_execution_id_by_run_and_agent(
-            session, run_id=run_id, agent_name=AgentNameDb.RESEARCHER.value
+        source_execution_id = _data_quality_rejection_source_execution_id(
+            session, run_id=run_id
         )
         if source_execution_id is None:
             return
