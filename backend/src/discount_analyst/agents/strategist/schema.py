@@ -56,8 +56,11 @@ class MispricingThesis(BaseModel):
     evaluation_questions: list[str] = Field(
         description=(
             "The specific questions the Evaluation Agent must answer to "
-            "confirm or break this thesis. These should be bespoke to this "
-            "thesis — not a generic checklist. Minimum 5 questions."
+            "confirm or break this thesis. Each question must be answerable "
+            "from the last reported period plus the last trading update. "
+            "Do not make a future print (for example 'what will FY26 report?') "
+            "a load-bearing question. Bespoke to this thesis — not a generic "
+            "checklist. Minimum 5 questions."
         )
     )
     permanent_loss_scenarios: list[str] = Field(

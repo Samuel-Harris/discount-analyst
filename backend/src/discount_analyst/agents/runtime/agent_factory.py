@@ -110,8 +110,9 @@ def create_agent[OutT](
     and fetch capabilities, optional Perplexity search, and optional financial
     MCP toolsets. A Frankfurter ``convert_currency`` toolset is always attached.
     Set ``enable_web_research_tools=False`` to omit web search/fetch/Perplexity
-    (test isolation only). When ``terminal`` is omitted, terminal follows
-    ``settings.use_terminal`` only (independent of web/MCP flags).
+    (production Sentinel factory; otherwise test isolation). When ``terminal``
+    is omitted, terminal follows ``settings.use_terminal`` only (independent of
+    web/MCP flags).
 
     Structured output is always registered via ``ToolOutput`` (tool mode, ``final_result``)
     for cross-provider uniformity. Oversized tool returns are truncated at

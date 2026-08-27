@@ -69,7 +69,7 @@ If terminal execution is available, use it for arithmetic-heavy work, sensitivit
 ### Step 4: Build the Distribution
 
 Translate method conclusions into a per-share distribution:
-- `expected_intrinsic_value`: the deterministic policy anchor; use a probability-weighted or otherwise justified expected value.
+- `expected_intrinsic_value`: the deterministic policy anchor. It must equal the weight-blend of method `value_per_share` values (`sum(value_per_share * weight_pct / 100)`). Method `weight_pct` values must sum to 100. Do not park earnings-multiple or FCF-yield work under a catch-all method; use `earnings_multiple` and `fcf_yield`. Percentiles stay model-produced; do not rewrite p10/p90 from cross-checks. Record `shares_outstanding`, `share_count_source`, and `quoted_price_unit`. Keep all per-share figures in major units (GBP not GBp).
 - `p10` / `p25`: downside range.
 - `p50`: central scenario or median.
 - `p75` / `p90`: upside range.

@@ -72,6 +72,7 @@ def _flxs_evaluation_fields() -> dict[str, object]:
                 evidence="E",
                 verdict="Supports thesis",
                 confidence="High",
+                gap_kind="none",
             )
         ],
         red_flag_screen=RedFlagScreen(

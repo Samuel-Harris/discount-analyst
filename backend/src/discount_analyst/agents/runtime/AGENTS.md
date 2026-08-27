@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-04-05 | Updated: 2026-08-23 -->
+<!-- Generated: 2026-04-05 | Updated: 2026-08-28 -->
 
 # agents/common
 
@@ -29,7 +29,7 @@ All pipeline agents register structured output via **tool mode** (`ToolOutput` �
 ## For AI Agents
 
 - Do **not** import `discount_analyst.agents.surveyor`, `researcher`, etc. from this package (avoid cycles; keep stage boundaries).
-- FX is always-on via `create_frankfurter_toolset()` in `create_agent`. Do not add an FX settings flag. `enable_web_research_tools=False` is test isolation only — production factories must not pass it.
+- FX is always-on via `create_frankfurter_toolset()` in `create_agent`. Do not add an FX settings flag. `enable_web_research_tools=False` is allowed for the interpretation-only production Sentinel factory. Other production factories must not pass it (test isolation only).
 - Tool-return truncation is always-on via pydantic-ai-harness `ToolOutputLimits` with `Truncate` at 10,000 characters (not the harness Spill default). Do not add a flag. pydantic-ai excludes output tools (`final_result`).
 - Non-output tool exceptions are always-on via `InfallibleToolExecution` (`wrap_tool_execute` → `format_tool_error`). Do not add a flag. Do not raise `Agent(retries=…)` / `Tool(max_retries=…)` as the tool-error fix — retry budget is per tool name. Output tools (`final_result`) must still raise so structured-output repair/abort is unchanged.
 - Perplexity descriptions in `tool_descriptions.py` must include every `AgentName` (`create_perplexity_toolset` indexes the dict).

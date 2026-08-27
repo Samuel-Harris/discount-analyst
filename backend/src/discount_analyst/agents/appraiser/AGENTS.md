@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-03-03 | Updated: 2026-05-31 -->
+<!-- Generated: 2026-03-03 | Updated: 2026-08-28 -->
 
 # appraiser
 
@@ -36,7 +36,7 @@ None.
 ### Common Patterns
 
 - **Search Tools**: Uses `AsyncPerplexity` with `search_mode="web"` for general research and `search_mode="sec"` for official financial filings.
-- **Structured I/O**: Input contract `AppraiserInput` and output `AppraiserOutput` live in `schema.py`. `AppraiserOutput` requires one primary method, at least one cross-check, monotonic p10/p25/p50/p75/p90 intrinsic values, and an expected intrinsic value within the p10-p90 range. `scripts/agents/run_appraiser.py` resolves `AppraiserInput` from a Sentinel run artefact (and embedded paths to Surveyor / Researcher / Strategist JSON); other callers (e.g. workflows) build `AppraiserInput` in code and call `user_prompt.create_user_prompt`.
+- **Structured I/O**: Input contract `AppraiserInput` and output `AppraiserOutput` live in `schema.py`. Each method requires `value_per_share` and `weight_pct`; weights must sum to 100 ± 0.05; `expected_intrinsic_value` must equal that weight-blend. Percentiles stay monotonic with expected in [p10, p90]. Audit fields `shares_outstanding`, `share_count_source`, and `quoted_price_unit` are required. There is no `other` method — use `earnings_multiple` / `fcf_yield`. CLI is `uv run discount-analyst agent appraiser`. Other callers build `AppraiserInput` in code and call `user_prompt.create_user_prompt`.
 
 ## Dependencies
 

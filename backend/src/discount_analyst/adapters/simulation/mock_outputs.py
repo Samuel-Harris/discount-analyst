@@ -290,6 +290,7 @@ def mock_sentinel_evaluation(
             ),
             verdict=random.choice(verdict_opts),
             confidence=random.choice(("Low", "Medium", "High")),
+            gap_kind="none",
         )
         for i in random.sample(range(len(questions_pool)), n_q)
     ]
@@ -370,7 +371,7 @@ def mock_appraiser_output(
         valuation_distribution=IntrinsicValueDistribution(
             currency=lane_context.currency.value,
             current_share_price=current_price,
-            expected_intrinsic_value=3.8,
+            expected_intrinsic_value=3.71,
             p10_intrinsic_value=2.6,
             p25_intrinsic_value=3.1,
             p50_intrinsic_value=3.6,
@@ -410,6 +411,9 @@ def mock_appraiser_output(
         upside_drivers_to_value=["Mock catalyst delivery"],
         data_quality="Medium",
         caveats=["Mock valuation only."],
+        shares_outstanding=10_000_000.0,
+        share_count_source="profile",
+        quoted_price_unit="major",
     )
 
 
@@ -429,6 +433,7 @@ def mock_rating_table_gate_evaluation(
                 evidence="Mock evidence.",
                 verdict="Supports thesis",
                 confidence="High",
+                gap_kind="none",
             )
         ],
         red_flag_screen=RedFlagScreen(

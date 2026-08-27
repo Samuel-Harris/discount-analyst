@@ -407,6 +407,7 @@ class EvaluationQuestionAssessment(SQLModel, table=True):
     evidence: str
     verdict: str
     confidence: str
+    gap_kind: str = Field(default="none")
 
 
 class EvaluationCaveat(SQLModel, table=True):
@@ -445,6 +446,9 @@ class AppraiserReport(SQLModel, table=True):
     upside_drivers_to_value_json: str
     data_quality: str
     caveats_json: str
+    shares_outstanding: float | None = Field(default=None)
+    share_count_source: str | None = Field(default=None)
+    quoted_price_unit: str | None = Field(default=None)
 
 
 class RunFinalDecision(SQLModel, table=True):

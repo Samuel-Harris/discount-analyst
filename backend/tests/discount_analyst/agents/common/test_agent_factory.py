@@ -235,7 +235,7 @@ def test_create_strategist_agent_forwards_web_mcp_flags(
     assert captured["use_mcp_financial_data"] is False
 
 
-def test_create_sentinel_agent_does_not_force_web_mcp_off(
+def test_create_sentinel_agent_is_interpretation_only(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, object] = {}
@@ -247,29 +247,11 @@ def test_create_sentinel_agent_does_not_force_web_mcp_off(
     monkeypatch.setattr(sentinel_module, "create_agent", fake_create_agent)
     create_sentinel_agent(AIModelsConfig(model_name=ModelName.DEEPSEEK_V4_PRO))
 
-    assert captured.get("enable_web_research_tools", True) is True
+    assert captured["enable_web_research_tools"] is False
     assert captured["use_perplexity"] is False
-    assert captured["use_mcp_financial_data"] is True
-
-
-def test_create_sentinel_agent_forwards_web_mcp_flags(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    captured: dict[str, object] = {}
-
-    def fake_create_agent(**kwargs: object) -> SimpleNamespace:
-        captured.update(kwargs)
-        return SimpleNamespace()
-
-    monkeypatch.setattr(sentinel_module, "create_agent", fake_create_agent)
-    create_sentinel_agent(
-        AIModelsConfig(model_name=ModelName.DEEPSEEK_V4_PRO),
-        use_perplexity=True,
-        use_mcp_financial_data=False,
-    )
-
-    assert captured["use_perplexity"] is True
     assert captured["use_mcp_financial_data"] is False
+    terminal = captured["terminal"]
+    assert getattr(terminal, "enabled") is False
 
 
 def test_perplexity_descriptions_cover_every_agent() -> None:

@@ -70,9 +70,7 @@ export function AppraiserValuationPanel({
                     )}
                   </td>
                   <td>
-                    {method.weight_pct == null
-                      ? "—"
-                      : `${method.weight_pct.toFixed(1)}%`}
+                    {method.weight_pct.toFixed(1)}%
                   </td>
                 </tr>
               ))}

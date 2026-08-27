@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-23 | Updated: 2026-08-23 -->
+<!-- Generated: 2026-02-23 | Updated: 2026-08-28 -->
 
 # tests
 
@@ -24,6 +24,7 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | `tests/discount_analyst/integrations/test_terminal.py`                  | Terminal HTTP client mocks; optional `@pytest.mark.docker` orchestrator integration.                                                                                                                          |
 | `tests/discount_analyst/agents/common/test_streamed_agent_run.py`       | Tests for `run_streamed_agent`.                                                                                                                                                                               |
 | `tests/discount_analyst/agents/sentinel/test_sentinel_gate.py`          | Tests for `sentinel_proceeds_to_valuation` (thesis + red-flag gate).                                                                                                                                          |
+| `tests/discount_analyst/agents/sentinel/test_derive_thesis_verdict.py`  | Tests for `derive_thesis_verdict` / `finalise_sentinel_evaluation` (gap_kind order, UNPROVEN, question-count mismatch).                                                                                       |
 | `tests/discount_analyst/pipeline/test_builders.py`                      | Tests for `build_sentinel_rejection`, `verdict_from_decision`, and tagged `Verdict` JSON round-trip of all three decision kinds.                                                                              |
 | `tests/discount_analyst/pipeline/test_candidate_gates.py`               | Pre-Researcher FMP/EODHD gates: auto-correct only on exact or unique strong match; unknown/ambiguous identity keeps the source ticker; listing rejects only on FMP inactive (non-`.L`) or EODHD `IsDelisted`. |
 | `tests/discount_analyst/integrations/test_eodhd_client.py`              | EODHD REST client: real-time quote (including `"NA"` close → `None`), fundamentals `IsDelisted`.                                                                                                              |
@@ -37,7 +38,7 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | `tests/backend/unit/test_mock_rating_table_dashboard.py`                | Deterministic mock `RatingTableDecision` helpers for dashboard payloads.                                                                                                                                      |
 | `tests/backend/unit/test_appraiser_output_persistence.py`               | Appraiser `AppraiserReport` persistence and `get_appraiser_report_for_run` join behaviour.                                                                                                                    |
 | `tests/backend/unit/test_agent_output_persistence.py`                   | Profiler `CandidateSnapshot` persistence (exactly one row at `sort_order=0`).                                                                                                                                 |
-| `tests/backend/unit/test_migration_startup.py`                          | Alembic head on startup, metadata verify, and 0009→head agent-execution unify remap.                                                                                                                          |
+| `tests/backend/unit/test_migration_startup.py`                          | Alembic head on startup, metadata verify, and 0009→head agent-execution unify remap (head is 0011).                                               |
 | `tests/backend/integration/test_mock_workflow.py`                       | Mock pipeline persistence for `DashboardPipelineRunner` (no live LLM calls); mixed Sentinel lanes.                                                                                                            |
 | `tests/backend/integration/test_dashboard_http_e2e.py`                  | Async HTTP path: create mock workflow run, poll until completed, assert detail and conversations.                                                                                                             |
 

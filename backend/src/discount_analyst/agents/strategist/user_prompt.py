@@ -22,7 +22,7 @@ You are receiving two inputs: **screening context** for the name (structured lan
 
 **Upstream contract:** The research is **not** arguing for a trade — it may include **tensions and contradictions**. The screening block means **“worth investigating”**, not “already validated.”
 
-**Downstream contract:** Your thesis must be **attackable in good faith** — traceable claims, bespoke `evaluation_questions`, and clear “this would break me” conditions.
+**Downstream contract:** Your thesis must be **attackable in good faith** — traceable claims, bespoke `evaluation_questions` (answerable from the last reported period plus the last trading update; not 'what will the next FY print?'), and clear “this would break me” conditions.
 
 {LANE_CONTEXT_QUANTITATIVE_OMISSION_NOTE}
 

@@ -31,7 +31,7 @@ Do **not** return DCF-specific `stock_data` or `stock_assumptions`. Do **not** r
 
 **Risk-free rate (externally supplied — do not infer or override):** {rfr} (percentage points, e.g. 4.5 means 4.5%). Use this value if you run DCF, reverse DCF, discount-rate sensitivity, or a related cross-check. If you use it, cite it in the relevant method evidence. Do not substitute a different rate.
 
-**Valuation output convention:** All intrinsic values are **per share** in the declared currency. Express method weights as percentage points (e.g. `60.0` for 60%). Percentiles must be monotonic and `expected_intrinsic_value` must lie between p10 and p90.
+**Valuation output convention:** All intrinsic values are **per share** in the declared currency (major units: GBP not GBp). Express method weights as percentage points (e.g. `60.0` for 60%) that **sum to 100**. `expected_intrinsic_value` must equal the weight-blend of method values. Percentiles must be monotonic and the expected value must lie between p10 and p90. Use `earnings_multiple` / `fcf_yield` rather than a catch-all method. Fill `shares_outstanding`, `share_count_source`, and `quoted_price_unit`.
 
 ---
 
