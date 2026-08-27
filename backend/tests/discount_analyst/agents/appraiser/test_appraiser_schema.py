@@ -203,6 +203,4 @@ def test_mock_appraiser_output_expected_equals_blend() -> None:
     blend = sum(
         method.value_per_share * method.weight_pct / 100.0 for method in output.methods
     )
-    assert output.valuation_distribution.expected_intrinsic_value == pytest.approx(
-        blend
-    )
+    assert output.valuation_distribution.expected_intrinsic_value == blend
