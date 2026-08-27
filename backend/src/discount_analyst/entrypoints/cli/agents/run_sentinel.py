@@ -17,6 +17,9 @@ from discount_analyst.agents.sentinel.schema import (
     sentinel_proceeds_to_valuation,
 )
 from discount_analyst.agents.sentinel.sentinel import create_sentinel_agent
+from discount_analyst.agents.sentinel.derive_thesis_verdict import (
+    finalise_sentinel_evaluation,
+)
 from discount_analyst.agents.sentinel.user_prompt import create_user_prompt
 from discount_analyst.agents.runtime.agent_names import AgentName
 from discount_analyst.agents.runtime.streamed_agent_run import run_streamed_agent
@@ -24,15 +27,11 @@ from discount_analyst.agents.researcher.schema import DeepResearchReport
 from discount_analyst.agents.strategist.schema import MispricingThesis
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
 from discount_analyst.config.ai_models_config import AIModelsConfig
+from discount_analyst.config.settings import settings as app_settings
 from discount_analyst.domain.model_selection.model_name import ModelName
 from discount_analyst.entrypoints.cli.shared.artefacts import write_agent_json
-from discount_analyst.agents.runtime.terminal_run import TerminalRunOptions
-from discount_analyst.entrypoints.cli.shared.cli import (
-    add_agent_cli_model_argument,
-    add_agent_cli_web_search_arguments,
-    add_agent_terminal_argument,
-    terminal_run_options_for_cli,
-)
+from discount_analyst.agents.runtime.terminal_run import terminal_run_options
+from discount_analyst.entrypoints.cli.shared.cli import add_agent_cli_model_argument
 from discount_analyst.entrypoints.cli.shared.run_outputs import (
     SentinelRunOutput,
     ResearcherRunOutput,
@@ -80,9 +79,6 @@ class FailedSentinelRun:
 
 class SentinelArgs(BaseModel):
     model: ModelName
-    use_perplexity: bool
-    use_mcp_financial_data: bool
-    use_terminal: bool
     selectors: list[Selector]
 
 
@@ -105,16 +101,6 @@ def parse_args() -> SentinelArgs:
         ),
     )
     add_agent_cli_model_argument(parser)
-    add_agent_cli_web_search_arguments(parser)
-    parser.add_argument(
-        "--no-mcp",
-        action="store_true",
-        help=(
-            "Do not register EODHD/FMP MCP toolsets (required for Google models; "
-            "optional for Anthropic/OpenAI)."
-        ),
-    )
-    add_agent_terminal_argument(parser)
     raw = parser.parse_args()
     selectors = [
         parse_report_selector(
@@ -127,9 +113,6 @@ def parse_args() -> SentinelArgs:
     ]
     return SentinelArgs(
         model=raw.model,
-        use_perplexity=raw.use_perplexity,
-        use_mcp_financial_data=not raw.no_mcp,
-        use_terminal=not raw.no_terminal,
         selectors=selectors,
     )
 
@@ -250,22 +233,15 @@ async def run_agent(
     surveyor_candidate: SurveyorCandidate,
     deep_research: DeepResearchReport,
     thesis: MispricingThesis,
-    use_perplexity: bool,
-    use_mcp_financial_data: bool,
-    terminal: TerminalRunOptions,
 ) -> AgentRunResult:
     """Run the Sentinel agent and return output with usage stats."""
     ai_models_config = AIModelsConfig(model_name=model_name)
-    agent = create_sentinel_agent(
-        ai_models_config,
-        use_perplexity=use_perplexity,
-        use_mcp_financial_data=use_mcp_financial_data,
-        terminal=terminal,
-    )
+    agent = create_sentinel_agent(ai_models_config)
     user_prompt = create_user_prompt(
         lane_context=surveyor_candidate.to_lane_context(),
         deep_research=deep_research,
         thesis=thesis,
+        is_existing_position=False,
     )
 
     outcome = await run_streamed_agent(
@@ -273,9 +249,10 @@ async def run_agent(
         user_prompt=user_prompt,
         usage_limits=ai_models_config.model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
-        terminal=terminal,
+        terminal=terminal_run_options(app_settings, enabled=False),
+        run_settings=app_settings,
     )
-    output = outcome.output
+    output = finalise_sentinel_evaluation(outcome.output, thesis)
     usage = outcome.usage
     turn_usage = extract_turn_usage(outcome.all_messages)
     elapsed_s = outcome.elapsed_s
@@ -354,9 +331,6 @@ async def main() -> None:
     suffixes = _build_suffixes(targets)
     failures: list[FailedSentinelRun] = []
     successes = 0
-    terminal = terminal_run_options_for_cli(
-        no_terminal=not args.use_terminal
-    ).bind_session_id()
 
     for i, target in enumerate(targets):
         if i > 0:
@@ -379,9 +353,6 @@ async def main() -> None:
                 surveyor_candidate=target.surveyor_candidate,
                 deep_research=target.deep_research,
                 thesis=so.output,
-                use_perplexity=args.use_perplexity,
-                use_mcp_financial_data=args.use_mcp_financial_data,
-                terminal=terminal,
             )
             display_output(run_result.output)
             out_path = save_run_output(

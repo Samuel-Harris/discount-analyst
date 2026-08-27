@@ -12,6 +12,7 @@ class ThesisVerdict(StrEnum):
         "Thesis intact with reservations — proceed with noted caveats"
     )
     WEAKENED_DO_NOT_PROCEED = "Thesis weakened — do not proceed"
+    UNPROVEN_DO_NOT_PROCEED = "Thesis unproven — do not proceed"
     BROKEN_DO_NOT_PROCEED = "Thesis broken — do not proceed"
 
 
@@ -41,6 +42,14 @@ class QuestionAssessment(BaseModel):
     verdict: Literal["Supports thesis", "Neutral", "Weakens thesis", "Breaks thesis"]
     confidence: Literal["Low", "Medium", "High"] = Field(
         description="Confidence in this assessment given the available evidence."
+    )
+    gap_kind: Literal["none", "calendar", "never_disclosed", "contradicted"] = Field(
+        description=(
+            "Why evidence is missing or adverse: none (printed evidence, no "
+            "calendar wait), calendar (the next print is not yet due), "
+            "never_disclosed (the company has not published the fact), or "
+            "contradicted (printed evidence conflicts with the thesis)."
+        )
     )
 
 

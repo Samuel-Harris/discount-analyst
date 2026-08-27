@@ -15,10 +15,18 @@ def create_user_prompt(
     lane_context: SurveyorLaneContext,
     deep_research: DeepResearchReport,
     thesis: MispricingThesis,
+    is_existing_position: bool = False,
 ) -> str:
     candidate_json = lane_context.model_dump_json(indent=2)
     deep_research_json = deep_research.model_dump_json(indent=2)
     thesis_json = thesis.model_dump_json(indent=2)
+
+    existing_position_note = (
+        "**Existing position:** Judge whether the **live** thesis has deteriorated on "
+        "**printed** evidence. Unreleased future prints are reservations, not an exit."
+        if is_existing_position
+        else ""
+    )
 
     return f"""
 Evaluate the following investment candidate.
@@ -26,6 +34,8 @@ Evaluate the following investment candidate.
 **Upstream contract:** You receive **screening context**, **neutral deep research**, and a **mispricing thesis** (with bespoke questions). The research does not endorse the thesis; the thesis does not excuse gaps in the research.
 
 **Your task:** Stress-test the thesis against the evidence and deliver a **clear, defensible verdict**. You are **the adversary, not a validator** — earn the conclusion. Apply the epistemic, numeric, and red-flag calibration rules strictly.
+
+{existing_position_note}
 
 {LANE_CONTEXT_QUANTITATIVE_OMISSION_NOTE}
 

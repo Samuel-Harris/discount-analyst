@@ -389,15 +389,13 @@ def build_methods_table(output: AppraiserOutput) -> Table:
     table.add_column("Range", justify="right")
     table.add_column("Weight", justify="right")
     for method in output.methods:
-        value = (
-            "" if method.value_per_share is None else f"{method.value_per_share:.2f}"
-        )
+        value = f"{method.value_per_share:.2f}"
         value_range = (
             ""
             if method.low_value_per_share is None or method.high_value_per_share is None
             else f"{method.low_value_per_share:.2f}-{method.high_value_per_share:.2f}"
         )
-        weight = "" if method.weight_pct is None else f"{method.weight_pct:.1f}%"
+        weight = f"{method.weight_pct:.1f}%"
         table.add_row(method.method.value, method.role, value, value_range, weight)
     return table
 

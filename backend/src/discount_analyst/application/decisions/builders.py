@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections import Counter
+
 from discount_analyst.agents.sentinel.schema import (
     EvaluationReport,
     OverallRedFlagVerdict,
@@ -61,6 +63,18 @@ def build_sentinel_rejection(
         ThesisVerdict.INTACT_WITH_RESERVATIONS,
     ):
         reason_parts.append(f"Thesis verdict: {evaluation.thesis_verdict}.")
+        reason_parts.append(evaluation.verdict_rationale)
+        tallies = Counter(
+            assessment.gap_kind for assessment in evaluation.question_assessments
+        )
+        reason_parts.append(
+            "gap_kind tally: "
+            + ", ".join(
+                f"{kind}={tallies.get(kind, 0)}"
+                for kind in ("none", "calendar", "never_disclosed", "contradicted")
+            )
+            + "."
+        )
     if red_serious:
         reason_parts.append(
             f'Red-flag screen: overall verdict is "{OverallRedFlagVerdict.SERIOUS_CONCERN}".'

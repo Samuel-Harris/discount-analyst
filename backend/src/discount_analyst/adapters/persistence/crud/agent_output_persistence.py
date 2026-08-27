@@ -403,6 +403,7 @@ def replace_evaluation_report(
                 evidence=qa.evidence,
                 verdict=qa.verdict,
                 confidence=qa.confidence,
+                gap_kind=qa.gap_kind,
             )
         )
     for idx, caveat in enumerate(output.caveats):
@@ -443,6 +444,9 @@ def appraiser_output_from_report(row: AppraiserReport) -> AppraiserOutput:
         upside_drivers_to_value=json.loads(row.upside_drivers_to_value_json),
         data_quality=cast(Literal["High", "Medium", "Low"], row.data_quality),
         caveats=json.loads(row.caveats_json),
+        shares_outstanding=row.shares_outstanding,
+        share_count_source=row.share_count_source,
+        quoted_price_unit=row.quoted_price_unit,
     )
 
 
@@ -493,6 +497,9 @@ def replace_appraiser_output(
         ),
         data_quality=output.data_quality,
         caveats_json=json.dumps(output.caveats, separators=(",", ":")),
+        shares_outstanding=output.shares_outstanding,
+        share_count_source=output.share_count_source,
+        quoted_price_unit=output.quoted_price_unit,
     )
     session.add(row)
 

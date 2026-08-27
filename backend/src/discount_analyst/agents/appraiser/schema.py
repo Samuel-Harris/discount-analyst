@@ -27,6 +27,9 @@ class AppraiserInput(BaseModel):
     )
 
 
+_WEIGHT_SUM_TOLERANCE_PP = 0.05
+
+
 class ValuationMethod(StrEnum):
     DCF = "dcf"
     REVERSE_DCF = "reverse_dcf"
@@ -36,7 +39,8 @@ class ValuationMethod(StrEnum):
     UNIT_ECONOMICS = "unit_economics"
     SCENARIO_WEIGHTING = "scenario_weighting"
     MONTE_CARLO = "monte_carlo"
-    OTHER = "other"
+    EARNINGS_MULTIPLE = "earnings_multiple"
+    FCF_YIELD = "fcf_yield"
 
 
 class ValuationMethodResult(BaseModel):
@@ -44,10 +48,10 @@ class ValuationMethodResult(BaseModel):
 
     method: ValuationMethod
     role: Literal["primary", "cross_check"]
-    value_per_share: float | None = Field(default=None, gt=0)
+    value_per_share: float = Field(gt=0)
     low_value_per_share: float | None = Field(default=None, gt=0)
     high_value_per_share: float | None = Field(default=None, gt=0)
-    weight_pct: float | None = Field(default=None, ge=0, le=100)
+    weight_pct: float = Field(ge=0, le=100)
     key_assumptions: list[str] = Field(default_factory=list)
     evidence_summary: list[str] = Field(default_factory=list)
     sanity_checks: list[str] = Field(default_factory=list)
@@ -79,6 +83,15 @@ class AppraiserOutput(BaseModel):
     upside_drivers_to_value: list[str] = Field(default_factory=list)
     data_quality: Literal["High", "Medium", "Low"]
     caveats: list[str] = Field(default_factory=list)
+    shares_outstanding: float = Field(gt=0)
+    share_count_source: Literal["filing", "profile", "implied_from_market_cap"]
+    quoted_price_unit: Literal["major", "subunit"] = Field(
+        description=(
+            "Quote convention used when converting to per-share values. "
+            "Distribution current_share_price and all intrinsic values stay in "
+            "major units (GBP not GBp)."
+        )
+    )
 
     @model_validator(mode="after")
     def validate_methods(self) -> "AppraiserOutput":
@@ -93,12 +106,23 @@ class AppraiserOutput(BaseModel):
         if cross_check_count < 1:
             msg = "AppraiserOutput must contain at least one cross-check method."
             raise ValueError(msg)
-        total_weight = sum(
-            method.weight_pct
+        total_weight = sum(method.weight_pct for method in self.methods)
+        if abs(total_weight - 100.0) > _WEIGHT_SUM_TOLERANCE_PP:
+            msg = (
+                "Valuation method weights must sum to 100% "
+                f"(within {_WEIGHT_SUM_TOLERANCE_PP} percentage points)."
+            )
+            raise ValueError(msg)
+        blend = sum(
+            method.value_per_share * method.weight_pct / 100.0
             for method in self.methods
-            if method.weight_pct is not None
         )
-        if total_weight > 100.0:
-            msg = "Valuation method weights must not sum to more than 100%."
+        expected = self.valuation_distribution.expected_intrinsic_value
+        tolerance = max(0.01, 0.005 * abs(blend))
+        if abs(expected - blend) > tolerance:
+            msg = (
+                "expected_intrinsic_value must equal the weight-blend of method "
+                f"values (blend={blend}, expected={expected}, tolerance={tolerance})."
+            )
             raise ValueError(msg)
         return self

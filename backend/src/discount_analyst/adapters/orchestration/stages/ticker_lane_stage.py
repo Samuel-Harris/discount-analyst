@@ -24,7 +24,11 @@ from discount_analyst.agents.appraiser.user_prompt import (
     create_user_prompt as create_appraiser_user_prompt,
 )
 from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
-from discount_analyst.agents.runtime.terminal_run import run_agent_with_terminal
+from discount_analyst.agents.runtime.streamed_agent_run import run_streamed_agent
+from discount_analyst.agents.runtime.terminal_run import (
+    run_agent_with_terminal,
+    terminal_run_options,
+)
 from discount_analyst.agents.common_prompts.current_date import with_current_date
 from discount_analyst.agents.researcher.researcher import create_researcher_agent
 from discount_analyst.agents.researcher.schema import DeepResearchReport
@@ -33,6 +37,9 @@ from discount_analyst.agents.researcher.system_prompt import (
 )
 from discount_analyst.agents.researcher.user_prompt import (
     create_user_prompt as create_researcher_user_prompt,
+)
+from discount_analyst.agents.sentinel.derive_thesis_verdict import (
+    finalise_sentinel_evaluation,
 )
 from discount_analyst.agents.sentinel.schema import sentinel_proceeds_to_valuation
 from discount_analyst.agents.sentinel.schema import (
@@ -130,6 +137,7 @@ class TickerLaneStage:
             run_id=run_id,
             lane_context=lane_context,
             is_mock=is_mock,
+            is_existing_position=is_existing_position,
         )
         if not sentinel_proceeds_to_valuation(evaluation):
             AI_LOGFIRE.info(
@@ -173,6 +181,7 @@ class TickerLaneStage:
         run_id: str,
         lane_context: SurveyorLaneContext,
         is_mock: bool,
+        is_existing_position: bool,
     ) -> tuple[Any, Any, Any]:
         llm = pipeline_llm_config(host.settings, is_mock=is_mock)
         research_out = await self._run_researcher(
@@ -200,6 +209,7 @@ class TickerLaneStage:
             research_out=research_out,
             thesis=thesis,
             is_mock=is_mock,
+            is_existing_position=is_existing_position,
             llm=llm,
         )
         return research_out, thesis, evaluation
@@ -399,6 +409,7 @@ class TickerLaneStage:
         research_out: DeepResearchReport,
         thesis: MispricingThesis,
         is_mock: bool,
+        is_existing_position: bool,
         llm: PipelineLlmConfig,
     ) -> SentinelEvaluationReport:
         sentinel_exec_id = await host.get_exec_id(run_id, AgentNameDb.SENTINEL.value)
@@ -454,24 +465,20 @@ class TickerLaneStage:
             ai_cfg = llm.ai_models_config
             if ai_cfg is None:
                 raise RuntimeError("Sentinel LLM config missing for non-mock run")
-            outcome = await run_agent_with_terminal(
-                settings=host.settings,
-                session_id=sentinel_exec_id,
-                runtime=host.cached_terminal_runtime(),
-                build_agent=lambda t: create_sentinel_agent(
-                    ai_cfg,
-                    use_perplexity=host.settings.use_perplexity,
-                    use_mcp_financial_data=host.settings.use_mcp_financial_data,
-                    terminal=t,
-                ),
+            agent = create_sentinel_agent(ai_cfg)
+            outcome = await run_streamed_agent(
+                agent=agent,
                 user_prompt=create_sentinel_user_prompt(
                     lane_context=lane_context,
                     deep_research=research_out,
                     thesis=thesis,
+                    is_existing_position=is_existing_position,
                 ),
                 usage_limits=ai_cfg.model.usage_limits,
+                terminal=terminal_run_options(host.settings, enabled=False),
+                run_settings=host.settings,
             )
-            evaluation = outcome.output
+            evaluation = finalise_sentinel_evaluation(outcome.output, thesis)
             n_messages = list(outcome.all_messages)
             n_mock_json = None
         await host.complete_exec_with_conversation(

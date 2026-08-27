@@ -87,14 +87,8 @@ def test_complete_appraiser_execution_persists_single_report(
         == output.valuation_distribution.expected_intrinsic_value
     )
 
-    updated_distribution = output.valuation_distribution.model_copy(
-        update={"expected_intrinsic_value": 4.2}
-    )
     updated_output = output.model_copy(
-        update={
-            "summary": "Updated Appraiser distribution.",
-            "valuation_distribution": updated_distribution,
-        },
+        update={"summary": "Updated Appraiser distribution."},
     )
     complete_agent_execution_with_conversation(
         db_session,
@@ -109,7 +103,9 @@ def test_complete_appraiser_execution_persists_single_report(
     reports = db_session.scalars(select(AppraiserReport)).all()
     assert len(reports) == 1
     assert reports[0].summary == "Updated Appraiser distribution."
-    assert reports[0].expected_intrinsic_value == 4.2
+    assert reports[0].expected_intrinsic_value == (
+        output.valuation_distribution.expected_intrinsic_value
+    )
 
 
 def test_get_appraiser_report_for_run_joins_appraiser_execution(

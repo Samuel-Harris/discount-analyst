@@ -26,7 +26,7 @@ def test_startup_applies_alembic_head_and_is_idempotent(tmp_path: Path) -> None:
         revision = session.exec(text("SELECT version_num FROM alembic_version")).one()
 
     table_names = {row[0] for row in tables}
-    assert revision[0] == "0010_unify_agent_executions"
+    assert revision[0] == "0011_sentinel_gap_kind_appraiser_audit"
     assert "workflow_runs" in table_names
     assert "candidate_snapshots" in table_names
     assert "agent_conversation_message_parts" in table_names

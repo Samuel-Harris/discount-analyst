@@ -554,6 +554,10 @@ def assistant_response_for_run_agent(
                     r.verdict,
                 ),
                 confidence=cast(Literal["Low", "Medium", "High"], r.confidence),
+                gap_kind=cast(
+                    Literal["none", "calendar", "never_disclosed", "contradicted"],
+                    r.gap_kind,
+                ),
             )
             for r in session.scalars(
                 select(EvaluationQuestionAssessment)

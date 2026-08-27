@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-04-05 | Updated: 2026-08-15 -->
+<!-- Generated: 2026-04-05 | Updated: 2026-08-28 -->
 
 # sentinel
 
@@ -13,6 +13,7 @@ The `sentinel` directory contains the Sentinel AI agent. It consumes a `Surveyor
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
 | `sentinel.py`      | Factory for the Sentinel agent (`create_sentinel_agent`).                                                                     |
 | `schema.py`        | Output contract: `EvaluationReport`, `ThesisVerdict` / `OverallRedFlagVerdict` (`StrEnum`), `sentinel_proceeds_to_valuation`. |
+| `derive_thesis_verdict.py` | Pure `derive_thesis_verdict` / `finalise_sentinel_evaluation` (code wins; not applied on read). |
 | `system_prompt.py` | System prompt and Sentinel role instructions.                                                                                 |
 | `user_prompt.py`   | `create_user_prompt`: injects candidate, deep research, and thesis as tagged context.                                         |
 | `__init__.py`      | Package initialization for the sentinel module.                                                                               |
@@ -25,7 +26,7 @@ None.
 
 ### Working In This Directory
 
-- **Agent tools**: Same flag contract as Surveyor. Default (`use_perplexity=False`) uses pydantic-ai `WebSearch` and `WebFetch`. With `use_perplexity=True`, Perplexity tools come from `create_perplexity_toolset(AgentName.SENTINEL)` — descriptions are optional checks to verify a red flag or filing fact, not a licence to re-run research. MCP follows `use_mcp_financial_data` (False for Google / `--no-mcp`). Frankfurter `convert_currency` is always attached. Terminal follows `settings.use_terminal` / `--no-terminal`.
+- **Agent tools**: Interpretation-only. `create_sentinel_agent` always passes `enable_web_research_tools=False` and `use_mcp_financial_data=False`, and disables the terminal session. Dashboard Perplexity/MCP/terminal flags are not forwarded. Frankfurter `convert_currency` remains attached. After a successful run, `finalise_sentinel_evaluation` overwrites `thesis_verdict` from `gap_kind` assessments and rejects a question-count mismatch before persist.
 - **Output contract**: Keep output constrained to `EvaluationReport` in `schema.py`. Use `sentinel_proceeds_to_valuation(evaluation)` for the valuation gate; do not add a duplicate persisted recommendation field.
 
 ### Testing Requirements

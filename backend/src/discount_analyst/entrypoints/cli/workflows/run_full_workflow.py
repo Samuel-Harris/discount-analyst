@@ -15,6 +15,9 @@ from discount_analyst.agents.sentinel.schema import (
     sentinel_proceeds_to_valuation,
 )
 from discount_analyst.agents.sentinel.sentinel import create_sentinel_agent
+from discount_analyst.agents.sentinel.derive_thesis_verdict import (
+    finalise_sentinel_evaluation,
+)
 from discount_analyst.agents.sentinel.user_prompt import (
     create_user_prompt as create_sentinel_user_prompt,
 )
@@ -37,6 +40,7 @@ from discount_analyst.agents.strategist.schema import MispricingThesis
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
 from discount_analyst.agents.appraiser.schema import AppraiserInput
 from discount_analyst.config.ai_models_config import AIModelsConfig
+from discount_analyst.config.settings import settings as app_settings
 from discount_analyst.domain.model_selection.model_name import ModelName
 from discount_analyst.application.decisions.builders import (
     build_rating_table_decision,
@@ -56,7 +60,10 @@ from discount_analyst.entrypoints.cli.agents.run_appraiser import (
     run_agent,
     save_run_output,
 )
-from discount_analyst.agents.runtime.terminal_run import TerminalRunOptions
+from discount_analyst.agents.runtime.terminal_run import (
+    TerminalRunOptions,
+    terminal_run_options,
+)
 from discount_analyst.entrypoints.cli.shared.cli import (
     add_agent_cli_model_argument,
     add_agent_cli_web_search_arguments,
@@ -424,21 +431,15 @@ async def run_sentinel_once(
     surveyor_candidate: SurveyorCandidate,
     deep_research: DeepResearchReport,
     thesis: MispricingThesis,
-    use_perplexity: bool,
-    use_mcp_financial_data: bool,
-    terminal: TerminalRunOptions,
+    is_existing_position: bool,
 ) -> SentinelAgentRunResult:
     ai_models_config = AIModelsConfig(model_name=model_name)
-    agent = create_sentinel_agent(
-        ai_models_config,
-        use_perplexity=use_perplexity,
-        use_mcp_financial_data=use_mcp_financial_data,
-        terminal=terminal,
-    )
+    agent = create_sentinel_agent(ai_models_config)
     user_prompt = create_sentinel_user_prompt(
         lane_context=surveyor_candidate.to_lane_context(),
         deep_research=deep_research,
         thesis=thesis,
+        is_existing_position=is_existing_position,
     )
 
     outcome = await run_streamed_agent(
@@ -446,9 +447,10 @@ async def run_sentinel_once(
         user_prompt=user_prompt,
         usage_limits=ai_models_config.model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
-        terminal=terminal,
+        terminal=terminal_run_options(app_settings, enabled=False),
+        run_settings=app_settings,
     )
-    output = outcome.output
+    output = finalise_sentinel_evaluation(outcome.output, thesis)
     usage = outcome.usage
     turn_usage = extract_turn_usage(outcome.all_messages)
     elapsed_s = outcome.elapsed_s
@@ -800,9 +802,7 @@ async def main() -> None:
                 surveyor_candidate=candidate,
                 deep_research=run_result.output,
                 thesis=strat_result.output,
-                use_perplexity=args.use_perplexity,
-                use_mcp_financial_data=args.use_mcp_financial_data,
-                terminal=terminal,
+                is_existing_position=args.is_existing_position,
             )
         except Exception as exc:
             sentinel_failures.append(

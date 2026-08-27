@@ -26,6 +26,7 @@ def _evaluation(
                 evidence="E",
                 verdict="Supports thesis",
                 confidence="High",
+                gap_kind="none",
             )
         ],
         red_flag_screen=RedFlagScreen(
@@ -50,6 +51,7 @@ def _evaluation(
         (ThesisVerdict.INTACT_PROCEED_TO_VALUATION, OverallRedFlagVerdict.CLEAR, True),
         (ThesisVerdict.INTACT_WITH_RESERVATIONS, OverallRedFlagVerdict.CLEAR, True),
         (ThesisVerdict.WEAKENED_DO_NOT_PROCEED, OverallRedFlagVerdict.CLEAR, False),
+        (ThesisVerdict.UNPROVEN_DO_NOT_PROCEED, OverallRedFlagVerdict.CLEAR, False),
         (ThesisVerdict.BROKEN_DO_NOT_PROCEED, OverallRedFlagVerdict.CLEAR, False),
         (
             ThesisVerdict.INTACT_PROCEED_TO_VALUATION,

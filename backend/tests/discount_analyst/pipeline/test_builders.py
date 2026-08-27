@@ -41,6 +41,7 @@ def _evaluation(
                 evidence="E",
                 verdict="Supports thesis",
                 confidence="High",
+                gap_kind="none",
             )
         ],
         red_flag_screen=RedFlagScreen(
@@ -53,7 +54,7 @@ def _evaluation(
             overall_red_flag_verdict=red_flag,
         ),
         thesis_verdict=thesis_verdict,
-        verdict_rationale="",
+        verdict_rationale="Printed evidence weakened the core claim.",
         material_data_gaps="",
         caveats=[],
     )
@@ -142,6 +143,8 @@ def test_build_sentinel_rejection_recommended_action_new_vs_held() -> None:
     )
     assert new_cand.recommended_action == "Do not initiate."
     assert held.recommended_action == "Exit the position."
+    assert "Printed evidence weakened the core claim." in new_cand.rejection_reason
+    assert "gap_kind tally:" in new_cand.rejection_reason
 
 
 def test_build_sentinel_rejection_ticker_mismatch_raises() -> None:

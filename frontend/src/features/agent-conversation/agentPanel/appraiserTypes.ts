@@ -17,7 +17,7 @@ export interface ValuationMethodResult {
   value_per_share?: number | null;
   low_value_per_share?: number | null;
   high_value_per_share?: number | null;
-  weight_pct?: number | null;
+  weight_pct: number;
 }
 
 export interface AppraiserOutput {

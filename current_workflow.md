@@ -1,4 +1,4 @@
-<!-- Synced: 2026-08-20 from live code via `.cursor/skills/sync-workflow` -->
+<!-- Synced: 2026-08-28 from live code via `.cursor/skills/sync-workflow` -->
 
 # Discount Analyst — current workflow
 
@@ -6,13 +6,23 @@ Implementation-accurate snapshot of the agentic pipeline. Ground truth is the co
 
 ## Changes since last sync
 
-Previous snapshot: 2026-08-15. Material change is the **dashboard candidate gate** (`validate_candidate` in `adapters/market_data/candidate_gates.py`). Other pipeline sections were re-checked against the same live paths as that snapshot (orchestration stages, CLI skip, mock skip, `DataQualityRejection` schema) and are unchanged except as noted.
+Previous snapshot: 2026-08-20. Material change is **CODE-77**: Python derives Sentinel `thesis_verdict` from `gap_kind` assessments, and Appraiser `expected_intrinsic_value` is a required weight-blend. The 2026-08-20 candidate-gate identity/listing policy is unchanged.
 
-**Candidate gate — identity.** Auto-correct only when FMP is confident: profile name similarity ≥ 0.55, or search exact `symbol` + exchange match, or exactly one strong name match (≥ 0.75) on the candidate’s exchange. Unknown or ambiguous identity (empty search, weak hits, several strong matches, FMP 402/403 on profile or search) **admits the original ticker** (`resolved_ticker == source_ticker`). Identity never yields `RejectedCandidateGate`. Previously: ambiguous/no match and US profile 402/403 were `DataQualityRejection` SELLs.
+**Sentinel — interpretation-only.** `create_sentinel_agent(ai_models_config)` always passes `enable_web_research_tools=False`, `use_mcp_financial_data=False`, and `terminal=terminal_run_options(..., enabled=False)`. Dashboard Perplexity/MCP/terminal settings are not forwarded. Frankfurter `convert_currency` remains. CLI `agent sentinel` no longer accepts `--perplexity` / `--no-mcp` / `--no-terminal`.
 
-**Candidate gate — listing.** Reject only on **positive** dead-listing evidence: FMP `isActivelyTrading is false` on a non-`.L` symbol, or EODHD `IsDelisted is true` for `.L` after the existing FMP→EODHD fallback. Unconfirmed listing (missing profile, unknown `isActivelyTrading`, FMP listing 402/403, EODHD missing quote and fundamentals, EODHD HTTP/transport errors on the listing probe) **admits**. `PassedCandidateGate.is_actively_trading` is `True` meaning not proven delisted; notes say listing was unconfirmed. Previously: inconclusive listing (including missing EODHD payloads) rejected.
+**Sentinel — `gap_kind` + derived verdict.** Each `QuestionAssessment` has required `gap_kind` (`none` \| `calendar` \| `never_disclosed` \| `contradicted`). After a live run, `finalise_sentinel_evaluation` (`agents/sentinel/derive_thesis_verdict.py`) overwrites `thesis_verdict` before persist. Reconstruct from SQLite does **not** re-derive. Question-count mismatch (`len(assessments) != len(thesis.evaluation_questions)`) raises `SentinelQuestionCountError` and the lane fails without persist. Mock Sentinel skips derive. New enum member: `Thesis unproven — do not proceed`. Alembic `0011_sentinel_gap_kind_appraiser_audit` adds `evaluation_question_assessments.gap_kind` (`NOT NULL`, default `'none'`).
 
-**Unchanged.** `DataQualityRejection` model, persist path, mock skip, CLI skip (no gate). No schema, API, or migration change. Agent packages, rating table, and Sentinel valuation gate are the same as 2026-08-15.
+Derivation order (`derive_thesis_verdict`): (1) any `Breaks thesis` with Medium/High → `BROKEN_DO_NOT_PROCEED`; (2) any `Weakens thesis` with `gap_kind` in `{none, never_disclosed, contradicted}` → `WEAKENED_DO_NOT_PROCEED`; (3) else if non-calendar assessments are non-empty and ≥ half are Low → `UNPROVEN_DO_NOT_PROCEED`; (4) else if any `calendar` gap → `INTACT_WITH_RESERVATIONS`; (5) else `INTACT_PROCEED_TO_VALUATION`. Low-confidence `Breaks thesis` falls through to (3), not broken. The valuation gate is unchanged in *shape*: proceed only on the two intact verdicts, and still block on red-flag `Serious concern`. Unproven and weakened skip Appraiser.
+
+**Sentinel rejection text.** `build_sentinel_rejection` now appends `verdict_rationale` and a compact `gap_kind` tally when the thesis is outside the proceed set.
+
+**Existing-position Sentinel prompt.** Dashboard/CLI `is_existing_position` is threaded into `create_user_prompt`. Existing-position wording: judge the live thesis on printed evidence; unreleased prints are reservations, not an exit. Derivation and the rating table are unchanged by the flag.
+
+**Appraiser — required blend.** `ValuationMethodResult.value_per_share` and `weight_pct` are required (`gt=0` / `0–100`). Weights must sum to **100 ± 0.05**. `expected_intrinsic_value` must equal `sum(value_per_share * weight_pct / 100)` within `max(0.01, 0.5% of |blend|)`. Percentiles stay model-produced (monotonic; expected in [p10, p90]); p10/p90 are not rewritten from cross-checks. `ValuationMethod` drops `other`; adds `earnings_multiple` and `fcf_yield`. `AppraiserOutput` requires `shares_outstanding` (`gt=0`), `share_count_source` (`filing` \| `profile` \| `implied_from_market_cap`), `quoted_price_unit` (`major` \| `subunit`). Old Appraiser JSON without these fields **fails closed** on `AppraiserOutput` validation (one contract). Alembic 0011 adds the three audit columns on `appraiser_reports` as **nullable** (historical rows); reconstruct still validates the Pydantic model.
+
+**Strategist questions.** `evaluation_questions` field description and prompts require questions answerable from the last reported period plus the last trading update; a future print must not be load-bearing. No new enum.
+
+**Unchanged.** Candidate gate, `DataQualityRejection`, CLI skip of the candidate gate, mock skip of the candidate gate, rating table, agent package set.
 
 Live agent packages under `discount_analyst/agents/`: **surveyor, profiler, researcher, strategist, sentinel, appraiser**. There is **no Arbiter agent**. Final ratings after a passing Sentinel gate come from a deterministic table (`rating_table_v1` in `discount_analyst.domain.decisions.rating_decision_table`).
 
@@ -86,8 +96,8 @@ CLI omits the candidate-gate diamond: Surveyor or Profiler output goes straight 
 | Profiler       | Financial screener of a **named** stock; resist favourable framing | Ticker string                           | `ProfilerOutput` wrapping one `SurveyorCandidate` | Same as Surveyor                                                                                                                                       |
 | Candidate gate | Deterministic, not an LLM                                          | `SurveyorCandidate`                     | `PassedCandidateGate` / `RejectedCandidateGate`   | FMP (+ EODHD fallback for `.L`). Identity-unknown and listing-unconfirmed **admit**. DQR is **delist-only**. **Skipped in mock.** **Not used by CLI.** |
 | Researcher     | **Neutral evidence assembler**; no recommendation language         | `SurveyorLaneContext`                   | `DeepResearchReport`                              | Web research + financial MCP + optional terminal                                                                                                       |
-| Strategist     | **Second-level thinker**; interpreter not researcher               | Lane context + `DeepResearchReport`     | `MispricingThesis`                                | Optional terminal only (no web/MCP)                                                                                                                    |
-| Sentinel       | **Adversary, not a validator**                                     | Lane context + research + thesis        | `EvaluationReport`                                | Optional terminal only (no web/MCP)                                                                                                                    |
+| Strategist     | **Second-level thinker**; interpreter not researcher               | Lane context + `DeepResearchReport`     | `MispricingThesis`                                | Web research + financial MCP + optional terminal (factory still forwards dashboard flags; see Findings)                                                 |
+| Sentinel       | **Adversary, not a validator**                                     | Lane context + research + thesis        | `EvaluationReport`                                | FX only (`convert_currency`). No web, MCP, or terminal. `thesis_verdict` overwritten in Python after a live run.                                        |
 | Appraiser      | Valuation specialist; **no Buy/Hold/Sell**                         | `AppraiserInput`                        | `AppraiserOutput`                                 | Web research + financial MCP + optional terminal                                                                                                       |
 | Rating table   | Deterministic                                                      | Lane + thesis + evaluation + MoS        | `RatingTableDecision` inside `Verdict`            | None                                                                                                                                                   |
 
@@ -121,11 +131,13 @@ Threaded from dashboard entry path (profiler = true, surveyor-discovered = false
 | Sentinel rejection     | `STRONG_SELL` if thesis broken **or** red-flag `Serious concern`; else `SELL` | Existing: “Exit immediately.” / “Exit the position.” New: “Avoid.” / “Do not initiate.” (`build_sentinel_rejection`)                        |
 | Rating table           | **Not** a function of `is_existing_position`                                  | Action string **is** (`_recommended_action_for_rating_position`)                                                                            |
 
-So the flag still only **frames recommended action** on the valuation path; it also changes Sentinel/data-quality action wording. It does **not** change rating-table tiers.
+So the flag **frames recommended action** on the valuation path and on Sentinel/data-quality action wording. On live Sentinel it also injects existing-position prompt wording. It does **not** change derivation, the valuation-gate proceed set, or rating-table tiers.
 
 ### Sentinel valuation gate
 
-`sentinel_proceeds_to_valuation(evaluation)` in `agents/sentinel/schema.py`:
+After a **live** Sentinel run, `finalise_sentinel_evaluation(evaluation, thesis)` in `agents/sentinel/derive_thesis_verdict.py` (1) rejects a question-count mismatch with `SentinelQuestionCountError` (lane fails; nothing is persisted) and (2) overwrites `thesis_verdict` from `question_assessments` / `gap_kind`. The model’s submitted `thesis_verdict` is best-effort only. Reconstruct-from-DB and mock Sentinel do **not** re-run this.
+
+`sentinel_proceeds_to_valuation(evaluation)` in `agents/sentinel/schema.py` then:
 
 ```text
 False if overall_red_flag_verdict == "Serious concern"
@@ -135,7 +147,9 @@ else True iff thesis_verdict in {
 }
 ```
 
-On false: Appraiser execution is marked `skipped`; `SentinelRejection` is persisted. On true: Appraiser runs, then the table.
+`Thesis weakened — do not proceed` and `Thesis unproven — do not proceed` both skip Appraiser (SELL unless the red-flag screen is `Serious concern`, which is STRONG SELL).
+
+On false: Appraiser execution is marked `skipped`; `SentinelRejection` is persisted (`rejection_reason` includes `verdict_rationale` and a `gap_kind` tally when the thesis is outside the proceed set). On true: Appraiser runs, then the table.
 
 `INTACT_WITH_RESERVATIONS` **does** proceed. It later sets `sentinel_has_reservations=True` in the table, which blocks `STRONG BUY` (Substantial + High + no reservations is the only `STRONG BUY` cell).
 
@@ -183,7 +197,7 @@ Recommended action by `(rating, is_existing_position)`:
 
 ## Complete schema reference
 
-Introspected 2026-08-15 via `model_json_schema()` / enum values. Nested models are listed once. `required` means the JSON schema `required` array (Pydantic defaults may still appear on the wire).
+Introspected 2026-08-28 via `model_json_schema()` / enum values. Nested models are listed once. `required` means the JSON schema `required` array (Pydantic defaults may still appear on the wire).
 
 ### Enums
 
@@ -192,9 +206,9 @@ Introspected 2026-08-15 via `model_json_schema()` / enum values. Nested models a
 | `Exchange`               | `LSE`, `AIM`, `NYSE`, `NASDAQ`                                                                                                                                                                                                                |
 | `Currency`               | `GBP`, `USD`                                                                                                                                                                                                                                  |
 | `StockCategory`          | `value`, `growth` — **defined in `surveyor.schema` but unused** (no field on `SurveyorCandidate`)                                                                                                                                             |
-| `ThesisVerdict`          | `Thesis intact — proceed to valuation`, `Thesis intact with reservations — proceed with noted caveats`, `Thesis weakened — do not proceed`, `Thesis broken — do not proceed`                                                                  |
+| `ThesisVerdict`          | `Thesis intact — proceed to valuation`, `Thesis intact with reservations — proceed with noted caveats`, `Thesis weakened — do not proceed`, `Thesis unproven — do not proceed`, `Thesis broken — do not proceed`                              |
 | `OverallRedFlagVerdict`  | `Clear`, `Monitor`, `Serious concern`                                                                                                                                                                                                         |
-| `ValuationMethod`        | `dcf`, `reverse_dcf`, `comparable_multiples`, `sum_of_parts`, `asset_value`, `unit_economics`, `scenario_weighting`, `monte_carlo`, `other`                                                                                                   |
+| `ValuationMethod`        | `dcf`, `reverse_dcf`, `comparable_multiples`, `sum_of_parts`, `asset_value`, `unit_economics`, `scenario_weighting`, `monte_carlo`, `earnings_multiple`, `fcf_yield` (no `other`)                                                              |
 | `InvestmentRating`       | see [Rating system](#rating-system)                                                                                                                                                                                                           |
 | `AgentName` (runtime)    | `APPRAISER`, `PROFILER`, `RESEARCHER`, `SENTINEL`, `STRATEGIST`, `SURVEYOR`                                                                                                                                                                   |
 | `AgentNameDb` / API slug | lowercase: `surveyor`, `profiler`, `researcher`, `strategist`, `sentinel`, `appraiser`                                                                                                                                                        |
@@ -244,17 +258,17 @@ No `minItems` on the lists.
 
 `ticker`, `company_name`, `mispricing_type`, `market_belief`, `mispricing_argument`, `resolution_mechanism`, `falsification_conditions` (string[]), `thesis_risks` (string[]), `evaluation_questions` (string[]), `permanent_loss_scenarios` (string[]), `conviction_level` (`Low` \| `Medium` \| `High`).
 
-Descriptions say “minimum 3 / 5 / 2” for some lists; **JSON schema has no `minItems`** on those arrays.
+`evaluation_questions` description: each question must be answerable from the last reported period plus the last trading update; a future print (e.g. “what will FY26 report?”) must not be load-bearing. Descriptions say “minimum 3 / 5 / 2” for some lists; **JSON schema has no `minItems`** on those arrays.
 
 ### `EvaluationReport` (all required)
 
 `ticker`, `company_name`, `question_assessments` (`QuestionAssessment`[]), `red_flag_screen` (`RedFlagScreen`), `thesis_verdict`, `verdict_rationale`, `material_data_gaps`, `caveats` (string[]).
 
-`QuestionAssessment`: `question`, `evidence`, `verdict` (`Supports thesis` \| `Neutral` \| `Weakens thesis` \| `Breaks thesis`), `confidence` (`Low` \| `Medium` \| `High`).
+`QuestionAssessment`: `question`, `evidence`, `verdict` (`Supports thesis` \| `Neutral` \| `Weakens thesis` \| `Breaks thesis`), `confidence` (`Low` \| `Medium` \| `High`), `gap_kind` (`none` \| `calendar` \| `never_disclosed` \| `contradicted`).
 
 `RedFlagScreen`: `governance_concerns`, `balance_sheet_stress`, `customer_or_supplier_concentration`, `accounting_quality`, `related_party_transactions`, `litigation_or_regulatory_risk`, `overall_red_flag_verdict`.
 
-No persisted `recommendation` field; the gate is derived.
+No persisted `recommendation` field. The model fills `thesis_verdict` best-effort; live runners overwrite it via `finalise_sentinel_evaluation` before persist. The valuation gate is then `sentinel_proceeds_to_valuation`.
 
 ### `AppraiserInput` (all required)
 
@@ -268,17 +282,17 @@ Class validator: percentiles monotonic; expected between p10 and p90.
 
 ### `ValuationMethodResult`
 
-Required: `method`, `role` (`primary` \| `cross_check`). Optional: `value_per_share`, `low_value_per_share`, `high_value_per_share` (all >0 or null), `weight_pct` (0–100 or null), `key_assumptions`, `evidence_summary`, `sanity_checks`, `limitations` (string[] with empty-list defaults).
+Required: `method`, `role` (`primary` \| `cross_check`), `value_per_share` (`gt=0`), `weight_pct` (`0–100`). Optional: `low_value_per_share`, `high_value_per_share` (both `gt=0` or null). Default empty lists: `key_assumptions`, `evidence_summary`, `sanity_checks`, `limitations`.
 
 Low ≤ high when both present.
 
 ### `AppraiserOutput`
 
-Required: `ticker`, `company_name`, `valuation_date`, `summary`, `valuation_distribution`, `methods`, `data_quality` (`High` \| `Medium` \| `Low`).
+Required: `ticker`, `company_name`, `valuation_date`, `summary`, `valuation_distribution`, `methods`, `data_quality` (`High` \| `Medium` \| `Low`), `shares_outstanding` (`gt=0`), `share_count_source` (`filing` \| `profile` \| `implied_from_market_cap`), `quoted_price_unit` (`major` \| `subunit`).
 
 Default empty lists: `key_value_drivers`, `downside_risks_to_value`, `upside_drivers_to_value`, `caveats`.
 
-Class validator: ≥1 method; **exactly one** `primary`; **≥1** `cross_check`; sum of non-null `weight_pct` ≤ 100.
+Class validator: ≥1 method; **exactly one** `primary`; **≥1** `cross_check`; weights sum to **100 ± 0.05**; `expected_intrinsic_value` equals the weight-blend of method `value_per_share` values within `max(0.01, 0.5% of |blend|)`. Distribution percentiles remain a separate monotonic / expected-in-[p10, p90] check.
 
 ### Gate result models
 
@@ -352,7 +366,7 @@ CLI: **no gate** (`run_full_workflow.py` uses `SurveyorCandidate.to_lane_context
 
 Serial. User prompts inject `<SurveyorLaneContext>` plus the quantitative-omission note (`lane_context_prompt.py`): screening metrics are not trusted numbers.
 
-Researcher and Appraiser get Perplexity/MCP flags from settings; Strategist and Sentinel pass `enable_web_research_tools=False` and `use_mcp_financial_data=False`.
+Researcher and Appraiser get Perplexity/MCP/terminal flags from settings. Strategist factory still forwards those same flags (`use_mcp_financial_data=True` default; `enable_web_research_tools` left at `create_agent` default `True`). Sentinel is interpretation-only: `create_sentinel_agent(ai_cfg)` only; live path uses `run_streamed_agent` with terminal disabled, then `finalise_sentinel_evaluation` before persist. Dashboard `is_existing_position` is passed into the Sentinel user prompt.
 
 ### Appraiser
 
@@ -390,9 +404,9 @@ MCP (`agents/tools/market_data/financial_data_mcp.py`): `https://mcp.eodhd.dev/m
 
 FMP blacklist (`mcp_tool_blacklist.py`): blocked tools `analyst`, `news`, `insiderTrades`, `chart`, `calendar`; blocked `statements` endpoints include `financial-scores` / `financial-score`, full statements, key-metrics, TTM statements, segments, owner-earnings; also `company`/`batch-market-cap` and `quote`/`quote-short`. EODHD blacklist is empty. Calls are wrapped in `InfallibleToolset` so 402s become model-visible errors.
 
-When Perplexity is off: `WebSearch(native=True, local=bounded DuckDuckGo)` and `WebFetch` (DeepSeek uses text-only local fetch). When Perplexity is on: `create_perplexity_toolset(agent_name)` — descriptions in `agents/runtime/tool_descriptions.py` (Appraiser, Profiler, Surveyor, Researcher). Strategist/Sentinel have no Perplexity entries because those tools are not registered.
+When Perplexity is off: `WebSearch(native=True, local=bounded DuckDuckGo)` and `WebFetch` (DeepSeek uses text-only local fetch). When Perplexity is on: `create_perplexity_toolset(agent_name)` — descriptions in `agents/runtime/tool_descriptions.py` (Appraiser, Profiler, Surveyor, Researcher). Sentinel has no Perplexity entry because those tools are not registered. Strategist *can* receive Perplexity when `use_perplexity=True` (dashboard setting / CLI `--perplexity`).
 
-Web-research agents: Surveyor, Profiler, Researcher, Appraiser. Interpretation-only: Strategist, Sentinel.
+Web-research agents: Surveyor, Profiler, Researcher, Appraiser, and **Strategist** (factory default). Interpretation-only: **Sentinel** (FX only).
 
 ---
 
@@ -425,7 +439,7 @@ Dashboard persists agent `output_json`, conversations, candidate-snapshot gate c
 
 - **Separation of stances**: screen → profile/evidence → thesis → adversarial gate → valuation-only → deterministic rating. No single agent both values and rates.
 - **Lane context strips trusted screening numbers** so Researcher/Strategist/Sentinel/Appraiser must re-source quantities.
-- **Gates are code, not prompt**: listing/ticker (`validate_candidate`), valuation proceed (`sentinel_proceeds_to_valuation`), rating (`rating_from_table_inputs`).
+- **Gates are code, not prompt**: listing/ticker (`validate_candidate`), Sentinel thesis verdict (`derive_thesis_verdict` / `finalise_sentinel_evaluation`), valuation proceed (`sentinel_proceeds_to_valuation`), Appraiser expected-value identity (weight-blend validator), rating (`rating_from_table_inputs`).
 - **One dashboard model** for all stages; CLI can pick `--model` per run.
 - **Mock is a first-class path** and, in DEV, the only dashboard path.
 
@@ -444,11 +458,13 @@ Dashboard persists agent `output_json`, conversations, candidate-snapshot gate c
 | Rating table                                   | `domain/decisions/rating_decision_table.py`                                                                        |
 | Verdict schemas                                | `domain/decisions/schema.py`                                                                                       |
 | Agent factories / prompts / schemas            | `agents/<name>/`                                                                                                   |
+| Sentinel thesis-verdict derivation             | `agents/sentinel/derive_thesis_verdict.py`                                                                         |
 | Shared agent runtime                           | `agents/runtime/` (`create_agent`, streaming, terminal bind)                                                       |
 | MCP + blacklist                                | `agents/tools/market_data/`                                                                                        |
 | Candidate gate                                 | `adapters/market_data/candidate_gates.py`                                                                          |
 | Mock payloads                                  | `adapters/simulation/mock_outputs.py`                                                                              |
 | Settings                                       | `config/settings.py`                                                                                               |
+| Alembic (gap_kind + Appraiser audit columns)   | `backend/migrations/versions/0011_sentinel_gap_kind_appraiser_audit.py`                                            |
 | Valuation toolkit (optional Appraiser helpers) | `domain/valuation/toolkit/`                                                                                        |
 
 CLI one-shots: `uv run discount-analyst agent {surveyor,profiler,researcher,strategist,sentinel,appraiser}`.
@@ -463,11 +479,12 @@ These are disagreements to resolve in code, prompts, or docs — not silently no
 2. **Blacklisted FMP vs schema copy.** `KeyMetrics` field descriptions tell the model to use FMP Financial Score and insider-trading tools; those tools/endpoints are **plan-gated off**. Surveyor prompt is closer to reality (“pre-computed Piotroski and Altman are not available on the current FMP plan”).
 3. **Beneish M-Score.** Surveyor prompt says it is “computed deterministically elsewhere”. **No Beneish implementation exists** in this package (grep only hits the prompt).
 4. **`StockCategory`.** Enum `value`/`growth` is unused. Appraiser user prompt explicitly says not to label value vs growth. Root `AGENTS.md` still describes a manual “categorise value or growth” stage.
-5. **Stale agent names in schemas/prompts.** Strategist `evaluation_questions` description: “the Evaluation Agent”. Sentinel `caveats`: “Appraiser and **final decision agent**”. `sentinel_proceeds_to_valuation` docstring: “Appraiser / **DCF** stage”. There is no Evaluation/Arbiter/final-decision LLM; DCF is optional inside Appraiser.
+5. **Stale agent names in schemas/prompts.** Strategist `evaluation_questions` description still says “the Evaluation Agent”. Sentinel `caveats`: “Appraiser and **final decision agent**”. `sentinel_proceeds_to_valuation` docstring: “Appraiser / **DCF** stage”. There is no Evaluation/Arbiter/final-decision LLM; DCF is optional inside Appraiser.
 6. **Researcher input type.** User prompt and factories pass `SurveyorLaneContext`. Researcher `DeepResearchReport` / `DataGapsUpdate` descriptions still say “Surveyor candidate”. System prompt Step 0 refers to `SurveyorCandidate.exchange` (the field exists on lane context too).
 7. **CLI vs dashboard gates.** CLI full workflow never calls `validate_candidate`. Dashboard always does (except mock). Same agent chain, different admission policy.
 8. **`agents/AGENTS.md`** omits Profiler; **no `profiler/AGENTS.md`**. Import paths in that file still mention `agents.common` and `scripts/agents`.
 9. **Root `AGENTS.md` Investment Workflow** still describes a seven-stage partly-manual process (shortlist, categorise, external evaluate). The dashboard/CLI implement the automated lane above, with a human decision only after the `Verdict`.
+10. **Strategist stance vs factory.** System prompt: interpreter, not researcher. `create_strategist_agent` still defaults `use_mcp_financial_data=True` and does not pass `enable_web_research_tools=False`, so dashboard Strategist still gets web/MCP/terminal from settings. Sentinel is the only interpretation-only production factory.
 
 ---
 
