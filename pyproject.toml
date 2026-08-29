@@ -14,7 +14,7 @@ dependencies = [
     "sqlalchemy (>=2.0.44,<3.0.0)",
     "sqlmodel (>=0.0.27,<0.0.28)",
     "alembic (>=1.17.1,<2.0.0)",
-    "yfinance (>=0.2.66,<0.3.0)",
+    "yfinance (>=1.7.0,<2.0.0)",
     "pydantic-settings>=2.14.2,<3.0.0",
     "perplexityai (>=0.22.0,<0.23.0)",
     "aiolimiter (>=1.2.1,<2.0.0)",
@@ -64,6 +64,9 @@ dev = [
 
 [tool.uv]
 exclude-newer = "1 week"
+# yfinance 1.7.0 (2026-08-26) and curl-cffi 0.16.2 (2026-08-25) are newer than
+# the rolling one-week cutoff; keep these two on the latest published versions.
+exclude-newer-package = { yfinance = "0 days", curl-cffi = "0 days" }
 
 [tool.pyrefly]
 python-version = "3.14.0"
