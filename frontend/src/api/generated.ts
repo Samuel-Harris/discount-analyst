@@ -76,6 +76,10 @@ export interface CreateWorkflowRunResponse {
   workflow_run_id: string;
 }
 
+export interface DashboardStatusResponse {
+  yfinance: YfinanceFreshnessResponse;
+}
+
 export type DecisionTypeApi = typeof DecisionTypeApi[keyof typeof DecisionTypeApi];
 
 
@@ -243,6 +247,14 @@ export const WorkflowRunStatusApi = {
   cancelled: 'cancelled',
 } as const;
 
+export type YfinanceFreshnessResponseLatestVersion = string | null;
+
+export interface YfinanceFreshnessResponse {
+  installed_version: string;
+  is_outdated: boolean;
+  latest_version: YfinanceFreshnessResponseLatestVersion;
+}
+
 /**
  * @summary Get Run Agent Conversation
  */
@@ -307,6 +319,30 @@ export const getGetPortfolioApiPortfolioGetUrl = () => {
 export const getPortfolioApiPortfolioGet = async ( options?: RequestInit): Promise<PortfolioResponse> => {
   
   return dashboardMutator<PortfolioResponse>(getGetPortfolioApiPortfolioGetUrl(),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
+ * @summary Get Dashboard Status
+ */
+export const getGetDashboardStatusApiStatusGetUrl = () => {
+
+
+  
+
+  return `/api/status`
+}
+
+export const getDashboardStatusApiStatusGet = async ( options?: RequestInit): Promise<DashboardStatusResponse> => {
+  
+  return dashboardMutator<DashboardStatusResponse>(getGetDashboardStatusApiStatusGetUrl(),
   {      
     ...options,
     method: 'GET'

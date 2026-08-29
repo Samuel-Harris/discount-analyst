@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-23 | Updated: 2026-08-28 -->
+<!-- Generated: 2026-02-23 | Updated: 2026-08-29 -->
 
 # tests
 
@@ -32,13 +32,14 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | `tests/backend/unit/test_persist_ticker_run_final_verdict.py`           | DQR persist source lookup: Profiler if present, else workflow Surveyor; Researcher id unused.                                                                                                                 |
 | `tests/backend/unit/test_dashboard_settings.py`                         | Unified ``Settings`` validation (e.g. non-empty ``LOGGING__LOGFIRE_API_KEY``).                                                                                                                                |
 | `tests/backend/unit/test_workflow_api.py`                               | HTTP contract tests for the FastAPI dashboard (`backend`) with isolated SQLite.                                                                                                                               |
+| `tests/discount_analyst/integrations/test_yfinance_freshness.py`        | Installed vs PyPI `yfinance` version comparison and mocked HTTP freshness check.                                                                                                                              |
 | `tests/backend/unit/test_agent_lane_order_sync.py`                      | Keeps `discount_analyst.application.workflows.agent_lane_order` aligned with `frontend/src/features/pipeline-graph/agentLaneOrder.ts`.                                                                        |
 | `tests/backend/unit/test_profiler_stage.py`                             | Unit tests for the extracted dashboard `ProfilerStage` and its persistence port.                                                                                                                              |
 | `tests/backend/unit/test_mock_surveyor_discoveries.py`                  | Mock Surveyor discovery helpers and deterministic mock Sentinel pass/fail parity for the dashboard.                                                                                                           |
 | `tests/backend/unit/test_mock_rating_table_dashboard.py`                | Deterministic mock `RatingTableDecision` helpers for dashboard payloads.                                                                                                                                      |
 | `tests/backend/unit/test_appraiser_output_persistence.py`               | Appraiser `AppraiserReport` persistence and `get_appraiser_report_for_run` join behaviour.                                                                                                                    |
 | `tests/backend/unit/test_agent_output_persistence.py`                   | Profiler `CandidateSnapshot` persistence (exactly one row at `sort_order=0`).                                                                                                                                 |
-| `tests/backend/unit/test_migration_startup.py`                          | Alembic head on startup, metadata verify, and 0009→head agent-execution unify remap (head is 0011).                                               |
+| `tests/backend/unit/test_migration_startup.py`                          | Alembic head on startup, metadata verify, and 0009→head agent-execution unify remap (head is 0011).                                                                                                           |
 | `tests/backend/integration/test_mock_workflow.py`                       | Mock pipeline persistence for `DashboardPipelineRunner` (no live LLM calls); mixed Sentinel lanes.                                                                                                            |
 | `tests/backend/integration/test_dashboard_http_e2e.py`                  | Async HTTP path: create mock workflow run, poll until completed, assert detail and conversations.                                                                                                             |
 

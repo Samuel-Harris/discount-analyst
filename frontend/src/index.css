@@ -74,8 +74,11 @@ button {
   min-height: 0;
 }
 
-.app-header {
+.app-top {
   grid-column: 1 / -1;
+}
+
+.app-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -124,6 +127,24 @@ button {
 
 .ui-state-text--muted {
   color: var(--text-dim);
+}
+
+.ui-state-text--warning {
+  color: var(--warn);
+}
+
+.app-shell-alert {
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(232, 197, 71, 0.35);
+  background: rgba(232, 197, 71, 0.08);
+}
+
+.app-shell-alert .ui-state-text {
+  font-size: 12px;
+}
+
+.app-shell-alert code {
+  font-size: 12px;
 }
 
 .main-panel-alert {

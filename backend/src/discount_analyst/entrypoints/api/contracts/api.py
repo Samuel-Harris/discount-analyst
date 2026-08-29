@@ -102,3 +102,13 @@ class ConversationResponse(BaseModel):
 
 class PortfolioResponse(BaseModel):
     portfolio_tickers: list[str]
+
+
+class YfinanceFreshnessResponse(BaseModel):
+    installed_version: str
+    latest_version: str | None
+    is_outdated: bool
+
+
+class DashboardStatusResponse(BaseModel):
+    yfinance: YfinanceFreshnessResponse
