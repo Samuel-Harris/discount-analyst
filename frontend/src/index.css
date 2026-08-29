@@ -1103,6 +1103,12 @@ button {
   color: var(--muted);
 }
 
+.conversation-message-context {
+  font-size: 10px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .conversation-message-parts {
   display: flex;
   flex-direction: column;

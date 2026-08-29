@@ -3,7 +3,9 @@
 import json
 from unittest.mock import patch
 
-from sqlmodel import Session, select
+from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
+from pydantic_ai.usage import RequestUsage
+from sqlmodel import Session, col, select
 
 from discount_analyst.adapters.persistence.crud.agent_output_persistence import (
     replace_research_report,
@@ -14,6 +16,7 @@ from discount_analyst.adapters.persistence.crud.candidate_snapshots import (
 from discount_analyst.adapters.persistence.crud.conversations import (
     assistant_response_for_run_agent,
     build_messages_json,
+    insert_conversation_for_agent_execution,
     message_part_kind_from_raw,
     replace_conversation_messages,
 )
@@ -26,6 +29,7 @@ from discount_analyst.adapters.simulation.mock_outputs import (
 from discount_analyst.adapters.persistence.models import (
     AgentConversation,
     AgentExecution,
+    AgentConversationMessage,
     AgentConversationMessagePart,
     AgentNameDb,
     EntryPathDb,
@@ -34,6 +38,7 @@ from discount_analyst.adapters.persistence.models import (
     Run,
     WorkflowRunStatusDb,
 )
+from discount_analyst.domain.model_selection.model_name import ModelName
 
 
 def test_message_part_kind_from_raw_treats_thinking_as_text() -> None:
@@ -249,3 +254,164 @@ def test_research_report_without_candidate_persists_and_rehydrates(
     assert "candidate" not in rehydrated
     assert rehydrated["executive_overview"] == report.executive_overview
     assert rehydrated["data_gaps_update"]["original_data_gaps"] == candidate.data_gaps
+
+
+def test_replace_conversation_messages_persists_response_usage(
+    db_session: Session,
+) -> None:
+    insert_workflow_run(
+        db_session,
+        workflow_run_id="workflow-usage",
+        portfolio_tickers=["ABC.L"],
+        is_mock=True,
+    )
+    execution = AgentExecution(
+        id="surveyor-exec-usage",
+        workflow_run_id="workflow-usage",
+        agent_name=AgentNameDb.SURVEYOR,
+        status=ExecutionStatusDb.COMPLETED,
+        model_name=ModelName.GPT_5_6_LUNA,
+    )
+    conversation = AgentConversation(
+        id="conversation-usage",
+        agent_execution_id=execution.id,
+        system_prompt="System prompt",
+    )
+    db_session.add(execution)
+    db_session.add(conversation)
+    db_session.commit()
+
+    replace_conversation_messages(
+        db_session,
+        conversation_id=conversation.id,
+        messages_payload=[
+            {
+                "kind": "request",
+                "parts": [{"part_kind": "user-prompt", "content": "Analyse"}],
+            },
+            {
+                "kind": "response",
+                "parts": [{"part_kind": "text", "content": "Done"}],
+                "usage": {
+                    "input_tokens": 105_000,
+                    "output_tokens": 20,
+                    "cache_write_tokens": 0,
+                    "cache_read_tokens": 1_000,
+                },
+            },
+        ],
+    )
+    db_session.commit()
+
+    stored = db_session.scalars(
+        select(AgentConversationMessage).order_by(
+            col(AgentConversationMessage.message_index)
+        )
+    ).all()
+    assert stored[0].input_tokens is None
+    assert stored[1].input_tokens == 105_000
+    assert stored[1].output_tokens == 20
+    assert stored[1].cache_read_tokens == 1_000
+    assert stored[1].total_tokens == 105_020
+
+    rebuilt = json.loads(
+        build_messages_json(
+            db_session, conversation.id, model_name=ModelName.GPT_5_6_LUNA
+        )
+    )
+    assert "usage" not in rebuilt[0]
+    assert rebuilt[1]["usage"] == {
+        "input_tokens": 105_000,
+        "output_tokens": 20,
+        "cache_write_tokens": 0,
+        "cache_read_tokens": 1_000,
+        "total_tokens": 105_020,
+        "context_window_tokens": 1_050_000,
+        "context_window_used_pct": 10.0,
+    }
+
+
+def test_insert_conversation_persists_usage_from_model_messages(
+    db_session: Session,
+) -> None:
+    insert_workflow_run(
+        db_session,
+        workflow_run_id="workflow-live-usage",
+        portfolio_tickers=["ABC.L"],
+        is_mock=True,
+    )
+    execution = AgentExecution(
+        id="surveyor-exec-live-usage",
+        workflow_run_id="workflow-live-usage",
+        agent_name=AgentNameDb.SURVEYOR,
+        status=ExecutionStatusDb.COMPLETED,
+        model_name=ModelName.GPT_5_6_LUNA,
+    )
+    db_session.add(execution)
+    db_session.commit()
+
+    insert_conversation_for_agent_execution(
+        db_session,
+        conversation_id="conversation-live-usage",
+        agent_execution_id=execution.id,
+        system_prompt="System prompt",
+        messages=[
+            ModelRequest(parts=[UserPromptPart(content="Analyse")]),
+            ModelResponse(
+                parts=[TextPart(content="Done")],
+                usage=RequestUsage(
+                    input_tokens=105_000,
+                    output_tokens=20,
+                    cache_write_tokens=0,
+                    cache_read_tokens=1_000,
+                ),
+            ),
+        ],
+    )
+    db_session.commit()
+
+    rebuilt = json.loads(
+        build_messages_json(
+            db_session,
+            "conversation-live-usage",
+            model_name=ModelName.GPT_5_6_LUNA,
+        )
+    )
+    assert "usage" not in rebuilt[0]
+    assert rebuilt[1]["usage"]["input_tokens"] == 105_000
+    assert rebuilt[1]["usage"]["output_tokens"] == 20
+    assert rebuilt[1]["usage"]["cache_read_tokens"] == 1_000
+    assert rebuilt[1]["usage"]["total_tokens"] == 105_020
+    assert rebuilt[1]["usage"]["context_window_used_pct"] == 10.0
+
+
+def test_build_messages_json_omits_usage_when_tokens_were_never_stored(
+    db_session: Session,
+) -> None:
+    conversation = AgentConversation(
+        id="conversation-legacy",
+        agent_execution_id="missing-execution",
+        system_prompt="System prompt",
+    )
+    db_session.add(conversation)
+    db_session.commit()
+
+    replace_conversation_messages(
+        db_session,
+        conversation_id=conversation.id,
+        messages_payload=[
+            {
+                "kind": "response",
+                "parts": [{"part_kind": "text", "content": "Legacy"}],
+            }
+        ],
+    )
+    db_session.commit()
+
+    rebuilt = json.loads(build_messages_json(db_session, conversation.id))
+    assert rebuilt == [
+        {
+            "kind": "response",
+            "parts": [{"part_kind": "text", "content": "Legacy"}],
+        }
+    ]
