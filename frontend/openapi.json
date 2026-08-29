@@ -209,6 +209,18 @@
         "title": "CreateWorkflowRunResponse",
         "type": "object"
       },
+      "DashboardStatusResponse": {
+        "properties": {
+          "yfinance": {
+            "$ref": "#/components/schemas/YfinanceFreshnessResponse"
+          }
+        },
+        "required": [
+          "yfinance"
+        ],
+        "title": "DashboardStatusResponse",
+        "type": "object"
+      },
       "DecisionTypeApi": {
         "enum": [
           "rating_table",
@@ -638,6 +650,36 @@
         ],
         "title": "WorkflowRunStatusApi",
         "type": "string"
+      },
+      "YfinanceFreshnessResponse": {
+        "properties": {
+          "installed_version": {
+            "title": "Installed Version",
+            "type": "string"
+          },
+          "is_outdated": {
+            "title": "Is Outdated",
+            "type": "boolean"
+          },
+          "latest_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Version"
+          }
+        },
+        "required": [
+          "installed_version",
+          "latest_version",
+          "is_outdated"
+        ],
+        "title": "YfinanceFreshnessResponse",
+        "type": "object"
       }
     }
   },
@@ -757,6 +799,27 @@
         "summary": "Get Portfolio",
         "tags": [
           "portfolio"
+        ]
+      }
+    },
+    "/api/status": {
+      "get": {
+        "operationId": "get_dashboard_status_api_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Dashboard Status",
+        "tags": [
+          "status"
         ]
       }
     },

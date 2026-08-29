@@ -3,12 +3,14 @@ export type {
   ConversationResponse,
   CreateWorkflowRunRequest,
   CreateWorkflowRunResponse,
+  DashboardStatusResponse,
   EntryPathApi,
   ExecutionStatusApi,
   PortfolioResponse,
   TickerRunDetail,
   WorkflowRunDetailResponse,
   WorkflowRunListItem,
+  YfinanceFreshnessResponse,
 } from "./generated";
 
 export {
@@ -16,6 +18,7 @@ export {
   cancelWorkflowRunApiWorkflowRunsWorkflowRunIdCancelPost as cancelWorkflowRun,
   createWorkflowRunApiWorkflowRunsPost as createWorkflowRun,
   deleteWorkflowRunApiWorkflowRunsWorkflowRunIdDelete as deleteWorkflowRun,
+  getDashboardStatusApiStatusGet as fetchDashboardStatus,
   getPortfolioApiPortfolioGet as fetchPortfolio,
   getRunAgentConversationApiAgentsRunsRunIdAgentsAgentNameConversationGet as fetchRunAgentConversation,
   getSurveyorConversationApiAgentsWorkflowRunsWorkflowRunIdAgentsSurveyorConversationGet as fetchSurveyorConversation,

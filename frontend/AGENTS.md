@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-07-11 | Updated: 2026-07-11 (thin shell + ownership) -->
+<!-- Generated: 2026-07-11 | Updated: 2026-08-29 (yfinance outdated banner) -->
 
 # frontend
 
@@ -22,18 +22,18 @@ Vite + React SPA for the local Discount Analyst dashboard. This directory owns t
 
 ## Subdirectories
 
-| Directory                          | Purpose                                                                                                                           |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `src/app/`                         | Shell composition: thin `DashboardShell` wiring + `WorkflowRunMainPanel` (sorts ticker lanes once for graph and recommendations). |
-| `src/features/workflow-runs/`      | Run list/sidebar, launch form, detail header, recommendations view, run hooks (`useWorkflowRunActions`, navigation/detail/list).  |
-| `src/features/pipeline-graph/`     | React Flow pipeline graph, lane order (`tickerRunOrder`), and layout builders.                                                    |
-| `src/features/agent-conversation/` | Agent conversation panel (`AgentPanel` + `agentPanel/**`), `useConversation`, and `useAgentConversationPanel`.                    |
-| `src/components/`                  | Shared presentational pieces only (`UiStateText`, `JsonPretty`, `DeployEnvBadge`).                                                |
-| `src/api/`                         | Orval-generated client, `orval-mutator.ts`, and thin `index.ts` facade (allowed shared API surface — not a feature barrel).       |
-| `src/lib/server-state/`            | Custom polling + invalidation (`usePollingQuery`, `invalidation`, `queryKeys`). Import modules directly — no barrel `index.ts`.   |
-| `src/utils/`                       | Pure helpers (`formatWhen`, `laneStatusDisplay`).                                                                                 |
-| `src/types/`                       | Shared types such as `ConversationTarget` (so graph/app do not import the agent-conversation feature).                            |
-| `src/test/`                        | Vitest setup (`setup.ts`). Do not rename to `testing/`.                                                                           |
+| Directory                          | Purpose                                                                                                                                                         |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/app/`                         | Shell composition: thin `DashboardShell` wiring, yfinance freshness banner, and `WorkflowRunMainPanel` (sorts ticker lanes once for graph and recommendations). |
+| `src/features/workflow-runs/`      | Run list/sidebar, launch form, detail header, recommendations view, run hooks (`useWorkflowRunActions`, navigation/detail/list).                                |
+| `src/features/pipeline-graph/`     | React Flow pipeline graph, lane order (`tickerRunOrder`), and layout builders.                                                                                  |
+| `src/features/agent-conversation/` | Agent conversation panel (`AgentPanel` + `agentPanel/**`), `useConversation`, and `useAgentConversationPanel`.                                                  |
+| `src/components/`                  | Shared presentational pieces only (`UiStateText`, `JsonPretty`, `DeployEnvBadge`, `YfinanceOutdatedBanner`).                                                    |
+| `src/api/`                         | Orval-generated client, `orval-mutator.ts`, and thin `index.ts` facade (allowed shared API surface — not a feature barrel).                                     |
+| `src/lib/server-state/`            | Custom polling + invalidation (`usePollingQuery`, `invalidation`, `queryKeys`). Import modules directly — no barrel `index.ts`.                                 |
+| `src/utils/`                       | Pure helpers (`formatWhen`, `laneStatusDisplay`).                                                                                                               |
+| `src/types/`                       | Shared types such as `ConversationTarget` (so graph/app do not import the agent-conversation feature).                                                          |
+| `src/test/`                        | Vitest setup (`setup.ts`). Do not rename to `testing/`.                                                                                                         |
 
 Entry wiring stays at `src/main.tsx` and `src/App.tsx` (thin root that mounts `app/DashboardShell`).
 

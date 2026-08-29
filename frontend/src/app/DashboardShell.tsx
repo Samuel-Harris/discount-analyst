@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 
+import { YfinanceOutdatedBanner } from "@/components/YfinanceOutdatedBanner";
 import { AgentPanel } from "@/features/agent-conversation/AgentPanel";
 import { useAgentConversationPanel } from "@/features/agent-conversation/useAgentConversationPanel";
 import { RunPipelineForm } from "@/features/workflow-runs/RunPipelineForm";
@@ -9,6 +10,7 @@ import { useWorkflowRunDetail } from "@/features/workflow-runs/useWorkflowRunDet
 import { useWorkflowRunNavigation } from "@/features/workflow-runs/useWorkflowRunNavigation";
 import { useWorkflowRuns } from "@/features/workflow-runs/useWorkflowRuns";
 import { AppHeader } from "./layout/AppHeader";
+import { useYfinanceFreshness } from "./useYfinanceFreshness";
 import { WorkflowRunMainPanel } from "./WorkflowRunMainPanel";
 
 export function DashboardShell() {
@@ -43,6 +45,7 @@ export function DashboardShell() {
   });
   const conversationPanel = useAgentConversationPanel();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const yfinance = useYfinanceFreshness();
 
   const onLaunched = useCallback(
     (workflowRunId: string) => {
@@ -55,7 +58,15 @@ export function DashboardShell() {
 
   return (
     <div className="app-shell">
-      <AppHeader listError={error} listLoading={loading} />
+      <div className="app-top">
+        <AppHeader listError={error} listLoading={loading} />
+        {yfinance?.is_outdated && yfinance.latest_version ? (
+          <YfinanceOutdatedBanner
+            installedVersion={yfinance.installed_version}
+            latestVersion={yfinance.latest_version}
+          />
+        ) : null}
+      </div>
 
       <Sidebar
         items={items}

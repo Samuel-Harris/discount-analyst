@@ -10,6 +10,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from discount_analyst.adapters.market_data.yfinance_freshness import YfinanceFreshness
 from discount_analyst.composition.api import create_app
 from discount_analyst.application.workflows.agent_lane_order import (
     PROFILER_ENTRY_AGENT_NAMES,
@@ -31,6 +32,7 @@ from discount_analyst.adapters.persistence.models import (
     WorkflowRunStatusDb,
 )
 from discount_analyst.composition.dev_seed import seed
+from discount_analyst.config.settings import Settings
 from discount_analyst.config.testing_settings import dashboard_settings_for_tests
 
 
@@ -51,6 +53,39 @@ def test_list_workflow_runs_empty(client: TestClient) -> None:
     r = client.get("/api/workflow_runs")
     assert r.status_code == 200
     assert r.json() == []
+
+
+def test_dashboard_status_reports_current_yfinance(client: TestClient) -> None:
+    response = client.get("/api/status")
+    assert response.status_code == 200
+    payload = response.json()["yfinance"]
+    assert payload["is_outdated"] is False
+    assert payload["installed_version"]
+    assert payload["latest_version"] == payload["installed_version"]
+
+
+def test_dashboard_status_reports_outdated_yfinance(
+    dashboard_settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _outdated() -> YfinanceFreshness:
+        return YfinanceFreshness(
+            installed_version="1.6.0",
+            latest_version="1.7.0",
+            is_outdated=True,
+        )
+
+    monkeypatch.setattr(
+        "discount_analyst.composition.api.check_yfinance_freshness",
+        _outdated,
+    )
+    with TestClient(create_app(dashboard_settings)) as test_client:
+        payload = test_client.get("/api/status").json()["yfinance"]
+    assert payload == {
+        "installed_version": "1.6.0",
+        "latest_version": "1.7.0",
+        "is_outdated": True,
+    }
 
 
 def test_dev_deploy_env_forces_mock_even_when_client_requests_live(
