@@ -13,7 +13,7 @@ Use this skill when the user asks you to take a Linear ticket all the way to a m
 
 The user must provide a Linear issue ID or URL. If an argument was provided (`$ARGUMENTS`), use it as the Linear issue ID. If neither is present, ask for one before doing anything else.
 
-The target base `$BASE` is `dev`. Set `BASE=main` only when the user or the Linear ticket explicitly says this is a hotfix / targets `main` / should branch from `origin/main`. Do not infer a main hotfix from production impact, severity, or infra urgency. Use `$BASE` for branch creation, the thermos merge-base, and the `pr` handoff.
+The target base `$BASE` is `main`. Use `$BASE` for branch creation, the thermos merge-base, and the `pr` handoff.
 
 ## Hard Safety Rules
 
@@ -38,7 +38,7 @@ The target base `$BASE` is `dev`. Set `BASE=main` only when the user or the Line
    - `get_issue` with `id`, `includeRelations: true`, and `includeCustomerNeeds: true`.
    - `list_comments` with `issueId` and a high enough `limit` to capture the ticket discussion.
 
-   Extract the issue key, title, description, acceptance criteria, attachments or linked docs, relationships, customer needs, and `gitBranchName`. Treat the Linear ticket as the source of truth for branch name and scope. Then set `BASE=dev`, or `BASE=main` only under the Required Input hotfix rule.
+   Extract the issue key, title, description, acceptance criteria, attachments or linked docs, relationships, customer needs, and `gitBranchName`. Treat the Linear ticket as the source of truth for branch name and scope. Then set `BASE=main`.
 
 2. **Create the branch from `origin/$BASE`**
 
