@@ -51,12 +51,19 @@ def _log_turn_context_usage(
     messages: list[ModelMessage],
 ) -> None:
     for turn, usage in enumerate(iter_model_response_token_usage(messages), start=1):
+        snapshot = attach_context_window(usage, model_name)
         AI_LOGFIRE.info(
             "Agent turn context usage",
             agent_name=agent_name,
             model_name=None if model_name is None else model_name.value,
             turn=turn,
-            **attach_context_window(usage, model_name).to_json_dict(),
+            input_tokens=snapshot.input_tokens,
+            output_tokens=snapshot.output_tokens,
+            cache_write_tokens=snapshot.cache_write_tokens,
+            cache_read_tokens=snapshot.cache_read_tokens,
+            total_tokens=snapshot.total_tokens,
+            context_window_tokens=snapshot.context_window_tokens,
+            context_window_used_pct=snapshot.context_window_used_pct,
         )
 
 
