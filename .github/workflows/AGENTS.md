@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-23 | Updated: 2026-07-11 (frontend lint in CI) -->
+<!-- Generated: 2026-02-23 | Updated: 2026-08-30 (CI on all pull requests) -->
 
 # workflows
 
@@ -11,7 +11,7 @@ The `workflows/` directory contains GitHub Actions workflow definitions that aut
 
 | File     | Description                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ci.yml` | The primary Continuous Integration workflow: pre-commit, pytest (with coverage for `discount_analyst`; suite under `backend/tests/`), pyright, import-linter, Tach `check-external` (pyproject dependency accuracy), Alembic schema drift check (`backend/tools/check_alembic_schema.py`), a Node-only frontend job (`pnpm lint`, build, Vitest), and an OpenAPI/Orval drift check that rebuilds the dashboard client after regeneration. |
+| `ci.yml` | The primary Continuous Integration workflow. Runs on every pull request (including stacked PRs whose base is not `main`) and on pushes to `main`. Jobs: pre-commit, pytest (with coverage for `discount_analyst`; suite under `backend/tests/`), pyright, import-linter, Tach `check-external` (pyproject dependency accuracy), Alembic schema drift check (`backend/tools/check_alembic_schema.py`), a Node-only frontend job (`pnpm lint`, build, Vitest), and an OpenAPI/Orval drift check that rebuilds the dashboard client after regeneration. |
 
 ## Subdirectories
 
