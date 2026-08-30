@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# Start an isolated DEV dashboard (API + Vite) for verification.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib.sh"
+
+cd "$REPO_ROOT"
+
+if [[ -f "$STATE_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$STATE_FILE"
+  if pid_alive "${LAUNCH_API_PID:-}" || pid_alive "${LAUNCH_UI_PID:-}" || \
+     pid_alive "${API_PID:-}" || pid_alive "${UI_PID:-}"; then
+    die "a verification instance is already running (RUN_ID=${RUN_ID:-unknown}). Run scripts/cleanup first."
+  fi
+  rm -rf "$RUN_DIR"
+fi
+
+API_PORT="$DEFAULT_API_PORT"
+UI_PORT="$DEFAULT_UI_PORT"
+port_in_use "$API_PORT" && die "port $API_PORT is already in use — set VERIFY_API_PORT to a free port"
+port_in_use "$UI_PORT" && die "port $UI_PORT is already in use — set VERIFY_UI_PORT to a free port"
+
+command -v uv >/dev/null || die "uv is not on PATH"
+[[ -d "$REPO_ROOT/frontend/node_modules" ]] || die "frontend/node_modules is missing — run: cd frontend && pnpm install --frozen-lockfile"
+
+mkdir -p "$RUN_DIR" "$EVIDENCE_DIR"
+RUN_ID="$(date +%Y%m%dT%H%M%S)-$$"
+DATABASE_PATH="$RUN_DIR/dashboard.verify.${RUN_ID}.sqlite"
+API_URL="http://127.0.0.1:${API_PORT}"
+UI_URL="http://127.0.0.1:${UI_PORT}"
+
+export ENV=DEV
+export DASHBOARD_DEPLOY_ENV=DEV
+export DASHBOARD_DATABASE_PATH="$DATABASE_PATH"
+export DASHBOARD_USE_TERMINAL=false
+export VITE_DEV_PROXY_TARGET="$API_URL"
+
+LAUNCH_API_PID="$(
+  python3 "$SCRIPT_DIR/spawn.py" "$RUN_DIR/api.log" -- \
+    uv run uvicorn discount_analyst.composition.api:create_app \
+    --factory --host 127.0.0.1 --port "$API_PORT"
+)"
+
+if ! wait_http "$API_URL/api/workflow_runs" '\[' 60; then
+  kill "$LAUNCH_API_PID" 2>/dev/null || true
+  die "API did not become ready on $API_URL — see $RUN_DIR/api.log"
+fi
+
+LAUNCH_UI_PID="$(
+  python3 "$SCRIPT_DIR/spawn.py" "$RUN_DIR/ui.log" -- \
+    env ENV=DEV VITE_DEV_PROXY_TARGET="$API_URL" \
+    pnpm --dir "$REPO_ROOT/frontend" exec vite --host 127.0.0.1 --port "$UI_PORT" --strictPort
+)"
+
+if ! wait_http "$UI_URL/" "Discount Analyst" 60; then
+  kill "$LAUNCH_API_PID" "$LAUNCH_UI_PID" 2>/dev/null || true
+  die "UI did not become ready on $UI_URL — see $RUN_DIR/ui.log"
+fi
+
+API_PID="$(listener_pids "$API_PORT" | awk 'NR==1')"
+UI_PID="$(listener_pids "$UI_PORT" | awk 'NR==1')"
+[[ -n "$API_PID" && -n "$UI_PID" ]] || die "could not resolve listen PIDs after startup"
+
+cat >"$STATE_FILE" <<EOF
+RUN_ID=$RUN_ID
+LAUNCH_API_PID=$LAUNCH_API_PID
+LAUNCH_UI_PID=$LAUNCH_UI_PID
+API_PID=$API_PID
+UI_PID=$UI_PID
+API_PORT=$API_PORT
+UI_PORT=$UI_PORT
+API_URL=$API_URL
+UI_URL=$UI_URL
+DATABASE_PATH=$DATABASE_PATH
+EOF
+
+echo "launched RUN_ID=$RUN_ID"
+echo "UI_URL=$UI_URL"
+echo "API_URL=$API_URL"
+echo "DATABASE_PATH=$DATABASE_PATH"
+echo "STATE_FILE=$STATE_FILE"
