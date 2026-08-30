@@ -38,13 +38,14 @@ Official-source tools for US/UK listed-equity universes and filing-derived funda
 - SEC requests need `SEC__USER_AGENT`. A missing value blocks SEC refresh/gap-fill, not listings or Companies House.
 - Stale SEC ticker and submissions files are served when a live refresh fails.
 - Companies House iXBRL facts are taken from the latest context period, not document order.
+- SEC statement period is the latest fiscal period end among non-share facts. A later `EntityCommonStockSharesOutstanding` instant does not redefine it.
 - Do not download multi-gigabyte archives inside an agent tool call. Bulk refresh is `discount-analyst admin refresh-regulatory-data`.
 - Ambiguous UK identity is data (`selected=None`), not a guessed match.
 
 ### Testing Requirements
 
 - Mock HTTP. Fixtures: `backend/tests/fixtures/regulatory_data/`.
-- Tests: `backend/tests/discount_analyst/integrations/test_*nasdaq*`, `test_*london*`, `test_sec_edgar.py`, `test_companies_house.py`, `test_regulatory_data_*.py`, `test_refresh_regulatory_data.py`.
+- Tests: `backend/tests/discount_analyst/integrations/test_*nasdaq*`, `test_*london*`, `test_sec_edgar.py`, `test_sec_edgar_selection.py`, `test_companies_house.py`, `test_regulatory_data_*.py`, `test_refresh_regulatory_data.py`.
 
 ## Dependencies
 

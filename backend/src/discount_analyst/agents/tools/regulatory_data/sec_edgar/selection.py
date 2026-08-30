@@ -187,7 +187,10 @@ def choose_winning_filing(
     ]
     if not eligible:
         return None
-    period_end = max(row.period_end for row in eligible)
+    period_rows = [
+        row for row in eligible if row.concept not in SHARES_CONCEPTS
+    ] or eligible
+    period_end = max(row.period_end for row in period_rows)
     at_period = [row for row in eligible if row.period_end == period_end]
     filed_at = max(row.filed_at for row in at_period)
     at_filed = [row for row in at_period if row.filed_at == filed_at]

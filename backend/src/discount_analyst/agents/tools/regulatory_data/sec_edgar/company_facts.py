@@ -58,6 +58,8 @@ async def get_sec_company_facts(
 
     Maps ``ticker`` to CIK via the cached SEC ticker file, then selects facts
     from one annual (10-K / 10-K/A) or quarterly (10-Q / 10-Q/A) period. The
+    statement period is the latest fiscal period end among non-share facts.
+    A later share-outstanding instant does not redefine that period. The
     latest filing on or before ``as_of`` wins; a later amendment for the same
     period replaces the original. Values are never mixed across period ends.
 
