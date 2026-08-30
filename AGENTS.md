@@ -1,4 +1,4 @@
-<!-- Generated: 2026-02-23 | Updated: 2026-08-23 (investigate-workflow-failures skill) -->
+<!-- Generated: 2026-02-23 | Updated: 2026-08-30 (verify-discount-analyst skill) -->
 
 # Discount Analyst
 
@@ -31,6 +31,7 @@ Human decision sits after that `Verdict`. One-shot agents remain available via `
 | `.cursor/skills/analyse-workflow-run/SKILL.md`          | Analyse a dashboard `workflow_run_id` (qualitative HTML review).                                                     |
 | `.cursor/skills/investigate-workflow-failures/SKILL.md` | Diagnose FAILED/CANCELLED lanes for a `workflow_run_id` (no fixes).                                                  |
 | `.cursor/skills/sync-workflow/SKILL.md`                 | Regenerates `current_workflow.md` from live pipeline code.                                                           |
+| `.cursor/skills/verify-discount-analyst/SKILL.md`        | Drive the local DEV dashboard (isolated API+Vite) and capture UI proof.                                              |
 
 ## Subdirectories
 

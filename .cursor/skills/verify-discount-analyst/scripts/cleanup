@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Tear down the verification instance started by scripts/launch. Keeps evidence/.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib.sh"
+
+if [[ ! -f "$STATE_FILE" ]]; then
+  echo "verify-discount-analyst cleanup: nothing to stop"
+  exit 0
+fi
+
+# shellcheck disable=SC1090
+source "$STATE_FILE"
+
+stop_pid() {
+  local pid="${1:-}"
+  local label="$2"
+  [[ -n "$pid" ]] || return 0
+  if pid_alive "$pid"; then
+    kill "$pid" 2>/dev/null || true
+    local waited=0
+    while pid_alive "$pid" && (( waited < 10 )); do
+      sleep 1
+      waited=$((waited + 1))
+    done
+    if pid_alive "$pid"; then
+      kill -9 "$pid" 2>/dev/null || true
+    fi
+    echo "stopped $label pid $pid"
+  else
+    echo "$label pid $pid already gone"
+  fi
+}
+
+# Kill launch wrappers first, then the recorded listeners.
+declare -a seen=()
+for spec in \
+  "LAUNCH_API_PID:${LAUNCH_API_PID:-}" \
+  "LAUNCH_UI_PID:${LAUNCH_UI_PID:-}" \
+  "API_PID:${API_PID:-}" \
+  "UI_PID:${UI_PID:-}"; do
+  label="${spec%%:*}"
+  pid="${spec#*:}"
+  skip=0
+  for existing in "${seen[@]+"${seen[@]}"}"; do
+    if [[ "$existing" == "$pid" ]]; then
+      skip=1
+      break
+    fi
+  done
+  (( skip )) && continue
+  seen+=("$pid")
+  stop_pid "$pid" "$label"
+done
+
+rm -rf "$RUN_DIR"
+echo "removed scratch $RUN_DIR"
+echo "evidence kept under $EVIDENCE_DIR"

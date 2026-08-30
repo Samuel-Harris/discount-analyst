@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Insert one completed mock workflow into the verification sqlite.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib.sh"
+
+cd "$REPO_ROOT"
+load_state
+
+export ENV=DEV
+export DASHBOARD_DATABASE_PATH="$DATABASE_PATH"
+
+uv run python "$SCRIPT_DIR/seed.py"
+echo "seeded DATABASE_PATH=$DATABASE_PATH"

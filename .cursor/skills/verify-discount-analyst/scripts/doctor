@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Read-only check: is the verification instance worth driving?
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib.sh"
+
+load_state
+
+errors=()
+
+owns_port() {
+  local port="$1"
+  local expected="$2"
+  local listeners
+  listeners="$(listener_pids "$port")"
+  echo "$listeners" | grep -qx "$expected"
+}
+
+pid_alive "$API_PID" || errors+=("API listen pid $API_PID is not running")
+pid_alive "$UI_PID" || errors+=("UI listen pid $UI_PID is not running")
+owns_port "$API_PORT" "$API_PID" || errors+=("port $API_PORT is not owned by API pid $API_PID (listeners: $(listener_pids "$API_PORT" | tr '\n' ' '))")
+owns_port "$UI_PORT" "$UI_PID" || errors+=("port $UI_PORT is not owned by UI pid $UI_PID (listeners: $(listener_pids "$UI_PORT" | tr '\n' ' '))")
+
+[[ -f "$DATABASE_PATH" ]] || errors+=("sqlite file missing: $DATABASE_PATH")
+[[ "$(basename "$DATABASE_PATH")" == dashboard.verify.* ]] || errors+=("database path is not a verification sqlite: $DATABASE_PATH")
+
+runs_body="$(curl -fsS --max-time 5 "$API_URL/api/workflow_runs" 2>/dev/null || true)"
+[[ "$runs_body" == \[* ]] || errors+=("GET $API_URL/api/workflow_runs did not return a JSON array")
+
+ui_body="$(curl -fsS --max-time 5 "$UI_URL/" 2>/dev/null || true)"
+echo "$ui_body" | grep -q "Discount Analyst — Dashboard" || errors+=("GET $UI_URL/ is not the dashboard index.html")
+echo "$ui_body" | grep -q 'id="root"' || errors+=("GET $UI_URL/ has no #root")
+
+if (( ${#errors[@]} > 0 )); then
+  printf 'verify-discount-analyst doctor: FAIL\n' >&2
+  printf '  - %s\n' "${errors[@]}" >&2
+  exit 1
+fi
+
+cat <<EOF
+verify-discount-analyst doctor: OK
+RUN_ID=$RUN_ID
+UI_URL=$UI_URL
+API_URL=$API_URL
+DATABASE_PATH=$DATABASE_PATH
+API_PID=$API_PID
+UI_PID=$UI_PID
+EOF
