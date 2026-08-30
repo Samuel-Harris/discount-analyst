@@ -21,7 +21,12 @@ from discount_analyst.adapters.persistence.session import (
     create_session_factory,
 )
 from discount_analyst.config.settings import Settings, load_settings
-from discount_analyst.entrypoints.api.routers import agents, portfolio, workflow_runs
+from discount_analyst.entrypoints.api.routers import (
+    agents,
+    portfolio,
+    status,
+    workflow_runs,
+)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -60,6 +65,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(workflow_runs.router, prefix="/api/workflow_runs")
     app.include_router(agents.router, prefix="/api/agents")
     app.include_router(portfolio.router, prefix="/api/portfolio")
+    app.include_router(status.router, prefix="/api/status")
 
     configure_dashboard_observability(settings, app)
     return app

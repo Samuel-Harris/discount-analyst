@@ -10,6 +10,7 @@ import { useWorkflowRunNavigation } from "@/features/workflow-runs/useWorkflowRu
 import { useWorkflowRuns } from "@/features/workflow-runs/useWorkflowRuns";
 import * as serverState from "@/lib/server-state/invalidation";
 import { DashboardShell } from "./DashboardShell";
+import { useYfinanceFreshness } from "./useYfinanceFreshness";
 
 vi.mock("@/features/workflow-runs/useWorkflowRuns", () => ({
   useWorkflowRuns: vi.fn(),
@@ -30,6 +31,9 @@ vi.mock("@/features/agent-conversation/AgentPanel", () => ({
   AgentPanel: () => null,
 }));
 vi.mock("./layout/AppHeader", () => ({ AppHeader: () => null }));
+vi.mock("./useYfinanceFreshness", () => ({
+  useYfinanceFreshness: vi.fn(() => null),
+}));
 vi.mock("./WorkflowRunMainPanel", () => ({
   WorkflowRunMainPanel: (props: {
     detail: WorkflowRunDetailResponse | null;
@@ -121,6 +125,7 @@ describe("DashboardShell cancellation", () => {
       load: vi.fn(),
       clear: vi.fn(),
     });
+    vi.mocked(useYfinanceFreshness).mockReturnValue(null);
     vi.spyOn(window, "confirm").mockReturnValue(true);
   });
 
@@ -160,5 +165,17 @@ describe("DashboardShell cancellation", () => {
     await user.click(screen.getByRole("button", { name: "Cancel workflow" }));
 
     expect(await screen.findByText("Cancel failed badly")).toBeInTheDocument();
+  });
+
+  it("shows a yfinance banner when the installed package is behind PyPI", () => {
+    vi.mocked(useYfinanceFreshness).mockReturnValue({
+      installed_version: "1.6.0",
+      latest_version: "1.7.0",
+      is_outdated: true,
+    });
+    render(<DashboardShell />);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "yfinance 1.6.0 is installed; 1.7.0 is available on PyPI",
+    );
   });
 });

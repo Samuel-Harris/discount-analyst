@@ -19,5 +19,12 @@ describe("UiStateText", () => {
       </UiStateText>,
     );
     expect(screen.getByText("Failed")).toHaveClass("ui-state-text--error");
+
+    rerender(
+      <UiStateText tone="warning" as="p">
+        Behind
+      </UiStateText>,
+    );
+    expect(screen.getByText("Behind")).toHaveClass("ui-state-text--warning");
   });
 });

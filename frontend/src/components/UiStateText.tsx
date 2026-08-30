@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
 
-export type UiStateTone = "loading" | "error" | "muted";
+export type UiStateTone = "loading" | "error" | "muted" | "warning";
 
 const toneClass: Record<UiStateTone, string> = {
   loading: "ui-state-text--loading",
   error: "ui-state-text--error",
   muted: "ui-state-text--muted",
+  warning: "ui-state-text--warning",
 };
 
 export interface UiStateTextProps {
