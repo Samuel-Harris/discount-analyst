@@ -1,0 +1,269 @@
+{
+  "cik": 320193,
+  "entityName": "Apple Inc.",
+  "facts": {
+    "dei": {
+      "EntityCommonStockSharesOutstanding": {
+        "label": "Entity Common Stock, Shares Outstanding",
+        "units": {
+          "shares": [
+            {
+              "end": "2023-09-30",
+              "val": 15550000000,
+              "accn": "0000320193-23-000106",
+              "fy": 2023,
+              "fp": "FY",
+              "form": "10-K",
+              "filed": "2023-11-03"
+            },
+            {
+              "end": "2023-09-30",
+              "val": 15540000000,
+              "accn": "0000320193-23-000120",
+              "fy": 2023,
+              "fp": "FY",
+              "form": "10-K/A",
+              "filed": "2023-12-15"
+            },
+            {
+              "end": "2024-03-30",
+              "val": 15330000000,
+              "accn": "0000320193-24-000069",
+              "fy": 2024,
+              "fp": "Q2",
+              "form": "10-Q",
+              "filed": "2024-05-03"
+            }
+          ]
+        }
+      }
+    },
+    "us-gaap": {
+      "RevenueFromContractWithCustomerExcludingAssessedTax": {
+        "label": "Revenue",
+        "units": {
+          "USD": [
+            {
+              "end": "2023-09-30",
+              "val": 383285000000,
+              "accn": "0000320193-23-000106",
+              "fy": 2023,
+              "fp": "FY",
+              "form": "10-K",
+              "filed": "2023-11-03"
+            },
+            {
+              "end": "2023-09-30",
+              "val": 383000000000,
+              "accn": "0000320193-23-000120",
+              "fy": 2023,
+              "fp": "FY",
+              "form": "10-K/A",
+              "filed": "2023-12-15"
+            },
+            {
+              "start": "2024-03-31",
+              "end": "2024-06-29",
+              "val": 85777000000,
+              "accn": "0000320193-24-000069",
+              "fy": 2024,
+              "fp": "Q3",
+              "form": "10-Q",
+              "filed": "2024-08-02"
+            }
+          ]
+        }
+      },
+      "NetIncomeLoss": {
+        "label": "Net Income",
+        "units": {
+          "USD": [
+            {
+              "end": "2023-09-30",
+              "val": 96995000000,
+              "accn": "0000320193-23-000106",
+              "fy": 2023,
+              "fp": "FY",
+              "form": "10-K",
+              "filed": "2023-11-03"
+            },
+            {
+              "end": "2023-09-30",
+              "val": 97000000000,
+              "accn": "0000320193-23-000120",
+              "fy": 2023,
+              "fp": "FY",
+              "form": "10-K/A",
+              "filed": "2023-12-15"
+            },
+            {
+              "start": "2024-03-31",
+              "end": "2024-06-29",
+              "val": 21448000000,
+              "accn": "0000320193-24-000069",
+              "fy": 2024,
+              "fp": "Q3",
+              "form": "10-Q",
+              "filed": "2024-08-02"
+            }
+          ]
+        }
+      },
+      "Assets": {
+        "label": "Assets",
+        "units": {
+          "USD": [
+            {
+              "end": "2023-09-30",
+              "val": 352583000000,
+              "accn": "0000320193-23-000106",
+              "fy": 2023,
+              "fp": "FY",
+              "form": "10-K",
+              "filed": "2023-11-03"
+            },
+            {
+              "end": "2024-06-29",
+              "val": 331612000000,
+              "accn": "0000320193-24-000069",
+              "fy": 2024,
+              "fp": "Q3",
+              "form": "10-Q",
+              "filed": "2024-08-02"
+            }
+          ]
+        }
+      },
+      "Liabilities": {
+        "label": "Liabilities",
+        "units": {
+          "USD": [
+            {
+              "end": "2023-09-30",
+              "val": 290437000000,
+              "accn": "0000320193-23-000106",
+              "fy": 2023,
+              "fp": "FY",
+              "form": "10-K",
+              "filed": "2023-11-03"
+            },
+            {
+              "end": "2024-06-29",
+              "val": 264798000000,
+              "accn": "0000320193-24-000069",
+              "fy": 2024,
+              "fp": "Q3",
+              "form": "10-Q",
+              "filed": "2024-08-02"
+            }
+          ]
+        }
+      },
+      "StockholdersEquity": {
+        "label": "Stockholders Equity",
+        "units": {
+          "USD": [
+            {
+              "end": "2023-09-30",
+              "val": 62146000000,
+              "accn": "0000320193-23-000106",
+              "fy": 2023,
+              "fp": "FY",
+              "form": "10-K",
+              "filed": "2023-11-03"
+            },
+            {
+              "end": "2024-06-29",
+              "val": 66814000000,
+              "accn": "0000320193-24-000069",
+              "fy": 2024,
+              "fp": "Q3",
+              "form": "10-Q",
+              "filed": "2024-08-02"
+            }
+          ]
+        }
+      },
+      "LongTermDebt": {
+        "label": "Long-term Debt",
+        "units": {
+          "USD": [
+            {
+              "end": "2023-09-30",
+              "val": 95281000000,
+              "accn": "0000320193-23-000106",
+              "fy": 2023,
+              "fp": "FY",
+              "form": "10-K",
+              "filed": "2023-11-03"
+            }
+          ]
+        }
+      },
+      "LongTermDebtCurrent": {
+        "label": "Current portion of long-term debt",
+        "units": {
+          "USD": [
+            {
+              "end": "2023-09-30",
+              "val": 9822000000,
+              "accn": "0000320193-23-000106",
+              "fy": 2023,
+              "fp": "FY",
+              "form": "10-K",
+              "filed": "2023-11-03"
+            }
+          ]
+        }
+      },
+      "DebtCurrent": {
+        "label": "Current Debt",
+        "units": {
+          "USD": [
+            {
+              "end": "2024-06-29",
+              "val": 15000000000,
+              "accn": "0000320193-24-000069",
+              "fy": 2024,
+              "fp": "Q3",
+              "form": "10-Q",
+              "filed": "2024-08-02"
+            }
+          ]
+        }
+      },
+      "LongTermDebtNoncurrent": {
+        "label": "Long-term Debt, Noncurrent",
+        "units": {
+          "USD": [
+            {
+              "end": "2024-06-29",
+              "val": 85000000000,
+              "accn": "0000320193-24-000069",
+              "fy": 2024,
+              "fp": "Q3",
+              "form": "10-Q",
+              "filed": "2024-08-02"
+            }
+          ]
+        }
+      },
+      "LongTermDebtAndCapitalLeaseObligations": {
+        "label": "Total long-term debt including leases",
+        "units": {
+          "USD": [
+            {
+              "end": "2023-09-30",
+              "val": 106530000000,
+              "accn": "0000320193-23-000106",
+              "fy": 2023,
+              "fp": "FY",
+              "form": "10-K",
+              "filed": "2023-11-03"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

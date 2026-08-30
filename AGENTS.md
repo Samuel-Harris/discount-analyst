@@ -64,6 +64,6 @@ Human decision sits after that `Verdict`. One-shot agents remain available via `
 
 ### External
 
-- **pydantic-ai**, **pydantic-ai-harness**, **yfinance**, **perplexityai**, **logfire**, **httpx**, **rich**, **FastAPI**, **SQLModel**, **Alembic**.
+- **pydantic-ai**, **pydantic-ai-harness**, **yfinance**, **perplexityai**, **logfire**, **httpx**, **rich**, **FastAPI**, **SQLModel**, **Alembic**, **lxml**.
 
 <!-- MANUAL: Any manually added notes below this line are preserved on regeneration -->

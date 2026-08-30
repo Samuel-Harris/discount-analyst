@@ -24,7 +24,7 @@ None.
 
 ### Working In This Directory
 
-- **Agent tools**: Same flag contract as Surveyor. Default (`use_perplexity=False`) uses pydantic-ai `WebSearch` and `WebFetch`. With `use_perplexity=True`, Perplexity tools come from `create_perplexity_toolset(AgentName.STRATEGIST)` — descriptions are optional checks to falsify a packed-context claim, not a licence to re-run research. MCP follows `use_mcp_financial_data` (False for Google / `--no-mcp`). Frankfurter `convert_currency` is always attached. Terminal follows `settings.use_terminal` / `--no-terminal`.
+- **Agent tools**: Same flag contract as Surveyor. Default (`use_perplexity=False`) uses pydantic-ai `WebSearch` and `WebFetch`. With `use_perplexity=True`, Perplexity tools come from `create_perplexity_toolset(AgentName.STRATEGIST)` — descriptions are optional checks to falsify a packed-context claim, not a licence to re-run research. MCP follows `use_mcp_financial_data` (False for Google / `--no-mcp`). Frankfurter `convert_currency` and official filing tools are always attached. Terminal follows `settings.use_terminal` / `--no-terminal`.
 - **Output contract**: Keep output constrained to `MispricingThesis` in `schema.py`. `evaluation_questions` must be answerable from the last reported period plus the last trading update; do not make a future print load-bearing.
 
 ### Testing Requirements

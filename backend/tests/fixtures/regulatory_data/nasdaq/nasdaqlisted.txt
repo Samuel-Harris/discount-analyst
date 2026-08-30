@@ -1,0 +1,8 @@
+Symbol|Security Name|Market Category|Test Issue|Financial Status|Round Lot Size|ETF|NextShares
+AAPL|Apple Inc. - Common Stock|Q|N|N|100|N|N
+MSFT|Microsoft Corporation - Common Stock|Q|N|N|100|N|N
+QQQ|Invesco QQQ Trust, Series 1|G|N|N|100|Y|N
+ZZZZ|Test Issue Inc. - Common Stock|Q|Y|N|100|N|N
+ACIW|ACI Worldwide Inc. - Warrant|Q|N|N|100|N|N
+ABCD|Alpha Beta Fund|G|N|N|100|N|N
+File Creation Time: 0830202602:00

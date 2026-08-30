@@ -13,7 +13,7 @@ Server-side home for Discount Analyst: the installable `discount_analyst` monoli
 | -------------------------- | -------------------------------------------------------------------------------------- |
 | `src/discount_analyst/`    | Installable package (`module-root = "backend/src"`).                                   |
 | `migrations/alembic.ini`   | Alembic config; revision chain preserved under `migrations/versions/`.                 |
-| `tools/`                   | Admin utilities: OpenAPI export, Alembic drift check, terminal verify.                 |
+| `tools/`                   | Admin utilities: OpenAPI export, Alembic drift check, terminal verify, regulatory-data refresh. |
 | `services/agent_terminal/` | Privileged terminal orchestrator (own Dockerfiles/deps; not imported by the monolith). |
 | `outputs/`                 | CLI JSON artefacts (formerly `scripts/outputs/`).                                      |
 
@@ -30,7 +30,7 @@ Server-side home for Discount Analyst: the installable `discount_analyst` monoli
 | `src/discount_analyst/config/`      | `Settings`, AI model config, provider features.                     |
 | `migrations/`                       | Alembic env + versions.                                             |
 | `tests/`                            | Unit, integration, factories, architecture (import-linter).         |
-| `tools/`                            | OpenAPI / Alembic / terminal verify scripts.                        |
+| `tools/`                            | OpenAPI / Alembic / terminal verify / regulatory-data refresh scripts. |
 | `services/agent_terminal/`          | Separate Dockerised terminal service.                               |
 
 ## Placement decision tree
@@ -78,6 +78,7 @@ uv run discount-analyst agent surveyor --help
 uv run discount-analyst workflow run --help
 uv run discount-analyst admin export-openapi
 uv run discount-analyst admin check-alembic-schema
+uv run discount-analyst admin refresh-regulatory-data --help
 
 # Tests + architecture
 uv run pytest
@@ -115,6 +116,6 @@ make verify-terminal
 
 ### External
 
-- FastAPI, SQLModel/Alembic, pydantic-ai, Logfire, httpx, Rich.
+- **httpx**, **rich**, **lxml**.
 
 <!-- MANUAL: Any manually added notes below this line are preserved on regeneration -->

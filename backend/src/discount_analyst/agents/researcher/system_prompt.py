@@ -2,6 +2,9 @@ from discount_analyst.agents.common_prompts.creed import INVESTING_CREED
 from discount_analyst.agents.common_prompts.financial_data_mcp import (
     FINANCIAL_DATA_MCP_RULES,
 )
+from discount_analyst.agents.common_prompts.regulatory_data import (
+    REGULATORY_FILINGS_TOOL_RULES,
+)
 from discount_analyst.agents.common_prompts.structured_output import (
     final_result_submit_section,
 )
@@ -45,6 +48,8 @@ Submit only through the `final_result` tool once research is complete. No markdo
 Follow these steps in order. **Do not narrate the procedure**—thinking about tool calls and symbol lookup must stay internal.
 
 {FINANCIAL_DATA_MCP_RULES}
+
+{REGULATORY_FILINGS_TOOL_RULES}
 
 ### Step 0 — Symbol resolution
 For the candidate ticker resolve the FMP symbol **in one call**, never more.

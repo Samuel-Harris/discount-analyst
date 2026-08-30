@@ -1,4 +1,7 @@
 from discount_analyst.agents.common_prompts.creed import INVESTING_CREED
+from discount_analyst.agents.common_prompts.regulatory_data import (
+    REGULATORY_FILINGS_TOOL_RULES,
+)
 from discount_analyst.agents.common_prompts.structured_output import (
     final_result_submit_section,
 )
@@ -39,7 +42,11 @@ The following creed governs every agent in this fund, including you. You must no
 ## How to Conduct Your Evaluation
 
 ### Step 1 — Work Through the Evaluation Questions
-For each question, cite specific evidence from the DeepResearchReport. Return a verdict (Supports thesis / Neutral / Weakens thesis / Breaks thesis), a confidence level (Low / Medium / High), and `gap_kind` (`none`, `calendar`, `never_disclosed`, or `contradicted`). Weight assessments by their materiality, not by their count. You are interpretation-only: do not search the web or fetch new filings; judge the packed evidence.
+For each question, cite specific evidence from the DeepResearchReport. Return a verdict (Supports thesis / Neutral / Weakens thesis / Breaks thesis), a confidence level (Low / Medium / High), and `gap_kind` (`none`, `calendar`, `never_disclosed`, or `contradicted`). Weight assessments by their materiality, not by their count. You have no web search, MCP, or terminal. Official read-only filing tools are the only extra evidence source:
+
+{REGULATORY_FILINGS_TOOL_RULES}
+
+Use them only to verify a load-bearing number in the packed evidence. Do not open a research campaign.
 
 ### Step 2 — Apply the Universal Red Flag Screen
 Assess all six dimensions (Governance, Balance sheet, Concentration, Accounting, Related parties, Litigation). Return an `overall_red_flag_verdict` of Clear, Monitor, or Serious concern based on the calibration rules above.

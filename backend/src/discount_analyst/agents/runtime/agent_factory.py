@@ -1,6 +1,8 @@
 """Shared factory for pipeline agents that use web search, fetch, and financial MCP."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
+from sys import modules
 from typing import Any
 
 from pydantic_ai import AbstractToolset, Agent, Tool, ToolOutput
@@ -30,6 +32,10 @@ from discount_analyst.config.provider_features import (
 from discount_analyst.agents.tools.market_data.frankfurter import (
     create_frankfurter_toolset,
 )
+from discount_analyst.agents.tools.regulatory_data.toolsets import (
+    create_filings_toolset,
+    create_universe_toolset,
+)
 from discount_analyst.agents.tools.web_research.bounded_web_search import (
     create_bounded_duckduckgo_search_tool,
 )
@@ -46,6 +52,7 @@ from discount_analyst.agents.tools.terminal.client import (
 )
 from discount_analyst.agents.tools.terminal.infallible_toolset import (
     INFALLIBLE_TOOL_EXECUTION,
+    InfallibleToolset,
 )
 
 TOOL_OUTPUT_CHAR_LIMIT = 10_000
@@ -57,6 +64,17 @@ TOOL_OUTPUT_LIMITS = ToolOutputLimits[None](
         )
     ],
 )
+
+REGULATORY_TOOLSETS_BY_ROLE: dict[
+    AgentName, tuple[Callable[[], InfallibleToolset[None]], ...]
+] = {
+    AgentName.SURVEYOR: (create_universe_toolset, create_filings_toolset),
+    AgentName.PROFILER: (create_filings_toolset,),
+    AgentName.RESEARCHER: (create_filings_toolset,),
+    AgentName.STRATEGIST: (create_filings_toolset,),
+    AgentName.SENTINEL: (create_filings_toolset,),
+    AgentName.APPRAISER: (create_filings_toolset,),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,6 +127,10 @@ def create_agent[OutT](
     By default, the factory enables Pydantic AI's native-or-local web search
     and fetch capabilities, optional Perplexity search, and optional financial
     MCP toolsets. A Frankfurter ``convert_currency`` toolset is always attached.
+    Official regulatory-data toolsets follow ``REGULATORY_TOOLSETS_BY_ROLE``:
+    Surveyor receives universe listing tools plus filing tools; every other
+    pipeline agent receives filing tools only. Sentinel still has no web, MCP,
+    or terminal access.
     Set ``enable_web_research_tools=False`` to omit web search/fetch/Perplexity
     (production Sentinel factory; otherwise test isolation). When ``terminal``
     is omitted, terminal follows ``settings.use_terminal`` only (independent of
@@ -160,6 +182,8 @@ def create_agent[OutT](
         )
 
     toolsets.append(create_frankfurter_toolset())
+    for factory in REGULATORY_TOOLSETS_BY_ROLE[spec.name]:
+        toolsets.append(getattr(modules[__name__], factory.__name__)())
 
     output_type: type[OutT] = unwrapping_output_type(spec.output_type)
     return Agent(

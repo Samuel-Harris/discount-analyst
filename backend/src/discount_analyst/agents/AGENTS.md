@@ -17,8 +17,10 @@ Contains AI agent packages used by the project workflows. This directory groups 
 
 | Directory     | Purpose                                                                                                               |
 | ------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `common/`     | Agent runtime: model factory, streaming, tools, creed (see `common/AGENTS.md`).                                       |
-| `surveyor/`   | Surveyor agent implementation and prompts for candidate discovery (see `surveyor/AGENTS.md`)                          |
+| `tools/`          | Agent tool clients: web research, Frankfurter FX, MCP, terminal, official regulatory data (see `tools/AGENTS.md`) |
+| `runtime/`        | Shared agent factory, model construction, streaming (see `runtime/AGENTS.md`)                                     |
+| `common_prompts/` | Shared creed, MCP rules, and official filing/universe prompt snippets                                             |
+| `surveyor/`       | Surveyor agent implementation and prompts for candidate discovery (see `surveyor/AGENTS.md`)                      |
 | `researcher/` | Researcher agent implementation and prompts for structured deep-research evidence output (see `researcher/AGENTS.md`) |
 | `strategist/` | Strategist agent implementation and prompts for `MispricingThesis` output (see `strategist/AGENTS.md`)                |
 | `sentinel/`   | Sentinel agent implementation and prompts for `EvaluationReport` output (see `sentinel/AGENTS.md`)                    |

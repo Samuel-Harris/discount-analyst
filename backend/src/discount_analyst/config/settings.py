@@ -96,6 +96,24 @@ class Settings(BaseSettings):
         default=Path("data/dashboard.sqlite"),
         validation_alias=AliasChoices("DASHBOARD_DATABASE_PATH", "DATABASE_PATH"),
     )
+    regulatory_data_cache_dir: Path = Field(
+        default=Path("data/regulatory_data"),
+        validation_alias="REGULATORY_DATA_CACHE_DIR",
+        description=(
+            "Local cache for official exchange lists, SEC companyfacts, and "
+            "Companies House bulk products. Gitignored; populated by "
+            "`discount-analyst admin refresh-regulatory-data`."
+        ),
+    )
+    sec_user_agent: str = Field(
+        default="",
+        validation_alias="SEC__USER_AGENT",
+        description=(
+            "SEC EDGAR User-Agent (application name and contact details). "
+            "Required for SEC bulk refresh and live companyfacts gap-fill; "
+            "listing and Companies House tools do not need it."
+        ),
+    )
     default_model: ModelName = Field(
         default=DEFAULT_MODEL,
         validation_alias=AliasChoices("DASHBOARD_DEFAULT_MODEL"),
