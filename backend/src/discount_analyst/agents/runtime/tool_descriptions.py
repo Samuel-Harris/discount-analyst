@@ -227,10 +227,10 @@ Args:
 Returns:
     A short check based on SEC filings.""",
     ),
-    AgentName.ALLOCATOR: SearchToolDescriptions(
-        web_search="""Do not use. Allocator is closed-book portfolio construction.
+    AgentName.CURATOR: SearchToolDescriptions(
+        web_search="""Do not use. Curator is closed-book portfolio construction.
 
-The packed AllocatorInput is the only evidence. Do not search the web or
+The packed CuratorInput is the only evidence. Do not search the web or
 revisit lane ratings.
 
 Args:
@@ -238,7 +238,7 @@ Args:
 
 Returns:
     Unused.""",
-        sec_filings_search="""Do not use. Allocator is closed-book portfolio construction.
+        sec_filings_search="""Do not use. Curator is closed-book portfolio construction.
 
 Do not search filings or refresh financials. Size from the packed input only.
 

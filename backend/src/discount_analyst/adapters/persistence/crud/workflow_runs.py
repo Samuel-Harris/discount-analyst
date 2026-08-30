@@ -115,8 +115,8 @@ def recompute_workflow_status(session: Session, workflow_run_id: str) -> None:
     surveyor = get_workflow_scoped_execution(
         session, workflow_run_id, AgentNameDb.SURVEYOR
     )
-    allocator = get_workflow_scoped_execution(
-        session, workflow_run_id, AgentNameDb.ALLOCATOR
+    curator = get_workflow_scoped_execution(
+        session, workflow_run_id, AgentNameDb.CURATOR
     )
     runs = list(
         session.scalars(select(Run).where(col(Run.workflow_run_id) == workflow_run_id))
@@ -124,7 +124,7 @@ def recompute_workflow_status(session: Session, workflow_run_id: str) -> None:
 
     derived = derive_workflow_status(
         surveyor_status=None if surveyor is None else surveyor.status.value,
-        allocator_status=None if allocator is None else allocator.status.value,
+        curator_status=None if curator is None else curator.status.value,
         run_statuses=tuple(run.status.value for run in runs),
     )
     new_status = WorkflowRunStatusDb(derived)
@@ -145,10 +145,10 @@ def insert_workflow_run(
     portfolio_tickers: list[str],
     is_mock: bool,
     surveyor_execution_id: str | None = None,
-    allocator_execution_id: str | None = None,
+    curator_execution_id: str | None = None,
 ) -> tuple[str, str]:
     surveyor_id = surveyor_execution_id or new_id()
-    allocator_id = allocator_execution_id or new_id()
+    curator_id = curator_execution_id or new_id()
     session.add(
         WorkflowRun(
             id=workflow_run_id,
@@ -182,10 +182,10 @@ def insert_workflow_run(
     )
     session.add(
         AgentExecution(
-            id=allocator_id,
+            id=curator_id,
             workflow_run_id=workflow_run_id,
             run_id=None,
-            agent_name=AgentNameDb.ALLOCATOR,
+            agent_name=AgentNameDb.CURATOR,
             status=ExecutionStatusDb.PENDING,
             started_at=None,
             completed_at=None,
@@ -193,7 +193,7 @@ def insert_workflow_run(
         )
     )
     session.commit()
-    return surveyor_id, allocator_id
+    return surveyor_id, curator_id
 
 
 def list_workflow_runs(session: Session) -> list[WorkflowRunListRow]:
@@ -278,12 +278,12 @@ def fetch_workflow_detail(
     if se is not None:
         surveyor_execution = _workflow_agent_execution_row(se)
 
-    allocator = get_workflow_scoped_execution(
-        session, workflow_run_id, AgentNameDb.ALLOCATOR
+    curator = get_workflow_scoped_execution(
+        session, workflow_run_id, AgentNameDb.CURATOR
     )
-    allocator_execution: AgentExecutionRow | None = None
-    if allocator is not None:
-        allocator_execution = _workflow_agent_execution_row(allocator)
+    curator_execution: AgentExecutionRow | None = None
+    if curator is not None:
+        curator_execution = _workflow_agent_execution_row(curator)
 
     agent_order = {
         AgentNameDb.PROFILER.value: 0,
@@ -353,12 +353,12 @@ def fetch_workflow_detail(
         "can_retry_failed_agents": workflow_can_retry_failed_agents(
             workflow_status=WorkflowRunStatusDb(wf["status"]),
             surveyor=se,
-            allocator=allocator,
+            curator=curator,
             runs=runs,
             executions_by_run_id=executions_by_run_id,
         ),
         "surveyor_execution": surveyor_execution,
-        "allocator_execution": allocator_execution,
+        "curator_execution": curator_execution,
         "runs": runs_out,
     }
     return detail

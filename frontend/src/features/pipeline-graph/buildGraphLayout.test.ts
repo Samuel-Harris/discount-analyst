@@ -23,7 +23,7 @@ function baseDetail(
       completed_at: "2026-04-01T12:00:10Z",
       model_name: "gpt-5.1",
     },
-    allocator_execution: null,
+    curator_execution: null,
     runs: [],
     ...overrides,
   };

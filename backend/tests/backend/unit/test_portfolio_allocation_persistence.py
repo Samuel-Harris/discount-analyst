@@ -32,11 +32,11 @@ from discount_analyst.domain.allocations.policy import (
 )
 
 
-def test_insert_workflow_run_creates_surveyor_and_allocator(
+def test_insert_workflow_run_creates_surveyor_and_curator(
     db_session: Session,
 ) -> None:
     workflow_run_id = new_id()
-    surveyor_id, allocator_id = insert_workflow_run(
+    surveyor_id, curator_id = insert_workflow_run(
         db_session,
         workflow_run_id=workflow_run_id,
         portfolio_tickers=["ABC.L"],
@@ -52,15 +52,15 @@ def test_insert_workflow_run_creates_surveyor_and_allocator(
     )
     names = {row.agent_name: row for row in executions}
     assert names[AgentNameDb.SURVEYOR].id == surveyor_id
-    assert names[AgentNameDb.ALLOCATOR].id == allocator_id
-    assert names[AgentNameDb.ALLOCATOR].error_message != (
+    assert names[AgentNameDb.CURATOR].id == curator_id
+    assert names[AgentNameDb.CURATOR].error_message != (
         LEGACY_WORKFLOW_WITHOUT_POSITION_SNAPSHOT
     )
 
 
 def test_persist_and_reconstruct_allocation_round_trip(db_session: Session) -> None:
     workflow_run_id = new_id()
-    _surveyor_id, allocator_id = insert_workflow_run(
+    _surveyor_id, curator_id = insert_workflow_run(
         db_session,
         workflow_run_id=workflow_run_id,
         portfolio_tickers=["TSM", "AMAT"],
@@ -140,13 +140,13 @@ def test_persist_and_reconstruct_allocation_round_trip(db_session: Session) -> N
     )
 
     persist_portfolio_allocation(
-        db_session, agent_execution_id=allocator_id, allocation=original
+        db_session, agent_execution_id=curator_id, allocation=original
     )
     db_session.commit()
 
-    loaded = get_portfolio_allocation_for_execution(db_session, allocator_id)
+    loaded = get_portfolio_allocation_for_execution(db_session, curator_id)
     assert loaded == original
 
-    delete_portfolio_allocation_for_execution(db_session, allocator_id)
+    delete_portfolio_allocation_for_execution(db_session, curator_id)
     db_session.commit()
-    assert get_portfolio_allocation_for_execution(db_session, allocator_id) is None
+    assert get_portfolio_allocation_for_execution(db_session, curator_id) is None

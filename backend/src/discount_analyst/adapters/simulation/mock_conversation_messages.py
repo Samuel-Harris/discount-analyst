@@ -255,7 +255,7 @@ def appraiser_messages_json(*, ticker: str) -> str:
     )
 
 
-def allocator_messages_json() -> str:
+def curator_messages_json() -> str:
     return _dumps(
         [
             _msg(
@@ -270,12 +270,10 @@ def allocator_messages_json() -> str:
                 "response",
                 [
                     _text(
-                        "(mock) Allocator: applied lane policy, the 15% company cap, "
+                        "(mock) Curator: applied lane policy, the 15% company cap, "
                         "and residual cash without calling tools."
                     ),
-                    _text(
-                        "`AllocatorProposal` is finalised into `PortfolioAllocation`."
-                    ),
+                    _text("`CuratorProposal` is finalised into `PortfolioAllocation`."),
                 ],
             ),
         ]

@@ -1,4 +1,4 @@
-"""Current portfolio weights supplied to the Allocator."""
+"""Current portfolio weights supplied to the Curator."""
 
 from datetime import date
 

@@ -19,7 +19,7 @@ from discount_analyst.adapters.persistence.crud.portfolio_allocations import (
 )
 from discount_analyst.adapters.persistence.crud.run_executions import (
     get_agent_execution_id_by_run_and_agent,
-    get_workflow_allocator_execution,
+    get_workflow_curator_execution,
     get_workflow_candidate_snapshot_id,
     insert_ticker_run_with_agents,
     update_agent_execution,
@@ -213,12 +213,12 @@ def seed(session: Session) -> None:
         error_message=None,
     )
 
-    allocator = get_workflow_allocator_execution(session, workflow_id)
-    if allocator is None:
-        raise RuntimeError("Seed workflow is missing an Allocator execution.")
+    curator = get_workflow_curator_execution(session, workflow_id)
+    if curator is None:
+        raise RuntimeError("Seed workflow is missing an Curator execution.")
     persist_portfolio_allocation(
         session,
-        agent_execution_id=allocator.id,
+        agent_execution_id=curator.id,
         allocation=DomainPortfolioAllocation(
             allocation_date=date.today(),
             positions=(
@@ -262,7 +262,7 @@ def seed(session: Session) -> None:
     )
     update_agent_execution(
         session,
-        execution_id=allocator.id,
+        execution_id=curator.id,
         status="completed",
         started_at=utc_now_iso(),
         completed_at=utc_now_iso(),
@@ -270,10 +270,10 @@ def seed(session: Session) -> None:
     insert_conversation_for_agent_execution(
         session,
         conversation_id=new_id(),
-        agent_execution_id=allocator.id,
-        system_prompt="seed allocator system",
+        agent_execution_id=curator.id,
+        system_prompt="seed curator system",
         messages=None,
-        messages_json=mock_conversation_messages.allocator_messages_json(),
+        messages_json=mock_conversation_messages.curator_messages_json(),
     )
 
     recompute_workflow_status(session, workflow_id)

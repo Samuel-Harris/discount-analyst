@@ -1,4 +1,4 @@
-"""Equal-weight existing-position snapshot used by mock dashboard Allocator runs."""
+"""Equal-weight existing-position snapshot used by mock dashboard Curator runs."""
 
 from datetime import date
 

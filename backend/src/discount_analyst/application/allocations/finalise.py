@@ -1,11 +1,11 @@
-"""Stamp audit facts onto an Allocator proposal without changing its numbers."""
+"""Stamp audit facts onto an Curator proposal without changing its numbers."""
 
 from pydantic import ValidationError
 
-from discount_analyst.agents.allocator.schema import (
-    AllocatorInput,
-    AllocatorLaneEvidence,
-    AllocatorProposal,
+from discount_analyst.agents.curator.schema import (
+    CuratorInput,
+    CuratorLaneEvidence,
+    CuratorProposal,
     ProposedPosition,
 )
 from discount_analyst.application.allocations.errors import AllocationAssemblyError
@@ -19,23 +19,23 @@ from discount_analyst.domain.allocations.allocation import (
 from discount_analyst.domain.allocations.invariants import AllocationInvariantError
 
 
-def finalise_allocator_proposal(
-    proposal: AllocatorProposal,
-    allocator_input: AllocatorInput,
+def finalise_curator_proposal(
+    proposal: CuratorProposal,
+    curator_input: CuratorInput,
     source_run_ids: dict[str, str],
 ) -> PortfolioAllocation:
     """Stamp identity facts; ``PortfolioAllocation`` is the numeric gate."""
-    if proposal.allocation_date != allocator_input.allocation_date:
+    if proposal.allocation_date != curator_input.allocation_date:
         msg = (
             "Proposal allocation_date "
             f"{proposal.allocation_date.isoformat()} does not match input "
-            f"{allocator_input.allocation_date.isoformat()}."
+            f"{curator_input.allocation_date.isoformat()}."
         )
         raise AllocationInvariantError(msg)
     lanes_by_ticker = {
-        lane.identity.ticker.casefold(): lane for lane in allocator_input.lanes
+        lane.identity.ticker.casefold(): lane for lane in curator_input.lanes
     }
-    _assert_identical_ticker_sets(proposal, allocator_input)
+    _assert_identical_ticker_sets(proposal, curator_input)
     positions = tuple(
         _stamp_position(
             proposed,
@@ -49,7 +49,7 @@ def finalise_allocator_proposal(
             allocation_date=proposal.allocation_date,
             positions=positions,
             cash=CashAllocation(
-                current_weight_pct=allocator_input.snapshot.cash_weight_pct,
+                current_weight_pct=curator_input.snapshot.cash_weight_pct,
                 target_weight_pct=proposal.cash.target_weight_pct,
                 acceptable_weight_low_pct=proposal.cash.acceptable_weight_low_pct,
                 acceptable_weight_high_pct=proposal.cash.acceptable_weight_high_pct,
@@ -71,11 +71,11 @@ def finalise_allocator_proposal(
 
 
 def _assert_identical_ticker_sets(
-    proposal: AllocatorProposal,
-    allocator_input: AllocatorInput,
+    proposal: CuratorProposal,
+    curator_input: CuratorInput,
 ) -> None:
     proposed = {position.ticker.casefold() for position in proposal.positions}
-    expected = {lane.identity.ticker.casefold() for lane in allocator_input.lanes}
+    expected = {lane.identity.ticker.casefold() for lane in curator_input.lanes}
     if proposed != expected:
         msg = (
             "Proposal tickers must equal input tickers exactly; "
@@ -87,7 +87,7 @@ def _assert_identical_ticker_sets(
 
 def _stamp_position(
     proposed: ProposedPosition,
-    lane: AllocatorLaneEvidence,
+    lane: CuratorLaneEvidence,
     source_run_ids: dict[str, str],
 ) -> AllocationPosition:
     identity = lane.identity

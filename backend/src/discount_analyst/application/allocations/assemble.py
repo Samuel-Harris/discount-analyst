@@ -1,12 +1,12 @@
-"""Build compact Allocator input from completed lane bundles and a snapshot."""
+"""Build compact Curator input from completed lane bundles and a snapshot."""
 
 from dataclasses import dataclass
 from datetime import date
 from typing import Literal
 
-from discount_analyst.agents.allocator.schema import (
-    AllocatorInput,
-    AllocatorLaneEvidence,
+from discount_analyst.agents.curator.schema import (
+    CuratorInput,
+    CuratorLaneEvidence,
     CompactAppraiserEvidence,
     CompactResearcherEvidence,
     CompactSentinelEvidence,
@@ -14,7 +14,7 @@ from discount_analyst.agents.allocator.schema import (
     DataQualityRejectionLaneEvidence,
     RatingTableLaneEvidence,
     SentinelRejectionLaneEvidence,
-    AllocatorLaneIdentity,
+    CuratorLaneIdentity,
 )
 from discount_analyst.agents.appraiser.schema import AppraiserOutput
 from discount_analyst.agents.researcher.schema import DeepResearchReport
@@ -97,15 +97,15 @@ def source_run_ids_by_ticker(
     return indexed
 
 
-def assemble_allocator_input(
+def assemble_curator_input(
     lanes: tuple[CompletedLaneBundle, ...],
     snapshot: CurrentPortfolioSnapshot,
     allocation_date: date,
-) -> AllocatorInput:
+) -> CuratorInput:
     """Apply canonical policy and pack discriminated compact evidence."""
     _validate_snapshot_matches_lanes(lanes, snapshot)
     packed = tuple(_pack_lane(bundle, snapshot) for bundle in lanes)
-    return AllocatorInput(
+    return CuratorInput(
         allocation_date=allocation_date,
         snapshot=snapshot,
         lanes=packed,
@@ -139,7 +139,7 @@ def _validate_snapshot_matches_lanes(
 def _pack_lane(
     bundle: CompletedLaneBundle,
     snapshot: CurrentPortfolioSnapshot,
-) -> AllocatorLaneEvidence:
+) -> CuratorLaneEvidence:
     current_weight = snapshot_weight_for_ticker(snapshot, bundle.ticker)
     if current_weight is None:
         current_weight = 0.0
@@ -148,7 +148,7 @@ def _pack_lane(
         is_existing_position=bundle.is_existing_position,
         current_weight_pct=current_weight,
     )
-    identity = AllocatorLaneIdentity(
+    identity = CuratorLaneIdentity(
         ticker=bundle.ticker,
         company_name=bundle.company_name,
         is_existing_position=bundle.is_existing_position,

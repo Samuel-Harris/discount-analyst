@@ -153,7 +153,7 @@ def get_portfolio_allocation_for_workflow(
     execution = session.scalars(
         select(AgentExecution).where(
             col(AgentExecution.workflow_run_id) == workflow_run_id,
-            col(AgentExecution.agent_name) == AgentNameDb.ALLOCATOR,
+            col(AgentExecution.agent_name) == AgentNameDb.CURATOR,
         )
     ).first()
     if execution is None or execution.status != ExecutionStatusDb.COMPLETED:

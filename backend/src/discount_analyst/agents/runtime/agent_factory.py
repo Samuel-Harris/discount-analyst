@@ -74,7 +74,7 @@ REGULATORY_TOOLSETS_BY_ROLE: dict[
     AgentName.STRATEGIST: (create_filings_toolset,),
     AgentName.SENTINEL: (create_filings_toolset,),
     AgentName.APPRAISER: (create_filings_toolset,),
-    AgentName.ALLOCATOR: (),
+    AgentName.CURATOR: (),
 }
 
 TERMINAL_REQUIRED_AGENT_NAMES = frozenset({AgentName.SURVEYOR})
@@ -131,11 +131,11 @@ def create_agent[OutT](
     and fetch capabilities, optional Perplexity search, and optional financial
     MCP toolsets. A Frankfurter ``convert_currency`` toolset is always attached.
     Official regulatory-data toolsets follow ``REGULATORY_TOOLSETS_BY_ROLE``:
-    Surveyor receives universe listing tools plus filing tools; Allocator
+    Surveyor receives universe listing tools plus filing tools; Curator
     receives none; every other pipeline agent receives filing tools only.
-    Sentinel and Allocator still have no web, MCP, or terminal access.
+    Sentinel and Curator still have no web, MCP, or terminal access.
     Set ``enable_web_research_tools=False`` to omit web search/fetch/Perplexity
-    (production Sentinel and Allocator factories; otherwise test isolation). When ``terminal``
+    (production Sentinel and Curator factories; otherwise test isolation). When ``terminal``
     is omitted, terminal follows ``settings.use_terminal`` only (independent of
     web/MCP flags).
 

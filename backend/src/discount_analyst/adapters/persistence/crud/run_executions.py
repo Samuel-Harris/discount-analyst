@@ -93,7 +93,7 @@ _AGENT_LANE_ORDER = {
 class RetryFailedAgentsPreparation:
     workflow_run_id: str
     surveyor_reset: bool
-    allocator_reset: bool
+    curator_reset: bool
     lane_reset_count: int
     agent_execution_reset_count: int
 
@@ -144,7 +144,7 @@ def workflow_can_retry_failed_agents(
     *,
     workflow_status: WorkflowRunStatusDb,
     surveyor: AgentExecution | None,
-    allocator: AgentExecution | None,
+    curator: AgentExecution | None,
     runs: list[Run],
     executions_by_run_id: dict[str, list[AgentExecution]],
 ) -> bool:
@@ -158,7 +158,7 @@ def workflow_can_retry_failed_agents(
         for run in runs
     ):
         return True
-    return _allocator_is_retryable(allocator, runs)
+    return _curator_is_retryable(curator, runs)
 
 
 def _first_retry_lane_order(run: Run, executions: list[AgentExecution]) -> int | None:
@@ -184,36 +184,36 @@ def _first_retry_lane_order(run: Run, executions: list[AgentExecution]) -> int |
     return None
 
 
-def _is_legacy_skipped_allocator(execution: AgentExecution) -> bool:
+def _is_legacy_skipped_curator(execution: AgentExecution) -> bool:
     return (
         execution.status == ExecutionStatusDb.SKIPPED
         and execution.error_message == LEGACY_WORKFLOW_WITHOUT_POSITION_SNAPSHOT
     )
 
 
-def _allocator_invalidated_by_upstream(
-    allocator: AgentExecution | None,
+def _curator_invalidated_by_upstream(
+    curator: AgentExecution | None,
     *,
     surveyor_reset: bool,
     lane_reset_count: int,
 ) -> bool:
-    if allocator is None or _is_legacy_skipped_allocator(allocator):
+    if curator is None or _is_legacy_skipped_curator(curator):
         return False
     return surveyor_reset or lane_reset_count > 0
 
 
-def _allocator_is_retryable(allocator: AgentExecution | None, runs: list[Run]) -> bool:
-    if allocator is None or _is_legacy_skipped_allocator(allocator):
+def _curator_is_retryable(curator: AgentExecution | None, runs: list[Run]) -> bool:
+    if curator is None or _is_legacy_skipped_curator(curator):
         return False
-    if allocator.status not in _RETRYABLE_LANE_EXECUTION_STATUSES:
+    if curator.status not in _RETRYABLE_LANE_EXECUTION_STATUSES:
         return False
     return all(run.status == WorkflowRunStatusDb.COMPLETED for run in runs)
 
 
-def _reset_allocator_execution(session: Session, allocator: AgentExecution) -> None:
-    delete_portfolio_allocation_for_execution(session, allocator.id)
-    _reset_agent_execution(allocator)
-    session.add(allocator)
+def _reset_curator_execution(session: Session, curator: AgentExecution) -> None:
+    delete_portfolio_allocation_for_execution(session, curator.id)
+    _reset_agent_execution(curator)
+    session.add(curator)
 
 
 def prepare_retry_failed_agents(
@@ -228,7 +228,7 @@ def prepare_retry_failed_agents(
         raise RetryWorkflowRunNotTerminalError(workflow_run_id)
 
     surveyor_reset = False
-    allocator_reset = False
+    curator_reset = False
     lane_reset_count = 0
     agent_execution_reset_count = 0
 
@@ -243,8 +243,8 @@ def prepare_retry_failed_agents(
     runs = list(
         session.scalars(select(Run).where(col(Run.workflow_run_id) == workflow_run_id))
     )
-    allocator = get_workflow_allocator_execution(session, workflow_run_id)
-    allocator_only_retry = _allocator_is_retryable(allocator, runs)
+    curator = get_workflow_curator_execution(session, workflow_run_id)
+    curator_only_retry = _curator_is_retryable(curator, runs)
     for run in runs:
         executions = sorted(
             session.scalars(
@@ -282,17 +282,17 @@ def prepare_retry_failed_agents(
                 agent_execution_reset_count += 1
 
     if (
-        _allocator_invalidated_by_upstream(
-            allocator,
+        _curator_invalidated_by_upstream(
+            curator,
             surveyor_reset=surveyor_reset,
             lane_reset_count=lane_reset_count,
         )
-        or allocator_only_retry
-    ) and allocator is not None:
-        _reset_allocator_execution(session, allocator)
-        allocator_reset = True
+        or curator_only_retry
+    ) and curator is not None:
+        _reset_curator_execution(session, curator)
+        curator_reset = True
 
-    if not surveyor_reset and lane_reset_count == 0 and not allocator_reset:
+    if not surveyor_reset and lane_reset_count == 0 and not curator_reset:
         raise NoFailedAgentsToRetryError(workflow_run_id)
 
     workflow.status = WorkflowRunStatusDb.RUNNING
@@ -303,7 +303,7 @@ def prepare_retry_failed_agents(
     return RetryFailedAgentsPreparation(
         workflow_run_id=workflow_run_id,
         surveyor_reset=surveyor_reset,
-        allocator_reset=allocator_reset,
+        curator_reset=curator_reset,
         lane_reset_count=lane_reset_count,
         agent_execution_reset_count=agent_execution_reset_count,
     )
@@ -397,12 +397,10 @@ def get_workflow_scoped_execution(
     ).first()
 
 
-def get_workflow_allocator_execution(
+def get_workflow_curator_execution(
     session: Session, workflow_run_id: str
 ) -> AgentExecution | None:
-    return get_workflow_scoped_execution(
-        session, workflow_run_id, AgentNameDb.ALLOCATOR
-    )
+    return get_workflow_scoped_execution(session, workflow_run_id, AgentNameDb.CURATOR)
 
 
 def get_workflow_surveyor_execution_id(

@@ -1,13 +1,13 @@
-"""Tests for compact Allocator evidence and proposal contracts."""
+"""Tests for compact Curator evidence and proposal contracts."""
 
 from datetime import date
 
 import pytest
 from pydantic import ValidationError
 
-from discount_analyst.agents.allocator.schema import (
-    AllocatorLaneIdentity,
-    AllocatorProposal,
+from discount_analyst.agents.curator.schema import (
+    CuratorLaneIdentity,
+    CuratorProposal,
     CompactResearcherEvidence,
     CompactSentinelEvidence,
     CompactStrategistEvidence,
@@ -32,8 +32,8 @@ def _identity(
     weight: float = 0.0,
     policy: InvestablePolicy | ForcedZeroPolicy | None = None,
     rating: InvestmentRating = InvestmentRating.BUY,
-) -> AllocatorLaneIdentity:
-    return AllocatorLaneIdentity(
+) -> CuratorLaneIdentity:
+    return CuratorLaneIdentity(
         ticker=ticker,
         company_name="Abc plc",
         is_existing_position=is_existing,
@@ -89,7 +89,7 @@ def test_sentinel_rejection_evidence_cannot_carry_appraiser_fields() -> None:
 
 def test_proposal_rejects_unordered_range() -> None:
     with pytest.raises(ValidationError, match="0 <= low <= target <= high"):
-        AllocatorProposal(
+        CuratorProposal(
             allocation_date=date(2026, 8, 30),
             positions=(
                 ProposedPosition(
@@ -113,7 +113,7 @@ def test_proposal_rejects_unordered_range() -> None:
 
 def test_proposal_rejects_targets_not_totalling_100() -> None:
     with pytest.raises(ValidationError, match="total 100%"):
-        AllocatorProposal(
+        CuratorProposal(
             allocation_date=date(2026, 8, 30),
             positions=(
                 ProposedPosition(
@@ -137,7 +137,7 @@ def test_proposal_rejects_targets_not_totalling_100() -> None:
 
 def test_proposal_rejects_single_ticker_cluster() -> None:
     with pytest.raises(ValidationError, match="at least two"):
-        AllocatorProposal(
+        CuratorProposal(
             allocation_date=date(2026, 8, 30),
             positions=(),
             cash=ProposedCash(
@@ -159,7 +159,7 @@ def test_proposal_rejects_single_ticker_cluster() -> None:
 
 
 def test_cash_only_proposal_is_valid() -> None:
-    proposal = AllocatorProposal(
+    proposal = CuratorProposal(
         allocation_date=date(2026, 8, 30),
         positions=(),
         cash=ProposedCash(

@@ -98,9 +98,9 @@ async def test_mock_workflow_completes_profiler_and_surveyor(
     assert surveyor_execution is not None
     assert surveyor_execution["status"] == "completed"
     assert surveyor_execution["model_name"] is None
-    allocator_execution = detail["allocator_execution"]
-    assert allocator_execution is not None
-    assert allocator_execution["status"] == "completed"
+    curator_execution = detail["curator_execution"]
+    assert curator_execution is not None
+    assert curator_execution["status"] == "completed"
     surveyor_lanes = [r for r in detail["runs"] if r["entry_path"] == "surveyor"]
     profiler_lanes = [r for r in detail["runs"] if r["entry_path"] == "profiler"]
     assert len(profiler_lanes) == 1
@@ -182,9 +182,9 @@ async def test_surveyor_failure_stops_workflow_before_profiler_branches(
     surveyor_execution = detail["surveyor_execution"]
     assert surveyor_execution is not None
     assert surveyor_execution["status"] == "failed"
-    allocator_execution = detail["allocator_execution"]
-    assert allocator_execution is not None
-    assert allocator_execution["status"] == "cancelled"
+    curator_execution = detail["curator_execution"]
+    assert curator_execution is not None
+    assert curator_execution["status"] == "cancelled"
 
     profiler_lane = next(
         run for run in detail["runs"] if run["entry_path"] == "profiler"
@@ -405,9 +405,9 @@ async def test_lane_abort_marks_unreached_downstream_agents_skipped(
     assert statuses["strategist"] == "skipped"
     assert statuses["sentinel"] == "skipped"
     assert statuses["appraiser"] == "skipped"
-    allocator_execution = detail["allocator_execution"]
-    assert allocator_execution is not None
-    assert allocator_execution["status"] == "skipped"
+    curator_execution = detail["curator_execution"]
+    assert curator_execution is not None
+    assert curator_execution["status"] == "skipped"
 
 
 @pytest.mark.asyncio

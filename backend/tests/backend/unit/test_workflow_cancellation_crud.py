@@ -213,7 +213,7 @@ def test_recompute_workflow_status_fails_after_all_runs_terminal_with_failure(
     assert detail["status"] == "failed"
 
 
-def test_recompute_workflow_status_keeps_running_while_allocator_pending(
+def test_recompute_workflow_status_keeps_running_while_curator_pending(
     db_session: Session,
 ) -> None:
     workflow_run_id, surveyor_execution_id, run_id = _insert_workflow_fixture(
@@ -243,8 +243,8 @@ def test_recompute_workflow_status_keeps_running_while_allocator_pending(
     detail = fetch_workflow_detail(db_session, workflow_run_id)
     assert detail is not None
     assert detail["status"] == "running"
-    assert detail["allocator_execution"] is not None
-    assert detail["allocator_execution"]["status"] == "pending"
+    assert detail["curator_execution"] is not None
+    assert detail["curator_execution"]["status"] == "pending"
 
 
 def test_cancel_workflow_run_marks_active_rows_cancelled(db_session: Session) -> None:

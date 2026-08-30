@@ -78,9 +78,9 @@ from discount_analyst.entrypoints.cli.shared.run_outputs import (
     TurnUsage,
 )
 from discount_analyst.entrypoints.cli.shared.usage import extract_turn_usage
-from discount_analyst.entrypoints.cli.workflows.cli_allocator import (
+from discount_analyst.entrypoints.cli.workflows.cli_curator import (
     load_cli_portfolio_snapshot,
-    run_cli_allocator,
+    run_cli_curator,
 )
 from discount_analyst.entrypoints.cli.workflows.cli_appraiser_lane import (
     run_cli_appraiser_lane,
@@ -163,7 +163,7 @@ def parse_args() -> WorkflowArgs:
             "then Researcher sequentially for each candidate, "
             "then Strategist and Sentinel for each successful Researcher and Strategist run, "
             "then Appraiser when the Sentinel valuation gate passes, "
-            "then deterministic rating and a workflow-level Allocator; "
+            "then deterministic rating and a workflow-level Curator; "
             "writes Verdict rows, a verdicts JSON artefact, and a PortfolioAllocation artefact."
         )
     )
@@ -883,18 +883,18 @@ async def main() -> None:
         or appraiser_failures
     ):
         console.print(
-            "[yellow]Allocator skipped because a lane failed or was cancelled.[/yellow]"
+            "[yellow]Curator skipped because a lane failed or was cancelled.[/yellow]"
         )
     else:
         try:
-            await run_cli_allocator(
+            await run_cli_curator(
                 console=console,
                 model_name=args.model,
                 snapshot=snapshot,
                 lane_bundles=tuple(lane_bundles),
             )
         except (AllocationAssemblyError, AllocationInvariantError) as exc:
-            console.print(f"[red]Allocator failed: {exc}[/red]")
+            console.print(f"[red]Curator failed: {exc}[/red]")
 
     summary_lines = [
         f"Workflow complete: {entry_mode} entry through deterministic rating (gated)",

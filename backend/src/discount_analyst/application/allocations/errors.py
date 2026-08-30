@@ -1,4 +1,4 @@
-"""Errors raised while assembling Allocator input from completed lanes."""
+"""Errors raised while assembling Curator input from completed lanes."""
 
 
 class AllocationAssemblyError(ValueError):

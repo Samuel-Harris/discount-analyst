@@ -194,12 +194,12 @@ def test_surveyor_conversation_after_seed(client: TestClient) -> None:
     assert "assistant_response" in r.json()
 
 
-def test_allocator_conversation_after_seed(client: TestClient) -> None:
+def test_curator_conversation_after_seed(client: TestClient) -> None:
     app = cast(FastAPI, client.app)
     with app.state.db_session_factory() as session:
         seed(session)
     wf_id = client.get("/api/workflow_runs").json()[0]["id"]
-    r = client.get(f"/api/agents/workflow_runs/{wf_id}/agents/allocator/conversation")
+    r = client.get(f"/api/agents/workflow_runs/{wf_id}/agents/curator/conversation")
     assert r.status_code == 200
     assert "assistant_response" in r.json()
 

@@ -2,7 +2,7 @@ from enum import StrEnum
 
 
 class AgentName(StrEnum):
-    ALLOCATOR = "ALLOCATOR"
+    CURATOR = "CURATOR"
     APPRAISER = "APPRAISER"
     PROFILER = "PROFILER"
     RESEARCHER = "RESEARCHER"

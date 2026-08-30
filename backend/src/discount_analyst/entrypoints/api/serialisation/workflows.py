@@ -56,8 +56,8 @@ def workflow_detail(
         surveyor_execution=_optional_execution_summary(
             workflow_run_detail_record["surveyor_execution"]
         ),
-        allocator_execution=_optional_execution_summary(
-            workflow_run_detail_record["allocator_execution"]
+        curator_execution=_optional_execution_summary(
+            workflow_run_detail_record["curator_execution"]
         ),
         runs=[_ticker_run_detail(run) for run in workflow_run_detail_record["runs"]],
     )

@@ -22,7 +22,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "strategist",
         "sentinel",
         "appraiser",
-        "allocator",
+        "curator",
     ):
         agent_sub.add_parser(name, help=f"Run the {name} agent")
 
@@ -105,10 +105,10 @@ def _run_agent(agent_name: str, agent_args: list[str]) -> None:
         from discount_analyst.entrypoints.cli.agents import run_appraiser
 
         asyncio.run(run_appraiser.main())
-    elif agent_name == "allocator":
-        from discount_analyst.entrypoints.cli.agents import run_allocator
+    elif agent_name == "curator":
+        from discount_analyst.entrypoints.cli.agents import run_curator
 
-        asyncio.run(run_allocator.main())
+        asyncio.run(run_curator.main())
     else:
         raise SystemExit(f"Unknown agent: {agent_name}")
 

@@ -1,11 +1,11 @@
-"""Tests for assembling and finalising Allocator contracts."""
+"""Tests for assembling and finalising Curator contracts."""
 
 from datetime import date
 
 import pytest
 
 from discount_analyst.adapters.simulation.mock_outputs import (
-    mock_allocator_proposal,
+    mock_curator_proposal,
     mock_appraiser_output,
     mock_deep_research,
     mock_rating_table_decision,
@@ -13,8 +13,8 @@ from discount_analyst.adapters.simulation.mock_outputs import (
     mock_surveyor_candidate,
     mock_thesis,
 )
-from discount_analyst.agents.allocator.schema import (
-    AllocatorProposal,
+from discount_analyst.agents.curator.schema import (
+    CuratorProposal,
     ProposedCash,
     ProposedPosition,
     ProposedSharedRiskCluster,
@@ -22,13 +22,13 @@ from discount_analyst.agents.allocator.schema import (
 from discount_analyst.agents.sentinel.schema import OverallRedFlagVerdict, ThesisVerdict
 from discount_analyst.application.allocations.assemble import (
     CompletedLaneBundle,
-    assemble_allocator_input,
+    assemble_curator_input,
     completed_lane_bundle_from_verdict,
     source_run_ids_by_ticker,
 )
 from discount_analyst.application.allocations.errors import AllocationAssemblyError
 from discount_analyst.application.allocations.finalise import (
-    finalise_allocator_proposal,
+    finalise_curator_proposal,
 )
 from discount_analyst.application.decisions.builders import (
     build_data_quality_rejection,
@@ -192,7 +192,7 @@ def _zero_row(ticker: str, *, rationale: str = "Forced zero.") -> ProposedPositi
 
 
 def test_assemble_cash_only_universe() -> None:
-    packed = assemble_allocator_input((), _cash_only(), ALLOCATION_DATE)
+    packed = assemble_curator_input((), _cash_only(), ALLOCATION_DATE)
 
     assert packed.lanes == ()
     assert packed.snapshot.cash_weight_pct == 100.0
@@ -225,7 +225,7 @@ def test_assemble_maps_all_verdict_kinds() -> None:
     )
     snapshot = _snapshot(("HELD", 10.0), ("FAIL", 5.0), cash_weight_pct=85.0)
 
-    packed = assemble_allocator_input(
+    packed = assemble_curator_input(
         (buy, existing_hold, new_hold, rejected, dqr),
         snapshot,
         ALLOCATION_DATE,
@@ -268,14 +268,14 @@ def test_assemble_rejects_existing_position_missing_from_snapshot() -> None:
     )
 
     with pytest.raises(AllocationAssemblyError, match="missing from the current"):
-        assemble_allocator_input((bundle,), _cash_only(), ALLOCATION_DATE)
+        assemble_curator_input((bundle,), _cash_only(), ALLOCATION_DATE)
 
 
 def test_assemble_rejects_snapshot_position_without_lane() -> None:
     snapshot = _snapshot(("ORPHAN", 20.0), cash_weight_pct=80.0)
 
     with pytest.raises(AllocationAssemblyError, match="has no completed lane"):
-        assemble_allocator_input((), snapshot, ALLOCATION_DATE)
+        assemble_curator_input((), snapshot, ALLOCATION_DATE)
 
 
 def test_assemble_rejects_valuation_on_data_quality_lane() -> None:
@@ -302,12 +302,12 @@ def test_assemble_rejects_valuation_on_data_quality_lane() -> None:
     )
 
     with pytest.raises(AllocationAssemblyError, match="cannot carry"):
-        assemble_allocator_input((mixed,), _cash_only(), ALLOCATION_DATE)
+        assemble_curator_input((mixed,), _cash_only(), ALLOCATION_DATE)
 
 
 def test_finalise_cash_only_allocation() -> None:
-    packed = assemble_allocator_input((), _cash_only(), ALLOCATION_DATE)
-    proposal = AllocatorProposal(
+    packed = assemble_curator_input((), _cash_only(), ALLOCATION_DATE)
+    proposal = CuratorProposal(
         allocation_date=ALLOCATION_DATE,
         positions=(),
         cash=ProposedCash(
@@ -320,7 +320,7 @@ def test_finalise_cash_only_allocation() -> None:
         portfolio_rationale="Cash only.",
     )
 
-    allocation = finalise_allocator_proposal(proposal, packed, {})
+    allocation = finalise_curator_proposal(proposal, packed, {})
 
     assert allocation.cash.target_weight_pct == 100.0
     assert allocation.positions == ()
@@ -346,8 +346,8 @@ def test_finalise_preserves_proposal_numbers_and_derives_actions() -> None:
     )
     snapshot = _snapshot(("HELD", 10.0), ("FAIL", 8.0), cash_weight_pct=82.0)
     bundles = (buy, held, rejected)
-    packed = assemble_allocator_input(bundles, snapshot, ALLOCATION_DATE)
-    proposal = AllocatorProposal(
+    packed = assemble_curator_input(bundles, snapshot, ALLOCATION_DATE)
+    proposal = CuratorProposal(
         allocation_date=ALLOCATION_DATE,
         positions=(
             ProposedPosition(
@@ -377,7 +377,7 @@ def test_finalise_preserves_proposal_numbers_and_derives_actions() -> None:
     )
     before = proposal.model_dump()
 
-    allocation = finalise_allocator_proposal(
+    allocation = finalise_curator_proposal(
         proposal, packed, source_run_ids_by_ticker(bundles)
     )
 
@@ -399,8 +399,8 @@ def test_finalise_rejects_existing_hold_increase() -> None:
         rating=InvestmentRating.HOLD,
     )
     snapshot = _snapshot(("HELD", 10.0), cash_weight_pct=90.0)
-    packed = assemble_allocator_input((held,), snapshot, ALLOCATION_DATE)
-    proposal = AllocatorProposal(
+    packed = assemble_curator_input((held,), snapshot, ALLOCATION_DATE)
+    proposal = CuratorProposal(
         allocation_date=ALLOCATION_DATE,
         positions=(
             ProposedPosition(
@@ -422,15 +422,15 @@ def test_finalise_rejects_existing_hold_increase() -> None:
     )
 
     with pytest.raises(AllocationInvariantError, match="Retain-or-reduce"):
-        finalise_allocator_proposal(proposal, packed, source_run_ids_by_ticker((held,)))
+        finalise_curator_proposal(proposal, packed, source_run_ids_by_ticker((held,)))
 
 
 def test_finalise_rejects_nonzero_forced_zero() -> None:
     rejected = _data_quality_bundle(
         "JUNK", is_existing_position=False, source_run_id="run-dqr"
     )
-    packed = assemble_allocator_input((rejected,), _cash_only(), ALLOCATION_DATE)
-    proposal = AllocatorProposal(
+    packed = assemble_curator_input((rejected,), _cash_only(), ALLOCATION_DATE)
+    proposal = CuratorProposal(
         allocation_date=ALLOCATION_DATE,
         positions=(
             ProposedPosition(
@@ -452,7 +452,7 @@ def test_finalise_rejects_nonzero_forced_zero() -> None:
     )
 
     with pytest.raises(AllocationInvariantError, match="Forced-zero"):
-        finalise_allocator_proposal(
+        finalise_curator_proposal(
             proposal, packed, source_run_ids_by_ticker((rejected,))
         )
 
@@ -472,8 +472,8 @@ def test_finalise_enforces_company_cap_across_duplicate_names() -> None:
         source_run_id="run-arm-uk",
         rating=InvestmentRating.BUY,
     )
-    packed = assemble_allocator_input((arm_us, arm_uk), _cash_only(), ALLOCATION_DATE)
-    proposal = AllocatorProposal(
+    packed = assemble_curator_input((arm_us, arm_uk), _cash_only(), ALLOCATION_DATE)
+    proposal = CuratorProposal(
         allocation_date=ALLOCATION_DATE,
         positions=(
             ProposedPosition(
@@ -502,7 +502,7 @@ def test_finalise_enforces_company_cap_across_duplicate_names() -> None:
     )
 
     with pytest.raises(AllocationInvariantError, match="15.0% cap"):
-        finalise_allocator_proposal(
+        finalise_curator_proposal(
             proposal, packed, source_run_ids_by_ticker((arm_us, arm_uk))
         )
 
@@ -527,8 +527,8 @@ def test_semiconductor_cluster_reduces_weaker_name() -> None:
         rating=InvestmentRating.BUY,
     )
     bundles = (tsmc, amat)
-    packed = assemble_allocator_input(bundles, _cash_only(), ALLOCATION_DATE)
-    proposal = AllocatorProposal(
+    packed = assemble_curator_input(bundles, _cash_only(), ALLOCATION_DATE)
+    proposal = CuratorProposal(
         allocation_date=ALLOCATION_DATE,
         positions=(
             ProposedPosition(
@@ -569,7 +569,7 @@ def test_semiconductor_cluster_reduces_weaker_name() -> None:
         portfolio_rationale="Keep the stronger foundry idea; penalise the tool name.",
     )
 
-    allocation = finalise_allocator_proposal(
+    allocation = finalise_curator_proposal(
         proposal, packed, source_run_ids_by_ticker(bundles)
     )
 
@@ -598,9 +598,9 @@ def test_mock_proposal_caps_dual_listing_company_highs() -> None:
         rating=InvestmentRating.BUY,
     )
     bundles = (us, uk)
-    packed = assemble_allocator_input(bundles, _cash_only(), ALLOCATION_DATE)
-    proposal = mock_allocator_proposal(packed)
-    allocation = finalise_allocator_proposal(
+    packed = assemble_curator_input(bundles, _cash_only(), ALLOCATION_DATE)
+    proposal = mock_curator_proposal(packed)
+    allocation = finalise_curator_proposal(
         proposal, packed, source_run_ids_by_ticker(bundles)
     )
 

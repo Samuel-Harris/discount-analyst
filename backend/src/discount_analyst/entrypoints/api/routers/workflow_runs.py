@@ -215,7 +215,7 @@ async def retry_failed_agents(
         "Workflow failed-agent retry scheduled",
         workflow_run_id=workflow_run_id,
         surveyor_reset=preparation.surveyor_reset,
-        allocator_reset=preparation.allocator_reset,
+        curator_reset=preparation.curator_reset,
         lane_reset_count=preparation.lane_reset_count,
         agent_execution_reset_count=preparation.agent_execution_reset_count,
     )

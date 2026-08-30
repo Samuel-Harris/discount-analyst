@@ -45,7 +45,7 @@ class AgentNameDb(StrEnum):
     STRATEGIST = "strategist"
     SENTINEL = "sentinel"
     APPRAISER = "appraiser"
-    ALLOCATOR = "allocator"
+    CURATOR = "curator"
 
 
 class DecisionTypeDb(StrEnum):

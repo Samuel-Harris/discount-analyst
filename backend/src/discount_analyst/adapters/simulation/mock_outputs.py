@@ -6,9 +6,9 @@ import random
 from collections import defaultdict
 from datetime import date
 
-from discount_analyst.agents.allocator.schema import (
-    AllocatorInput,
-    AllocatorProposal,
+from discount_analyst.agents.curator.schema import (
+    CuratorInput,
+    CuratorProposal,
     ProposedCash,
     ProposedPosition,
     ProposedSharedRiskCluster,
@@ -486,25 +486,25 @@ def mock_rating_table_decision(
     )
 
 
-def mock_allocator_proposal(allocator_input: AllocatorInput) -> AllocatorProposal:
-    """Deterministic AllocatorProposal that obeys policy, the 15% cap, and 100% totals."""
+def mock_curator_proposal(curator_input: CuratorInput) -> CuratorProposal:
+    """Deterministic CuratorProposal that obeys policy, the 15% cap, and 100% totals."""
     sized: dict[str, ProposedPosition] = {}
     company_targets: dict[str, float] = defaultdict(float)
     company_highs: dict[str, float] = defaultdict(float)
 
     forced_lanes = [
         lane
-        for lane in allocator_input.lanes
+        for lane in curator_input.lanes
         if lane.identity.policy.kind == "forced_zero"
     ]
     retain_lanes = [
         lane
-        for lane in allocator_input.lanes
+        for lane in curator_input.lanes
         if lane.identity.policy.kind == "retain_or_reduce"
     ]
     investable_lanes = [
         lane
-        for lane in allocator_input.lanes
+        for lane in curator_input.lanes
         if lane.identity.policy.kind == "investable"
     ]
 
@@ -580,9 +580,9 @@ def mock_allocator_proposal(allocator_input: AllocatorInput) -> AllocatorProposa
     cash_target = leftover
     cash_low = round(max(0.0, cash_target - 1.0), 2)
     cash_high = round(min(100.0, cash_target + 1.0), 2)
-    positions = tuple(sized[lane.identity.ticker] for lane in allocator_input.lanes)
-    return AllocatorProposal(
-        allocation_date=allocator_input.allocation_date,
+    positions = tuple(sized[lane.identity.ticker] for lane in curator_input.lanes)
+    return CuratorProposal(
+        allocation_date=curator_input.allocation_date,
         positions=positions,
         cash=ProposedCash(
             target_weight_pct=cash_target,
@@ -590,9 +590,9 @@ def mock_allocator_proposal(allocator_input: AllocatorInput) -> AllocatorProposa
             acceptable_weight_high_pct=cash_high,
             rationale="Residual capital held in cash.",
         ),
-        shared_risk_clusters=_mock_shared_risk_clusters(allocator_input),
+        shared_risk_clusters=_mock_shared_risk_clusters(curator_input),
         portfolio_rationale=(
-            "Mock Allocator sizes forced-zero names at zero, keeps existing HOLD "
+            "Mock Curator sizes forced-zero names at zero, keeps existing HOLD "
             "at or below the 15% company cap, and places leftover capital in "
             "investable names or cash."
         ),
@@ -600,11 +600,11 @@ def mock_allocator_proposal(allocator_input: AllocatorInput) -> AllocatorProposa
 
 
 def _mock_shared_risk_clusters(
-    allocator_input: AllocatorInput,
+    curator_input: CuratorInput,
 ) -> tuple[ProposedSharedRiskCluster, ...]:
     members = tuple(
         lane.identity.ticker
-        for lane in allocator_input.lanes
+        for lane in curator_input.lanes
         if "semiconductor" in lane.identity.sector.casefold()
         or "semiconductor" in lane.identity.industry.casefold()
         or "foundry" in lane.identity.industry.casefold()

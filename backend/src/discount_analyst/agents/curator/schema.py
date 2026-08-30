@@ -1,6 +1,6 @@
-"""Allocator LLM input and proposal contracts.
+"""Curator LLM input and proposal contracts.
 
-These schemas are self-contained so the Allocator package does not import
+These schemas are self-contained so the Curator package does not import
 lower stage schemas. Application code packs compact evidence from those
 stages and retains ``source_run_id`` for the audit record.
 """
@@ -49,7 +49,7 @@ class CompactAppraiserEvidence(BaseModel):
     data_quality: Literal["High", "Medium", "Low"]
 
 
-class AllocatorLaneIdentity(BaseModel):
+class CuratorLaneIdentity(BaseModel):
     ticker: str
     company_name: str
     is_existing_position: bool
@@ -62,7 +62,7 @@ class AllocatorLaneIdentity(BaseModel):
 
 class RatingTableLaneEvidence(BaseModel):
     decision_kind: Literal["rating_table"] = "rating_table"
-    identity: AllocatorLaneIdentity
+    identity: CuratorLaneIdentity
     researcher: CompactResearcherEvidence
     strategist: CompactStrategistEvidence
     sentinel: CompactSentinelEvidence
@@ -71,7 +71,7 @@ class RatingTableLaneEvidence(BaseModel):
 
 class SentinelRejectionLaneEvidence(BaseModel):
     decision_kind: Literal["sentinel_rejection"] = "sentinel_rejection"
-    identity: AllocatorLaneIdentity
+    identity: CuratorLaneIdentity
     rejection_reason: str
     researcher: CompactResearcherEvidence
     strategist: CompactStrategistEvidence
@@ -80,11 +80,11 @@ class SentinelRejectionLaneEvidence(BaseModel):
 
 class DataQualityRejectionLaneEvidence(BaseModel):
     decision_kind: Literal["data_quality_rejection"] = "data_quality_rejection"
-    identity: AllocatorLaneIdentity
+    identity: CuratorLaneIdentity
     rejection_reason: str
 
 
-AllocatorLaneEvidence = Annotated[
+CuratorLaneEvidence = Annotated[
     RatingTableLaneEvidence
     | SentinelRejectionLaneEvidence
     | DataQualityRejectionLaneEvidence,
@@ -92,16 +92,16 @@ AllocatorLaneEvidence = Annotated[
 ]
 
 
-class AllocatorInput(BaseModel):
+class CuratorInput(BaseModel):
     allocation_date: date
     snapshot: CurrentPortfolioSnapshot
-    lanes: tuple[AllocatorLaneEvidence, ...]
+    lanes: tuple[CuratorLaneEvidence, ...]
 
     @model_validator(mode="after")
-    def validate_lane_tickers(self) -> AllocatorInput:
+    def validate_lane_tickers(self) -> CuratorInput:
         require_unique_casefold(
             (lane.identity.ticker for lane in self.lanes),
-            item_kind="Allocator input tickers",
+            item_kind="Curator input tickers",
         )
         return self
 
@@ -128,7 +128,7 @@ class ProposedSharedRiskCluster(BaseModel):
     allocation_effect: str
 
 
-class AllocatorProposal(BaseModel):
+class CuratorProposal(BaseModel):
     allocation_date: date
     positions: tuple[ProposedPosition, ...]
     cash: ProposedCash
@@ -136,7 +136,7 @@ class AllocatorProposal(BaseModel):
     portfolio_rationale: str
 
     @model_validator(mode="after")
-    def validate_proposal_shape(self) -> AllocatorProposal:
+    def validate_proposal_shape(self) -> CuratorProposal:
         require_unique_casefold(
             (position.ticker for position in self.positions),
             item_kind="Proposal tickers",

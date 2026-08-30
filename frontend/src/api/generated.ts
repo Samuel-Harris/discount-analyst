@@ -31,7 +31,7 @@ export const AgentNameSlug = {
   strategist: 'strategist',
   sentinel: 'sentinel',
   appraiser: 'appraiser',
-  allocator: 'allocator',
+  curator: 'curator',
 } as const;
 
 export type AllocationPositionPolicy = InvestablePolicy | RetainOrReducePolicy | ForcedZeroPolicy;
@@ -301,7 +301,7 @@ export interface ValidationError {
   type: string;
 }
 
-export type WorkflowRunDetailResponseAllocatorExecution = AgentExecutionSummary | null;
+export type WorkflowRunDetailResponseCuratorExecution = AgentExecutionSummary | null;
 
 export type WorkflowRunDetailResponseCompletedAt = string | null;
 
@@ -310,7 +310,7 @@ export type WorkflowRunDetailResponseErrorMessage = string | null;
 export type WorkflowRunDetailResponseSurveyorExecution = AgentExecutionSummary | null;
 
 export interface WorkflowRunDetailResponse {
-  allocator_execution: WorkflowRunDetailResponseAllocatorExecution;
+  curator_execution: WorkflowRunDetailResponseCuratorExecution;
   can_retry_failed_agents: boolean;
   completed_at: WorkflowRunDetailResponseCompletedAt;
   error_message: WorkflowRunDetailResponseErrorMessage;
@@ -355,7 +355,7 @@ export type WorkflowScopedAgentNameSlug = typeof WorkflowScopedAgentNameSlug[key
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const WorkflowScopedAgentNameSlug = {
   surveyor: 'surveyor',
-  allocator: 'allocator',
+  curator: 'curator',
 } as const;
 
 export type YfinanceFreshnessResponseLatestVersion = string | null;

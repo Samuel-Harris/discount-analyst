@@ -26,7 +26,7 @@ def test_startup_applies_alembic_head_and_is_idempotent(tmp_path: Path) -> None:
         revision = session.exec(text("SELECT version_num FROM alembic_version")).one()
 
     table_names = {row[0] for row in tables}
-    assert revision[0] == "0013_portfolio_allocations"
+    assert revision[0] == "0014_rename_allocator_to_curator"
     assert "workflow_runs" in table_names
     assert "candidate_snapshots" in table_names
     assert "agent_conversation_message_parts" in table_names
@@ -184,12 +184,12 @@ def test_upgrade_from_0009_unifies_agent_executions_preserving_ids(
                 """
             )
         ).all()
-        allocator_status = connection.execute(
+        curator_status = connection.execute(
             text(
                 """
                 SELECT agent_name, status, error_message
                 FROM agent_executions
-                WHERE agent_name = 'allocator'
+                WHERE agent_name = 'curator'
                 """
             )
         ).one()
@@ -200,16 +200,16 @@ def test_upgrade_from_0009_unifies_agent_executions_preserving_ids(
 
     assert ("profiler-execution", None, "run-1") in execution_rows
     assert ("surveyor-execution", "workflow-1", None) in execution_rows
-    allocator_rows = [
+    curator_rows = [
         row
         for row in execution_rows
         if row[0] not in {"profiler-execution", "surveyor-execution"}
     ]
-    assert len(allocator_rows) == 1
-    assert allocator_rows[0][1] == "workflow-1"
-    assert allocator_rows[0][2] is None
-    assert allocator_status == (
-        "allocator",
+    assert len(curator_rows) == 1
+    assert curator_rows[0][1] == "workflow-1"
+    assert curator_rows[0][2] is None
+    assert curator_status == (
+        "curator",
         "skipped",
         "legacy_workflow_without_position_snapshot",
     )
@@ -303,3 +303,23 @@ def test_portfolio_allocations_upgrade_backfill_and_downgrade(tmp_path: Path) ->
     assert workflow_status == "completed"
 
     command.upgrade(config, "head")
+    engine = create_engine(database_url)
+    with engine.connect() as connection:
+        curator = connection.execute(
+            text(
+                """
+                SELECT agent_name, status, error_message FROM agent_executions
+                WHERE workflow_run_id = 'legacy-workflow' AND agent_name = 'curator'
+                """
+            )
+        ).one()
+        leftover_allocator = connection.execute(
+            text("SELECT COUNT(*) FROM agent_executions WHERE agent_name = 'allocator'")
+        ).one()[0]
+    engine.dispose()
+    assert curator == (
+        "curator",
+        "skipped",
+        "legacy_workflow_without_position_snapshot",
+    )
+    assert leftover_allocator == 0

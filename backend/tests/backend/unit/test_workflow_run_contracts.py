@@ -67,8 +67,8 @@ def test_workflow_run_detail_matches_contract_after_post(client: TestClient) -> 
     assert m.surveyor_execution is not None
     assert m.surveyor_execution.agent_name == "surveyor"
     assert m.surveyor_execution.model_name is None
-    assert m.allocator_execution is not None
-    assert m.allocator_execution.agent_name == "allocator"
+    assert m.curator_execution is not None
+    assert m.curator_execution.agent_name == "curator"
     assert len(m.runs) == 1
     run0 = m.runs[0]
     assert run0.entry_path == "profiler"
@@ -103,9 +103,9 @@ def test_workflow_run_detail_seed_profiler_and_surveyor_lanes(
     profiler_lane = next(r for r in detail.runs if r.entry_path == "profiler")
     names = [a.agent_name for a in profiler_lane.agent_executions]
     assert names[0] == "profiler"
-    assert detail.allocator_execution is not None
-    assert detail.allocator_execution.agent_name == "allocator"
-    assert detail.allocator_execution.status == "completed"
+    assert detail.curator_execution is not None
+    assert detail.curator_execution.agent_name == "curator"
+    assert detail.curator_execution.status == "completed"
 
 
 def test_list_newest_workflow_first(client: TestClient) -> None:
@@ -147,7 +147,7 @@ def test_conversation_endpoints_validate(client: TestClient) -> None:
 
     alloc = ConversationResponse.model_validate(
         client.get(
-            f"/api/agents/workflow_runs/{wf_id}/agents/allocator/conversation"
+            f"/api/agents/workflow_runs/{wf_id}/agents/curator/conversation"
         ).json()
     )
     assert alloc.system_prompt

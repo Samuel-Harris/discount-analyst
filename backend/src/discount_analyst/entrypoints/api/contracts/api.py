@@ -66,7 +66,7 @@ class WorkflowRunDetailResponse(BaseModel):
     error_message: str | None
     can_retry_failed_agents: bool
     surveyor_execution: AgentExecutionSummary | None
-    allocator_execution: AgentExecutionSummary | None
+    curator_execution: AgentExecutionSummary | None
     runs: list[TickerRunDetail]
 
 

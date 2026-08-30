@@ -15,7 +15,7 @@ from discount_analyst.adapters.persistence.crud.run_executions import (
     RetryWorkflowRunNotFoundError,
     RetryWorkflowRunNotTerminalError,
     get_agent_execution_id_by_run_and_agent,
-    get_workflow_allocator_execution,
+    get_workflow_curator_execution,
     insert_ticker_run_with_agents,
     mark_lane_abort,
     prepare_retry_failed_agents,
@@ -567,7 +567,7 @@ def test_prepare_retry_failed_agents_missing_workflow(db_session: Session) -> No
         prepare_retry_failed_agents(db_session, "00000000-0000-4000-8000-000000000999")
 
 
-def test_prepare_retry_failed_agents_resets_only_failed_allocator(
+def test_prepare_retry_failed_agents_resets_only_failed_curator(
     db_session: Session,
 ) -> None:
     workflow_run_id, surveyor_execution_id, run_id = (
@@ -576,11 +576,11 @@ def test_prepare_retry_failed_agents_resets_only_failed_allocator(
     workflow = db_session.get(WorkflowRun, workflow_run_id)
     surveyor = db_session.get(AgentExecution, surveyor_execution_id)
     run = db_session.get(Run, run_id)
-    allocator = get_workflow_allocator_execution(db_session, workflow_run_id)
+    curator = get_workflow_curator_execution(db_session, workflow_run_id)
     assert workflow is not None
     assert surveyor is not None
     assert run is not None
-    assert allocator is not None
+    assert curator is not None
 
     workflow.status = WorkflowRunStatusDb.FAILED
     workflow.completed_at = utc_now()
@@ -596,31 +596,31 @@ def test_prepare_retry_failed_agents_resets_only_failed_allocator(
             agent_name=agent_name,
             status=ExecutionStatusDb.COMPLETED,
         )
-    allocator.status = ExecutionStatusDb.FAILED
-    allocator.started_at = utc_now()
-    allocator.completed_at = utc_now()
-    allocator.error_message = "Current portfolio snapshot is missing."
+    curator.status = ExecutionStatusDb.FAILED
+    curator.started_at = utc_now()
+    curator.completed_at = utc_now()
+    curator.error_message = "Current portfolio snapshot is missing."
     db_session.add(workflow)
     db_session.add(surveyor)
     db_session.add(run)
-    db_session.add(allocator)
+    db_session.add(curator)
     db_session.commit()
 
     preparation = prepare_retry_failed_agents(db_session, workflow_run_id)
     db_session.commit()
 
     assert preparation.surveyor_reset is False
-    assert preparation.allocator_reset is True
+    assert preparation.curator_reset is True
     assert preparation.lane_reset_count == 0
     detail = fetch_workflow_detail(db_session, workflow_run_id)
     assert detail is not None
     assert detail["status"] == "running"
-    assert detail["allocator_execution"] is not None
-    assert detail["allocator_execution"]["status"] == "pending"
+    assert detail["curator_execution"] is not None
+    assert detail["curator_execution"]["status"] == "pending"
     assert detail["runs"][0]["status"] == "completed"
 
 
-def test_prepare_retry_does_not_reset_legacy_skipped_allocator(
+def test_prepare_retry_does_not_reset_legacy_skipped_curator(
     db_session: Session,
 ) -> None:
     workflow_run_id, surveyor_execution_id, run_id = (
@@ -629,11 +629,11 @@ def test_prepare_retry_does_not_reset_legacy_skipped_allocator(
     workflow = db_session.get(WorkflowRun, workflow_run_id)
     surveyor = db_session.get(AgentExecution, surveyor_execution_id)
     run = db_session.get(Run, run_id)
-    allocator = get_workflow_allocator_execution(db_session, workflow_run_id)
+    curator = get_workflow_curator_execution(db_session, workflow_run_id)
     assert workflow is not None
     assert surveyor is not None
     assert run is not None
-    assert allocator is not None
+    assert curator is not None
 
     workflow.status = WorkflowRunStatusDb.COMPLETED
     workflow.completed_at = utc_now()
@@ -646,12 +646,12 @@ def test_prepare_retry_does_not_reset_legacy_skipped_allocator(
             agent_name=agent_name,
             status=ExecutionStatusDb.COMPLETED,
         )
-    allocator.status = ExecutionStatusDb.SKIPPED
-    allocator.error_message = LEGACY_WORKFLOW_WITHOUT_POSITION_SNAPSHOT
+    curator.status = ExecutionStatusDb.SKIPPED
+    curator.error_message = LEGACY_WORKFLOW_WITHOUT_POSITION_SNAPSHOT
     db_session.add(workflow)
     db_session.add(surveyor)
     db_session.add(run)
-    db_session.add(allocator)
+    db_session.add(curator)
     db_session.commit()
 
     with pytest.raises(NoFailedAgentsToRetryError):

@@ -172,7 +172,7 @@ name = "Agent stages follow dependency direction"
 type = "layers"
 containers = ["discount_analyst.agents"]
 layers = [
-  "allocator",
+  "curator",
   "appraiser",
   "sentinel",
   "strategist",

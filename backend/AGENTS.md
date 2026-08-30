@@ -53,7 +53,7 @@ Server-side home for Discount Analyst: the installable `discount_analyst` monoli
 
 Coarse layers (high → low): `composition` → `entrypoints` → `adapters` → `application` → `agents` → `config` → `domain`.
 
-Also enforced: domain purity / protected importers; application forbidden adapters+SQLModel; API↔CLI independence; persistence ↔ market_data ↔ simulation independence; agent stage order (allocator → appraiser → … → surveyor).
+Also enforced: domain purity / protected importers; application forbidden adapters+SQLModel; API↔CLI independence; persistence ↔ market_data ↔ simulation independence; agent stage order (curator → appraiser → … → surveyor).
 
 Run: `uv run lint-imports` (also pre-commit + CI job `import-linter`).
 

@@ -50,9 +50,9 @@ class AgentNameSlug(StrEnum):
     STRATEGIST = "strategist"
     SENTINEL = "sentinel"
     APPRAISER = "appraiser"
-    ALLOCATOR = "allocator"
+    CURATOR = "curator"
 
 
 class WorkflowScopedAgentNameSlug(StrEnum):
     SURVEYOR = "surveyor"
-    ALLOCATOR = "allocator"
+    CURATOR = "curator"

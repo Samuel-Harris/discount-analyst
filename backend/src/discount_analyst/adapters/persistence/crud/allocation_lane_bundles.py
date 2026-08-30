@@ -1,4 +1,4 @@
-"""Load completed ticker lanes as Allocator ``CompletedLaneBundle`` values."""
+"""Load completed ticker lanes as Curator ``CompletedLaneBundle`` values."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ from discount_analyst.domain.decisions.investment_rating import InvestmentRating
 def load_completed_lane_bundles(
     session: Session, workflow_run_id: str
 ) -> tuple[CompletedLaneBundle, ...]:
-    """Reconstruct compact Allocator evidence from completed ticker runs."""
+    """Reconstruct compact Curator evidence from completed ticker runs."""
     runs = list(
         session.scalars(
             select(Run)

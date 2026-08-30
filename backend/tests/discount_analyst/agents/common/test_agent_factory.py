@@ -19,8 +19,8 @@ from discount_analyst.agents.runtime.tool_descriptions import AGENT_TOOL_DESCRIP
 from discount_analyst.agents.common_prompts.current_date import format_current_date_line
 from discount_analyst.agents.sentinel import sentinel as sentinel_module
 from discount_analyst.agents.sentinel.sentinel import create_sentinel_agent
-from discount_analyst.agents.allocator import allocator as allocator_module
-from discount_analyst.agents.allocator.allocator import create_allocator_agent
+from discount_analyst.agents.curator import curator as curator_module
+from discount_analyst.agents.curator.curator import create_curator_agent
 from discount_analyst.agents.strategist import strategist as strategist_module
 from discount_analyst.agents.strategist.strategist import create_strategist_agent
 from discount_analyst.config.ai_models_config import (
@@ -227,9 +227,9 @@ def test_regulatory_tool_roles_cover_every_agent() -> None:
         agent_factory.create_universe_toolset,
         agent_factory.create_filings_toolset,
     )
-    assert REGULATORY_TOOLSETS_BY_ROLE[AgentName.ALLOCATOR] == ()
+    assert REGULATORY_TOOLSETS_BY_ROLE[AgentName.CURATOR] == ()
     for name in AgentName:
-        if name in {AgentName.SURVEYOR, AgentName.ALLOCATOR}:
+        if name in {AgentName.SURVEYOR, AgentName.CURATOR}:
             continue
         assert REGULATORY_TOOLSETS_BY_ROLE[name] == (
             agent_factory.create_filings_toolset,
@@ -275,7 +275,7 @@ def test_non_surveyor_receives_filings_without_universe(
     assert captured["toolsets"] == [fx_toolset, filings_toolset]
 
 
-def test_allocator_receives_frankfurter_without_filings(
+def test_curator_receives_frankfurter_without_filings(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fx_toolset = object()
@@ -305,7 +305,7 @@ def test_allocator_receives_frankfurter_without_filings(
     monkeypatch.setattr(agent_factory, "Agent", fake_agent)
 
     create_agent(
-        spec=AgentSpec(name=AgentName.ALLOCATOR, output_type=str, system_prompt="test"),
+        spec=AgentSpec(name=AgentName.CURATOR, output_type=str, system_prompt="test"),
         ai_models_config=AIModelsConfig(model_name=ModelName.DEEPSEEK_V4_PRO),
         enable_web_research_tools=False,
         use_mcp_financial_data=False,
@@ -370,7 +370,7 @@ def test_create_sentinel_agent_is_interpretation_only(
     assert getattr(terminal, "enabled") is False
 
 
-def test_create_allocator_agent_is_closed_book(
+def test_create_curator_agent_is_closed_book(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, object] = {}
@@ -379,8 +379,8 @@ def test_create_allocator_agent_is_closed_book(
         captured.update(kwargs)
         return SimpleNamespace()
 
-    monkeypatch.setattr(allocator_module, "create_agent", fake_create_agent)
-    create_allocator_agent(AIModelsConfig(model_name=ModelName.DEEPSEEK_V4_PRO))
+    monkeypatch.setattr(curator_module, "create_agent", fake_create_agent)
+    create_curator_agent(AIModelsConfig(model_name=ModelName.DEEPSEEK_V4_PRO))
 
     assert captured["enable_web_research_tools"] is False
     assert captured["use_perplexity"] is False

@@ -631,7 +631,7 @@ def assistant_response_for_run_agent(
             return "{}"
         return appraiser_output_from_report(row).model_dump_json()
 
-    if execution.agent_name == AgentNameDb.ALLOCATOR:
+    if execution.agent_name == AgentNameDb.CURATOR:
         allocation = get_portfolio_allocation_for_execution(session, execution.id)
         if allocation is None:
             return "{}"

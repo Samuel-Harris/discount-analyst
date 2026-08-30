@@ -141,7 +141,7 @@ def test_persist_dqr_skips_upsert_when_workflow_surveyor_is_absent(
     db_session: Session,
 ) -> None:
     workflow_run_id = new_id()
-    surveyor_id, _allocator_id = insert_workflow_run(
+    surveyor_id, _curator_id = insert_workflow_run(
         db_session,
         workflow_run_id=workflow_run_id,
         portfolio_tickers=["KEYS.L"],

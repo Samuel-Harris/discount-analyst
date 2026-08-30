@@ -71,5 +71,5 @@ class TickerRunResumeRow(TypedDict):
 class WorkflowRunDetailRecord(WorkflowRunHeaderRow):
     can_retry_failed_agents: bool
     surveyor_execution: AgentExecutionRow | None
-    allocator_execution: AgentExecutionRow | None
+    curator_execution: AgentExecutionRow | None
     runs: list[TickerRunRow]
