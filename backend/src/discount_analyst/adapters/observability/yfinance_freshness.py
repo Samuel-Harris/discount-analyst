@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError, version
-from typing import Any, cast
 
 import httpx
 import logfire
+from packaging.version import InvalidVersion, Version
 
 PYPI_YFINANCE_JSON_URL = "https://pypi.org/pypi/yfinance/json"
 _PYPI_TIMEOUT_SECONDS = 3.0
@@ -20,35 +20,17 @@ class YfinanceFreshness:
     is_outdated: bool
 
 
-def version_tuple(value: str) -> tuple[int, ...]:
-    """Numeric prefix of a PEP 440 version, e.g. ``1.7.0rc1`` → ``(1, 7, 0)``."""
-    numbers: list[int] = []
-    for part in value.strip().split("."):
-        digits = ""
-        for character in part:
-            if character.isdigit():
-                digits += character
-            else:
-                break
-        if not digits:
-            break
-        numbers.append(int(digits))
-    return tuple(numbers)
-
-
 def evaluate_yfinance_freshness(
     *,
     installed_version: str,
     latest_version: str | None,
 ) -> YfinanceFreshness:
-    installed_numbers = version_tuple(installed_version)
-    latest_numbers = version_tuple(latest_version) if latest_version else ()
-    is_outdated = bool(
-        latest_version is not None
-        and installed_numbers
-        and latest_numbers
-        and installed_numbers < latest_numbers
-    )
+    is_outdated = False
+    if latest_version is not None:
+        try:
+            is_outdated = Version(installed_version) < Version(latest_version)
+        except InvalidVersion:
+            is_outdated = False
     return YfinanceFreshness(
         installed_version=installed_version,
         latest_version=latest_version,
@@ -67,7 +49,7 @@ async def check_yfinance_freshness() -> YfinanceFreshness:
     installed = installed_yfinance_version()
     try:
         latest = await _latest_yfinance_version_from_pypi()
-    except Exception as error:
+    except (httpx.HTTPError, ValueError) as error:
         logfire.warning(
             "Could not check PyPI for a newer yfinance release",
             installed_version=installed,
@@ -101,7 +83,9 @@ async def _latest_yfinance_version_from_pypi() -> str:
     async with httpx.AsyncClient(timeout=_PYPI_TIMEOUT_SECONDS) as client:
         response = await client.get(PYPI_YFINANCE_JSON_URL)
         response.raise_for_status()
-        payload = cast(dict[str, Any], response.json())
+        payload = response.json()
+    if not isinstance(payload, dict):
+        raise ValueError("PyPI yfinance JSON is not an object")
     info = payload.get("info")
     if not isinstance(info, dict):
         raise ValueError("PyPI yfinance JSON is missing an info object")

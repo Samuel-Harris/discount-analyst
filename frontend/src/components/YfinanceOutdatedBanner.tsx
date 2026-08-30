@@ -13,9 +13,10 @@ export function YfinanceOutdatedBanner({
     <div className="app-shell-alert" role="status">
       <UiStateText tone="warning" as="p">
         yfinance {installedVersion} is installed; {latestVersion} is available
-        on PyPI. Yahoo Finance access is unreliable on a stale client. Run{" "}
-        <code>uv lock --upgrade-package yfinance && uv sync</code> and restart
-        the dashboard.
+        on PyPI. Live Yahoo calls run in the agent-terminal sandbox. Run{" "}
+        <code>uv lock --upgrade-package yfinance && uv sync</code>, bump{" "}
+        <code>backend/services/agent_terminal/requirements-sandbox.txt</code>,
+        rebuild the terminal image, and restart the dashboard.
       </UiStateText>
     </div>
   );

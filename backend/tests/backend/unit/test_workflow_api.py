@@ -10,7 +10,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from discount_analyst.adapters.market_data.yfinance_freshness import YfinanceFreshness
+from discount_analyst.adapters.observability.yfinance_freshness import YfinanceFreshness
 from discount_analyst.composition.api import create_app
 from discount_analyst.application.workflows.agent_lane_order import (
     PROFILER_ENTRY_AGENT_NAMES,
@@ -76,7 +76,7 @@ def test_dashboard_status_reports_outdated_yfinance(
         )
 
     monkeypatch.setattr(
-        "discount_analyst.composition.api.check_yfinance_freshness",
+        "discount_analyst.entrypoints.api.routers.status.check_yfinance_freshness",
         _outdated,
     )
     with TestClient(create_app(dashboard_settings)) as test_client:
