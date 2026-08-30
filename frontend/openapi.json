@@ -713,16 +713,6 @@
       },
       "WorkflowRunDetailResponse": {
         "properties": {
-          "curator_execution": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/AgentExecutionSummary"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "can_retry_failed_agents": {
             "title": "Can Retry Failed Agents",
             "type": "boolean"
@@ -738,6 +728,16 @@
               }
             ],
             "title": "Completed At"
+          },
+          "curator_execution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentExecutionSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "error_message": {
             "anyOf": [

@@ -301,18 +301,18 @@ export interface ValidationError {
   type: string;
 }
 
-export type WorkflowRunDetailResponseCuratorExecution = AgentExecutionSummary | null;
-
 export type WorkflowRunDetailResponseCompletedAt = string | null;
+
+export type WorkflowRunDetailResponseCuratorExecution = AgentExecutionSummary | null;
 
 export type WorkflowRunDetailResponseErrorMessage = string | null;
 
 export type WorkflowRunDetailResponseSurveyorExecution = AgentExecutionSummary | null;
 
 export interface WorkflowRunDetailResponse {
-  curator_execution: WorkflowRunDetailResponseCuratorExecution;
   can_retry_failed_agents: boolean;
   completed_at: WorkflowRunDetailResponseCompletedAt;
+  curator_execution: WorkflowRunDetailResponseCuratorExecution;
   error_message: WorkflowRunDetailResponseErrorMessage;
   id: string;
   is_mock: boolean;
