@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError, version
 
+from typing import cast
+
 import httpx
 import logfire
 from packaging.version import InvalidVersion, Version
@@ -83,13 +85,13 @@ async def _latest_yfinance_version_from_pypi() -> str:
     async with httpx.AsyncClient(timeout=_PYPI_TIMEOUT_SECONDS) as client:
         response = await client.get(PYPI_YFINANCE_JSON_URL)
         response.raise_for_status()
-        payload = response.json()
+        payload: object = response.json()
     if not isinstance(payload, dict):
         raise ValueError("PyPI yfinance JSON is not an object")
-    info = payload.get("info")
+    info = cast(dict[str, object], payload).get("info")
     if not isinstance(info, dict):
         raise ValueError("PyPI yfinance JSON is missing an info object")
-    latest = info.get("version")
+    latest = cast(dict[str, object], info).get("version")
     if not isinstance(latest, str) or not latest.strip():
         raise ValueError("PyPI yfinance JSON is missing info.version")
     return latest.strip()
