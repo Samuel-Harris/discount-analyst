@@ -6,27 +6,17 @@ Implementation-accurate snapshot of the agentic pipeline. Ground truth is the co
 
 ## Changes since last sync
 
-Previous snapshot: 2026-08-28. **CODE-53** added official regulatory-data tools (NASDAQ Trader / LSE listings, SEC companyfacts, Companies House iXBRL) through `REGULATORY_TOOLSETS_BY_ROLE` in `agents/runtime/agent_factory.py`. Surveyor receives universe listing tools plus filing tools; Profiler, Researcher, Strategist, Sentinel, and Appraiser receive filing tools only. Bulk cache refresh is `discount-analyst admin refresh-regulatory-data` (`--exchanges` / `--sec` / `--companies-house`; no flag means all three). Cache dir `REGULATORY_DATA_CACHE_DIR` (default `data/regulatory_data`). SEC refresh and live companyfacts gap-fill require `SEC__USER_AGENT`.
+Previous snapshot: 2026-08-30 (same calendar day; last committed with `#77` / `0b9fd10`). This pass re-read factories, runners, gates, and live `model_json_schema()` / enum values. **No new agent packages.** Live stages remain **surveyor, profiler, researcher, strategist, sentinel, appraiser**. There is **no Arbiter agent**. Final ratings after a passing Sentinel gate still come from `rating_table_v1` in `discount_analyst.domain.decisions.rating_decision_table`.
 
-**CODE-81 changes prompt policy and makes Surveyor terminal-dependent.** Surveyor now screens with yfinance `EquityQuery` / `screen` through `terminal_exec`, then verifies finalists with official listing and filing tools. Its factory rejects terminal-disabled construction because there is no equivalent primary screener among the remaining tools. Profiler, Researcher, and Appraiser use yfinance first for dated market observations and official filings for reported fundamentals. FMP/EODHD screeners and paid quote/history/market-cap endpoints are prohibited in these prompts; registered non-screening paid endpoints are one-attempt gap-fill only. Sentinel remains interpretation-only: it cannot run yfinance and may use one bounded official-filing verification chain. Strategist is unchanged.
+**Pipeline logic, schemas, gates, ratings, factories — unchanged.** Candidate gate (delist-only; skipped in mock and unused by CLI), Sentinel derivation + valuation gate, Appraiser weight-blend validator, `is_existing_position` (action wording + Sentinel prompt only), mock DEV-forced path, one dashboard model for every stage, `REGULATORY_TOOLSETS_BY_ROLE`, and Surveyor’s terminal-required construction are as recorded below.
 
-**Sentinel — no web/MCP/terminal.** `create_sentinel_agent(ai_models_config)` always passes `enable_web_research_tools=False`, `use_mcp_financial_data=False`, and `terminal=terminal_run_options(..., enabled=False)`. Dashboard Perplexity/MCP/terminal settings are not forwarded. Frankfurter `convert_currency` and official filing tools (`get_sec_company_facts`, `resolve_uk_company`, `get_companies_house_accounts`) remain. CLI `agent sentinel` does not accept `--perplexity` / `--no-mcp` / `--no-terminal`.
+**Doc corrections from this re-audit** (the previous snapshot’s narrative of the pipeline was already accurate; these were stale or incomplete):
 
-**Sentinel — `gap_kind` + derived verdict.** Each `QuestionAssessment` has required `gap_kind` (`none` \| `calendar` \| `never_disclosed` \| `contradicted`). After a live run, `finalise_sentinel_evaluation` (`agents/sentinel/derive_thesis_verdict.py`) overwrites `thesis_verdict` before persist. Reconstruct from SQLite does **not** re-derive. Question-count mismatch (`len(assessments) != len(thesis.evaluation_questions)`) raises `SentinelQuestionCountError` and the lane fails without persist. Mock Sentinel skips derive. New enum member: `Thesis unproven — do not proceed`. Alembic `0011_sentinel_gap_kind_appraiser_audit` adds `evaluation_question_assessments.gap_kind` (`NOT NULL`, default `'none'`).
+1. **Finding 1 is obsolete.** `KeyMetrics` field descriptions no longer mention FMP Financial Score or insider-trading tools. They now tell the model to compute Piotroski/Altman from comparable statement inputs and to take insider buying from official issuer/exchange/regulatory disclosures.
+2. **Alembic `0012_conversation_message_usage`** (already in the repo; missing from the last “where to look” table) stores nullable token columns on `agent_conversation_messages`. That is conversation persistence, not an agent I/O schema change.
+3. **Perplexity description map vs wiring.** `AGENT_TOOL_DESCRIPTIONS` in `agents/runtime/tool_descriptions.py` **does** include `SENTINEL` (the dict is keyed by every `AgentName`). Those strings are unused: `create_sentinel_agent` never registers Perplexity. Surveyor’s Perplexity `web_search` docstring still says to prefer FMP/EODHD for numeric screens, which contradicts the yfinance-first Surveyor system prompt.
 
-Derivation order (`derive_thesis_verdict`): (1) any `Breaks thesis` with Medium/High → `BROKEN_DO_NOT_PROCEED`; (2) any `Weakens thesis` with `gap_kind` in `{none, never_disclosed, contradicted}` → `WEAKENED_DO_NOT_PROCEED`; (3) else if non-calendar assessments are non-empty and ≥ half are Low → `UNPROVEN_DO_NOT_PROCEED`; (4) else if any `calendar` gap → `INTACT_WITH_RESERVATIONS`; (5) else `INTACT_PROCEED_TO_VALUATION`. Low-confidence `Breaks thesis` falls through to (3), not broken. The valuation gate is unchanged in *shape*: proceed only on the two intact verdicts, and still block on red-flag `Serious concern`. Unproven and weakened skip Appraiser.
-
-**Sentinel rejection text.** `build_sentinel_rejection` now appends `verdict_rationale` and a compact `gap_kind` tally when the thesis is outside the proceed set.
-
-**Existing-position Sentinel prompt.** Dashboard/CLI `is_existing_position` is threaded into `create_user_prompt`. Existing-position wording: judge the live thesis on printed evidence; unreleased prints are reservations, not an exit. Derivation and the rating table are unchanged by the flag.
-
-**Appraiser — required blend.** `ValuationMethodResult.value_per_share` and `weight_pct` are required (`gt=0` / `0–100`). Weights must sum to **100 ± 0.05**. `expected_intrinsic_value` must equal `sum(value_per_share * weight_pct / 100)` within `max(0.01, 0.5% of |blend|)`. Percentiles stay model-produced (monotonic; expected in [p10, p90]); p10/p90 are not rewritten from cross-checks. `ValuationMethod` drops `other`; adds `earnings_multiple` and `fcf_yield`. `AppraiserOutput` requires `shares_outstanding` (`gt=0`), `share_count_source` (`filing` \| `profile` \| `implied_from_market_cap`), `quoted_price_unit` (`major` \| `subunit`). Old Appraiser JSON without these fields **fails closed** on `AppraiserOutput` validation (one contract). Alembic 0011 adds the three audit columns on `appraiser_reports` as **nullable** (historical rows); reconstruct still validates the Pydantic model.
-
-**Strategist questions.** `evaluation_questions` field description and prompts require questions answerable from the last reported period plus the last trading update; a future print must not be load-bearing. No new enum.
-
-**Unchanged.** Candidate gate, `DataQualityRejection`, CLI skip of the candidate gate, mock skip of the candidate gate, rating table, agent package set.
-
-Live agent packages under `discount_analyst/agents/`: **surveyor, profiler, researcher, strategist, sentinel, appraiser**. There is **no Arbiter agent**. Final ratings after a passing Sentinel gate come from a deterministic table (`rating_table_v1` in `discount_analyst.domain.decisions.rating_decision_table`).
+Skill-table path drift (for the next operator, not a pipeline change): dashboard runner is `adapters/orchestration/sqlmodel_runner.py`, HTTP is `entrypoints/api/routers/workflow_runs.py`, CLI is `entrypoints/cli/workflows/run_full_workflow.py`, builders are `application/decisions/builders.py`, lane order is `application/workflows/agent_lane_order.py`, rating enum is `domain/decisions/investment_rating.py`.
 
 Checked and recorded below: schemas, agents, gates/orchestration, ratings, tools/data. Prompt vs code conflicts are listed in [Findings](#findings-prompt-vs-code), not silently “corrected” in the narrative.
 
@@ -199,7 +189,7 @@ Recommended action by `(rating, is_existing_position)`:
 
 ## Complete schema reference
 
-Introspected 2026-08-28 via `model_json_schema()` / enum values. Nested models are listed once. `required` means the JSON schema `required` array (Pydantic defaults may still appear on the wire).
+Introspected 2026-08-30 via `model_json_schema()` / enum values. Nested models are listed once. `required` means the JSON schema `required` array (Pydantic defaults may still appear on the wire).
 
 ### Enums
 
@@ -277,6 +267,8 @@ No persisted `recommendation` field. The model fills `thesis_verdict` best-effor
 `lane_context`, `deep_research`, `thesis`, `evaluation`, `risk_free_rate_pct` (float; caller-supplied).
 
 ### `IntrinsicValueDistribution` (all required)
+
+Defined in `domain/valuation/intrinsic_value_distribution.py`; imported by `AppraiserOutput`.
 
 `currency` (string length 3–8), `current_share_price` (>0), `expected_intrinsic_value` (>0), `p10`/`p25`/`p50`/`p75`/`p90_intrinsic_value` (>0), `distribution_method`, `distribution_reasoning`.
 
@@ -413,7 +405,7 @@ MCP (`agents/tools/market_data/financial_data_mcp.py`): `https://mcp.eodhd.dev/m
 
 FMP blacklist (`mcp_tool_blacklist.py`): blocked tools `analyst`, `news`, `insiderTrades`, `chart`, `calendar`; blocked `statements` endpoints include `financial-scores` / `financial-score`, full statements, key-metrics, TTM statements, segments, owner-earnings; also `company`/`batch-market-cap` and `quote`/`quote-short`. EODHD blacklist is empty. Calls are wrapped in `InfallibleToolset` so 402s become model-visible errors.
 
-When Perplexity is off: `WebSearch(native=True, local=bounded DuckDuckGo)` and `WebFetch` (DeepSeek uses text-only local fetch). When Perplexity is on: `create_perplexity_toolset(agent_name)` — descriptions in `agents/runtime/tool_descriptions.py` (Appraiser, Profiler, Surveyor, Researcher). Sentinel has no Perplexity entry because those tools are not registered. Strategist *can* receive Perplexity when `use_perplexity=True` (dashboard setting / CLI `--perplexity`).
+When Perplexity is off: `WebSearch(native=True, local=bounded DuckDuckGo)` and `WebFetch` (DeepSeek uses text-only local fetch). When Perplexity is on: `create_perplexity_toolset(agent_name)` — descriptions in `agents/runtime/tool_descriptions.py`. That map is keyed by every `AgentName`, including unused Sentinel strings. Strategist *can* receive Perplexity when `use_perplexity=True` (dashboard setting / CLI `--perplexity`). Sentinel still does not: the factory never registers those tools.
 
 Web-research agents: Surveyor, Profiler, Researcher, Appraiser, and **Strategist** (factory default). Sentinel: no web, MCP, or terminal; FX plus official filing tools.
 
@@ -444,7 +436,7 @@ SurveyorCandidate
                                             └─ RatingTableDecision → Verdict
 ```
 
-Dashboard persists agent `output_json`, conversations, candidate-snapshot gate columns, and `final_verdict_json` on the ticker run.
+Dashboard persists agent `output_json`, conversations (including Alembic 0012 token columns on response messages), candidate-snapshot gate columns, and `final_verdict_json` on the ticker run.
 
 ---
 
@@ -480,6 +472,8 @@ Dashboard persists agent `output_json`, conversations, candidate-snapshot gate c
 | Mock payloads                                  | `adapters/simulation/mock_outputs.py`                                                                              |
 | Settings                                       | `config/settings.py`                                                                                               |
 | Alembic (gap_kind + Appraiser audit columns)   | `backend/migrations/versions/0011_sentinel_gap_kind_appraiser_audit.py`                                            |
+| Alembic (conversation token columns)           | `backend/migrations/versions/0012_conversation_message_usage.py`                                                   |
+| Intrinsic value distribution (Appraiser I/O)   | `domain/valuation/intrinsic_value_distribution.py`                                                                 |
 | Valuation toolkit (optional Appraiser helpers) | `domain/valuation/toolkit/`                                                                                        |
 
 CLI one-shots: `uv run discount-analyst agent {surveyor,profiler,researcher,strategist,sentinel,appraiser}`. Admin: `uv run discount-analyst admin refresh-regulatory-data`.
@@ -490,13 +484,13 @@ CLI one-shots: `uv run discount-analyst agent {surveyor,profiler,researcher,stra
 
 These are disagreements to resolve in code, prompts, or docs — not silently normalised here.
 
-1. **Blacklisted FMP vs schema copy.** `KeyMetrics` field descriptions still tell the model to use FMP Financial Score and insider-trading tools; those tools/endpoints are plan-gated off, while current prompts say to leave unavailable scores null.
-2. **Beneish M-Score.** Surveyor prompt says it is “computed deterministically elsewhere”. **No Beneish implementation exists** in this package (grep only hits the prompt).
-3. **`StockCategory`.** Enum `value`/`growth` is unused. Appraiser user prompt explicitly says not to label value vs growth.
-4. **Stale agent names in schemas/prompts.** Strategist `evaluation_questions` description still says “the Evaluation Agent”. Sentinel `caveats`: “Appraiser and **final decision agent**”. `sentinel_proceeds_to_valuation` docstring: “Appraiser / **DCF** stage”. There is no Evaluation/Arbiter/final-decision LLM; DCF is optional inside Appraiser.
-5. **Researcher input type.** User prompt and factories pass `SurveyorLaneContext`. Researcher `DeepResearchReport` / `DataGapsUpdate` descriptions still say “Surveyor candidate”.
-6. **CLI vs dashboard gates.** CLI full workflow never calls `validate_candidate`. Dashboard always does (except mock). Same agent chain, different admission policy.
-7. **Strategist stance vs factory.** System prompt: interpreter, not researcher. `create_strategist_agent` still defaults `use_mcp_financial_data=True` and does not pass `enable_web_research_tools=False`, so dashboard Strategist still gets web/MCP/terminal from settings. Sentinel is the only production factory without web/MCP/terminal; it now also has official filing tools.
+1. **Beneish M-Score.** Surveyor prompt says it is “computed deterministically elsewhere”. **No Beneish implementation exists** in this package (grep only hits the prompt).
+2. **`StockCategory`.** Enum `value`/`growth` is unused (no field on `SurveyorCandidate`). Appraiser user prompt still says not to label the stock “value” or “growth”. Surveyor prompt still asks for a value/growth-balanced shortlist.
+3. **Stale agent names in schemas/prompts.** Strategist `evaluation_questions` description still says “the Evaluation Agent”. Sentinel `caveats`: “Appraiser and **final decision agent**”. `sentinel_proceeds_to_valuation` docstring: “Appraiser / **DCF** stage”. There is no Evaluation/Arbiter/final-decision LLM; DCF is optional inside Appraiser.
+4. **Researcher input type.** User prompt and factories pass `SurveyorLaneContext`. Researcher `DeepResearchReport` / `DataGapsUpdate` descriptions still say “Surveyor candidate”.
+5. **CLI vs dashboard gates.** CLI full workflow never calls `validate_candidate`. Dashboard always does (except mock). Same agent chain, different admission policy.
+6. **Strategist stance vs factory.** System prompt: interpreter, not researcher. `create_strategist_agent` still defaults `use_mcp_financial_data=True` and does not pass `enable_web_research_tools=False`, so dashboard Strategist still gets web/MCP/terminal from settings. Sentinel is the only production factory without web/MCP/terminal; it now also has official filing tools.
+7. **Perplexity tool descriptions vs prompt policy.** Surveyor’s Perplexity `web_search` docstring still tells the model to prefer FMP/EODHD MCP for numeric screens. The Surveyor system prompt forbids paid screeners and requires yfinance `EquityQuery` / `screen` via `terminal_exec`. Sentinel has unused Perplexity description strings in the same map; they are never registered.
 
 ---
 
