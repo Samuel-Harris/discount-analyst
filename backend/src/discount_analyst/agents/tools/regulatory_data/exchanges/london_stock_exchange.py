@@ -1,26 +1,32 @@
 import csv
 import zipfile
+from collections.abc import Iterable, Iterator
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import urlencode, urljoin, urlparse
 
-from lxml import etree, html
+from lxml import etree
 
 from discount_analyst.agents.tools.regulatory_data.cache import (
     RegulatoryDataCache,
     ensure_fresh_snapshot,
 )
 from discount_analyst.agents.tools.regulatory_data.errors import (
+    ColdCacheError,
     SchemaValidationError,
 )
 from discount_analyst.agents.tools.regulatory_data.exchanges.equity_classifier import (
     is_excluded_security_name,
-    is_ordinary_equity_instrument,
 )
 from discount_analyst.agents.tools.regulatory_data.http import (
     create_metadata_client,
     stream_url_to_path,
+)
+from discount_analyst.agents.tools.regulatory_data.json_maps import (
+    as_object_list,
+    as_str_map,
 )
 from discount_analyst.agents.tools.regulatory_data.models import (
     CacheSource,
@@ -35,16 +41,22 @@ from discount_analyst.agents.tools.regulatory_data.pagination import (
     page_listings,
 )
 
-LSE_REPORTS_URL = "https://www.londonstockexchange.com/reports?tab=issuers"
-LSE_ISSUERS_REPORT_LABEL = "Issuer list"
+LSE_PAGES_URL = "https://api.londonstockexchange.com/api/v1/pages?path=reports"
+LSE_COMPONENTS_REFRESH_URL = (
+    "https://api.londonstockexchange.com/api/v1/components/refresh"
+)
+LSE_REPORTS_PATH = "reports"
+LSE_PARENT_FILTER_LABEL = "Issuers and Instruments"
+LSE_INSTRUMENTS_SUBFILTER_LABEL = "Instruments"
+LSE_INSTRUMENT_LIST_CTA_TITLE = "Instrument list"
+LSE_SHARES_SHEET_NAME = "1.1 Shares"
 
-LSE_ISSUERS_HEADERS = (
+LSE_INSTRUMENT_COLUMNS = (
     "TIDM",
     "Issuer Name",
+    "Instrument Name",
     "ISIN",
-    "Market",
-    "Instrument name",
-    "Sector",
+    "LSE Market",
 )
 
 _MARKET_BY_LABEL = {
@@ -58,6 +70,14 @@ _XLSX_FILENAME = "issuers_report.xlsx"
 _DOWNLOAD_FILENAME = "issuers_report.download"
 _SOURCE = CacheSource.LSE_ISSUERS
 _ZIP_MAGIC = b"PK"
+_WORKBOOK_REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+
+
+@dataclass(frozen=True, slots=True)
+class _InstrumentsTab:
+    tab: str
+    tab_id: str
+    module_id: str
 
 
 async def list_uk_listed_equities(
@@ -67,9 +87,9 @@ async def list_uk_listed_equities(
     limit: int = DEFAULT_PAGE_LIMIT,
     cursor: str | None = None,
 ) -> ListedEquitiesPage:
-    """List currently listed UK equities from the official LSE issuers report.
+    """List currently listed UK equities from the official LSE instrument list.
 
-    Returns a paged snapshot of LSE Main Market and AIM equities. Default page
+    Returns a paged snapshot of LSE Main Market and AIM shares. Default page
     size is 50 and the maximum is 100.
 
     Args:
@@ -101,11 +121,14 @@ async def refresh_lse_issuers() -> SourceRefreshResult:
     cache = RegulatoryDataCache.from_settings()
     with cache.publishing(_SOURCE) as (version_dir, publish):
         async with create_metadata_client() as client:
-            page_response = await client.get(LSE_REPORTS_URL)
-            page_response.raise_for_status()
-            report_url = _discover_issuers_report_url(
-                page_response.text, str(page_response.url)
+            pages_response = await client.get(LSE_PAGES_URL)
+            pages_response.raise_for_status()
+            refresh_response = await client.post(
+                LSE_COMPONENTS_REFRESH_URL,
+                json=_refresh_body(_instruments_tab(pages_response.json())),
             )
+            refresh_response.raise_for_status()
+            report_url = _instrument_list_url(refresh_response.json())
             download_path = version_dir / _DOWNLOAD_FILENAME
             await stream_url_to_path(client, report_url, download_path)
         report_path = _finalise_downloaded_report(download_path)
@@ -124,42 +147,129 @@ async def refresh_lse_issuers() -> SourceRefreshResult:
     )
 
 
-def _discover_issuers_report_url(page_html: str, page_url: str) -> str:
-    try:
-        tree = html.fromstring(page_html)
-    except (etree.ParserError, etree.XMLSyntaxError, ValueError) as exc:
-        raise SchemaValidationError(
-            _SOURCE, "LSE reports page could not be parsed as HTML"
-        ) from exc
-    expected = _normalise_report_label(LSE_ISSUERS_REPORT_LABEL)
-    hrefs: list[str] = []
-    for anchor in tree.xpath("//a"):
-        label = _normalise_report_label("".join(anchor.itertext()))
-        if label != expected and not label.endswith(expected):
-            continue
-        href = (anchor.get("href") or "").strip()
-        if href:
-            hrefs.append(href)
-    unique_hrefs = list(dict.fromkeys(hrefs))
-    if len(unique_hrefs) != 1:
+def _sole[T](items: Iterable[T], *, what: str) -> T:
+    found = list(items)
+    if len(found) != 1:
         raise SchemaValidationError(
             _SOURCE,
-            f"LSE reports page must contain exactly one '{LSE_ISSUERS_REPORT_LABEL}' "
-            f"download link (found {len(unique_hrefs)}). The official HTML must include "
-            "that labelled link; a JavaScript shell with no download markup cannot be used.",
+            f"LSE instrument list must contain exactly one {what} (found {len(found)})",
         )
-    return urljoin(page_url, unique_hrefs[0])
+    return found[0]
 
 
 def _normalise_report_label(value: str) -> str:
     return " ".join(value.split()).casefold()
 
 
+def _json_objects(node: object) -> Iterator[dict[str, object]]:
+    mapping = as_str_map(node)
+    if mapping is not None:
+        yield mapping
+        for value in mapping.values():
+            yield from _json_objects(value)
+        return
+    items = as_object_list(node)
+    if items is not None:
+        for item in items:
+            yield from _json_objects(item)
+
+
+def _label_is(node: dict[str, object], expected: str, *, key: str) -> bool:
+    value = node.get(key)
+    return isinstance(value, str) and _normalise_report_label(
+        value
+    ) == _normalise_report_label(expected)
+
+
+def _required_text(node: dict[str, object], key: str, *, what: str) -> str:
+    value = node.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise SchemaValidationError(_SOURCE, f"{what} is missing {key!r}")
+    return value.strip()
+
+
+def _instruments_tab(pages_json: object) -> _InstrumentsTab:
+    parent = _sole(
+        (
+            node
+            for node in _json_objects(pages_json)
+            if _label_is(node, LSE_PARENT_FILTER_LABEL, key="label")
+        ),
+        what=f"parent filter labelled {LSE_PARENT_FILTER_LABEL!r}",
+    )
+    subfilter = _sole(
+        (
+            node
+            for item in (as_object_list(parent.get("subFilters")) or [])
+            if (node := as_str_map(item)) is not None
+            and _label_is(node, LSE_INSTRUMENTS_SUBFILTER_LABEL, key="label")
+        ),
+        what=f"subfilter labelled {LSE_INSTRUMENTS_SUBFILTER_LABEL!r}",
+    )
+    module_payload = _sole(
+        as_object_list(subfilter.get("modules")) or [],
+        what="module on the Instruments subfilter",
+    )
+    module = as_str_map(module_payload)
+    if module is None:
+        raise SchemaValidationError(_SOURCE, "Instruments module is not an object")
+    return _InstrumentsTab(
+        tab=_normalise_report_label(
+            _required_text(subfilter, "label", what="Instruments subfilter")
+        ),
+        tab_id=_required_text(subfilter, "tabId", what="Instruments subfilter"),
+        module_id=_required_text(module, "moduleId", what="Instruments module"),
+    )
+
+
+def _refresh_body(tab: _InstrumentsTab) -> dict[str, object]:
+    return {
+        "path": LSE_REPORTS_PATH,
+        "parameters": urlencode({"tab": tab.tab, "tabId": tab.tab_id}),
+        "components": [{"componentId": tab.module_id, "parameters": None}],
+    }
+
+
+def _instrument_list_url(refresh_json: object) -> str:
+    cta = _sole(
+        (
+            node
+            for node in _json_objects(refresh_json)
+            if _label_is(node, LSE_INSTRUMENT_LIST_CTA_TITLE, key="ctaTitle")
+        ),
+        what=f"ctaTitle {LSE_INSTRUMENT_LIST_CTA_TITLE!r}",
+    )
+    button = as_str_map(cta.get("ctaButton"))
+    if button is None:
+        raise SchemaValidationError(
+            _SOURCE, "Instrument list ctaItem is missing ctaButton"
+        )
+    href = _required_text(button, "link", what="Instrument list ctaButton")
+    absolute = urljoin("https://www.londonstockexchange.com/", href)
+    if urlparse(absolute).scheme not in {"http", "https"}:
+        raise SchemaValidationError(
+            _SOURCE, "Instrument list link is not an http(s) URL"
+        )
+    return absolute
+
+
 async def _load_listings(cache: RegulatoryDataCache) -> list[EquityListing]:
     snapshot, active_dir = await ensure_fresh_snapshot(
         cache, _SOURCE, refresh_lse_issuers, refresh_flags="--exchanges"
     )
-    listings, _ = _parse_snapshot(active_dir, source_refreshed_at=snapshot.refreshed_at)
+    try:
+        listings, _ = _parse_snapshot(
+            active_dir, source_refreshed_at=snapshot.refreshed_at
+        )
+    except SchemaValidationError as exc:
+        await refresh_lse_issuers()
+        snapshot = cache.snapshot_for(_SOURCE)
+        active_dir = cache.active_dir(_SOURCE)
+        if snapshot is None or active_dir is None:
+            raise ColdCacheError(str(_SOURCE), refresh_flags="--exchanges") from exc
+        listings, _ = _parse_snapshot(
+            active_dir, source_refreshed_at=snapshot.refreshed_at
+        )
     return listings
 
 
@@ -229,7 +339,7 @@ def _read_xlsx_rows(path: Path) -> list[list[str]]:
     try:
         with zipfile.ZipFile(path) as archive:
             shared_strings = _xlsx_shared_strings(archive)
-            sheet_name = _first_worksheet_name(archive)
+            sheet_name = _shares_worksheet_path(archive)
             sheet_root = etree.fromstring(archive.read(sheet_name))
     except (OSError, KeyError, zipfile.BadZipFile, etree.XMLSyntaxError) as exc:
         raise SchemaValidationError(
@@ -238,15 +348,37 @@ def _read_xlsx_rows(path: Path) -> list[list[str]]:
     return _xlsx_sheet_rows(sheet_root, shared_strings)
 
 
-def _first_worksheet_name(archive: zipfile.ZipFile) -> str:
-    sheet_names = sorted(
-        name
-        for name in archive.namelist()
-        if name.startswith("xl/worksheets/sheet") and name.endswith(".xml")
-    )
-    if not sheet_names:
-        raise SchemaValidationError(_SOURCE, "xlsx issuers report has no worksheet")
-    return sheet_names[0]
+def _shares_worksheet_path(archive: zipfile.ZipFile) -> str:
+    try:
+        workbook = etree.fromstring(archive.read("xl/workbook.xml"))
+        rels_root = etree.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
+    except KeyError as exc:
+        raise SchemaValidationError(
+            _SOURCE, "xlsx instrument list is missing workbook metadata"
+        ) from exc
+    targets = {
+        rel.get("Id"): rel.get("Target")
+        for rel in rels_root
+        if rel.get("Id") and rel.get("Target")
+    }
+    expected = _normalise_report_label(LSE_SHARES_SHEET_NAME)
+    matches: list[str] = []
+    for sheet in workbook.xpath(".//*[local-name()='sheet']"):
+        name = sheet.get("name") or ""
+        if _normalise_report_label(name) != expected:
+            continue
+        relationship_id = sheet.get(f"{{{_WORKBOOK_REL_NS}}}id")
+        target = targets.get(relationship_id or "")
+        if target:
+            matches.append(_xlsx_rel_target_to_member(target))
+    return _sole(matches, what=f"worksheet named {LSE_SHARES_SHEET_NAME!r}")
+
+
+def _xlsx_rel_target_to_member(target: str) -> str:
+    cleaned = target.lstrip("/")
+    if cleaned.startswith("xl/"):
+        return cleaned
+    return f"xl/{cleaned}"
 
 
 def _xlsx_shared_strings(archive: zipfile.ZipFile) -> list[str]:
@@ -321,19 +453,18 @@ def _listings_from_rows(
 ) -> tuple[list[EquityListing], int]:
     if not rows:
         raise SchemaValidationError(_SOURCE, "issuers report is empty")
-    header = tuple(cell.strip() for cell in rows[0])
-    if header != LSE_ISSUERS_HEADERS:
-        raise SchemaValidationError(
-            _SOURCE,
-            f"issuers report header was {list(header)!r}, expected {list(LSE_ISSUERS_HEADERS)!r}",
-        )
+    header_index = _header_row_index(rows)
+    header = tuple(cell.strip() for cell in rows[header_index])
+    column_indexes = _column_indexes(header)
     listings: list[EquityListing] = []
     skipped_count = 0
-    for raw_row in rows[1:]:
+    for raw_row in rows[header_index + 1 :]:
         if not any(cell.strip() for cell in raw_row):
             continue
         padded = list(raw_row) + [""] * (len(header) - len(raw_row))
-        record = dict(zip(header, padded[: len(header)], strict=True))
+        record = {
+            column: padded[column_indexes[column]] for column in LSE_INSTRUMENT_COLUMNS
+        }
         listing = _listing_from_record(record, source_refreshed_at)
         if listing is None:
             skipped_count += 1
@@ -342,15 +473,39 @@ def _listings_from_rows(
     return listings, skipped_count
 
 
+def _header_row_index(rows: list[list[str]]) -> int:
+    required = {_normalise_report_label(name) for name in LSE_INSTRUMENT_COLUMNS}
+    matches = [
+        index
+        for index, row in enumerate(rows)
+        if required <= {_normalise_report_label(cell) for cell in row if cell.strip()}
+    ]
+    return _sole(matches, what="instrument-list header row")
+
+
+def _column_indexes(header: tuple[str, ...]) -> dict[str, int]:
+    found: dict[str, list[int]] = {column: [] for column in LSE_INSTRUMENT_COLUMNS}
+    expected = {
+        _normalise_report_label(column): column for column in LSE_INSTRUMENT_COLUMNS
+    }
+    for index, name in enumerate(header):
+        column = expected.get(_normalise_report_label(name))
+        if column is None:
+            continue
+        found[column].append(index)
+    return {
+        column: _sole(indexes, what=f"header column {column!r}")
+        for column, indexes in found.items()
+    }
+
+
 def _listing_from_record(
     record: dict[str, str], source_refreshed_at: datetime
 ) -> EquityListing | None:
-    instrument_name = record["Instrument name"].strip()
-    if not is_ordinary_equity_instrument(instrument_name):
-        return None
+    instrument_name = record["Instrument Name"].strip()
     if is_excluded_security_name(instrument_name):
         return None
-    market = _MARKET_BY_LABEL.get(record["Market"].strip().casefold())
+    market = _MARKET_BY_LABEL.get(record["LSE Market"].strip().casefold())
     if market is None:
         return None
     symbol = record["TIDM"].strip()
