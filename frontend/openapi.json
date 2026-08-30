@@ -65,10 +65,99 @@
           "researcher",
           "strategist",
           "sentinel",
-          "appraiser"
+          "appraiser",
+          "allocator"
         ],
         "title": "AgentNameSlug",
         "type": "string"
+      },
+      "AllocationPosition": {
+        "properties": {
+          "acceptable_weight_high_pct": {
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Acceptable Weight High Pct",
+            "type": "number"
+          },
+          "acceptable_weight_low_pct": {
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Acceptable Weight Low Pct",
+            "type": "number"
+          },
+          "action": {
+            "$ref": "#/components/schemas/RebalanceAction"
+          },
+          "company_name": {
+            "title": "Company Name",
+            "type": "string"
+          },
+          "current_weight_pct": {
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Current Weight Pct",
+            "type": "number"
+          },
+          "is_existing_position": {
+            "title": "Is Existing Position",
+            "type": "boolean"
+          },
+          "policy": {
+            "discriminator": {
+              "mapping": {
+                "forced_zero": "#/components/schemas/ForcedZeroPolicy",
+                "investable": "#/components/schemas/InvestablePolicy",
+                "retain_or_reduce": "#/components/schemas/RetainOrReducePolicy"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/InvestablePolicy"
+              },
+              {
+                "$ref": "#/components/schemas/RetainOrReducePolicy"
+              },
+              {
+                "$ref": "#/components/schemas/ForcedZeroPolicy"
+              }
+            ],
+            "title": "Policy"
+          },
+          "rationale": {
+            "title": "Rationale",
+            "type": "string"
+          },
+          "source_run_id": {
+            "title": "Source Run Id",
+            "type": "string"
+          },
+          "target_weight_pct": {
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Target Weight Pct",
+            "type": "number"
+          },
+          "ticker": {
+            "title": "Ticker",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ticker",
+          "company_name",
+          "source_run_id",
+          "is_existing_position",
+          "current_weight_pct",
+          "policy",
+          "target_weight_pct",
+          "acceptable_weight_low_pct",
+          "acceptable_weight_high_pct",
+          "action",
+          "rationale"
+        ],
+        "title": "AllocationPosition",
+        "type": "object"
       },
       "CandidateGateStatusApi": {
         "enum": [
@@ -136,6 +225,47 @@
           "is_actively_trading"
         ],
         "title": "CandidateGateSummary",
+        "type": "object"
+      },
+      "CashAllocation": {
+        "properties": {
+          "acceptable_weight_high_pct": {
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Acceptable Weight High Pct",
+            "type": "number"
+          },
+          "acceptable_weight_low_pct": {
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Acceptable Weight Low Pct",
+            "type": "number"
+          },
+          "current_weight_pct": {
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Current Weight Pct",
+            "type": "number"
+          },
+          "rationale": {
+            "title": "Rationale",
+            "type": "string"
+          },
+          "target_weight_pct": {
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Target Weight Pct",
+            "type": "number"
+          }
+        },
+        "required": [
+          "current_weight_pct",
+          "target_weight_pct",
+          "acceptable_weight_low_pct",
+          "acceptable_weight_high_pct",
+          "rationale"
+        ],
+        "title": "CashAllocation",
         "type": "object"
       },
       "ConversationResponse": {
@@ -251,6 +381,33 @@
         "title": "ExecutionStatusApi",
         "type": "string"
       },
+      "ForcedZeroPolicy": {
+        "properties": {
+          "kind": {
+            "const": "forced_zero",
+            "default": "forced_zero",
+            "title": "Kind",
+            "type": "string"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/ForcedZeroReason"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "ForcedZeroPolicy",
+        "type": "object"
+      },
+      "ForcedZeroReason": {
+        "enum": [
+          "new_hold",
+          "sell",
+          "strong_sell"
+        ],
+        "title": "ForcedZeroReason",
+        "type": "string"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -262,6 +419,18 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "InvestablePolicy": {
+        "properties": {
+          "kind": {
+            "const": "investable",
+            "default": "investable",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "title": "InvestablePolicy",
         "type": "object"
       },
       "ModelName": {
@@ -282,6 +451,45 @@
         ],
         "title": "ModelName",
         "type": "string"
+      },
+      "PortfolioAllocation": {
+        "properties": {
+          "allocation_date": {
+            "format": "date",
+            "title": "Allocation Date",
+            "type": "string"
+          },
+          "cash": {
+            "$ref": "#/components/schemas/CashAllocation"
+          },
+          "portfolio_rationale": {
+            "title": "Portfolio Rationale",
+            "type": "string"
+          },
+          "positions": {
+            "items": {
+              "$ref": "#/components/schemas/AllocationPosition"
+            },
+            "title": "Positions",
+            "type": "array"
+          },
+          "shared_risk_clusters": {
+            "items": {
+              "$ref": "#/components/schemas/SharedRiskCluster"
+            },
+            "title": "Shared Risk Clusters",
+            "type": "array"
+          }
+        },
+        "required": [
+          "allocation_date",
+          "positions",
+          "cash",
+          "shared_risk_clusters",
+          "portfolio_rationale"
+        ],
+        "title": "PortfolioAllocation",
+        "type": "object"
       },
       "PortfolioResponse": {
         "properties": {
@@ -317,61 +525,68 @@
         "title": "ProfilerRunCreated",
         "type": "object"
       },
-      "SurveyorExecutionSummary": {
+      "RebalanceAction": {
+        "enum": [
+          "enter",
+          "increase",
+          "hold",
+          "reduce",
+          "exit",
+          "avoid"
+        ],
+        "title": "RebalanceAction",
+        "type": "string"
+      },
+      "RetainOrReducePolicy": {
         "properties": {
-          "agent_name": {
-            "$ref": "#/components/schemas/AgentNameSlug"
+          "current_weight_pct": {
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Current Weight Pct",
+            "type": "number"
           },
-          "completed_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Completed At"
-          },
-          "id": {
-            "title": "Id",
+          "kind": {
+            "const": "retain_or_reduce",
+            "default": "retain_or_reduce",
+            "title": "Kind",
             "type": "string"
-          },
-          "model_name": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ModelName"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "started_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Started At"
-          },
-          "status": {
-            "$ref": "#/components/schemas/ExecutionStatusApi"
           }
         },
         "required": [
-          "id",
-          "agent_name",
-          "status",
-          "started_at",
-          "completed_at"
+          "current_weight_pct"
         ],
-        "title": "SurveyorExecutionSummary",
+        "title": "RetainOrReducePolicy",
+        "type": "object"
+      },
+      "SharedRiskCluster": {
+        "properties": {
+          "allocation_effect": {
+            "title": "Allocation Effect",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "mechanism": {
+            "title": "Mechanism",
+            "type": "string"
+          },
+          "member_tickers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Member Tickers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "label",
+          "member_tickers",
+          "mechanism",
+          "allocation_effect"
+        ],
+        "title": "SharedRiskCluster",
         "type": "object"
       },
       "TickerRunDetail": {
@@ -498,6 +713,16 @@
       },
       "WorkflowRunDetailResponse": {
         "properties": {
+          "allocator_execution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentExecutionSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "can_retry_failed_agents": {
             "title": "Can Retry Failed Agents",
             "type": "boolean"
@@ -551,7 +776,7 @@
           "surveyor_execution": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/SurveyorExecutionSummary"
+                "$ref": "#/components/schemas/AgentExecutionSummary"
               },
               {
                 "type": "null"
@@ -568,6 +793,7 @@
           "error_message",
           "can_retry_failed_agents",
           "surveyor_execution",
+          "allocator_execution",
           "runs"
         ],
         "title": "WorkflowRunDetailResponse",
@@ -649,6 +875,14 @@
           "cancelled"
         ],
         "title": "WorkflowRunStatusApi",
+        "type": "string"
+      },
+      "WorkflowScopedAgentNameSlug": {
+        "enum": [
+          "surveyor",
+          "allocator"
+        ],
+        "title": "WorkflowScopedAgentNameSlug",
         "type": "string"
       },
       "YfinanceFreshnessResponse": {
@@ -739,9 +973,9 @@
         ]
       }
     },
-    "/api/agents/workflow_runs/{workflow_run_id}/agents/surveyor/conversation": {
+    "/api/agents/workflow_runs/{workflow_run_id}/agents/{workflow_agent_name}/conversation": {
       "get": {
-        "operationId": "get_surveyor_conversation_api_agents_workflow_runs__workflow_run_id__agents_surveyor_conversation_get",
+        "operationId": "get_workflow_agent_conversation_api_agents_workflow_runs__workflow_run_id__agents__workflow_agent_name__conversation_get",
         "parameters": [
           {
             "in": "path",
@@ -750,6 +984,14 @@
             "schema": {
               "title": "Workflow Run Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workflow_agent_name",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WorkflowScopedAgentNameSlug"
             }
           }
         ],
@@ -775,7 +1017,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Get Surveyor Conversation",
+        "summary": "Get Workflow Agent Conversation",
         "tags": [
           "agents"
         ]
@@ -957,6 +1199,48 @@
           }
         },
         "summary": "Get Workflow Run",
+        "tags": [
+          "workflow_runs"
+        ]
+      }
+    },
+    "/api/workflow_runs/{workflow_run_id}/allocation": {
+      "get": {
+        "operationId": "get_workflow_allocation_api_workflow_runs__workflow_run_id__allocation_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflow_run_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioAllocation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Workflow Allocation",
         "tags": [
           "workflow_runs"
         ]

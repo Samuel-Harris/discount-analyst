@@ -13,7 +13,6 @@ from discount_analyst.adapters.persistence.crud.run_executions import (
 from discount_analyst.adapters.persistence.crud.workflow_runs import (
     cancel_workflow_run,
     fetch_workflow_detail,
-    insert_surveyor_workflow_execution,
     insert_workflow_run,
     recompute_workflow_status,
     set_workflow_error,
@@ -31,11 +30,7 @@ def _insert_workflow_fixture(session: Session) -> tuple[str, str, str]:
         workflow_run_id=workflow_run_id,
         portfolio_tickers=["ABC.L"],
         is_mock=True,
-    )
-    insert_surveyor_workflow_execution(
-        session,
-        execution_id=surveyor_execution_id,
-        workflow_run_id=workflow_run_id,
+        surveyor_execution_id=surveyor_execution_id,
     )
     insert_ticker_run_with_agents(
         session,
@@ -216,6 +211,40 @@ def test_recompute_workflow_status_fails_after_all_runs_terminal_with_failure(
     detail = fetch_workflow_detail(db_session, workflow_run_id)
     assert detail is not None
     assert detail["status"] == "failed"
+
+
+def test_recompute_workflow_status_keeps_running_while_allocator_pending(
+    db_session: Session,
+) -> None:
+    workflow_run_id, surveyor_execution_id, run_id = _insert_workflow_fixture(
+        db_session
+    )
+    update_agent_execution(
+        db_session,
+        execution_id=surveyor_execution_id,
+        status="completed",
+        started_at=utc_now_iso(),
+        completed_at=utc_now_iso(),
+    )
+    update_ticker_run_completion(
+        db_session,
+        run_id=run_id,
+        status="completed",
+        final_rating="Buy",
+        decision_type=None,
+        recommended_action="Buy",
+        final_verdict_json=None,
+        error_message=None,
+    )
+    db_session.commit()
+
+    recompute_workflow_status(db_session, workflow_run_id)
+
+    detail = fetch_workflow_detail(db_session, workflow_run_id)
+    assert detail is not None
+    assert detail["status"] == "running"
+    assert detail["allocator_execution"] is not None
+    assert detail["allocator_execution"]["status"] == "pending"
 
 
 def test_cancel_workflow_run_marks_active_rows_cancelled(db_session: Session) -> None:

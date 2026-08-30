@@ -22,4 +22,5 @@ agent_configs: Final[list[AgentConfig]] = [
     AgentConfig(name=AgentName.STRATEGIST, agent_name_slug=AgentNameSlug.STRATEGIST),
     AgentConfig(name=AgentName.SENTINEL, agent_name_slug=AgentNameSlug.SENTINEL),
     AgentConfig(name=AgentName.APPRAISER, agent_name_slug=AgentNameSlug.APPRAISER),
+    AgentConfig(name=AgentName.ALLOCATOR, agent_name_slug=AgentNameSlug.ALLOCATOR),
 ]

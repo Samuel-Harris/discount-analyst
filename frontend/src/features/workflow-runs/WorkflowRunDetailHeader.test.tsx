@@ -17,6 +17,7 @@ function makeDetail(
     error_message: null,
     can_retry_failed_agents: false,
     surveyor_execution: null,
+    allocator_execution: null,
     runs: [],
     ...overrides,
   };

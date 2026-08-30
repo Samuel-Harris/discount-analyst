@@ -9,10 +9,12 @@ from discount_analyst.adapters.persistence.crud.run_executions import (
     persist_ticker_run_final_verdict,
 )
 from discount_analyst.adapters.persistence.crud.workflow_runs import (
-    insert_surveyor_workflow_execution,
     insert_workflow_run,
 )
-from discount_analyst.adapters.persistence.models import RunFinalDecision
+from discount_analyst.adapters.persistence.models import (
+    AgentExecution,
+    RunFinalDecision,
+)
 from discount_analyst.adapters.simulation.mock_outputs import mock_surveyor_candidate
 from discount_analyst.application.decisions.builders import (
     build_data_quality_rejection,
@@ -100,11 +102,7 @@ def test_persist_dqr_uses_workflow_surveyor_when_no_profiler(
         workflow_run_id=workflow_run_id,
         portfolio_tickers=["CGS.L"],
         is_mock=True,
-    )
-    insert_surveyor_workflow_execution(
-        db_session,
-        execution_id=surveyor_execution_id,
-        workflow_run_id=workflow_run_id,
+        surveyor_execution_id=surveyor_execution_id,
     )
     insert_ticker_run_with_agents(
         db_session,
@@ -139,17 +137,17 @@ def test_persist_dqr_uses_workflow_surveyor_when_no_profiler(
     assert row.source_agent_execution_id != researcher_id
 
 
-def test_persist_dqr_skips_upsert_when_profiler_and_surveyor_missing(
+def test_persist_dqr_skips_upsert_when_workflow_surveyor_is_absent(
     db_session: Session,
 ) -> None:
     workflow_run_id = new_id()
-    run_id = new_id()
-    insert_workflow_run(
+    surveyor_id, _allocator_id = insert_workflow_run(
         db_session,
         workflow_run_id=workflow_run_id,
         portfolio_tickers=["KEYS.L"],
         is_mock=True,
     )
+    run_id = new_id()
     insert_ticker_run_with_agents(
         db_session,
         run_id=run_id,
@@ -161,6 +159,9 @@ def test_persist_dqr_skips_upsert_when_profiler_and_surveyor_missing(
         is_mock=True,
         agent_names=SURVEYOR_ENTRY_AGENT_NAMES,
     )
+    surveyor = db_session.get(AgentExecution, surveyor_id)
+    assert surveyor is not None
+    db_session.delete(surveyor)
     db_session.commit()
 
     persist_ticker_run_final_verdict(

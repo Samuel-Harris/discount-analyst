@@ -264,14 +264,12 @@ def test_replace_conversation_messages_persists_response_usage(
         workflow_run_id="workflow-usage",
         portfolio_tickers=["ABC.L"],
         is_mock=True,
+        surveyor_execution_id="surveyor-exec-usage",
     )
-    execution = AgentExecution(
-        id="surveyor-exec-usage",
-        workflow_run_id="workflow-usage",
-        agent_name=AgentNameDb.SURVEYOR,
-        status=ExecutionStatusDb.COMPLETED,
-        model_name=ModelName.GPT_5_6_LUNA,
-    )
+    execution = db_session.get(AgentExecution, "surveyor-exec-usage")
+    assert execution is not None
+    execution.status = ExecutionStatusDb.COMPLETED
+    execution.model_name = ModelName.GPT_5_6_LUNA
     conversation = AgentConversation(
         id="conversation-usage",
         agent_execution_id=execution.id,
@@ -339,14 +337,12 @@ def test_insert_conversation_persists_usage_from_model_messages(
         workflow_run_id="workflow-live-usage",
         portfolio_tickers=["ABC.L"],
         is_mock=True,
+        surveyor_execution_id="surveyor-exec-live-usage",
     )
-    execution = AgentExecution(
-        id="surveyor-exec-live-usage",
-        workflow_run_id="workflow-live-usage",
-        agent_name=AgentNameDb.SURVEYOR,
-        status=ExecutionStatusDb.COMPLETED,
-        model_name=ModelName.GPT_5_6_LUNA,
-    )
+    execution = db_session.get(AgentExecution, "surveyor-exec-live-usage")
+    assert execution is not None
+    execution.status = ExecutionStatusDb.COMPLETED
+    execution.model_name = ModelName.GPT_5_6_LUNA
     db_session.add(execution)
     db_session.commit()
 

@@ -14,6 +14,13 @@ from typing import Any
 from sqlalchemy import select
 from sqlmodel import Session, col
 
+from discount_analyst.adapters.persistence.crud.portfolio_allocations import (
+    delete_portfolio_allocation_for_execution,
+    get_workflow_allocator_execution,
+)
+from discount_analyst.application.allocations.skip_reasons import (
+    LEGACY_WORKFLOW_WITHOUT_POSITION_SNAPSHOT,
+)
 from discount_analyst.application.workflows.agent_lane_order import LANE_AGENT_SLUGS
 from discount_analyst.adapters.persistence.crud.agent_output_persistence import (
     appraiser_output_from_report,
@@ -87,6 +94,7 @@ _AGENT_LANE_ORDER = {
 class RetryFailedAgentsPreparation:
     workflow_run_id: str
     surveyor_reset: bool
+    allocator_reset: bool
     lane_reset_count: int
     agent_execution_reset_count: int
 
@@ -137,18 +145,21 @@ def workflow_can_retry_failed_agents(
     *,
     workflow_status: WorkflowRunStatusDb,
     surveyor: AgentExecution | None,
+    allocator: AgentExecution | None,
     runs: list[Run],
     executions_by_run_id: dict[str, list[AgentExecution]],
 ) -> bool:
-    """Return whether a terminal workflow has failed or cancelled lane work to retry."""
+    """Return whether a terminal workflow has failed or cancelled work to retry."""
     if workflow_status.value not in _TERMINAL_RUN_STATUSES:
         return False
     if surveyor is not None and surveyor.status == ExecutionStatusDb.FAILED:
         return True
-    return any(
+    if any(
         _first_retry_lane_order(run, executions_by_run_id.get(run.id, [])) is not None
         for run in runs
-    )
+    ):
+        return True
+    return _allocator_is_retryable(allocator, runs)
 
 
 def _first_retry_lane_order(run: Run, executions: list[AgentExecution]) -> int | None:
@@ -174,6 +185,27 @@ def _first_retry_lane_order(run: Run, executions: list[AgentExecution]) -> int |
     return None
 
 
+def _is_legacy_skipped_allocator(execution: AgentExecution) -> bool:
+    return (
+        execution.status == ExecutionStatusDb.SKIPPED
+        and execution.error_message == LEGACY_WORKFLOW_WITHOUT_POSITION_SNAPSHOT
+    )
+
+
+def _allocator_is_retryable(allocator: AgentExecution | None, runs: list[Run]) -> bool:
+    if allocator is None or _is_legacy_skipped_allocator(allocator):
+        return False
+    if allocator.status not in _RETRYABLE_LANE_EXECUTION_STATUSES:
+        return False
+    return all(run.status == WorkflowRunStatusDb.COMPLETED for run in runs)
+
+
+def _reset_allocator_execution(session: Session, allocator: AgentExecution) -> None:
+    delete_portfolio_allocation_for_execution(session, allocator.id)
+    _reset_agent_execution(allocator)
+    session.add(allocator)
+
+
 def prepare_retry_failed_agents(
     session: Session,
     workflow_run_id: str,
@@ -186,6 +218,7 @@ def prepare_retry_failed_agents(
         raise RetryWorkflowRunNotTerminalError(workflow_run_id)
 
     surveyor_reset = False
+    allocator_reset = False
     lane_reset_count = 0
     agent_execution_reset_count = 0
 
@@ -203,6 +236,8 @@ def prepare_retry_failed_agents(
     runs = list(
         session.scalars(select(Run).where(col(Run.workflow_run_id) == workflow_run_id))
     )
+    allocator = get_workflow_allocator_execution(session, workflow_run_id)
+    allocator_only_retry = _allocator_is_retryable(allocator, runs)
     for run in runs:
         executions = sorted(
             session.scalars(
@@ -239,7 +274,17 @@ def prepare_retry_failed_agents(
                 session.add(execution)
                 agent_execution_reset_count += 1
 
-    if not surveyor_reset and lane_reset_count == 0:
+    if allocator is not None and (
+        (
+            not _is_legacy_skipped_allocator(allocator)
+            and (surveyor_reset or lane_reset_count > 0)
+        )
+        or allocator_only_retry
+    ):
+        _reset_allocator_execution(session, allocator)
+        allocator_reset = True
+
+    if not surveyor_reset and lane_reset_count == 0 and not allocator_reset:
         raise NoFailedAgentsToRetryError(workflow_run_id)
 
     workflow.status = WorkflowRunStatusDb.RUNNING
@@ -250,6 +295,7 @@ def prepare_retry_failed_agents(
     return RetryFailedAgentsPreparation(
         workflow_run_id=workflow_run_id,
         surveyor_reset=surveyor_reset,
+        allocator_reset=allocator_reset,
         lane_reset_count=lane_reset_count,
         agent_execution_reset_count=agent_execution_reset_count,
     )
@@ -480,7 +526,7 @@ def persist_agent_execution_structured_output(
     output_json: str | None,
 ) -> None:
     """Persist heavyweight structured rows derived from agent JSON."""
-    if not output_json:
+    if not output_json or execution.agent_name == AgentNameDb.ALLOCATOR:
         return
     match execution.agent_name:
         case AgentNameDb.SURVEYOR:
@@ -495,8 +541,6 @@ def persist_agent_execution_structured_output(
             replace_evaluation_report(session, execution, output_json)
         case AgentNameDb.APPRAISER:
             replace_appraiser_output(session, execution, output_json)
-        case _:
-            pass
 
 
 def update_agent_execution(

@@ -27,14 +27,17 @@ from discount_analyst.adapters.persistence.crud.run_executions import (
     insert_ticker_run_with_agents,
     prepare_retry_failed_agents,
 )
+from discount_analyst.adapters.persistence.crud.portfolio_allocations import (
+    get_portfolio_allocation_for_workflow,
+)
 from discount_analyst.adapters.persistence.crud.workflow_runs import (
     delete_workflow_run_if_mock,
     fetch_workflow_detail,
-    insert_surveyor_workflow_execution,
     insert_workflow_run,
     list_workflow_runs as list_workflow_runs_from_db,
     workflow_run_exists,
 )
+from discount_analyst.domain.allocations.allocation import PortfolioAllocation
 from discount_analyst.adapters.orchestration.sqlmodel_runner import (
     DashboardPipelineRunner,
     WorkflowTaskAlreadyActiveError,
@@ -80,6 +83,24 @@ def get_workflow_run(
     return workflow_detail(d)
 
 
+@router.get("/{workflow_run_id}/allocation")
+def get_workflow_allocation(
+    workflow_run_id: str, session: DbSession
+) -> PortfolioAllocation:
+    if not workflow_run_exists(session, workflow_run_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Workflow run not found"
+        )
+    allocation = get_portfolio_allocation_for_workflow(session, workflow_run_id)
+    if allocation is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Allocation not found",
+        )
+    AI_LOGFIRE.debug("Fetched workflow allocation", workflow_run_id=workflow_run_id)
+    return allocation
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_workflow_run(
     body: CreateWorkflowRunRequest,
@@ -101,11 +122,7 @@ async def create_workflow_run(
         workflow_run_id=workflow_run_id,
         portfolio_tickers=body.portfolio_tickers,
         is_mock=is_mock,
-    )
-    insert_surveyor_workflow_execution(
-        session,
-        execution_id=surveyor_exec_id,
-        workflow_run_id=workflow_run_id,
+        surveyor_execution_id=surveyor_exec_id,
     )
     profiler_created: list[ProfilerRunCreated] = []
     for raw_ticker in body.portfolio_tickers:
@@ -198,6 +215,7 @@ async def retry_failed_agents(
         "Workflow failed-agent retry scheduled",
         workflow_run_id=workflow_run_id,
         surveyor_reset=preparation.surveyor_reset,
+        allocator_reset=preparation.allocator_reset,
         lane_reset_count=preparation.lane_reset_count,
         agent_execution_reset_count=preparation.agent_execution_reset_count,
     )

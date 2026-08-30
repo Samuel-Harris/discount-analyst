@@ -57,15 +57,6 @@ class TickerRunDetail(BaseModel):
     agent_executions: list[AgentExecutionSummary]
 
 
-class SurveyorExecutionSummary(BaseModel):
-    id: str
-    agent_name: AgentNameSlug
-    status: ExecutionStatusApi
-    started_at: datetime | None
-    completed_at: datetime | None
-    model_name: ModelName | None = None
-
-
 class WorkflowRunDetailResponse(BaseModel):
     id: str
     started_at: datetime
@@ -74,7 +65,8 @@ class WorkflowRunDetailResponse(BaseModel):
     is_mock: bool
     error_message: str | None
     can_retry_failed_agents: bool
-    surveyor_execution: SurveyorExecutionSummary | None
+    surveyor_execution: AgentExecutionSummary | None
+    allocator_execution: AgentExecutionSummary | None
     runs: list[TickerRunDetail]
 
 

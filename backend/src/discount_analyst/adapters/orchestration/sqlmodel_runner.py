@@ -45,6 +45,9 @@ from discount_analyst.adapters.persistence.crud.workflow_runs import (
 from discount_analyst.application.workflows.agent_errors import (
     extract_agent_error_message,
 )
+from discount_analyst.adapters.orchestration.stages.allocator_stage import (
+    AllocatorStage,
+)
 from discount_analyst.adapters.orchestration.stages.candidate_gate_stage import (
     CandidateGateStage,
 )
@@ -73,6 +76,7 @@ class DashboardPipelineRunner:
         self._profiler_stage = ProfilerStage()
         self._surveyor_stage = SurveyorStage()
         self._ticker_lane_stage = TickerLaneStage()
+        self._allocator_stage = AllocatorStage()
         self._terminal_runtime: TerminalRuntimeConfig | None = None
         self._background_tasks: set[asyncio.Task[None]] = set()
         self._workflow_tasks: dict[str, asyncio.Task[None]] = {}
@@ -320,6 +324,11 @@ class DashboardPipelineRunner:
                         candidate=candidate,
                         is_mock=is_mock,
                     )
+                await self._allocator_stage.run(
+                    self,
+                    workflow_run_id=workflow_run_id,
+                    is_mock=is_mock,
+                )
                 AI_LOGFIRE.info(
                     "Workflow execution finished",
                     workflow_run_id=workflow_run_id,

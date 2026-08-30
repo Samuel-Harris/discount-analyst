@@ -21,8 +21,13 @@ from discount_analyst.adapters.persistence.crud.run_executions import (
 )
 from discount_analyst.adapters.persistence.crud.workflow_runs import (
     fetch_workflow_detail,
-    insert_surveyor_workflow_execution,
     insert_workflow_run,
+)
+from discount_analyst.adapters.persistence.crud.portfolio_allocations import (
+    get_workflow_allocator_execution,
+)
+from discount_analyst.application.allocations.skip_reasons import (
+    LEGACY_WORKFLOW_WITHOUT_POSITION_SNAPSHOT,
 )
 from discount_analyst.adapters.persistence.crud.db_utils import new_id
 from discount_analyst.adapters.persistence.models import (
@@ -44,11 +49,7 @@ def _insert_workflow_with_profiler_lane(session: Session) -> tuple[str, str, str
         workflow_run_id=workflow_run_id,
         portfolio_tickers=["ABC.L"],
         is_mock=True,
-    )
-    insert_surveyor_workflow_execution(
-        session,
-        execution_id=surveyor_execution_id,
-        workflow_run_id=workflow_run_id,
+        surveyor_execution_id=surveyor_execution_id,
     )
     insert_ticker_run_with_agents(
         session,
@@ -74,11 +75,7 @@ def _insert_workflow_with_surveyor_lane(session: Session) -> tuple[str, str, str
         workflow_run_id=workflow_run_id,
         portfolio_tickers=["NATR"],
         is_mock=True,
-    )
-    insert_surveyor_workflow_execution(
-        session,
-        execution_id=surveyor_execution_id,
-        workflow_run_id=workflow_run_id,
+        surveyor_execution_id=surveyor_execution_id,
     )
     insert_ticker_run_with_agents(
         session,
@@ -570,3 +567,94 @@ def test_mark_lane_abort_sets_lane_aborted_and_skips_pending_agents(
 def test_prepare_retry_failed_agents_missing_workflow(db_session: Session) -> None:
     with pytest.raises(RetryWorkflowRunNotFoundError):
         prepare_retry_failed_agents(db_session, "00000000-0000-4000-8000-000000000999")
+
+
+def test_prepare_retry_failed_agents_resets_only_failed_allocator(
+    db_session: Session,
+) -> None:
+    workflow_run_id, surveyor_execution_id, run_id = (
+        _insert_workflow_with_profiler_lane(db_session)
+    )
+    workflow = db_session.get(WorkflowRun, workflow_run_id)
+    surveyor = db_session.get(AgentExecution, surveyor_execution_id)
+    run = db_session.get(Run, run_id)
+    allocator = get_workflow_allocator_execution(db_session, workflow_run_id)
+    assert workflow is not None
+    assert surveyor is not None
+    assert run is not None
+    assert allocator is not None
+
+    workflow.status = WorkflowRunStatusDb.FAILED
+    workflow.completed_at = utc_now()
+    surveyor.status = ExecutionStatusDb.COMPLETED
+    surveyor.started_at = utc_now()
+    surveyor.completed_at = utc_now()
+    run.status = WorkflowRunStatusDb.COMPLETED
+    run.completed_at = utc_now()
+    for agent_name in PROFILER_ENTRY_AGENT_NAMES:
+        _set_agent_status(
+            db_session,
+            run_id=run_id,
+            agent_name=agent_name,
+            status=ExecutionStatusDb.COMPLETED,
+        )
+    allocator.status = ExecutionStatusDb.FAILED
+    allocator.started_at = utc_now()
+    allocator.completed_at = utc_now()
+    allocator.error_message = "Current portfolio snapshot is missing."
+    db_session.add(workflow)
+    db_session.add(surveyor)
+    db_session.add(run)
+    db_session.add(allocator)
+    db_session.commit()
+
+    preparation = prepare_retry_failed_agents(db_session, workflow_run_id)
+    db_session.commit()
+
+    assert preparation.surveyor_reset is False
+    assert preparation.allocator_reset is True
+    assert preparation.lane_reset_count == 0
+    detail = fetch_workflow_detail(db_session, workflow_run_id)
+    assert detail is not None
+    assert detail["status"] == "running"
+    assert detail["allocator_execution"] is not None
+    assert detail["allocator_execution"]["status"] == "pending"
+    assert detail["runs"][0]["status"] == "completed"
+
+
+def test_prepare_retry_does_not_reset_legacy_skipped_allocator(
+    db_session: Session,
+) -> None:
+    workflow_run_id, surveyor_execution_id, run_id = (
+        _insert_workflow_with_profiler_lane(db_session)
+    )
+    workflow = db_session.get(WorkflowRun, workflow_run_id)
+    surveyor = db_session.get(AgentExecution, surveyor_execution_id)
+    run = db_session.get(Run, run_id)
+    allocator = get_workflow_allocator_execution(db_session, workflow_run_id)
+    assert workflow is not None
+    assert surveyor is not None
+    assert run is not None
+    assert allocator is not None
+
+    workflow.status = WorkflowRunStatusDb.COMPLETED
+    workflow.completed_at = utc_now()
+    surveyor.status = ExecutionStatusDb.COMPLETED
+    run.status = WorkflowRunStatusDb.COMPLETED
+    for agent_name in PROFILER_ENTRY_AGENT_NAMES:
+        _set_agent_status(
+            db_session,
+            run_id=run_id,
+            agent_name=agent_name,
+            status=ExecutionStatusDb.COMPLETED,
+        )
+    allocator.status = ExecutionStatusDb.SKIPPED
+    allocator.error_message = LEGACY_WORKFLOW_WITHOUT_POSITION_SNAPSHOT
+    db_session.add(workflow)
+    db_session.add(surveyor)
+    db_session.add(run)
+    db_session.add(allocator)
+    db_session.commit()
+
+    with pytest.raises(NoFailedAgentsToRetryError):
+        prepare_retry_failed_agents(db_session, workflow_run_id)

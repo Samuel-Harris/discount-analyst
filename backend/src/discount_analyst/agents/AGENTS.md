@@ -1,11 +1,11 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-04-02 | Updated: 2026-08-30 -->
+<!-- Generated: 2026-04-02 | Updated: 2026-08-30 (allocator) -->
 
 # agents
 
 ## Purpose
 
-Contains AI agent packages used by the project workflows. This directory groups the Surveyor, Profiler, Researcher, Strategist, Sentinel, and Appraiser implementations under a shared namespace.
+Contains AI agent packages used by the project workflows. This directory groups the Surveyor, Profiler, Researcher, Strategist, Sentinel, Appraiser, and Allocator implementations under a shared namespace.
 
 ## Key Files
 
@@ -26,6 +26,7 @@ Contains AI agent packages used by the project workflows. This directory groups 
 | `strategist/` | Strategist agent implementation and prompts for `MispricingThesis` output (see `strategist/AGENTS.md`)                |
 | `sentinel/`   | Sentinel agent implementation and prompts for `EvaluationReport` output (see `sentinel/AGENTS.md`)                    |
 | `appraiser/`  | Appraiser agent implementation and prompts for method-agnostic valuation distributions (see `appraiser/AGENTS.md`)    |
+| `allocator/`  | Closed-book workflow-level Allocator: sizes a concentrated target portfolio after all ticker lanes (see `allocator/AGENTS.md`) |
 
 ## For AI Agents
 

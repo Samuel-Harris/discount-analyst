@@ -26,10 +26,14 @@ def test_startup_applies_alembic_head_and_is_idempotent(tmp_path: Path) -> None:
         revision = session.exec(text("SELECT version_num FROM alembic_version")).one()
 
     table_names = {row[0] for row in tables}
-    assert revision[0] == "0012_conversation_message_usage"
+    assert revision[0] == "0013_portfolio_allocations"
     assert "workflow_runs" in table_names
     assert "candidate_snapshots" in table_names
     assert "agent_conversation_message_parts" in table_names
+    assert "portfolio_allocations" in table_names
+    assert "portfolio_allocation_positions" in table_names
+    assert "portfolio_allocation_risk_clusters" in table_names
+    assert "portfolio_allocation_risk_cluster_members" in table_names
     assert "workflow_agent_executions" not in table_names
     assert not any(name.endswith("_json") for name in table_names)
 
@@ -180,15 +184,35 @@ def test_upgrade_from_0009_unifies_agent_executions_preserving_ids(
                 """
             )
         ).all()
+        allocator_status = connection.execute(
+            text(
+                """
+                SELECT agent_name, status, error_message
+                FROM agent_executions
+                WHERE agent_name = 'allocator'
+                """
+            )
+        ).one()
         tables = connection.execute(
             text("SELECT name FROM sqlite_master WHERE type='table'")
         ).all()
     upgraded_engine.dispose()
 
-    assert execution_rows == [
-        ("profiler-execution", None, "run-1"),
-        ("surveyor-execution", "workflow-1", None),
+    assert ("profiler-execution", None, "run-1") in execution_rows
+    assert ("surveyor-execution", "workflow-1", None) in execution_rows
+    allocator_rows = [
+        row
+        for row in execution_rows
+        if row[0] not in {"profiler-execution", "surveyor-execution"}
     ]
+    assert len(allocator_rows) == 1
+    assert allocator_rows[0][1] == "workflow-1"
+    assert allocator_rows[0][2] is None
+    assert allocator_status == (
+        "allocator",
+        "skipped",
+        "legacy_workflow_without_position_snapshot",
+    )
     assert snapshot_rows == [
         ("profiler-snapshot", "profiler-execution"),
         ("surveyor-snapshot", "surveyor-execution"),
@@ -198,3 +222,84 @@ def test_upgrade_from_0009_unifies_agent_executions_preserving_ids(
         ("surveyor-conversation", "surveyor-execution"),
     ]
     assert "workflow_agent_executions" not in {row[0] for row in tables}
+
+
+def test_portfolio_allocations_upgrade_backfill_and_downgrade(tmp_path: Path) -> None:
+    database_url = sqlite_url_from_path(tmp_path / "allocation-migration.sqlite")
+    database_directory = Path(__file__).resolve().parents[4] / "backend" / "migrations"
+    config = Config(str(database_directory / "alembic.ini"))
+    config.set_main_option("script_location", str(database_directory))
+    config.set_main_option("sqlalchemy.url", database_url)
+    command.upgrade(config, "0012_conversation_message_usage")
+
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO workflow_runs (id, started_at, status, is_mock)
+                VALUES ('legacy-workflow', '2026-08-01 00:00:00', 'completed', 1)
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO agent_executions (
+                    id, workflow_run_id, run_id, agent_name, status
+                )
+                VALUES (
+                    'legacy-surveyor', 'legacy-workflow', NULL, 'surveyor',
+                    'completed'
+                )
+                """
+            )
+        )
+    engine.dispose()
+
+    command.upgrade(config, "0013_portfolio_allocations")
+    engine = create_engine(database_url)
+    with engine.connect() as connection:
+        workflow_status = connection.execute(
+            text("SELECT status FROM workflow_runs WHERE id = 'legacy-workflow'")
+        ).one()
+        allocator = connection.execute(
+            text(
+                """
+                SELECT status, error_message FROM agent_executions
+                WHERE workflow_run_id = 'legacy-workflow' AND agent_name = 'allocator'
+                """
+            )
+        ).one()
+        tables = {
+            row[0]
+            for row in connection.execute(
+                text("SELECT name FROM sqlite_master WHERE type='table'")
+            ).all()
+        }
+    engine.dispose()
+    assert workflow_status[0] == "completed"
+    assert allocator == ("skipped", "legacy_workflow_without_position_snapshot")
+    assert "portfolio_allocations" in tables
+
+    command.downgrade(config, "0012_conversation_message_usage")
+    engine = create_engine(database_url)
+    with engine.connect() as connection:
+        tables = {
+            row[0]
+            for row in connection.execute(
+                text("SELECT name FROM sqlite_master WHERE type='table'")
+            ).all()
+        }
+        allocator_count = connection.execute(
+            text("SELECT COUNT(*) FROM agent_executions WHERE agent_name = 'allocator'")
+        ).one()[0]
+        workflow_status = connection.execute(
+            text("SELECT status FROM workflow_runs WHERE id = 'legacy-workflow'")
+        ).one()[0]
+    engine.dispose()
+    assert "portfolio_allocations" not in tables
+    assert allocator_count == 0
+    assert workflow_status == "completed"
+
+    command.upgrade(config, "head")

@@ -10,7 +10,6 @@ from sqlmodel import Session, col, select
 from discount_analyst.adapters.persistence.workflow_rows import (
     AgentExecutionRow,
     CandidateGateRow,
-    SurveyorExecutionRow,
     TickerRunRow,
     TickerRunResumeRow,
     WorkflowRunDetailRecord,
@@ -19,12 +18,14 @@ from discount_analyst.adapters.persistence.workflow_rows import (
 )
 from discount_analyst.adapters.persistence.crud.db_utils import (
     ACTIVE_EXECUTION_STATUSES,
-    TERMINAL_EXECUTION_STATUSES,
     new_id,
     utc_now,
 )
 from discount_analyst.adapters.persistence.crud.run_executions import (
     workflow_can_retry_failed_agents,
+)
+from discount_analyst.application.workflows.workflow_status import (
+    derive_workflow_status,
 )
 from discount_analyst.adapters.persistence.models import (
     AgentExecution,
@@ -39,13 +40,6 @@ from discount_analyst.adapters.persistence.models import (
 )
 
 TERMINAL_WORKFLOW_STATUSES = frozenset(
-    {
-        WorkflowRunStatusDb.COMPLETED.value,
-        WorkflowRunStatusDb.FAILED.value,
-        WorkflowRunStatusDb.CANCELLED.value,
-    }
-)
-TERMINAL_RUN_STATUSES = frozenset(
     {
         WorkflowRunStatusDb.COMPLETED.value,
         WorkflowRunStatusDb.FAILED.value,
@@ -117,43 +111,22 @@ def recompute_workflow_status(session: Session, workflow_run_id: str) -> None:
     if wf.status == WorkflowRunStatusDb.FAILED and wf.error_message:
         return
 
-    surveyor = session.scalars(
-        select(AgentExecution).where(
-            col(AgentExecution.workflow_run_id) == workflow_run_id,
-            col(AgentExecution.agent_name) == AgentNameDb.SURVEYOR,
-        )
-    ).first()
+    surveyor = _workflow_scoped_execution(
+        session, workflow_run_id, AgentNameDb.SURVEYOR
+    )
+    allocator = _workflow_scoped_execution(
+        session, workflow_run_id, AgentNameDb.ALLOCATOR
+    )
     runs = list(
         session.scalars(select(Run).where(col(Run.workflow_run_id) == workflow_run_id))
     )
 
-    new_status: WorkflowRunStatusDb | None = None
-    if surveyor is None:
-        new_status = WorkflowRunStatusDb.RUNNING
-    elif surveyor.status.value == ExecutionStatusDb.FAILED.value:
-        new_status = WorkflowRunStatusDb.FAILED
-    elif surveyor.status.value == ExecutionStatusDb.CANCELLED.value:
-        new_status = WorkflowRunStatusDb.CANCELLED
-    elif surveyor.status.value in ACTIVE_EXECUTION_STATUSES:
-        new_status = WorkflowRunStatusDb.RUNNING
-    elif not runs:
-        if surveyor.status.value in TERMINAL_EXECUTION_STATUSES:
-            new_status = WorkflowRunStatusDb.COMPLETED
-    else:
-        statuses = [r.status.value for r in runs]
-        if WorkflowRunStatusDb.RUNNING.value in statuses:
-            new_status = WorkflowRunStatusDb.RUNNING
-        elif WorkflowRunStatusDb.FAILED.value in statuses:
-            new_status = WorkflowRunStatusDb.FAILED
-        elif all(s == WorkflowRunStatusDb.COMPLETED.value for s in statuses):
-            new_status = WorkflowRunStatusDb.COMPLETED
-        elif all(s in TERMINAL_RUN_STATUSES for s in statuses):
-            new_status = WorkflowRunStatusDb.CANCELLED
-        else:
-            new_status = WorkflowRunStatusDb.RUNNING
-
-    if new_status is None:
-        return
+    derived = derive_workflow_status(
+        surveyor_status=None if surveyor is None else surveyor.status.value,
+        allocator_status=None if allocator is None else allocator.status.value,
+        run_statuses=tuple(run.status.value for run in runs),
+    )
+    new_status = WorkflowRunStatusDb(derived)
 
     wf.status = new_status
     if new_status == WorkflowRunStatusDb.RUNNING:
@@ -170,7 +143,11 @@ def insert_workflow_run(
     workflow_run_id: str,
     portfolio_tickers: list[str],
     is_mock: bool,
-) -> None:
+    surveyor_execution_id: str | None = None,
+    allocator_execution_id: str | None = None,
+) -> tuple[str, str]:
+    surveyor_id = surveyor_execution_id or new_id()
+    allocator_id = allocator_execution_id or new_id()
     session.add(
         WorkflowRun(
             id=workflow_run_id,
@@ -190,18 +167,9 @@ def insert_workflow_run(
                 ticker=ticker,
             )
         )
-    session.commit()
-
-
-def insert_surveyor_workflow_execution(
-    session: Session,
-    *,
-    execution_id: str,
-    workflow_run_id: str,
-) -> None:
     session.add(
         AgentExecution(
-            id=execution_id,
+            id=surveyor_id,
             workflow_run_id=workflow_run_id,
             run_id=None,
             agent_name=AgentNameDb.SURVEYOR,
@@ -211,7 +179,20 @@ def insert_surveyor_workflow_execution(
             error_message=None,
         )
     )
+    session.add(
+        AgentExecution(
+            id=allocator_id,
+            workflow_run_id=workflow_run_id,
+            run_id=None,
+            agent_name=AgentNameDb.ALLOCATOR,
+            status=ExecutionStatusDb.PENDING,
+            started_at=None,
+            completed_at=None,
+            error_message=None,
+        )
+    )
     session.commit()
+    return surveyor_id, allocator_id
 
 
 def list_workflow_runs(session: Session) -> list[WorkflowRunListRow]:
@@ -291,22 +272,17 @@ def fetch_workflow_detail(
     if wf is None:
         return None
 
-    se = session.scalars(
-        select(AgentExecution).where(
-            col(AgentExecution.workflow_run_id) == workflow_run_id,
-            col(AgentExecution.agent_name) == AgentNameDb.SURVEYOR,
-        )
-    ).first()
-    surveyor_execution: SurveyorExecutionRow | None = None
+    se = _workflow_scoped_execution(session, workflow_run_id, AgentNameDb.SURVEYOR)
+    surveyor_execution: AgentExecutionRow | None = None
     if se is not None:
-        surveyor_execution = {
-            "id": se.id,
-            "agent_name": se.agent_name.value,
-            "status": se.status.value,
-            "started_at": se.started_at,
-            "completed_at": se.completed_at,
-            "model_name": se.model_name,
-        }
+        surveyor_execution = _workflow_agent_execution_row(se)
+
+    allocator = _workflow_scoped_execution(
+        session, workflow_run_id, AgentNameDb.ALLOCATOR
+    )
+    allocator_execution: AgentExecutionRow | None = None
+    if allocator is not None:
+        allocator_execution = _workflow_agent_execution_row(allocator)
 
     agent_order = {
         AgentNameDb.PROFILER.value: 0,
@@ -376,13 +352,37 @@ def fetch_workflow_detail(
         "can_retry_failed_agents": workflow_can_retry_failed_agents(
             workflow_status=WorkflowRunStatusDb(wf["status"]),
             surveyor=se,
+            allocator=allocator,
             runs=runs,
             executions_by_run_id=executions_by_run_id,
         ),
         "surveyor_execution": surveyor_execution,
+        "allocator_execution": allocator_execution,
         "runs": runs_out,
     }
     return detail
+
+
+def _workflow_scoped_execution(
+    session: Session, workflow_run_id: str, agent_name: AgentNameDb
+) -> AgentExecution | None:
+    return session.scalars(
+        select(AgentExecution).where(
+            col(AgentExecution.workflow_run_id) == workflow_run_id,
+            col(AgentExecution.agent_name) == agent_name,
+        )
+    ).first()
+
+
+def _workflow_agent_execution_row(execution: AgentExecution) -> AgentExecutionRow:
+    return {
+        "id": execution.id,
+        "agent_name": execution.agent_name.value,
+        "status": execution.status.value,
+        "started_at": execution.started_at,
+        "completed_at": execution.completed_at,
+        "model_name": execution.model_name,
+    }
 
 
 def delete_workflow_run_if_mock(session: Session, workflow_run_id: str) -> bool:

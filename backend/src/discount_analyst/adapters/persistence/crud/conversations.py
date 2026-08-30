@@ -16,6 +16,9 @@ from discount_analyst.adapters.persistence.crud.agent_output_persistence import 
 from discount_analyst.adapters.persistence.crud.candidate_snapshots import (
     snapshot_to_candidate,
 )
+from discount_analyst.adapters.persistence.crud.portfolio_allocations import (
+    get_portfolio_allocation_for_execution,
+)
 from discount_analyst.adapters.persistence.crud.conversation_usage import (
     token_usage_from_message_payload,
     token_usage_from_message_row,
@@ -628,17 +631,25 @@ def assistant_response_for_run_agent(
             return "{}"
         return appraiser_output_from_report(row).model_dump_json()
 
+    if execution.agent_name == AgentNameDb.ALLOCATOR:
+        allocation = get_portfolio_allocation_for_execution(session, execution.id)
+        if allocation is None:
+            return "{}"
+        return allocation.model_dump_json()
+
     return "{}"
 
 
-def get_conversation_for_workflow_surveyor(
+def get_conversation_for_workflow_agent(
     session: Session,
     workflow_run_id: str,
+    *,
+    agent_name: AgentNameDb,
 ) -> dict[str, str] | None:
     execution = session.scalars(
         select(AgentExecution).where(
             col(AgentExecution.workflow_run_id) == workflow_run_id,
-            col(AgentExecution.agent_name) == AgentNameDb.SURVEYOR,
+            col(AgentExecution.agent_name) == agent_name,
         )
     ).first()
     if execution is None:
