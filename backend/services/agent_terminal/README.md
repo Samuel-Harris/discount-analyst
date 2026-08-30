@@ -76,12 +76,14 @@ Limits (env on orchestrator): `TERMINAL_COMMAND_TIMEOUT_S` (default 300), `TERMI
 | `TERMINAL_WORKSPACE_CONTAINER_PATH` | `/workspace/repo`            | Mount point inside sandboxes                    |
 | `DOCKER_RUNTIME`                    | `runc` (orchestrator env)    | Container runtime (`runsc` for gVisor)          |
 
-CLI/scripts: pass `--no-terminal` to disable for a single run.
+CLI/scripts: pass `--no-terminal` to disable for a single run, except Surveyor,
+which requires terminal access for its yfinance screen and fails fast when disabled.
 
 ## Local development without Compose
 
 - Run the orchestrator locally (after building the sandbox image) and set `TERMINAL_SERVICE_URL=http://127.0.0.1:8001` (Compose publishes port 8001 by default), or
-- Use `--no-terminal` / `DASHBOARD_USE_TERMINAL=false` when the orchestrator is not running.
+- Use `--no-terminal` / `DASHBOARD_USE_TERMINAL=false` when the orchestrator is not running and
+  skip Surveyor; Surveyor cannot run without its terminal-backed yfinance screen.
 
 ## Data lifecycle
 

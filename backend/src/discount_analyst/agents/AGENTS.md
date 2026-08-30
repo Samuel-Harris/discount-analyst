@@ -1,11 +1,11 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-04-02 | Updated: 2026-05-31 -->
+<!-- Generated: 2026-04-02 | Updated: 2026-08-30 -->
 
 # agents
 
 ## Purpose
 
-Contains AI agent packages used by the project workflows. This directory groups the Surveyor, Researcher, Strategist, Sentinel, and Appraiser implementations under a shared namespace.
+Contains AI agent packages used by the project workflows. This directory groups the Surveyor, Profiler, Researcher, Strategist, Sentinel, and Appraiser implementations under a shared namespace.
 
 ## Key Files
 
@@ -19,8 +19,9 @@ Contains AI agent packages used by the project workflows. This directory groups 
 | ------------- | --------------------------------------------------------------------------------------------------------------------- |
 | `tools/`          | Agent tool clients: web research, Frankfurter FX, MCP, terminal, official regulatory data (see `tools/AGENTS.md`) |
 | `runtime/`        | Shared agent factory, model construction, streaming (see `runtime/AGENTS.md`)                                     |
-| `common_prompts/` | Shared creed, MCP rules, and official filing/universe prompt snippets                                             |
+| `common_prompts/` | Shared creed, market-data source rules, and official filing/universe prompt snippets                            |
 | `surveyor/`       | Surveyor agent implementation and prompts for candidate discovery (see `surveyor/AGENTS.md`)                      |
+| `profiler/`       | Profiler implementation and prompts for named-ticker screening                                                   |
 | `researcher/` | Researcher agent implementation and prompts for structured deep-research evidence output (see `researcher/AGENTS.md`) |
 | `strategist/` | Strategist agent implementation and prompts for `MispricingThesis` output (see `strategist/AGENTS.md`)                |
 | `sentinel/`   | Sentinel agent implementation and prompts for `EvaluationReport` output (see `sentinel/AGENTS.md`)                    |
@@ -30,7 +31,7 @@ Contains AI agent packages used by the project workflows. This directory groups 
 
 ### Working In This Directory
 
-- Keep surveyor, researcher, strategist, sentinel, and appraiser code in separate subpackages to avoid cross-coupling.
+- Keep each stage's code in its own subpackage to avoid cross-coupling.
 - Use fully qualified imports from `discount_analyst.agents.*` in callers.
 
 ### Testing Requirements
@@ -39,19 +40,19 @@ Contains AI agent packages used by the project workflows. This directory groups 
 
 ### Common Patterns
 
-- Agent factories live in each subpackage's main module (`surveyor.py`, `researcher.py`, `sentinel.py`, `appraiser.py`).
+- Agent factories live in each stage subpackage's matching module.
 - Prompt definitions stay inside their owning subpackage.
 
 ## Dependencies
 
 ### Internal
 
-- `discount_analyst.agents.common`, `discount_analyst.config`, `discount_analyst.integrations`, `discount_analyst.valuation` (schemas only where needed): runtime and contracts for agent construction.
-- `scripts/agents`: CLI entry points that call these factories.
+- `discount_analyst.agents.runtime`, `discount_analyst.agents.tools`, `discount_analyst.config`, and `discount_analyst.domain`: runtime, capabilities, configuration, and shared domain contracts.
+- `discount_analyst.entrypoints.cli.agents`: one-shot CLI entry points that call the stage factories.
 
 ### External
 
-- **pydantic-ai**: Agent framework used by both subpackages.
+- **pydantic-ai**: Agent framework used by the stage packages.
 - **pydantic-ai-harness**: `ToolOutputLimits` truncation of oversized tool returns.
 
 <!-- MANUAL: Any manually added notes below this line are preserved on regeneration -->

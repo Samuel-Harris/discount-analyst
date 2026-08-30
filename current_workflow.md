@@ -6,7 +6,9 @@ Implementation-accurate snapshot of the agentic pipeline. Ground truth is the co
 
 ## Changes since last sync
 
-Previous snapshot: 2026-08-28. Material change is **CODE-53**: official £0 regulatory-data tools (NASDAQ Trader / LSE listings, SEC companyfacts, Companies House iXBRL) are wired through `REGULATORY_TOOLSETS_BY_ROLE` in `agents/runtime/agent_factory.py`. Surveyor receives universe listing tools plus filing tools; Profiler, Researcher, Strategist, Sentinel, and Appraiser receive filing tools only. FMP/EODHD MCP screening is unchanged. Bulk cache refresh is `discount-analyst admin refresh-regulatory-data` (`--exchanges` / `--sec` / `--companies-house`; no flag means all three). Cache dir `REGULATORY_DATA_CACHE_DIR` (default `data/regulatory_data`). SEC refresh and live companyfacts gap-fill require `SEC__USER_AGENT`.
+Previous snapshot: 2026-08-28. **CODE-53** added official regulatory-data tools (NASDAQ Trader / LSE listings, SEC companyfacts, Companies House iXBRL) through `REGULATORY_TOOLSETS_BY_ROLE` in `agents/runtime/agent_factory.py`. Surveyor receives universe listing tools plus filing tools; Profiler, Researcher, Strategist, Sentinel, and Appraiser receive filing tools only. Bulk cache refresh is `discount-analyst admin refresh-regulatory-data` (`--exchanges` / `--sec` / `--companies-house`; no flag means all three). Cache dir `REGULATORY_DATA_CACHE_DIR` (default `data/regulatory_data`). SEC refresh and live companyfacts gap-fill require `SEC__USER_AGENT`.
+
+**CODE-81 changes prompt policy and makes Surveyor terminal-dependent.** Surveyor now screens with yfinance `EquityQuery` / `screen` through `terminal_exec`, then verifies finalists with official listing and filing tools. Its factory rejects terminal-disabled construction because there is no equivalent primary screener among the remaining tools. Profiler, Researcher, and Appraiser use yfinance first for dated market observations and official filings for reported fundamentals. FMP/EODHD screeners and paid quote/history/market-cap endpoints are prohibited in these prompts; registered non-screening paid endpoints are one-attempt gap-fill only. Sentinel remains interpretation-only: it cannot run yfinance and may use one bounded official-filing verification chain. Strategist is unchanged.
 
 **Sentinel — no web/MCP/terminal.** `create_sentinel_agent(ai_models_config)` always passes `enable_web_research_tools=False`, `use_mcp_financial_data=False`, and `terminal=terminal_run_options(..., enabled=False)`. Dashboard Perplexity/MCP/terminal settings are not forwarded. Frankfurter `convert_currency` and official filing tools (`get_sec_company_facts`, `resolve_uk_company`, `get_companies_house_accounts`) remain. CLI `agent sentinel` does not accept `--perplexity` / `--no-mcp` / `--no-terminal`.
 
@@ -46,7 +48,7 @@ Two runners share the same agent factories and decision builders:
 1. **Dashboard** — `DashboardPipelineRunner.execute_workflow` persists SQLite rows, conversations, and a `Verdict`. HTTP create is `POST` on the workflow-runs router.
 2. **CLI** — `uv run discount-analyst workflow run` writes JSON artefacts under `backend/outputs/`. It does **not** run the FMP/EODHD candidate gate.
 
-Ticker lanes are **serial** in both runners (`await` in a `for` loop). There is no pipeline-level `asyncio.gather` of lanes. Parallelism exists only *inside* an agent turn (the Surveyor prompt asks for parallel screener/MCP calls).
+Ticker lanes are **serial** in both runners (`await` in a `for` loop). There is no pipeline-level `asyncio.gather` of lanes. Parallelism exists only *inside* an agent turn; Surveyor performs bounded paging and shortlist enrichment inside terminal calls, then batches official verification calls in groups of at most five.
 
 ---
 
@@ -92,7 +94,7 @@ CLI omits the candidate-gate diamond: Surveyor or Profiler output goes straight 
 
 | Stage          | Stance (from that agent’s system prompt)                           | Input                                   | Output schema                                     | Tools                                                                                                                                                  |
 | -------------- | ------------------------------------------------------------------ | --------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Surveyor       | Disciplined **screener** in neglected small-caps                   | Open mandate (`USER_PROMPT`); no ticker | `SurveyorOutput` (`candidates` min 15)            | Web research + financial MCP + optional terminal + official universe lists + official filings                                                           |
+| Surveyor       | Disciplined **screener** in neglected small-caps                   | Open mandate (`USER_PROMPT`); no ticker | `SurveyorOutput` (exactly 15 candidates)          | Web research + financial MCP + required terminal + official universe lists + official filings                                                           |
 | Profiler       | Financial screener of a **named** stock; resist favourable framing | Ticker string                           | `ProfilerOutput` wrapping one `SurveyorCandidate` | Same as Surveyor except no universe listing tools (filings only)                                                                                       |
 | Candidate gate | Deterministic, not an LLM                                          | `SurveyorCandidate`                     | `PassedCandidateGate` / `RejectedCandidateGate`   | FMP (+ EODHD fallback for `.L`). Identity-unknown and listing-unconfirmed **admit**. DQR is **delist-only**. **Skipped in mock.** **Not used by CLI.** |
 | Researcher     | **Neutral evidence assembler**; no recommendation language         | `SurveyorLaneContext`                   | `DeepResearchReport`                              | Web research + financial MCP + optional terminal + official filings                                                                                    |
@@ -232,7 +234,7 @@ All fields optional (`null` allowed). `piotroski_f_score`: integer 0–9 or null
 
 ### `SurveyorOutput`
 
-`candidates`: array of `SurveyorCandidate`, **`minItems`: 15**, unique tickers (validator).
+`candidates`: array of `SurveyorCandidate`, **`minItems`: 15**, **`maxItems`: 15**, unique tickers (validator).
 
 ### `ProfilerOutput`
 
@@ -336,6 +338,8 @@ Factory: `create_surveyor_agent` → `SurveyorOutput`. Bound schema matches the 
 
 Hard filters in the prompt: market cap below £500M / $600M; LSE/AIM/NYSE/NASDAQ; liquidity; SEC or UK filings; ≥3 years history. Soft ranking signals for coverage gap, value, growth, earnings quality, balance sheet.
 
+Prompt execution path: no more than three bounded `terminal_exec` calls use yfinance `EquityQuery` / `screen` for US and UK discovery and enrichment. US filters market cap server-side; UK pages the LSE result and filters `marketCap` locally because the Yahoo UK server-side cap filter is unreliable. The agent enriches at most 30 names per market, reconciles price × shares, applies explicit traded-value and operating-history filters, then uses official listing and filing tools on exactly 15 provisional finalists and no more than two replacements. UK `.L` suffixes are stripped before exact TIDM lookups. Web gap-fill is capped at four searches so the complete path remains within the 60-tool-call limit. FMP/EODHD screeners are forbidden.
+
 Dashboard: Surveyor discoveries whose ticker is already in the portfolio (casefold) are **not** spawned. Spawned lanes run **immediately** inside `SurveyorStage.run` via `spawn_surveyor_discovered_run`, then `execute_workflow` walks remaining RUNNING runs (profiler entries).
 
 Mock: `mock_surveyor_dashboard_discoveries(..., limit=3)` — three names, so **mock output would not satisfy `minItems: 15`** if it went through `SurveyorOutput` validation; the dashboard mock path uses the helper’s candidate list, not a validated 15-row `SurveyorOutput`.
@@ -344,7 +348,7 @@ Mock: `mock_surveyor_dashboard_discoveries(..., limit=3)` — three names, so **
 
 Factory: `create_profiler_agent` with `enable_web_research_tools=True`. Output is one `SurveyorCandidate` (same shape as a Surveyor row). Company name is written back onto the ticker run. Filing tools are attached; universe listing tools are not.
 
-No `profiler/AGENTS.md`. Runtime `AgentName.PROFILER` exists; `agents/AGENTS.md` now lists `tools/`, `runtime/`, and `common_prompts/` but still omits Profiler.
+Prompt source order: yfinance for a dated market snapshot; SEC/Companies House and issuer documents for statement facts; web search for insiders, coverage and red flags; optional paid non-screening data only as a one-attempt gap-fill. `market_cap_local` is stored in the declared major currency, so `.L` GBp fast-info values are converted to GBP exactly once. The prompt explicitly notes that Profiler has no universe-listing tools.
 
 ### Candidate gate
 
@@ -368,11 +372,15 @@ Serial. User prompts inject `<SurveyorLaneContext>` plus the quantitative-omissi
 
 Researcher and Appraiser get Perplexity/MCP/terminal flags from settings. Strategist factory still forwards those same flags (`use_mcp_financial_data=True` default; `enable_web_research_tools` left at `create_agent` default `True`). Sentinel has no web/MCP/terminal: `create_sentinel_agent(ai_cfg)` only; live path uses `run_streamed_agent` with terminal disabled, then `finalise_sentinel_evaluation` before persist. Official filing tools are attached for all of these stages. Dashboard `is_existing_position` is passed into the Sentinel user prompt.
 
+Researcher prompt order is yfinance market snapshot → official filings and issuer documents → targeted narrative research → optional paid gap-fill. Sentinel normally evaluates packed evidence without a tool call; it may make one SEC call or one UK resolve/accounts chain for a load-bearing fact, and cannot claim to refresh market data.
+
 ### Appraiser
 
 `AppraiserInput` is built in `TickerLaneStage.run_appraiser_final_rating` with `risk_free_rate_pct=host.settings.risk_free_rate_pct` (dashboard default 3.7, env `DASHBOARD_RISK_FREE_RATE`; CLI requires `--risk-free-rate`).
 
 DCF is **a valid method, not a required stage**. Optional Python helpers live under `discount_analyst/domain/valuation/toolkit/` (`dcf.py`, `reverse_dcf.py`, `multiples.py`, …) and `domain/valuation/schema.py` (`StockData`, `StockAssumptions`). The Appraiser user prompt says **do not** return those DCF-specific objects. There is no separate deterministic DCF engine invoked by the runner; arithmetic is LLM + optional terminal.
+
+Before modelling, the Appraiser prompt requires an auditable data cut: dated quote and unit, market capitalisation, share count, price × shares reconciliation, and filing-period provenance. `.L` GBp values are converted to major GBP exactly once. Terminal arithmetic must recompute the method-weight blend before `final_result`.
 
 On Appraiser success the runner does **not** call an LLM “final decision agent”; it builds MoS and `build_rating_table_decision`.
 
@@ -395,7 +403,7 @@ Configuration: `discount_analyst.config.settings.Settings` (root / package `.env
 | `default_model` / `DASHBOARD_DEFAULT_MODEL`                   | `gpt-5.6-luna` | All dashboard pipeline agents via `AIModelsConfig(model_name=settings.default_model)` — **one model for every stage** |
 | `use_perplexity` / `DASHBOARD_USE_PERPLEXITY`                 | `False`        | Perplexity `web_search` + `sec_filings_search` instead of pydantic-ai WebSearch/WebFetch                              |
 | `use_mcp_financial_data` / `DASHBOARD_USE_MCP_FINANCIAL_DATA` | `True`         | EODHD + FMP MCP toolsets                                                                                              |
-| `use_terminal` / `DASHBOARD_USE_TERMINAL`                     | `True`         | Docker-backed `terminal_exec` via `TERMINAL_SERVICE_URL`                                                              |
+| `use_terminal` / `DASHBOARD_USE_TERMINAL`                     | `True`         | Docker-backed `terminal_exec` via `TERMINAL_SERVICE_URL`; Surveyor construction fails when disabled                   |
 | `eodhd.disabled` / `EODHD__DISABLED`                          | `False`        | Omits EODHD MCP (and EODHD listing fallback)                                                                          |
 | `risk_free_rate_pct`                                          | `3.7`          | Injected into Appraiser user prompt                                                                                   |
 | `regulatory_data_cache_dir` / `REGULATORY_DATA_CACHE_DIR`     | `data/regulatory_data` | Official NASDAQ/LSE/SEC/Companies House cache (gitignored)                                                            |
@@ -409,7 +417,9 @@ When Perplexity is off: `WebSearch(native=True, local=bounded DuckDuckGo)` and `
 
 Web-research agents: Surveyor, Profiler, Researcher, Appraiser, and **Strategist** (factory default). Sentinel: no web, MCP, or terminal; FX plus official filing tools.
 
-Official regulatory-data tools (`agents/tools/regulatory_data/`): `list_us_listed_equities` / `list_uk_listed_equities` (Surveyor only) and `get_sec_company_facts` / `resolve_uk_company` / `get_companies_house_accounts` (all pipeline agents, including Sentinel). Responses paginate at 50 (cap 100). Operator refresh: `discount-analyst admin refresh-regulatory-data`. These tools do not replace FMP/EODHD MCP screeners.
+Official regulatory-data tools (`agents/tools/regulatory_data/`): `list_us_listed_equities` / `list_uk_listed_equities` (Surveyor only) and `get_sec_company_facts` / `resolve_uk_company` / `get_companies_house_accounts` (all pipeline agents, including Sentinel). Responses paginate at 50 (cap 100). Operator refresh: `discount-analyst admin refresh-regulatory-data`. In prompt policy, listing tools verify yfinance candidates and filing tools anchor reported fundamentals; they replace paid screening/quote calls but do not change the deterministic dashboard candidate gate.
+
+yfinance is available to agents only through `terminal_exec`; there is no dedicated yfinance toolset. Surveyor, Profiler, Researcher, Strategist, and Appraiser can receive terminal access from settings. Sentinel disables it. Shared guidance lives in `agents/common_prompts/market_data.py`; Strategist intentionally does not embed that guidance.
 
 ---
 
@@ -480,16 +490,13 @@ CLI one-shots: `uv run discount-analyst agent {surveyor,profiler,researcher,stra
 
 These are disagreements to resolve in code, prompts, or docs — not silently normalised here.
 
-1. **Surveyor list length.** System prompt: “If you can only find 10 stocks… return 10.” Schema: `candidates` **`minItems`: 15**. User prompt Step 2 says “pull financial scores for your shortlist”; system prompt Step 2 says pull **profiles and fundamentals** (and notes Piotroski/Altman are typically unavailable on the FMP plan).
-2. **Blacklisted FMP vs schema copy.** `KeyMetrics` field descriptions tell the model to use FMP Financial Score and insider-trading tools; those tools/endpoints are **plan-gated off**. Surveyor prompt is closer to reality (“pre-computed Piotroski and Altman are not available on the current FMP plan”).
-3. **Beneish M-Score.** Surveyor prompt says it is “computed deterministically elsewhere”. **No Beneish implementation exists** in this package (grep only hits the prompt).
-4. **`StockCategory`.** Enum `value`/`growth` is unused. Appraiser user prompt explicitly says not to label value vs growth. Root `AGENTS.md` still describes a manual “categorise value or growth” stage.
-5. **Stale agent names in schemas/prompts.** Strategist `evaluation_questions` description still says “the Evaluation Agent”. Sentinel `caveats`: “Appraiser and **final decision agent**”. `sentinel_proceeds_to_valuation` docstring: “Appraiser / **DCF** stage”. There is no Evaluation/Arbiter/final-decision LLM; DCF is optional inside Appraiser.
-6. **Researcher input type.** User prompt and factories pass `SurveyorLaneContext`. Researcher `DeepResearchReport` / `DataGapsUpdate` descriptions still say “Surveyor candidate”. System prompt Step 0 refers to `SurveyorCandidate.exchange` (the field exists on lane context too).
-7. **CLI vs dashboard gates.** CLI full workflow never calls `validate_candidate`. Dashboard always does (except mock). Same agent chain, different admission policy.
-8. **`agents/AGENTS.md`** omits Profiler; **no `profiler/AGENTS.md`**. Import paths in that file still mention `agents.common` and `scripts/agents`.
-9. **Root `AGENTS.md` Investment Workflow** still describes a seven-stage partly-manual process (shortlist, categorise, external evaluate). The dashboard/CLI implement the automated lane above, with a human decision only after the `Verdict`.
-10. **Strategist stance vs factory.** System prompt: interpreter, not researcher. `create_strategist_agent` still defaults `use_mcp_financial_data=True` and does not pass `enable_web_research_tools=False`, so dashboard Strategist still gets web/MCP/terminal from settings. Sentinel is the only production factory without web/MCP/terminal; it now also has official filing tools.
+1. **Blacklisted FMP vs schema copy.** `KeyMetrics` field descriptions still tell the model to use FMP Financial Score and insider-trading tools; those tools/endpoints are plan-gated off, while current prompts say to leave unavailable scores null.
+2. **Beneish M-Score.** Surveyor prompt says it is “computed deterministically elsewhere”. **No Beneish implementation exists** in this package (grep only hits the prompt).
+3. **`StockCategory`.** Enum `value`/`growth` is unused. Appraiser user prompt explicitly says not to label value vs growth.
+4. **Stale agent names in schemas/prompts.** Strategist `evaluation_questions` description still says “the Evaluation Agent”. Sentinel `caveats`: “Appraiser and **final decision agent**”. `sentinel_proceeds_to_valuation` docstring: “Appraiser / **DCF** stage”. There is no Evaluation/Arbiter/final-decision LLM; DCF is optional inside Appraiser.
+5. **Researcher input type.** User prompt and factories pass `SurveyorLaneContext`. Researcher `DeepResearchReport` / `DataGapsUpdate` descriptions still say “Surveyor candidate”.
+6. **CLI vs dashboard gates.** CLI full workflow never calls `validate_candidate`. Dashboard always does (except mock). Same agent chain, different admission policy.
+7. **Strategist stance vs factory.** System prompt: interpreter, not researcher. `create_strategist_agent` still defaults `use_mcp_financial_data=True` and does not pass `enable_web_research_tools=False`, so dashboard Strategist still gets web/MCP/terminal from settings. Sentinel is the only production factory without web/MCP/terminal; it now also has official filing tools.
 
 ---
 

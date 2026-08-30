@@ -21,6 +21,13 @@ def test_surveyor_output_accepts_unique_candidate_tickers() -> None:
     assert len(output.candidates) == 15
 
 
+def test_surveyor_output_rejects_more_than_fifteen_candidates() -> None:
+    candidates = [*_fifteen_unique_candidates(), _candidate("EXTRA.L")]
+
+    with pytest.raises(ValidationError, match="at most 15 items"):
+        SurveyorOutput(candidates=candidates)
+
+
 def test_surveyor_output_rejects_duplicate_candidate_tickers_case_insensitive() -> None:
     candidates = _fifteen_unique_candidates()
     candidates[-1] = _candidate("tst00.l")

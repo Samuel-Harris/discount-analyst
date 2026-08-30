@@ -1,11 +1,11 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-03-03 | Updated: 2026-04-02 -->
+<!-- Generated: 2026-03-03 | Updated: 2026-08-30 -->
 
 # surveyor
 
 ## Purpose
 
-The `surveyor` directory contains the implementation of the "Surveyor" AI agent. This agent discovers cheap small-cap stock candidates in UK and US markets using Pydantic AI web capabilities or optional Perplexity-backed search. It mirrors the appraiser structure but with a different output schema (`SurveyorOutput`) tailored to stock screening and discovery.
+The `surveyor` directory contains the implementation of the "Surveyor" AI agent. This agent discovers cheap small-cap stock candidates in UK and US markets through bounded yfinance screening, then verifies finalists with official listing, filing, and targeted web sources. It mirrors the appraiser structure but with a different output schema (`SurveyorOutput`) tailored to stock screening and discovery.
 
 ## Key Files
 
@@ -23,7 +23,7 @@ None.
 
 ### Working In This Directory
 
-- **Agent Tools**: By default (`use_perplexity=False`), the agent uses pydantic-ai `WebSearch` and `WebFetch` capabilities, which use provider-native tools where supported and Pydantic AI local fallbacks otherwise. With `use_perplexity=True`, Perplexity-backed tools (`web_search`, `sec_filings_search`) are provided by `discount_analyst.integrations.perplexity` via `create_perplexity_toolset(AgentName.SURVEYOR)`. When `use_mcp_financial_data=True` (default), EODHD and FMP MCP toolsets are added for Anthropic, OpenAI, and DeepSeek via `add_required_feature_to_builtin_tools` (`ProviderFeature.MCP`). Official universe listing tools and filing tools are always attached. Keep the MCP-first screening plan; official lists complement screeners. Google does not support MCP—use `use_mcp_financial_data=False` or `scripts/agents/run_surveyor.py --no-mcp`. Add or modify Perplexity-specific descriptions in `agents/common/tool_descriptions.py`.
+- **Agent Tools**: Terminal access is required because it runs bounded yfinance screening and enrichment; constructing Surveyor with terminal disabled fails immediately. Official universe listing tools and filing tools verify finalists. By default (`use_perplexity=False`), the agent uses pydantic-ai `WebSearch` and `WebFetch`; with `use_perplexity=True`, Perplexity-backed tools come from `create_perplexity_toolset(AgentName.SURVEYOR)`. EODHD and FMP MCP toolsets remain optional, one-attempt gap-fill sources when `use_mcp_financial_data=True`; never use their paid endpoints for universe screening. Google does not support MCP—use `use_mcp_financial_data=False` or `--no-mcp`.
 - **Prompts**: Keep the system persona in `system_prompt.py`.
 
 ### Testing Requirements
@@ -33,7 +33,7 @@ None.
 
 ### Common Patterns
 
-- **Search Tools**: Uses `AsyncPerplexity` with `search_mode="web"` for general research and `search_mode="sec"` for official financial filings.
+- **Search Tools**: Use targeted web search only for material eligibility or red-flag gaps left by yfinance and official sources.
 - **Structured Output**: The agent is configured to return a `SurveyorOutput` (defined in `schema.py`) for strict data validation. Downstream dashboard lanes use `SurveyorLaneContext` (via `SurveyorCandidate.to_lane_context()`) — screening metrics are omitted before Researcher.
 
 ## Dependencies

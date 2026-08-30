@@ -127,12 +127,14 @@ def test_create_agent_prepends_current_date_to_system_prompt(
     monkeypatch.setattr(agent_factory, "Agent", fake_agent)
 
     agent = create_agent(
-        spec=AgentSpec(name=AgentName.SURVEYOR, output_type=str, system_prompt="test"),
+        spec=AgentSpec(
+            name=AgentName.RESEARCHER, output_type=str, system_prompt="test"
+        ),
         ai_models_config=AIModelsConfig(model_name=ModelName.DEEPSEEK_V4_PRO),
         use_mcp_financial_data=False,
     )
 
-    assert agent.name == AgentName.SURVEYOR
+    assert agent.name == AgentName.RESEARCHER
     assert captured["system_prompt"].startswith(format_current_date_line())
     assert captured["system_prompt"].endswith("test")
 
@@ -150,12 +152,14 @@ def test_create_agent_accepts_deepseek_web_research_tooling(
     )
 
     agent = create_agent(
-        spec=AgentSpec(name=AgentName.SURVEYOR, output_type=str, system_prompt="test"),
+        spec=AgentSpec(
+            name=AgentName.RESEARCHER, output_type=str, system_prompt="test"
+        ),
         ai_models_config=AIModelsConfig(model_name=ModelName.DEEPSEEK_V4_PRO),
         use_mcp_financial_data=False,
     )
 
-    assert agent.name == AgentName.SURVEYOR
+    assert agent.name == AgentName.RESEARCHER
 
 
 def test_create_agent_attaches_always_on_tooling(
@@ -193,13 +197,21 @@ def test_create_agent_attaches_always_on_tooling(
         ai_models_config=AIModelsConfig(model_name=ModelName.DEEPSEEK_V4_PRO),
         enable_web_research_tools=False,
         use_mcp_financial_data=False,
+        terminal=agent_factory.terminal_run_options(
+            agent_factory.app_settings,
+            enabled=True,
+            session_id="test-session",
+        ),
     )
 
     assert captured["toolsets"] == [fx_toolset, universe_toolset, filings_toolset]
-    assert captured["capabilities"] == [
+    capabilities = captured["capabilities"]
+    assert isinstance(capabilities, list)
+    assert capabilities[:2] == [
         TOOL_OUTPUT_LIMITS,
         agent_factory.INFALLIBLE_TOOL_EXECUTION,
     ]
+    assert isinstance(capabilities[2], agent_factory.Terminal)
     bands = list(TOOL_OUTPUT_LIMITS.bands)
     assert len(bands) == 1
     assert bands[0].over == TOOL_OUTPUT_CHAR_LIMIT

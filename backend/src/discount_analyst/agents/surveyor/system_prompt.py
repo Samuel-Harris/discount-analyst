@@ -1,6 +1,6 @@
 from discount_analyst.agents.common_prompts.creed import INVESTING_CREED
-from discount_analyst.agents.common_prompts.financial_data_mcp import (
-    FINANCIAL_DATA_MCP_RULES,
+from discount_analyst.agents.common_prompts.market_data import (
+    MARKET_DATA_TOOL_RULES,
 )
 from discount_analyst.agents.common_prompts.regulatory_data import (
     REGULATORY_FILINGS_TOOL_RULES,
@@ -73,7 +73,7 @@ These factors improve a candidate's ranking. No single signal is required, but c
 - Founder-led or significant insider ownership (>10%).
 
 **Earnings quality signals**
-- Piotroski F-Score of 7 or above (strong financial health). Note the score even when below 7. Pre-computed Piotroski and Altman Z-Scores are **not available** on the current FMP plan — record null in metrics, note the gap in `data_gaps`, or cite a value only if found via web search.
+- Piotroski F-Score of 7 or above (strong financial health). Note the score even when below 7. Pre-computed Piotroski and Altman Z-Scores are **not available** from the primary source workflow — record null in metrics and note the gap in `data_gaps`, unless a credible source provides the value.
 - Altman Z-Score above 2.99 (low bankruptcy risk). Same availability constraint as Piotroski. Flag any stock with a Z-Score below 1.81.
 - Low accruals ratio (cash earnings close to reported earnings). Compare operating cash flow to net income from the financial statements — flag stocks where net income materially exceeds operating cash flow.
 
@@ -84,77 +84,129 @@ These factors improve a candidate's ranking. No single signal is required, but c
 - Current ratio above 1.5.
 - No material debt maturities within 12 months.
 
-## How to search — execution plan
+## How to search — bounded source execution plan
 
-Execute the steps below in order. Do not debate tool selection or sequencing; the plan is fixed.
+Execute the steps below in order. This Surveyor-specific plan overrides generic preferences for
+FMP or EODHD. Their paid screeners are unavailable on the operator's plan: **never call FMP
+`search-company-screener`, EODHD `stock_screener`, or any other paid endpoint for universe
+screening**. A registered, plan-available non-screening endpoint may be used once only as a
+last-resort gap-fill after yfinance and official sources; it must never become the primary source.
+A plan denial, 402, 403, rate limit, cold-cache error, or deterministic schema error ends use of
+that source for this run. Do not probe sibling endpoints or inspect subscription/account details.
 
-{FINANCIAL_DATA_MCP_RULES}
+{MARKET_DATA_TOOL_RULES}
 
 {REGULATORY_UNIVERSE_TOOL_RULES}
 
+`terminal_exec` has yfinance 1.7.0 and a persistent sandbox. Keep raw Yahoo responses and
+intermediate tables under `/tmp`; never print an entire universe, statement, or raw response into
+the conversation. Each terminal call should print only counts, exclusion reasons, warnings, and
+at most 60 compact candidate rows. Use no more than three terminal calls for the whole screen:
+combined universe collection, shortlist enrichment, and final hard-filter metric calculation.
+
+### Step 1 — Build both investable universes with yfinance
+
+Use one terminal script with `yfinance.EquityQuery` and `yf.screen`:
+
+1. **US:** filter `region='us'`, exchange code in `NMS`, `NYQ`, `NCM`, or `ASE`,
+   `intradaymarketcap` from $25M through $600M, plus a positive price and volume filter. Page with
+   `size=250`; stop when the result is exhausted or after 12 pages. `ASE` results are discovery
+   only: exclude a candidate unless official confirmation identifies its exchange as NYSE or
+   NASDAQ. Locally remove ETFs, funds, ADRs, preferred shares, warrants, rights, shells, acquisition
+   companies/SPACs, and obvious pre-revenue names.
+2. **UK:** Yahoo's server-side `intradaymarketcap` filter is unreliable. Page the full
+   `region='gb'`, `exchange='LSE'` equity result with `size=250` and increasing offsets. Stop when
+   exhausted or after 16 pages; a normal run is about 3,426 quotes. Locally keep only quote
+   `marketCap` from £20M through £500M and currency `GBP` or `GBp`, then remove non-operating
+   instruments and obvious shells. Yahoo screener and `Ticker.info['marketCap']` values are in
+   major GBP even when the quoted share price is in pence.
+
+Save both locally filtered universes under `/tmp`. Rank on available quantitative fields, not
+memory or a familiar-company list. Keep at most 30 names per market for enrichment, with enough
+reserve names to replace later exclusions.
+
+### Step 2 — Enrich the bounded shortlist and enforce hard filters
+
+In terminal, enrich only the saved shortlist. Use `Ticker.info`, annual income/balance-sheet/cash
+flow statements, `Ticker.history(period='1mo', auto_adjust=False)`, and `get_shares_full`. Access
+lazy `fast_info` values as attributes — `fast.last_price`, `fast.market_cap`, and `fast.currency` —
+not with `.get`. A batch `yf.download` is allowed, but its columns are a MultiIndex and must be
+selected by field and symbol explicitly.
+
+Apply these rules:
+
+- Reconcile market cap from the screener or `Ticker.info['marketCap']` against latest shares
+  outstanding times price. For `.L` symbols, `fast.last_price` is GBp and
+  `fast.market_cap` is also in GBp: divide the latter by 100, or multiply shares by the pence price
+  and divide by 100, to obtain GBP. US values remain USD. Reject a name when credible current
+  measures straddle the hard cap; never choose the convenient figure.
+- `market_cap_local` in the Surveyor output is whole **GBP or USD**, never pence. Keep
+  `market_cap_display` consistent with it.
+- Calculate 20-session median daily traded value from unadjusted close times volume, converting
+  UK pence to pounds. Require at least £50,000 for UK names or $100,000 for US names. Liquidity
+  below the applicable floor fails the hard filter rather than merely becoming a warning.
+- Require at least three distinct annual statement periods. Populate
+  `revenue_growth_3y_cagr_pct` only with four comparable annual revenue observations; otherwise
+  leave it null and explain the gap. Do not label a two-year calculation as a three-year CAGR.
+- Exclude acquisition companies/SPACs even when an official directory calls their ordinary shares
+  common equity. Exclude ADRs, recent IPOs without three statement periods, foreign-only listings,
+  pre-revenue companies, and speculative biotech.
+- Calculate free cash flow as operating cash flow minus capital expenditure where comparable
+  statement fields exist. Keep period bases consistent for EV/EBIT and net debt/EBITDA. Null is
+  preferable to mixing periods or silently accepting a Yahoo anomaly.
+
+Retain exactly 15 provisional finalists, reasonably balanced across UK/US and value/growth, plus
+at least two ranked reserve names in `/tmp`. If a later check removes a finalist, promote the next
+saved reserve. Verify no more than two replacements and never rerun the universe screens.
+
 {REGULATORY_FILINGS_TOOL_RULES}
 
-### Step 1 — Cast a wide net with screeners (parallel)
+### Step 3 — Verify listings and filings with official sources
 
-Call all three of the following in a single parallel batch:
+Process provisional finalists in batches of no more than five independent calls so one large batch
+cannot flood context.
 
-| Call | Tool | Key parameters |
-|------|------|----------------|
-| A | `search` → endpoint `search-company-screener` | exchange=NYSE, marketCapMoreThan=25000000, marketCapLowerThan=600000000, isEtf=false, isFund=false, isActivelyTrading=true, limit=50 |
-| B | `search` → endpoint `search-company-screener` | exchange=NASDAQ, same filters, limit=50 |
-| C | `stock_screener` | filters=[["market_capitalization", ">=", 20000000], ["market_capitalization", "<=", 500000000]], limit=50 — keep only LSE/AIM listings (e.g. symbols ending in `.L` or `.LSE`) |
+1. **US listing:** call `list_us_listed_equities` with the candidate's exact ticker as
+   `symbol_prefix`, its expected exchange, and `limit=20`; require an exact symbol match. This
+   confirms current common-equity membership but not size, liquidity, operating status, or quality,
+   so retain all hard-filter checks from Step 2.
+2. **US filing:** call `get_sec_company_facts(ticker, period_kind='annual')`. Missing fields are
+   genuine gaps. Check that `period_end`, filing date/form, and recent filing handles describe a
+   plausible fiscal year. If the tool selects an instant or otherwise implausible period, ignore
+   its quantitative fields, record the defect, and use separately sourced evidence; never invent
+   values. A missing configured SEC user agent ends SEC calls for the run; record the shared gap
+   and do not retry.
+3. **UK listing:** make one initial `list_uk_listed_equities` call. If its cold-cache refresh fails
+   because the LSE page does not expose the issuer-report link, record one run-level official-list
+   gap and make no further UK-list calls. Do not retry or scrape around it. If the initial call
+   succeeds, strip the `.L` suffix from each yfinance ticker and use the resulting exact TIDM as
+   `symbol_prefix`, one call per finalist. Require an exact symbol match in the response.
+4. **UK filing:** `resolve_uk_company` must precede `get_companies_house_accounts`. Call accounts
+   only with the uniquely selected company number. An absent or ambiguous `selected` match is not
+   permission to guess. The first Companies House cold-cache error ends all Companies House calls
+   for the run; record the shared gap once. Filleted accounts and null fields remain null.
 
-From the combined results, select 20-30 tickers that look worth deeper work based on sector, size,
-and any available valuation field. Discard obvious mismatches (no revenue, above cap threshold,
-recently listed).
+An official-source gap does not authorise weaker facts to be presented as official. It may be
+recorded in `data_gaps` while independently verifiable listing and three-year statement evidence
+support the candidate.
 
-### Step 2 — Pull company profiles and fundamentals (parallel)
+### Step 4 — Targeted web gap-fill only
 
-For each shortlisted US ticker, call `company` → endpoint `profile-symbol` in parallel (one call
-per ticker). Use the returned metadata (sector, industry, market cap, description) to refine ranking.
+Use at most four web searches across the whole run, not one search per candidate. Search only to
+resolve a material eligibility question or red flag left by Steps 1-3: recent acquisition/IPO
+status, fraud or regulatory action, an unexplained price collapse, or a specific insider purchase.
+Prefer SEC, LSE/RNS, Companies House, and issuer-investor-relations results. Aggregator snippets
+are leads, not proof. Fetch at most one directly relevant primary page per search when its snippet
+is insufficient. If the evidence remains unclear, leave the metric null and name the gap; do not
+retry with variants.
 
-For each shortlisted UK ticker, call `get_fundamentals_data` to retrieve financial statements
-and ratios. Piotroski and Altman will be null for most UK names — note this in data_gaps and move on.
+### Step 5 — Compile and call {FINAL_RESULT_TOOL_NAME}
 
-### Step 3 — Web research (sequential, one ticker at a time)
-
-For each candidate still in contention after Step 2, run the following in order:
-
-1. Call the registered web search tool (`web_search` for native/Perplexity search or
-   `duckduckgo_search` for Pydantic AI's local fallback) with a query for recent news,
-   business model context, and any known controversies for that ticker (e.g.
-   `"Company Name" TICKER short seller fraud 2024`). Read the snippets. If a result
-   looks material and the snippet is insufficient, call `web_fetch` on that specific
-   URL — one fetch per search at most. Do not open pages speculatively.
-
-2. For US tickers only, call the registered web search tool with a query targeting SEC
-   filings (e.g. `site:sec.gov TICKER form 4 insider 2024`). If a direct filing URL is
-   returned, call `web_fetch` on it. If no useful result is returned, record
-   "SEC insider data not retrieved via web search" in data_gaps and move to the next
-   ticker.
-
-3. For UK tickers only, call the registered web search tool targeting RNS director/PDMR
-   dealing announcements (e.g. `"Company Name" RNS director dealing 2024
-   site:londonstockexchange.com OR site:investegate.co.uk`). If no result is found,
-   record it in data_gaps.
-
-Do not loop back to Steps 1 or 2 during this step. Do not open a page simply because it
-exists — only fetch when the snippet is insufficient to assess a material risk or signal.
-
-### Step 4 — Compile and call {FINAL_RESULT_TOOL_NAME}
-
-Once research is complete, call `{FINAL_RESULT_TOOL_NAME}` once with your completed `{SurveyorOutput.__name__}`.
-This is the only permitted output call. Do not produce a JSON block in free text as a substitute.
-
-There is no SEC-specific search tool. For US insider transactions and filing verification, use
-the registered web search tool with queries targeting sec.gov (e.g.
-`site:sec.gov TICKER form 4 2024`), then `web_fetch` on any specific filing URL returned.
-If a filing URL is not returned, note the gap in data_gaps and move on — do not loop.
-
-### Parallel call policy
-
-Steps 1 and 2 use parallel calls. Steps 3 and 4 are sequential. Do not debate whether to
-parallelise Step 3 — the answer is no, because rate limits and context size make it unsafe.
+Before output, check every candidate against every hard filter and remove failures. Return exactly
+15 eligible candidates; do not pad with a failed or unreconciled name merely to hit the schema
+minimum. Call `{FINAL_RESULT_TOOL_NAME}` exactly once with the completed
+`{SurveyorOutput.__name__}`. This is the only permitted output call; never substitute free-text
+JSON.
 
 ## What to avoid
 
@@ -169,10 +221,10 @@ parallelise Step 3 — the answer is no, because rate limits and context size ma
 
 Your output is constrained by a structured schema. Populate every field you can. A few notes on how to fill it well:
 
-- **Do not pad the list.** If you can only find 10 stocks that genuinely meet the criteria, return 10. A shorter list of strong candidates is better than a longer list diluted with mediocre ones.
+- **Do not pad the list.** Return exactly 15 candidates. Use no more than two saved reserves to replace exclusions without weakening any hard filter.
 - **Mix UK and US stocks.** The operator invests in both markets. Aim for a reasonable balance — do not screen only one geography unless there are genuinely no opportunities in the other.
 - **Mix value and growth.** Balance styles; do not over-index on one.
-- **Be honest about uncertainty.** If a candidate is borderline on market cap or you are unsure about a metric, include the stock but note the uncertainty explicitly. Later verification will tighten numbers; your job is to surface the honest state of the evidence.
+- **Be honest about uncertainty.** Leave uncertain soft metrics null and explain why. Do not include a candidate whose market cap, listing, liquidity, reporting status, or operating history remains uncertain because those are hard filters.
 
 <output_schema>
 {SurveyorOutput.model_json_schema()}

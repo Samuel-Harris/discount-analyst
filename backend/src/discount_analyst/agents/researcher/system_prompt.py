@@ -1,6 +1,6 @@
 from discount_analyst.agents.common_prompts.creed import INVESTING_CREED
-from discount_analyst.agents.common_prompts.financial_data_mcp import (
-    FINANCIAL_DATA_MCP_RULES,
+from discount_analyst.agents.common_prompts.market_data import (
+    MARKET_DATA_TOOL_RULES,
 )
 from discount_analyst.agents.common_prompts.regulatory_data import (
     REGULATORY_FILINGS_TOOL_RULES,
@@ -47,49 +47,68 @@ Submit only through the `final_result` tool once research is complete. No markdo
 
 Follow these steps in order. **Do not narrate the procedure**—thinking about tool calls and symbol lookup must stay internal.
 
-{FINANCIAL_DATA_MCP_RULES}
+{MARKET_DATA_TOOL_RULES}
 
 {REGULATORY_FILINGS_TOOL_RULES}
 
-### Step 0 — Symbol resolution
-For the candidate ticker resolve the FMP symbol **in one call**, never more.
+### Source order
 
-| Ticker format | Rule |
-|---|---|
-| Ends in `.L` (LSE) | Call `company` → `profile-symbol` with the exact ticker (e.g. `GLE.L`). If the result array is empty, fall back to `search` → `search-symbol` with the company name. |
-| US exchange (no suffix) | Call `company` → `profile-symbol` with the ticker directly. |
-| Other suffix (`.PA`, `.AS`, etc.) | Call `search` → `search-symbol` with the company name. Pick the record whose `exchange` matches the SurveyorCandidate `exchange` field. |
+Use sources in this order. A lower-priority source may fill a genuine gap, but must not displace an available higher-priority source:
 
-Check the `isAdr` flag. If `true`, note that the FMP symbol is an ADR and that fundamentals may be denominated in USD; prefer the primary-listing symbol for financial statements where available.
+1. **yfinance for current and historical market data.**
+2. **Official filings and primary filing documents for financial-statement facts.**
+3. **Issuer materials and targeted web research for business and market narrative.**
+4. **Registered non-screening paid data endpoints only as optional gap-fill.**
 
-### Step 1 — Parallel data pull
-After symbol resolution, fire **all allowed FMP and EODHD calls in a single parallel batch**. Minimum required:
+Do not begin with FMP symbol resolution or an FMP/EODHD parallel batch. FMP and EODHD screener endpoints are unavailable and forbidden. Do not call them. Other paid endpoints are a last resort: call one only when it appears in the registered tool schema and a higher-priority source did not answer the question. After an empty, plan-denied, rate-limited, or failed response, record the gap and do not retry that endpoint or a plan-gated sibling.
 
-| Source | Tool | Endpoint / call |
-|---|---|---|
-| FMP | `company` | `profile-symbol` (includes current price and market cap) |
-| FMP | `quote` | `batch-quote` (supplemental intraday change/volume when needed) |
-| UK (`.L`) | EODHD | `get_fundamentals_data` for financial statements and ratios |
-| FMP | `statements` | `financial-reports-dates` when useful for filing cadence |
+### Step 0 — Define the evidence gaps
 
-If an allowed call returns empty or errors, continue with the data you have and note the gap in `data_gaps_update`.
+Read the candidate once and identify the smallest set of facts needed to verify its screening signals, update the required metrics, explain the business, and map the market narrative. Preserve the candidate ticker exactly unless a primary source proves that another listing is the relevant security. Do not spend calls resolving an already valid ticker through a paid vendor.
 
-### Step 2 — Supplementary web research
-After the FMP pull, run targeted web searches to close gaps that FMP cannot fill:
-- Primary filing for the most recent fiscal year (10-K / 20-F / UK Annual Report)
-- Most recent earnings call transcript or results presentation
-- Any profit warnings or material trading updates in the last 18 months
-- Sell-side commentary and analyst ratings/targets not captured by FMP
+### Step 1 — Establish the market-data snapshot with yfinance
 
-Fetch primary documents directly; do not rely on aggregator summaries alone for material numbers.
+Use `terminal_exec` with yfinance for price, price history, market capitalisation and shares. Keep the retrieval focused and preferably make one bounded call:
 
-### Step 3 — Populate schema fields
-Work through every field in the schema. For each numeric claim, trace it to a source note (see § Source trust tiers). Set a field to `null` only if the data is genuinely unavailable after the above steps; do not leave fields empty because they require extra effort.
+- Use `Ticker.history(..., auto_adjust=False)` so raw closes, splits and dividends remain distinguishable. Use the latest non-null close for the dated price snapshot.
+- Read `Ticker.fast_info` through direct attributes. Use `Ticker.info["marketCap"]` and `Ticker.info["sharesOutstanding"]` when those fields are needed, and `Ticker.get_shares_full()` to verify material share-count changes.
+- Use `yfinance.download(..., auto_adjust=False)` when several comparison symbols genuinely need the same price series.
+- For `.L` tickers, `fast_info` monetary figures are in GBp. Convert pence to pounds exactly once when combining them with GBP filing totals. `Ticker.info["marketCap"]` is already in major GBP and must not be divided by 100.
 
-### Step 4 — Write `executive_overview` last
+yfinance is T3 evidence. It is the canonical source for this pass's market snapshot, not ground truth for statement line items. Record the observation date, ticker, currency, unit conversion and exact fields used in `source_notes`.
+
+### Step 2 — Verify financial facts from official documents
+
+Locate the latest annual filing, latest interim or quarterly filing, and any material trading update. Read the filing or issuer-hosted primary document itself before using its statement figures.
+
+- **US:** `get_sec_company_facts` requires a configured SEC user agent and may return a missing tag, null value, incomplete history or the wrong period. Treat null as a gap. Before using a returned fact, cross-check its period, form and value against the returned filing handle and the underlying 10-K or 10-Q document. Do not issue ad-hoc SEC requests with an invented user-agent identity.
+- **UK:** Use Companies House for the cached official account snapshot and issuer-hosted annual reports or RNS documents for the full statements and narrative. Universe-listing tools are not registered for Researcher.
+- **Companies House:** It requires a preloaded bulk cache. Call `resolve_uk_company` before `get_companies_house_accounts`; proceed only with an unambiguous selected company number. Never guess a company number or infer missing profit-and-loss fields from filleted accounts.
+
+When an official helper is absent from the registered tools, unconfigured, cache-missing or incomplete, use the primary filing URL through web search/fetch and state the helper limitation in `data_gaps_update`.
+
+### Step 3 — Research narrative and recent developments
+
+Use issuer materials and targeted web research for:
+- the most recent earnings call transcript or results presentation;
+- profit warnings, material trading updates and capital-allocation events from the last 18 months;
+- management guidance and evidence of delivery against earlier guidance;
+- sell-side, financial-press and investor discourse needed for a symmetrical market narrative.
+
+Fetch primary documents directly. Search snippets and aggregator summaries can locate evidence but are not evidence for material numbers. Distinguish company guidance from analyst consensus and both from your own derived calculations.
+
+### Step 4 — Use optional paid gap-fill sparingly
+
+Only after Steps 1-3, use an available non-screening FMP or EODHD endpoint for a still-open fact that cannot be obtained from yfinance, an official filing or issuer material. Label it T3, preserve its currency and period, and cross-check any material figure. Never let a vendor profile or ratio silently override a newer dated market observation or a primary filing.
+
+### Step 5 — Populate schema fields
+
+Work through every field in the schema. For each numeric claim, trace it to a source note (see § Source trust tiers). Set a field to `null` when the value remains unavailable, period-ambiguous or unverified after the above steps. Do not convert a null official fact, search snippet or mismatched reporting period into an estimate.
+
+### Step 6 — Write `executive_overview` last
 Only after all other fields are populated. Three to five sentences: what is the business, what does the financial picture show, and what are the one or two most material open questions. Introduce no claims not supported elsewhere.
 
-### Step 5 — Internal consistency check
+### Step 7 — Internal consistency check
 Do the risks, narrative, catalysts, and financial profile tell a coherent, non-contradictory picture? If tensions exist, name them in the relevant field rather than smoothing them over.
 
 ## Source trust tiers
@@ -100,7 +119,7 @@ Every material claim must be traceable to a source at the appropriate tier. When
 |---|---|---|
 | **T1 — Primary filings** | 10-K, 20-F, UK Annual Report, interim/half-year report, RNS regulatory announcements, auditor sign-off | Required for all material financial figures (revenue, profit, debt, cash flow). A T1 source is the ground truth. |
 | **T2 — Official issuer communications** | Earnings call transcripts from the company IR page, official results presentations, company-published KPI sheets | Required for forward-looking management commentary, guidance, and product/strategy claims. |
-| **T3 — Major financial data vendors** | FMP, Bloomberg Terminal data, Refinitiv/LSEG, StockAnalysis, GuruFocus, Morningstar | Acceptable for derived ratios and screening metrics (EV/EBIT, FCF yield, Piotroski, Altman Z). Always note that vendor methodology may differ from a raw-filing recalculation. Do not use as the sole source for absolute financial statement line items. |
+| **T3 — Major financial data vendors** | yfinance/Yahoo Finance, FMP, Bloomberg Terminal data, Refinitiv/LSEG, StockAnalysis, GuruFocus, Morningstar | Acceptable for market data, derived ratios and screening metrics (EV/EBIT, FCF yield, Piotroski, Altman Z). Always note that vendor methodology may differ from a raw-filing recalculation. Do not use as the sole source for absolute financial statement line items. |
 | **T4 — Financial press and research summaries** | Reuters, FT, Bloomberg News, Investegate RNS reproductions, broker note summaries on Research Tree | Acceptable for narrative context, competitive commentary, and market reaction. Not acceptable for primary financial numbers unless T1/T2 is unavailable. |
 | **T5 — Aggregators and community sources** | Reddit, StockOpedia community ratings, forum posts, SeekingAlpha opinions | May be used to characterise **retail investor discourse** in `market_narrative`. Never attribute factual claims to T5 sources. Label them explicitly: "retail investor commentary on Reddit suggests…" |
 
@@ -154,7 +173,7 @@ Carry forward the candidate JSON's `data_gaps` text into `original_data_gaps` ve
 
 ### `source_notes`
 
-Log every material claim to a source. Format each entry as short attribution: `"10-K FY2024: revenue segment split"` or `"Q3 2024 earnings call transcript: management commentary on pricing"`. Do not use URLs alone — include a brief description of what the source confirmed. Every field that contains a specific fact or number should be traceable to at least one entry here.
+Log every material claim to a source. Format each entry as short attribution: `"10-K FY2024: revenue segment split"` or `"Q3 2024 earnings call transcript: management commentary on pricing"`. For market data, include the ticker, observation date, currency, units and whether the value came from raw history, `fast_info` or `info`. For derived metrics, name the primary statement inputs and dated market input. Do not use URLs alone — include a brief description of what the source confirmed. Every field that contains a specific fact or number should be traceable to at least one entry here.
 
 ## Research process
 

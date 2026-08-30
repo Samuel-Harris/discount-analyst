@@ -1,6 +1,6 @@
 from discount_analyst.agents.common_prompts.creed import INVESTING_CREED
-from discount_analyst.agents.common_prompts.financial_data_mcp import (
-    FINANCIAL_DATA_MCP_RULES,
+from discount_analyst.agents.common_prompts.market_data import (
+    MARKET_DATA_TOOL_RULES,
 )
 from discount_analyst.agents.common_prompts.regulatory_data import (
     REGULATORY_FILINGS_TOOL_RULES,
@@ -42,9 +42,47 @@ You will be given a company ticker or name. Use available search, filing, MCP fi
 
 ### Step 1: Gather Current Market and Financial Facts
 
-{FINANCIAL_DATA_MCP_RULES}
+{MARKET_DATA_TOOL_RULES}
 
 {REGULATORY_FILINGS_TOOL_RULES}
+
+This is a named-company valuation, not a screening exercise. Do not call FMP or EODHD
+screeners, enumerate an exchange universe, or turn a missing UK listing cache into a listing
+investigation. A registered paid non-screening endpoint is a one-attempt, last-resort gap-fill
+only after yfinance, official filings, issuer material, and the supplied upstream research.
+
+Use yfinance 1.7.0 through `terminal_exec` first for the market-data cut. For one company,
+create one `yf.Ticker(ticker)`; use `Ticker.history(period="5d", auto_adjust=False)`, direct
+`Ticker.fast_info` attributes (never `.get()`), `Ticker.info["marketCap"]` /
+`Ticker.info["sharesOutstanding"]`, and `Ticker.get_shares_full()` as required. Use
+`yf.download(..., auto_adjust=False)` only for a genuine multi-ticker history comparison.
+
+Before choosing methods or calculating value, freeze an auditable data cut:
+- Quote: observation date, raw quoted price, raw quote unit, currency, and the major-unit price
+  used by the valuation.
+- Capitalisation: raw value, source, unit, and major-unit value.
+- Shares: value, source, and observation date. Prefer a filing or the latest non-null
+  `get_shares_full()` observation over an unexplained value implied from market capitalisation.
+- Reconciliation: compare major-unit price × shares with major-unit market capitalisation.
+  Explain a material mismatch and do not mix fields from incompatible observation dates.
+- Financial inputs: name the filing or upstream source, fiscal period, unit, and whether each
+  value is reported, adjusted, annualised, or estimated. Record unresolved conflicts and nulls
+  as gaps rather than silently selecting a convenient figure.
+
+For `.L` tickers, yfinance history prices plus `fast_info.last_price` and
+`fast_info.market_cap` are in GBp, while `Ticker.info["marketCap"]` is in major GBP. Divide
+the raw fast-info price and capitalisation by 100 exactly once; do not divide the info market
+capitalisation. Reconcile the resulting GBP price, GBP capitalisation, and shares. Set
+`quoted_price_unit` to `subunit`, while keeping `current_share_price`, every method
+`value_per_share`, and every distribution value in GBP. Use `major` for quotes already expressed
+in the declared major currency.
+
+Use official filings and the supplied upstream research for load-bearing statement inputs.
+SEC company facts can be incomplete or select the wrong period: nulls remain gaps, and material
+facts must be checked against the returned filing handle or underlying 10-K/10-Q document,
+including form and period end. For UK companies, the Companies House tools require cached data:
+call `resolve_uk_company` first and call accounts only with its unambiguous company number;
+cross-check filleted or incomplete accounts against issuer reports and announcements.
 
 Use the strongest available source for each fact:
 - Current share price, currency, market cap, and shares outstanding.
@@ -67,9 +105,16 @@ Choose methods based on the business economics and available data, not on a mark
 
 Use exactly one primary method and at least one cross-check method. A cross-check may challenge the conclusion even if it is not given a high weight. If the available evidence makes a cross-check weak, still include the least-bad cross-check and explain its limitations clearly.
 
-### Step 3: Use Terminal Calculations Where Useful
+### Step 3: Calculate from the Frozen Data Cut
 
-If terminal execution is available, use it for arithmetic-heavy work, sensitivity tables, Monte Carlo, or peer calculations. An optional helper toolkit may be available under `discount_analyst/valuation/toolkit`. Treat it as starter code, not as a required workflow or hidden policy engine.
+After the data cut is frozen, use `terminal_exec` for valuation arithmetic, per-share
+conversions, scenario probabilities, sensitivity tables, Monte Carlo, peer calculations, and
+the final method-weight blend. Keep units explicit in variable names or printed labels, avoid
+mixing whole currency with millions, and print enough intermediate values to reconcile enterprise
+value, equity value, shares, and value per share. Correct and rerun any failed unit check before
+submitting. An optional helper toolkit may be available under
+`discount_analyst/valuation/toolkit`; treat it as starter code, not a required workflow or hidden
+policy engine.
 
 ### Step 4: Build the Distribution
 
