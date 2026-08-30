@@ -7,13 +7,13 @@ description: Take a Linear ticket to a merge-ready draft GitHub pull request: re
 
 ## Purpose
 
-Use this skill when the user asks you to take a Linear ticket all the way to a merge-ready implementation on a **draft** GitHub pull request. The workflow is intentionally end-to-end: resolve the ticket, create the Linear branch from `origin/$BASE`, plan the implementation, implement it, run `thermos`, refactor from that feedback, then load `pr` to commit, push, and open a draft PR, then load `babysit` until the PR is mergeable, comments are triaged, and CI/CD passes. Leave the GitHub PR as a draft unless the user explicitly asks to mark it ready for review.
+Use this skill when the user asks you to take a Linear ticket all the way to a merge-ready implementation on a **draft** GitHub pull request. The workflow is intentionally end-to-end: resolve the ticket, create the Linear branch from `origin/$BASE`, plan the implementation, implement it, run `thermos`, refactor from that feedback, then commit, push, and open a draft PR, then load `babysit` until the PR is mergeable, comments are triaged, and CI/CD passes. Leave the GitHub PR as a draft unless the user explicitly asks to mark it ready for review.
 
 ## Required Input
 
 The user must provide a Linear issue ID or URL. If an argument was provided (`$ARGUMENTS`), use it as the Linear issue ID. If neither is present, ask for one before doing anything else.
 
-The target base `$BASE` is `dev`. Set `BASE=main` only when the user or the Linear ticket explicitly says this is a hotfix / targets `main` / should branch from `origin/main`. Do not infer a main hotfix from production impact, severity, or infra urgency. Use `$BASE` for branch creation, the thermos merge-base, and the `pr` handoff.
+The target base `$BASE` is `main`. Use `$BASE` for branch creation, the thermos merge-base, and the pull request base.
 
 ## Hard Safety Rules
 
@@ -38,7 +38,7 @@ The target base `$BASE` is `dev`. Set `BASE=main` only when the user or the Line
    - `get_issue` with `id`, `includeRelations: true`, and `includeCustomerNeeds: true`.
    - `list_comments` with `issueId` and a high enough `limit` to capture the ticket discussion.
 
-   Extract the issue key, title, description, acceptance criteria, attachments or linked docs, relationships, customer needs, and `gitBranchName`. Treat the Linear ticket as the source of truth for branch name and scope. Then set `BASE=dev`, or `BASE=main` only under the Required Input hotfix rule.
+   Extract the issue key, title, description, acceptance criteria, attachments or linked docs, relationships, customer needs, and `gitBranchName`. Treat the Linear ticket as the source of truth for branch name and scope. Then set `BASE=main`.
 
 2. **Create the branch from `origin/$BASE`**
 
@@ -75,13 +75,13 @@ The target base `$BASE` is `dev`. Set `BASE=main` only when the user or the Line
 
 4. **Implement surgically**
 
-   Follow the repository's existing patterns and keep the diff focused on the ticket. If the change touches FastAPI routes, WebSocket handlers, SQL queries, auth, uploads, user-provided HTML, or AI tool execution, load and follow the `secure-coding` skill before editing those areas.
+   Follow the repository's existing patterns and keep the diff focused on the ticket.
 
    Add or update tests proportional to the risk. For bug fixes, write or update a focused test that would fail before the fix when practical.
 
 5. **Verify the implementation**
 
-   Run focused tests and checks using the repo's normal commands, preferring `.devtools/cli` where available. At minimum, run the narrowest relevant test or type/lint check that proves the edited behaviour. Record the exact commands and outcomes for the PR body.
+   Run focused tests and checks using the repo's normal commands. At minimum, run the narrowest relevant test or type/lint check that proves the edited behaviour. Record the exact commands and outcomes for the PR body.
 
 6. **Run thermos**
 
@@ -89,28 +89,36 @@ The target base `$BASE` is `dev`. Set `BASE=main` only when the user or the Line
 
    Apply the synthesised feedback that is correct and in scope. If a recommendation is intentionally rejected, state the reason in chat. Re-run the relevant tests and checks after refactoring. If the review finds serious unresolved issues, stop before committing.
 
-7. **Create the PR using `pr`**
+7. **Create the draft PR**
 
-   Load and follow `.devtools/agents/skills/workflow/pr/instructions.md`, passing the Linear issue ID and requesting a **draft** PR. That skill owns rebasing onto the base, committing, pushing, the pull request template, `summarise-pr` bullets, and the reviewer guide. Do not restate those steps here.
-
-   Create as a GitHub draft by default (`gh pr create --draft`) so the work is not reviewable while CI still runs. Omit `--draft` only when the user explicitly asks for a ready-for-review PR. After creation, do not convert the PR to ready.
-
-   This handoff assumes:
+   This step assumes:
 
    - The Linear ticket is already resolved.
    - The current branch is `$LINEAR_GIT_BRANCH_NAME`, created from `origin/$BASE`.
    - There is no existing PR for the branch.
 
-   If `pr` would create a new Linear issue, rename the branch, update an existing PR, amend, or force-push, stop and ask instead of continuing those paths.
+   Fetch `origin/$BASE` and rebase the current branch onto it. If the rebase has conflicts, abort it, stop, and ask. Then commit the ticket's changes with an explicit path list (never `git add .` or `git add -A`) and a message that names the Linear issue key and why the change exists. Push with `-u` to origin if the branch has no upstream.
 
-   Give `pr` the recorded verification commands and the thermos review outcome so it can fill `### Tests Completed` and `### AI Review`. Leave the `review-code` checkbox unchecked unless that command was actually run with MAX mode.
+   If creating the PR would require renaming the branch, updating an existing PR, amending, or force-pushing, stop and ask instead.
+
+   Create a GitHub draft by default so the work is not reviewable while CI still runs:
+
+   ```bash
+   gh pr create --draft --base "$BASE" --title "<issue-key>: <short title>" --body "$(cat <<'EOF'
+   ## Summary
+   <1-3 bullets of what changed and why>
+
+   ## Test plan
+   - [ ] <commands run and expected evidence>
+   EOF
+   )"
+   ```
+
+   Include the Linear issue identifier in the title or body. Put the recorded verification commands and the thermos review outcome in the test plan / summary so reviewers can see what was run and whether in-scope feedback was applied. Omit `--draft` only when the user explicitly asks for a ready-for-review PR. After creation, do not convert the PR to ready.
 
 8. **Babysit the PR until merge-ready**
 
-   Load and follow `.devtools/agents/skills/workflow/babysit/instructions.md` for the newly created PR, passing its number or URL. That skill owns the merge-conflict, comment, and CI loop, including launching `ci-watcher` on the same PR while checks are pending. Do not declare completion while checks are pending or failing. Do not mark the draft ready, enable auto-merge, or merge. If permissions, an external service, an incompatible conflict, or an out-of-scope failure prevents a merge-ready result, stop and report the exact blocker and failed check or unresolved thread.
-
-   Babysit owns Datadog PR-check triage and its skip-and-continue fallback. Do not bypass that
-   diagnosis or duplicate it in this skill.
+   Load and follow the `babysit` skill for the newly created PR, passing its number or URL. That skill owns the merge-conflict, comment, and CI loop. Do not declare completion while checks are pending or failing. Do not mark the draft ready, enable auto-merge, or merge. If permissions, an external service, an incompatible conflict, or an out-of-scope failure prevents a merge-ready result, stop and report the exact blocker and failed check or unresolved thread.
 
 ## Stop Conditions
 
@@ -133,7 +141,7 @@ Pass when:
 - The Linear `gitBranchName` was created from `origin/$BASE` only after the worktree was clean and neither branch existed.
 - Focused checks for the ticket's changed behaviour were run and recorded.
 - `thermos` ran against the actual ticket edits (merge-base to working tree, including untracked files) and in-scope feedback was applied or explicitly rejected.
-- The `pr` skill created a **draft** PR (template, `summarise-pr` bullets, reviewer guide) from this branch, unless the user explicitly asked for a ready-for-review PR.
+- A **draft** PR was created from this branch, unless the user explicitly asked for a ready-for-review PR.
 
 Fail and stop when any stop condition above is hit.
 
