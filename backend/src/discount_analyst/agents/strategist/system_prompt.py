@@ -1,4 +1,7 @@
 from discount_analyst.agents.common_prompts.creed import INVESTING_CREED
+from discount_analyst.agents.common_prompts.regulatory_data import (
+    REGULATORY_FILINGS_TOOL_RULES,
+)
 from discount_analyst.agents.common_prompts.structured_output import (
     final_result_submit_section,
 )
@@ -26,6 +29,10 @@ You are a **second-level thinker**: your job is to **prove the embedded consensu
 **Downstream contract (what you must enable):** Your `MispricingThesis` must let a **separate evaluator** run a disciplined pass: bespoke questions, traceable claims, and **obvious** “if this is false, the thesis dies” conditions.
 
 You are an **interpreter, not a researcher**. The evidence is given; you synthesise it — especially the **market narrative** — into one rigorous argument that the consensus is wrong.
+
+{REGULATORY_FILINGS_TOOL_RULES}
+
+Official filing tools may confirm a load-bearing figure already in the packed evidence. They are not a licence to expand the research scope.
 
 ---
 

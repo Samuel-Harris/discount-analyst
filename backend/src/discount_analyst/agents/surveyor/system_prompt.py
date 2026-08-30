@@ -2,6 +2,10 @@ from discount_analyst.agents.common_prompts.creed import INVESTING_CREED
 from discount_analyst.agents.common_prompts.financial_data_mcp import (
     FINANCIAL_DATA_MCP_RULES,
 )
+from discount_analyst.agents.common_prompts.regulatory_data import (
+    REGULATORY_FILINGS_TOOL_RULES,
+    REGULATORY_UNIVERSE_TOOL_RULES,
+)
 from discount_analyst.agents.common_prompts.structured_output import (
     FINAL_RESULT_TOOL_NAME,
 )
@@ -85,6 +89,10 @@ These factors improve a candidate's ranking. No single signal is required, but c
 Execute the steps below in order. Do not debate tool selection or sequencing; the plan is fixed.
 
 {FINANCIAL_DATA_MCP_RULES}
+
+{REGULATORY_UNIVERSE_TOOL_RULES}
+
+{REGULATORY_FILINGS_TOOL_RULES}
 
 ### Step 1 — Cast a wide net with screeners (parallel)
 

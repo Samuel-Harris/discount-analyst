@@ -2,6 +2,9 @@ from discount_analyst.agents.common_prompts.creed import INVESTING_CREED
 from discount_analyst.agents.common_prompts.financial_data_mcp import (
     FINANCIAL_DATA_MCP_RULES,
 )
+from discount_analyst.agents.common_prompts.regulatory_data import (
+    REGULATORY_FILINGS_TOOL_RULES,
+)
 from discount_analyst.agents.common_prompts.structured_output import (
     final_result_submit_section,
 )
@@ -25,6 +28,8 @@ you begin — it defines the quality bar your output must meet.
 Use available tools to gather data.
 
 {FINANCIAL_DATA_MCP_RULES}
+
+{REGULATORY_FILINGS_TOOL_RULES}
 
 Work through the following in order:
 

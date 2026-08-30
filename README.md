@@ -82,6 +82,8 @@ Nested groups use double underscores, for example `PERPLEXITY__API_KEY`, `LOGGIN
 | `EODHD__DISABLED`                   | Set to `true` to skip EODHD MCP (FMP unchanged)                                                                                                           |
 | `LOGGING__LOG_LEVEL`                | Logfire console minimum for the dashboard process (`DEBUG`-`CRITICAL`; default `INFO`)                                                                    |
 | `DASHBOARD_DATABASE_PATH`           | SQLite path for workflow runs (default `data/dashboard.sqlite`; VS Code uses separate `data/dashboard.dev.sqlite` and `data/dashboard.prod.sqlite` files) |
+| `REGULATORY_DATA_CACHE_DIR`         | Local cache for official exchange lists, SEC companyfacts, and Companies House bulk products (default `data/regulatory_data`; gitignored)                 |
+| `SEC__USER_AGENT`                   | SEC EDGAR User-Agent (application name and contact details). Required for SEC refresh and live companyfacts gap-fill                                      |
 | `DASHBOARD_DEFAULT_MODEL`           | Default LLM for dashboard-driven runs                                                                                                                     |
 | `DASHBOARD_RISK_FREE_RATE`          | Risk-free rate as a percentage for valuation stages (e.g. `3.7` means 3.7%)                                                                               |
 | `DASHBOARD_USE_PERPLEXITY`          | Toggle Perplexity-backed behaviour where wired                                                                                                            |
@@ -89,6 +91,16 @@ Nested groups use double underscores, for example `PERPLEXITY__API_KEY`, `LOGGIN
 | `ENV` or `DASHBOARD_DEPLOY_ENV`     | `DEV` or `PROD` (mock vs live server behaviour)                                                                                                           |
 
 Optional provider blocks can be omitted when unused; consult the settings model for required combinations.
+
+### Official regulatory data cache
+
+Pipeline agents can list official US/UK equities and read SEC / Companies House filings from a local cache under `REGULATORY_DATA_CACHE_DIR` (default `data/regulatory_data`; gitignored). No paid market-data keys are required. Refresh it with:
+
+```bash
+uv run discount-analyst admin refresh-regulatory-data
+```
+
+`--exchanges`, `--sec`, and `--companies-house` restrict the run; omitting them refreshes all three. SEC bulk refresh and live companyfacts gap-fill require `SEC__USER_AGENT` (application name and contact details). Listing and Companies House tools do not. NASDAQ Trader files refresh over HTTP; the live LSE issuers reports page is currently a JavaScript shell with no download markup, so UK listing refresh fails until the official HTML includes a labelled Issuer list link.
 
 When `--perplexity` is not set, agents use Pydantic AI's `WebSearch` and `WebFetch` capabilities. Providers with native support use provider-native tools; providers without native support, such as DeepSeek, use Pydantic AI's local DuckDuckGo search and web-fetch fallbacks. For DeepSeek, the local fetch tool converts binary documents (PDF, Office, and similar) to markdown via markitdown; formats that cannot be converted return an unsupported-type message instead of binary content.
 

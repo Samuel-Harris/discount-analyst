@@ -26,7 +26,7 @@ None.
 
 ### Working In This Directory
 
-- **Agent tools**: Interpretation-only. `create_sentinel_agent` always passes `enable_web_research_tools=False` and `use_mcp_financial_data=False`, and disables the terminal session. Dashboard Perplexity/MCP/terminal flags are not forwarded. Frankfurter `convert_currency` remains attached. After a successful run, `finalise_sentinel_evaluation` overwrites `thesis_verdict` from `gap_kind` assessments and rejects a question-count mismatch before persist.
+- **Agent tools**: No web search, MCP financial data, or live terminal session. `create_sentinel_agent` always passes `enable_web_research_tools=False` and `use_mcp_financial_data=False`, and disables the terminal session. Dashboard Perplexity/MCP/terminal flags are not forwarded. Frankfurter `convert_currency` and official filing tools (`get_sec_company_facts`, `resolve_uk_company`, `get_companies_house_accounts`) remain attached. After a successful run, `finalise_sentinel_evaluation` overwrites `thesis_verdict` from `gap_kind` assessments and rejects a question-count mismatch before persist.
 - **Output contract**: Keep output constrained to `EvaluationReport` in `schema.py`. Use `sentinel_proceeds_to_valuation(evaluation)` for the valuation gate; do not add a duplicate persisted recommendation field.
 
 ### Testing Requirements

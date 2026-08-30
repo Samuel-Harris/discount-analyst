@@ -7,6 +7,7 @@ from pydantic_ai_harness.tool_output_limits import Truncate
 
 from discount_analyst.agents.runtime import agent_factory
 from discount_analyst.agents.runtime.agent_factory import (
+    REGULATORY_TOOLSETS_BY_ROLE,
     TOOL_OUTPUT_CHAR_LIMIT,
     TOOL_OUTPUT_LIMITS,
     AgentSpec,
@@ -161,6 +162,8 @@ def test_create_agent_attaches_always_on_tooling(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fx_toolset = object()
+    universe_toolset = object()
+    filings_toolset = object()
     captured: dict[str, object] = {}
 
     def fake_create_model_from_config(_config: AIModelConfig) -> TestModel:
@@ -172,6 +175,12 @@ def test_create_agent_attaches_always_on_tooling(
         return SimpleNamespace(name=kwargs.get("name"))
 
     monkeypatch.setattr(agent_factory, "create_frankfurter_toolset", lambda: fx_toolset)
+    monkeypatch.setattr(
+        agent_factory, "create_universe_toolset", lambda: universe_toolset
+    )
+    monkeypatch.setattr(
+        agent_factory, "create_filings_toolset", lambda: filings_toolset
+    )
     monkeypatch.setattr(
         agent_factory,
         "create_model_from_config",
@@ -186,7 +195,7 @@ def test_create_agent_attaches_always_on_tooling(
         use_mcp_financial_data=False,
     )
 
-    assert captured["toolsets"] == [fx_toolset]
+    assert captured["toolsets"] == [fx_toolset, universe_toolset, filings_toolset]
     assert captured["capabilities"] == [
         TOOL_OUTPUT_LIMITS,
         agent_factory.INFALLIBLE_TOOL_EXECUTION,
@@ -196,6 +205,59 @@ def test_create_agent_attaches_always_on_tooling(
     assert bands[0].over == TOOL_OUTPUT_CHAR_LIMIT
     assert isinstance(bands[0].action, Truncate)
     assert bands[0].action.max_chars == TOOL_OUTPUT_CHAR_LIMIT
+
+
+def test_regulatory_tool_roles_cover_every_agent() -> None:
+    assert set(REGULATORY_TOOLSETS_BY_ROLE) == set(AgentName)
+    assert REGULATORY_TOOLSETS_BY_ROLE[AgentName.SURVEYOR] == (
+        agent_factory.create_universe_toolset,
+        agent_factory.create_filings_toolset,
+    )
+    for name in AgentName:
+        if name is AgentName.SURVEYOR:
+            continue
+        assert REGULATORY_TOOLSETS_BY_ROLE[name] == (
+            agent_factory.create_filings_toolset,
+        )
+
+
+def test_non_surveyor_receives_filings_without_universe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fx_toolset = object()
+    universe_toolset = object()
+    filings_toolset = object()
+    captured: dict[str, object] = {}
+
+    def fake_create_model_from_config(_config: AIModelConfig) -> TestModel:
+        return TestModel()
+
+    def fake_agent(**kwargs: object) -> SimpleNamespace:
+        captured["toolsets"] = kwargs.get("toolsets")
+        return SimpleNamespace(name=kwargs.get("name"))
+
+    monkeypatch.setattr(agent_factory, "create_frankfurter_toolset", lambda: fx_toolset)
+    monkeypatch.setattr(
+        agent_factory, "create_universe_toolset", lambda: universe_toolset
+    )
+    monkeypatch.setattr(
+        agent_factory, "create_filings_toolset", lambda: filings_toolset
+    )
+    monkeypatch.setattr(
+        agent_factory,
+        "create_model_from_config",
+        fake_create_model_from_config,
+    )
+    monkeypatch.setattr(agent_factory, "Agent", fake_agent)
+
+    create_agent(
+        spec=AgentSpec(name=AgentName.SENTINEL, output_type=str, system_prompt="test"),
+        ai_models_config=AIModelsConfig(model_name=ModelName.DEEPSEEK_V4_PRO),
+        enable_web_research_tools=False,
+        use_mcp_financial_data=False,
+    )
+
+    assert captured["toolsets"] == [fx_toolset, filings_toolset]
 
 
 def test_create_strategist_agent_does_not_force_web_mcp_off(

@@ -1,0 +1,6 @@
+CompanyName,CompanyNumber,RegAddress.AddressLine1,CompanyStatus,CompanyCategory,DissolutionDate,IncorporationDate
+ASTRAZENECA PLC,02723534,1 FRANCIS CRICK AVENUE,Active,Public Limited Company,,1992-06-17
+J SAINSBURY PLC,00185647,33 CHARLTON HOUSE ROAD,Active,Public Limited Company,,1922-11-10
+GOOCH & HOUSEGO PLC,00526832,DOWLAIS ROAD,Active,Public Limited Company,,1953-11-07
+AMBIGUOUS EXAMPLE LTD,12345678,1 HIGH STREET,Active,Private Limited Company,,2010-01-01
+AMBIGUOUS EXAMPLE PLC,87654321,2 HIGH STREET,Active,Public Limited Company,,2011-02-02

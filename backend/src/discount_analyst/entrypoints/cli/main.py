@@ -28,6 +28,10 @@ def _build_parser() -> argparse.ArgumentParser:
     admin_sub.add_parser("export-openapi", help="Export dashboard OpenAPI schema")
     admin_sub.add_parser("check-alembic-schema", help="Verify Alembic vs ORM metadata")
     admin_sub.add_parser("verify-terminal", help="Verify agent-terminal service")
+    admin_sub.add_parser(
+        "refresh-regulatory-data",
+        help="Refresh official exchange, SEC, and Companies House caches",
+    )
 
     return parser
 
@@ -107,6 +111,7 @@ def _run_admin(admin_name: str, admin_args: list[str]) -> None:
         "export-openapi": tools / "export_dashboard_openapi.py",
         "check-alembic-schema": tools / "check_alembic_schema.py",
         "verify-terminal": tools / "verify_agent_terminal.py",
+        "refresh-regulatory-data": tools / "refresh_regulatory_data.py",
     }
     script = mapping.get(admin_name)
     if script is None:

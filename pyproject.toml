@@ -31,6 +31,7 @@ dependencies = [
     "fastapi (>=0.115.0,<1.0.0)",
     "uvicorn[standard] (>=0.30.0,<1.0.0)",
     "pydantic-ai-harness>=0.18.0",
+    "lxml>=6.1.1",
 ]
 
 [build-system]
@@ -60,6 +61,7 @@ dev = [
     "types-docker>=7.1.0.20260518",
     "import-linter>=2.1",
     "tach>=0.35.0",
+    "types-lxml>=2026.2.16",
 ]
 
 [tool.uv]

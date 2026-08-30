@@ -1,4 +1,4 @@
-<!-- Synced: 2026-08-28 from live code via `.cursor/skills/sync-workflow` -->
+<!-- Synced: 2026-08-30 from live code via `.cursor/skills/sync-workflow` -->
 
 # Discount Analyst — current workflow
 
@@ -6,9 +6,9 @@ Implementation-accurate snapshot of the agentic pipeline. Ground truth is the co
 
 ## Changes since last sync
 
-Previous snapshot: 2026-08-20. Material change is **CODE-77**: Python derives Sentinel `thesis_verdict` from `gap_kind` assessments, and Appraiser `expected_intrinsic_value` is a required weight-blend. The 2026-08-20 candidate-gate identity/listing policy is unchanged.
+Previous snapshot: 2026-08-28. Material change is **CODE-53**: official £0 regulatory-data tools (NASDAQ Trader / LSE listings, SEC companyfacts, Companies House iXBRL) are wired through `REGULATORY_TOOLSETS_BY_ROLE` in `agents/runtime/agent_factory.py`. Surveyor receives universe listing tools plus filing tools; Profiler, Researcher, Strategist, Sentinel, and Appraiser receive filing tools only. FMP/EODHD MCP screening is unchanged. Bulk cache refresh is `discount-analyst admin refresh-regulatory-data` (`--exchanges` / `--sec` / `--companies-house`; no flag means all three). Cache dir `REGULATORY_DATA_CACHE_DIR` (default `data/regulatory_data`). SEC refresh and live companyfacts gap-fill require `SEC__USER_AGENT`.
 
-**Sentinel — interpretation-only.** `create_sentinel_agent(ai_models_config)` always passes `enable_web_research_tools=False`, `use_mcp_financial_data=False`, and `terminal=terminal_run_options(..., enabled=False)`. Dashboard Perplexity/MCP/terminal settings are not forwarded. Frankfurter `convert_currency` remains. CLI `agent sentinel` no longer accepts `--perplexity` / `--no-mcp` / `--no-terminal`.
+**Sentinel — no web/MCP/terminal.** `create_sentinel_agent(ai_models_config)` always passes `enable_web_research_tools=False`, `use_mcp_financial_data=False`, and `terminal=terminal_run_options(..., enabled=False)`. Dashboard Perplexity/MCP/terminal settings are not forwarded. Frankfurter `convert_currency` and official filing tools (`get_sec_company_facts`, `resolve_uk_company`, `get_companies_house_accounts`) remain. CLI `agent sentinel` does not accept `--perplexity` / `--no-mcp` / `--no-terminal`.
 
 **Sentinel — `gap_kind` + derived verdict.** Each `QuestionAssessment` has required `gap_kind` (`none` \| `calendar` \| `never_disclosed` \| `contradicted`). After a live run, `finalise_sentinel_evaluation` (`agents/sentinel/derive_thesis_verdict.py`) overwrites `thesis_verdict` before persist. Reconstruct from SQLite does **not** re-derive. Question-count mismatch (`len(assessments) != len(thesis.evaluation_questions)`) raises `SentinelQuestionCountError` and the lane fails without persist. Mock Sentinel skips derive. New enum member: `Thesis unproven — do not proceed`. Alembic `0011_sentinel_gap_kind_appraiser_audit` adds `evaluation_question_assessments.gap_kind` (`NOT NULL`, default `'none'`).
 
@@ -92,13 +92,13 @@ CLI omits the candidate-gate diamond: Surveyor or Profiler output goes straight 
 
 | Stage          | Stance (from that agent’s system prompt)                           | Input                                   | Output schema                                     | Tools                                                                                                                                                  |
 | -------------- | ------------------------------------------------------------------ | --------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Surveyor       | Disciplined **screener** in neglected small-caps                   | Open mandate (`USER_PROMPT`); no ticker | `SurveyorOutput` (`candidates` min 15)            | Web research + financial MCP + optional terminal                                                                                                       |
-| Profiler       | Financial screener of a **named** stock; resist favourable framing | Ticker string                           | `ProfilerOutput` wrapping one `SurveyorCandidate` | Same as Surveyor                                                                                                                                       |
+| Surveyor       | Disciplined **screener** in neglected small-caps                   | Open mandate (`USER_PROMPT`); no ticker | `SurveyorOutput` (`candidates` min 15)            | Web research + financial MCP + optional terminal + official universe lists + official filings                                                           |
+| Profiler       | Financial screener of a **named** stock; resist favourable framing | Ticker string                           | `ProfilerOutput` wrapping one `SurveyorCandidate` | Same as Surveyor except no universe listing tools (filings only)                                                                                       |
 | Candidate gate | Deterministic, not an LLM                                          | `SurveyorCandidate`                     | `PassedCandidateGate` / `RejectedCandidateGate`   | FMP (+ EODHD fallback for `.L`). Identity-unknown and listing-unconfirmed **admit**. DQR is **delist-only**. **Skipped in mock.** **Not used by CLI.** |
-| Researcher     | **Neutral evidence assembler**; no recommendation language         | `SurveyorLaneContext`                   | `DeepResearchReport`                              | Web research + financial MCP + optional terminal                                                                                                       |
-| Strategist     | **Second-level thinker**; interpreter not researcher               | Lane context + `DeepResearchReport`     | `MispricingThesis`                                | Web research + financial MCP + optional terminal (factory still forwards dashboard flags; see Findings)                                                 |
-| Sentinel       | **Adversary, not a validator**                                     | Lane context + research + thesis        | `EvaluationReport`                                | FX only (`convert_currency`). No web, MCP, or terminal. `thesis_verdict` overwritten in Python after a live run.                                        |
-| Appraiser      | Valuation specialist; **no Buy/Hold/Sell**                         | `AppraiserInput`                        | `AppraiserOutput`                                 | Web research + financial MCP + optional terminal                                                                                                       |
+| Researcher     | **Neutral evidence assembler**; no recommendation language         | `SurveyorLaneContext`                   | `DeepResearchReport`                              | Web research + financial MCP + optional terminal + official filings                                                                                    |
+| Strategist     | **Second-level thinker**; interpreter not researcher               | Lane context + `DeepResearchReport`     | `MispricingThesis`                                | Web research + financial MCP + optional terminal + official filings (factory still forwards dashboard flags; see Findings)                             |
+| Sentinel       | **Adversary, not a validator**                                     | Lane context + research + thesis        | `EvaluationReport`                                | FX (`convert_currency`) + official filings. No web, MCP, or terminal. `thesis_verdict` overwritten in Python after a live run.                         |
+| Appraiser      | Valuation specialist; **no Buy/Hold/Sell**                         | `AppraiserInput`                        | `AppraiserOutput`                                 | Web research + financial MCP + optional terminal + official filings                                                                                    |
 | Rating table   | Deterministic                                                      | Lane + thesis + evaluation + MoS        | `RatingTableDecision` inside `Verdict`            | None                                                                                                                                                   |
 
 Shared investing creed: `discount_analyst.agents.common_prompts.creed.INVESTING_CREED` (prepended or wrapped by every agent system prompt).
@@ -342,9 +342,9 @@ Mock: `mock_surveyor_dashboard_discoveries(..., limit=3)` — three names, so **
 
 ### Profiler
 
-Factory: `create_profiler_agent` with `enable_web_research_tools=True`. Output is one `SurveyorCandidate` (same shape as a Surveyor row). Company name is written back onto the ticker run.
+Factory: `create_profiler_agent` with `enable_web_research_tools=True`. Output is one `SurveyorCandidate` (same shape as a Surveyor row). Company name is written back onto the ticker run. Filing tools are attached; universe listing tools are not.
 
-No `profiler/AGENTS.md`. Runtime `AgentName.PROFILER` exists; `agents/AGENTS.md` still lists only Surveyor/Researcher/Strategist/Sentinel/Appraiser.
+No `profiler/AGENTS.md`. Runtime `AgentName.PROFILER` exists; `agents/AGENTS.md` now lists `tools/`, `runtime/`, and `common_prompts/` but still omits Profiler.
 
 ### Candidate gate
 
@@ -366,7 +366,7 @@ CLI: **no gate** (`run_full_workflow.py` uses `SurveyorCandidate.to_lane_context
 
 Serial. User prompts inject `<SurveyorLaneContext>` plus the quantitative-omission note (`lane_context_prompt.py`): screening metrics are not trusted numbers.
 
-Researcher and Appraiser get Perplexity/MCP/terminal flags from settings. Strategist factory still forwards those same flags (`use_mcp_financial_data=True` default; `enable_web_research_tools` left at `create_agent` default `True`). Sentinel is interpretation-only: `create_sentinel_agent(ai_cfg)` only; live path uses `run_streamed_agent` with terminal disabled, then `finalise_sentinel_evaluation` before persist. Dashboard `is_existing_position` is passed into the Sentinel user prompt.
+Researcher and Appraiser get Perplexity/MCP/terminal flags from settings. Strategist factory still forwards those same flags (`use_mcp_financial_data=True` default; `enable_web_research_tools` left at `create_agent` default `True`). Sentinel has no web/MCP/terminal: `create_sentinel_agent(ai_cfg)` only; live path uses `run_streamed_agent` with terminal disabled, then `finalise_sentinel_evaluation` before persist. Official filing tools are attached for all of these stages. Dashboard `is_existing_position` is passed into the Sentinel user prompt.
 
 ### Appraiser
 
@@ -398,7 +398,8 @@ Configuration: `discount_analyst.config.settings.Settings` (root / package `.env
 | `use_terminal` / `DASHBOARD_USE_TERMINAL`                     | `True`         | Docker-backed `terminal_exec` via `TERMINAL_SERVICE_URL`                                                              |
 | `eodhd.disabled` / `EODHD__DISABLED`                          | `False`        | Omits EODHD MCP (and EODHD listing fallback)                                                                          |
 | `risk_free_rate_pct`                                          | `3.7`          | Injected into Appraiser user prompt                                                                                   |
-| `deploy_env` / `ENV`                                          | `DEV`          | DEV forces dashboard `is_mock`                                                                                        |
+| `regulatory_data_cache_dir` / `REGULATORY_DATA_CACHE_DIR`     | `data/regulatory_data` | Official NASDAQ/LSE/SEC/Companies House cache (gitignored)                                                            |
+| `sec_user_agent` / `SEC__USER_AGENT`                          | `""`           | Required for SEC bulk refresh and live companyfacts gap-fill; not required for listings or Companies House            |
 
 MCP (`agents/tools/market_data/financial_data_mcp.py`): `https://mcp.eodhd.dev/mcp`, `https://financialmodelingprep.com/mcp`. Providers that support MCP: Anthropic, OpenAI, DeepSeek (`provider_features.py`). Google is **not** in that set — enabling MCP with a Google model raises `NotImplementedError`.
 
@@ -406,7 +407,9 @@ FMP blacklist (`mcp_tool_blacklist.py`): blocked tools `analyst`, `news`, `insid
 
 When Perplexity is off: `WebSearch(native=True, local=bounded DuckDuckGo)` and `WebFetch` (DeepSeek uses text-only local fetch). When Perplexity is on: `create_perplexity_toolset(agent_name)` — descriptions in `agents/runtime/tool_descriptions.py` (Appraiser, Profiler, Surveyor, Researcher). Sentinel has no Perplexity entry because those tools are not registered. Strategist *can* receive Perplexity when `use_perplexity=True` (dashboard setting / CLI `--perplexity`).
 
-Web-research agents: Surveyor, Profiler, Researcher, Appraiser, and **Strategist** (factory default). Interpretation-only: **Sentinel** (FX only).
+Web-research agents: Surveyor, Profiler, Researcher, Appraiser, and **Strategist** (factory default). Sentinel: no web, MCP, or terminal; FX plus official filing tools.
+
+Official regulatory-data tools (`agents/tools/regulatory_data/`): `list_us_listed_equities` / `list_uk_listed_equities` (Surveyor only) and `get_sec_company_facts` / `resolve_uk_company` / `get_companies_house_accounts` (all pipeline agents, including Sentinel). Responses paginate at 50 (cap 100). Operator refresh: `discount-analyst admin refresh-regulatory-data`. These tools do not replace FMP/EODHD MCP screeners.
 
 ---
 
@@ -461,13 +464,15 @@ Dashboard persists agent `output_json`, conversations, candidate-snapshot gate c
 | Sentinel thesis-verdict derivation             | `agents/sentinel/derive_thesis_verdict.py`                                                                         |
 | Shared agent runtime                           | `agents/runtime/` (`create_agent`, streaming, terminal bind)                                                       |
 | MCP + blacklist                                | `agents/tools/market_data/`                                                                                        |
+| Official listings + filings                    | `agents/tools/regulatory_data/` (`toolsets.py`, `exchanges/`, `sec_edgar/`, `companies_house/`)                    |
+| Regulatory cache refresh                       | `backend/tools/refresh_regulatory_data.py` (`discount-analyst admin refresh-regulatory-data`)                      |
 | Candidate gate                                 | `adapters/market_data/candidate_gates.py`                                                                          |
 | Mock payloads                                  | `adapters/simulation/mock_outputs.py`                                                                              |
 | Settings                                       | `config/settings.py`                                                                                               |
 | Alembic (gap_kind + Appraiser audit columns)   | `backend/migrations/versions/0011_sentinel_gap_kind_appraiser_audit.py`                                            |
 | Valuation toolkit (optional Appraiser helpers) | `domain/valuation/toolkit/`                                                                                        |
 
-CLI one-shots: `uv run discount-analyst agent {surveyor,profiler,researcher,strategist,sentinel,appraiser}`.
+CLI one-shots: `uv run discount-analyst agent {surveyor,profiler,researcher,strategist,sentinel,appraiser}`. Admin: `uv run discount-analyst admin refresh-regulatory-data`.
 
 ---
 
@@ -484,7 +489,7 @@ These are disagreements to resolve in code, prompts, or docs — not silently no
 7. **CLI vs dashboard gates.** CLI full workflow never calls `validate_candidate`. Dashboard always does (except mock). Same agent chain, different admission policy.
 8. **`agents/AGENTS.md`** omits Profiler; **no `profiler/AGENTS.md`**. Import paths in that file still mention `agents.common` and `scripts/agents`.
 9. **Root `AGENTS.md` Investment Workflow** still describes a seven-stage partly-manual process (shortlist, categorise, external evaluate). The dashboard/CLI implement the automated lane above, with a human decision only after the `Verdict`.
-10. **Strategist stance vs factory.** System prompt: interpreter, not researcher. `create_strategist_agent` still defaults `use_mcp_financial_data=True` and does not pass `enable_web_research_tools=False`, so dashboard Strategist still gets web/MCP/terminal from settings. Sentinel is the only interpretation-only production factory.
+10. **Strategist stance vs factory.** System prompt: interpreter, not researcher. `create_strategist_agent` still defaults `use_mcp_financial_data=True` and does not pass `enable_web_research_tools=False`, so dashboard Strategist still gets web/MCP/terminal from settings. Sentinel is the only production factory without web/MCP/terminal; it now also has official filing tools.
 
 ---
 

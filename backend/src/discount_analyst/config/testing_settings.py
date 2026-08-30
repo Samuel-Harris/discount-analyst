@@ -25,6 +25,8 @@ def dashboard_settings_for_tests(
     logfire_api_key: str = LOGFIRE_TOKEN_FOR_TESTS,
     deploy_env: Literal["DEV", "PROD"] = "PROD",
     log_level: DashboardLogLevel = "INFO",
+    regulatory_data_cache_dir: Path | None = None,
+    sec_user_agent: str = "",
 ) -> Settings:
     """Build a valid :class:`Settings` instance without loading ``.env`` files."""
     return Settings(
@@ -42,6 +44,9 @@ def dashboard_settings_for_tests(
             log_level=log_level,
         ),
         database_path=database_path or Path("data/dashboard.sqlite"),
+        regulatory_data_cache_dir=regulatory_data_cache_dir
+        or Path("data/regulatory_data"),
+        sec_user_agent=sec_user_agent,
         default_model=ModelName.GPT_5_1,
         risk_free_rate_pct=3.7,
         use_perplexity=False,

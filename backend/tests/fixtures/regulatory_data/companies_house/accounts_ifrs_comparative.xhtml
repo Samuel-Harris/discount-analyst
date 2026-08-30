@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:ix="http://www.xbrl.org/2013/inlineXBRL"
+      xmlns:ifrs-full="http://xbrl.ifrs.org/taxonomy/2022-03-24/ifrs-full"
+      xmlns:xbrli="http://www.xbrl.org/2003/instance">
+  <head><title>AstraZeneca PLC comparative accounts</title></head>
+  <body>
+    <ix:header>
+      <ix:hidden>
+        <xbrli:context id="c-prior">
+          <xbrli:entity>
+            <xbrli:identifier scheme="http://www.companieshouse.gov.uk/">02723534</xbrli:identifier>
+          </xbrli:entity>
+          <xbrli:period>
+            <xbrli:startDate>2022-01-01</xbrli:startDate>
+            <xbrli:endDate>2022-12-31</xbrli:endDate>
+          </xbrli:period>
+        </xbrli:context>
+        <xbrli:context id="c-current">
+          <xbrli:entity>
+            <xbrli:identifier scheme="http://www.companieshouse.gov.uk/">02723534</xbrli:identifier>
+          </xbrli:entity>
+          <xbrli:period>
+            <xbrli:startDate>2023-01-01</xbrli:startDate>
+            <xbrli:endDate>2023-12-31</xbrli:endDate>
+          </xbrli:period>
+        </xbrli:context>
+        <xbrli:unit id="u1">
+          <xbrli:measure>iso4217:GBP</xbrli:measure>
+        </xbrli:unit>
+        <ix:nonNumeric name="ifrs-full:NameOfReportingEntityOrOtherMeansOfIdentification" contextRef="c-prior">OLD NAME PLC</ix:nonNumeric>
+        <ix:nonNumeric name="ifrs-full:NameOfReportingEntityOrOtherMeansOfIdentification" contextRef="c-current">ASTRAZENECA PLC</ix:nonNumeric>
+      </ix:hidden>
+    </ix:header>
+    <div>
+      <ix:nonFraction name="ifrs-full:Revenue" contextRef="c-prior" unitRef="u1" decimals="0">1000</ix:nonFraction>
+      <ix:nonFraction name="ifrs-full:Revenue" contextRef="c-current" unitRef="u1" decimals="0">44738000000</ix:nonFraction>
+      <ix:nonFraction name="ifrs-full:ProfitLoss" contextRef="c-prior" unitRef="u1" decimals="0">1</ix:nonFraction>
+      <ix:nonFraction name="ifrs-full:ProfitLoss" contextRef="c-current" unitRef="u1" decimals="0">5960000000</ix:nonFraction>
+    </div>
+  </body>
+</html>

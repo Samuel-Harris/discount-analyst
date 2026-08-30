@@ -1,0 +1,10 @@
+ACT Symbol|Security Name|Exchange|CQS Symbol|ETF|Round Lot Size|Test Issue|NASDAQ Symbol
+IBM|International Business Machines Corporation Common Stock|N|IBM|N|100|N|IBM
+BA|Boeing Company Common Stock|N|BA|N|100|N|BA
+SPY|SPDR S&P 500 ETF Trust|P|SPY|Y|100|N|SPY
+AA-P|Alcoa Corporation Preferred Stock|N|AAp|N|100|N|AA-P
+NEM|Newmont Corporation Common Stock|N|NEM|N|100|N|NEM
+UEC|Uranium Energy Corp. Common Stock|A|UEC|N|100|N|UEC
+XYZ.WS|Example Corp. Warrant|N|XYZWS|N|100|N|XYZ.WS
+NOTE1|Example Notes due 2030|N|NOTE1|N|100|N|NOTE1
+File Creation Time: 0830202602:00
