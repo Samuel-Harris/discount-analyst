@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-07-11 | Updated: 2026-08-29 -->
+<!-- Generated: 2026-07-11 | Updated: 2026-08-30 -->
 
 # backend
 
@@ -104,7 +104,7 @@ make verify-terminal
 ### Common Patterns
 
 - Settings: `discount_analyst.config.settings`.
-- Dashboard app: `discount_analyst.composition.api:create_app`. Lifespan checks PyPI for a newer `yfinance` and exposes the result at `GET /api/status`.
+- Dashboard app: `discount_analyst.composition.api:create_app`. `GET /api/status` checks PyPI for a newer `yfinance` (cached on the app after the first request).
 - Pipeline runner: `discount_analyst.adapters.orchestration.sqlmodel_runner`.
 
 ## Dependencies

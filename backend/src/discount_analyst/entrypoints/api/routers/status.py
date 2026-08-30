@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
-from discount_analyst.adapters.market_data.yfinance_freshness import (
+from discount_analyst.adapters.observability.yfinance_freshness import (
     YfinanceFreshness,
     check_yfinance_freshness,
 )

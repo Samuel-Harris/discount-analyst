@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from discount_analyst.adapters.market_data.yfinance_freshness import (
+from discount_analyst.adapters.observability.yfinance_freshness import (
     YfinanceFreshness,
     installed_yfinance_version,
 )
@@ -24,7 +24,7 @@ from discount_analyst.config.testing_settings import dashboard_settings_for_test
 
 @pytest.fixture(autouse=True)
 def stub_yfinance_freshness_check(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Dashboard tests must not call PyPI during FastAPI lifespan."""
+    """Dashboard tests must not call PyPI from GET /api/status."""
 
     async def _installed_is_current() -> YfinanceFreshness:
         installed = installed_yfinance_version()
@@ -34,10 +34,6 @@ def stub_yfinance_freshness_check(monkeypatch: pytest.MonkeyPatch) -> None:
             is_outdated=False,
         )
 
-    monkeypatch.setattr(
-        "discount_analyst.composition.api.check_yfinance_freshness",
-        _installed_is_current,
-    )
     monkeypatch.setattr(
         "discount_analyst.entrypoints.api.routers.status.check_yfinance_freshness",
         _installed_is_current,

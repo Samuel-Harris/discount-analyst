@@ -9,9 +9,6 @@ import logfire
 import uvicorn
 from fastapi import FastAPI
 
-from discount_analyst.adapters.market_data.yfinance_freshness import (
-    check_yfinance_freshness,
-)
 from discount_analyst.adapters.observability.logging import (
     configure_dashboard_observability,
 )
@@ -55,7 +52,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "Dashboard API lifespan startup",
             database_basename=settings.database_path.name,
         )
-        app.state.yfinance_freshness = await check_yfinance_freshness()
         yield
         logfire.info("Dashboard API lifespan shutdown, disposing database engine")
         app.state.db_engine.dispose()
