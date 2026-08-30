@@ -840,8 +840,8 @@ async def main() -> None:
                 deep_research=run_result.output,
                 thesis=strat_result.output,
                 evaluation=sent_result.output,
-                verdicts=verdicts,
             )
+            verdicts.append(verdict)
             lane_bundles.append(
                 completed_lane_bundle_from_verdict(
                     source_run_id=f"cli-{suffixes[index]}",

@@ -46,7 +46,6 @@ async def run_cli_appraiser_lane(
     deep_research: DeepResearchReport,
     thesis: MispricingThesis,
     evaluation: EvaluationReport,
-    verdicts: list[Verdict],
 ) -> tuple[Verdict, AppraiserOutput]:
     appraiser_input = AppraiserInput(
         lane_context=candidate.to_lane_context(),
@@ -93,5 +92,4 @@ async def run_cli_appraiser_lane(
         decision_date=date.today().isoformat(),
     )
     verdict = verdict_from_decision(rating_decision)
-    verdicts.append(verdict)
     return verdict, agent_result.output

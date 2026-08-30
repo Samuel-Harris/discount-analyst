@@ -14,6 +14,7 @@ from discount_analyst.agents.runtime.streamed_agent_run import run_streamed_agen
 from discount_analyst.application.allocations.assemble import (
     CompletedLaneBundle,
     assemble_allocator_input,
+    source_run_ids_by_ticker,
 )
 from discount_analyst.application.allocations.finalise import (
     finalise_allocator_proposal,
@@ -46,7 +47,9 @@ async def run_cli_allocator(
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
     )
     allocation = finalise_allocator_proposal(
-        outcome.output, allocator_input, lane_bundles
+        outcome.output,
+        allocator_input,
+        source_run_ids_by_ticker(lane_bundles),
     )
     out_path = write_agent_json(
         payload=allocation,

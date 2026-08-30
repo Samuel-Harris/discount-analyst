@@ -15,6 +15,7 @@ from discount_analyst.adapters.persistence.crud.run_executions import (
     RetryWorkflowRunNotFoundError,
     RetryWorkflowRunNotTerminalError,
     get_agent_execution_id_by_run_and_agent,
+    get_workflow_allocator_execution,
     insert_ticker_run_with_agents,
     mark_lane_abort,
     prepare_retry_failed_agents,
@@ -22,9 +23,6 @@ from discount_analyst.adapters.persistence.crud.run_executions import (
 from discount_analyst.adapters.persistence.crud.workflow_runs import (
     fetch_workflow_detail,
     insert_workflow_run,
-)
-from discount_analyst.adapters.persistence.crud.portfolio_allocations import (
-    get_workflow_allocator_execution,
 )
 from discount_analyst.application.allocations.skip_reasons import (
     LEGACY_WORKFLOW_WITHOUT_POSITION_SNAPSHOT,

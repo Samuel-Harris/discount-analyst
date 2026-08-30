@@ -17,11 +17,11 @@ from discount_analyst.adapters.persistence.crud.allocation_lane_bundles import (
 )
 from discount_analyst.adapters.persistence.crud.db_utils import new_id, utc_now_iso
 from discount_analyst.adapters.persistence.crud.portfolio_allocations import (
-    get_workflow_allocator_execution,
     persist_portfolio_allocation,
 )
 from discount_analyst.adapters.persistence.crud.run_executions import (
     complete_agent_execution_with_conversation,
+    get_workflow_allocator_execution,
     update_agent_execution,
 )
 from discount_analyst.adapters.persistence.crud.workflow_runs import (
@@ -48,7 +48,10 @@ from discount_analyst.agents.allocator.user_prompt import create_user_prompt
 from discount_analyst.agents.common_prompts.current_date import with_current_date
 from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
 from discount_analyst.agents.runtime.streamed_agent_run import run_streamed_agent
-from discount_analyst.application.allocations.assemble import assemble_allocator_input
+from discount_analyst.application.allocations.assemble import (
+    assemble_allocator_input,
+    source_run_ids_by_ticker,
+)
 from discount_analyst.application.allocations.finalise import (
     finalise_allocator_proposal,
 )
@@ -161,13 +164,14 @@ class AllocatorStage:
                 llm=llm,
             )
             allocation = finalise_allocator_proposal(
-                agent_result.proposal, allocator_input, bundles
+                agent_result.proposal,
+                allocator_input,
+                source_run_ids_by_ticker(bundles),
             )
             await host.db(
                 persist_completed_allocator_execution,
                 execution_id=execution_id,
                 system_prompt=with_current_date(ALLOCATOR_SYSTEM_PROMPT),
-                output_json=agent_result.proposal.model_dump_json(),
                 messages=agent_result.messages,
                 messages_json=agent_result.messages_json,
                 allocation=allocation,
@@ -249,7 +253,6 @@ def persist_completed_allocator_execution(
     *,
     execution_id: str,
     system_prompt: str,
-    output_json: str | None,
     messages: list[Any] | None,
     messages_json: str | None,
     allocation: DomainPortfolioAllocation,
@@ -262,7 +265,7 @@ def persist_completed_allocator_execution(
         execution_id=execution_id,
         conversation_id=new_id(),
         system_prompt=system_prompt,
-        output_json=output_json,
+        output_json=None,
         completed_at=utc_now_iso(),
         messages=messages,
         messages_json=messages_json,

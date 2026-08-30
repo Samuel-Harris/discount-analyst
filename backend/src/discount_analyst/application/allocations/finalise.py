@@ -8,7 +8,6 @@ from discount_analyst.agents.allocator.schema import (
     AllocatorProposal,
     ProposedPosition,
 )
-from discount_analyst.application.allocations.assemble import CompletedLaneBundle
 from discount_analyst.application.allocations.errors import AllocationAssemblyError
 from discount_analyst.domain.allocations.actions import derive_rebalance_action
 from discount_analyst.domain.allocations.allocation import (
@@ -23,7 +22,7 @@ from discount_analyst.domain.allocations.invariants import AllocationInvariantEr
 def finalise_allocator_proposal(
     proposal: AllocatorProposal,
     allocator_input: AllocatorInput,
-    lane_bundles: tuple[CompletedLaneBundle, ...],
+    source_run_ids: dict[str, str],
 ) -> PortfolioAllocation:
     """Stamp identity facts; ``PortfolioAllocation`` is the numeric gate."""
     if proposal.allocation_date != allocator_input.allocation_date:
@@ -33,7 +32,6 @@ def finalise_allocator_proposal(
             f"{allocator_input.allocation_date.isoformat()}."
         )
         raise AllocationInvariantError(msg)
-    bundles_by_ticker = _index_bundles(lane_bundles)
     lanes_by_ticker = {
         lane.identity.ticker.casefold(): lane for lane in allocator_input.lanes
     }
@@ -42,7 +40,7 @@ def finalise_allocator_proposal(
         _stamp_position(
             proposed,
             lanes_by_ticker[proposed.ticker.casefold()],
-            bundles_by_ticker[proposed.ticker.casefold()],
+            source_run_ids,
         )
         for proposed in proposal.positions
     )
@@ -72,22 +70,6 @@ def finalise_allocator_proposal(
         raise AllocationInvariantError(str(exc)) from exc
 
 
-def _index_bundles(
-    lane_bundles: tuple[CompletedLaneBundle, ...],
-) -> dict[str, CompletedLaneBundle]:
-    indexed: dict[str, CompletedLaneBundle] = {}
-    for bundle in lane_bundles:
-        key = bundle.ticker.casefold()
-        if key in indexed:
-            msg = (
-                "Duplicate lane bundle ticker "
-                f"{indexed[key].ticker!r} and {bundle.ticker!r}."
-            )
-            raise AllocationAssemblyError(msg)
-        indexed[key] = bundle
-    return indexed
-
-
 def _assert_identical_ticker_sets(
     proposal: AllocatorProposal,
     allocator_input: AllocatorInput,
@@ -106,7 +88,7 @@ def _assert_identical_ticker_sets(
 def _stamp_position(
     proposed: ProposedPosition,
     lane: AllocatorLaneEvidence,
-    bundle: CompletedLaneBundle,
+    source_run_ids: dict[str, str],
 ) -> AllocationPosition:
     identity = lane.identity
     if proposed.ticker.casefold() != identity.ticker.casefold():
@@ -115,6 +97,10 @@ def _stamp_position(
             f"{identity.ticker!r}."
         )
         raise AllocationInvariantError(msg)
+    source_run_id = source_run_ids.get(proposed.ticker.casefold())
+    if source_run_id is None:
+        msg = f"Proposal ticker {proposed.ticker!r} has no source_run_id."
+        raise AllocationAssemblyError(msg)
     action = derive_rebalance_action(
         current_weight_pct=identity.current_weight_pct,
         target_weight_pct=proposed.target_weight_pct,
@@ -125,7 +111,7 @@ def _stamp_position(
     return AllocationPosition(
         ticker=proposed.ticker,
         company_name=identity.company_name,
-        source_run_id=bundle.source_run_id,
+        source_run_id=source_run_id,
         is_existing_position=identity.is_existing_position,
         current_weight_pct=identity.current_weight_pct,
         policy=identity.policy,

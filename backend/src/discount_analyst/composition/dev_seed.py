@@ -15,11 +15,11 @@ from discount_analyst.application.workflows.agent_lane_order import (
 )
 from discount_analyst.adapters.persistence.crud.db_utils import new_id, utc_now_iso
 from discount_analyst.adapters.persistence.crud.portfolio_allocations import (
-    get_workflow_allocator_execution,
     persist_portfolio_allocation,
 )
 from discount_analyst.adapters.persistence.crud.run_executions import (
     get_agent_execution_id_by_run_and_agent,
+    get_workflow_allocator_execution,
     get_workflow_candidate_snapshot_id,
     insert_ticker_run_with_agents,
     update_agent_execution,

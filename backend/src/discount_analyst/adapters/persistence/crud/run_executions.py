@@ -16,7 +16,6 @@ from sqlmodel import Session, col
 
 from discount_analyst.adapters.persistence.crud.portfolio_allocations import (
     delete_portfolio_allocation_for_execution,
-    get_workflow_allocator_execution,
 )
 from discount_analyst.application.allocations.skip_reasons import (
     LEGACY_WORKFLOW_WITHOUT_POSITION_SNAPSHOT,
@@ -192,6 +191,17 @@ def _is_legacy_skipped_allocator(execution: AgentExecution) -> bool:
     )
 
 
+def _allocator_invalidated_by_upstream(
+    allocator: AgentExecution | None,
+    *,
+    surveyor_reset: bool,
+    lane_reset_count: int,
+) -> bool:
+    if allocator is None or _is_legacy_skipped_allocator(allocator):
+        return False
+    return surveyor_reset or lane_reset_count > 0
+
+
 def _allocator_is_retryable(allocator: AgentExecution | None, runs: list[Run]) -> bool:
     if allocator is None or _is_legacy_skipped_allocator(allocator):
         return False
@@ -222,12 +232,9 @@ def prepare_retry_failed_agents(
     lane_reset_count = 0
     agent_execution_reset_count = 0
 
-    surveyor = session.scalars(
-        select(AgentExecution).where(
-            col(AgentExecution.workflow_run_id) == workflow_run_id,
-            col(AgentExecution.agent_name) == AgentNameDb.SURVEYOR,
-        )
-    ).first()
+    surveyor = get_workflow_scoped_execution(
+        session, workflow_run_id, AgentNameDb.SURVEYOR
+    )
     if surveyor is not None and surveyor.status == ExecutionStatusDb.FAILED:
         _reset_agent_execution(surveyor)
         session.add(surveyor)
@@ -274,13 +281,14 @@ def prepare_retry_failed_agents(
                 session.add(execution)
                 agent_execution_reset_count += 1
 
-    if allocator is not None and (
-        (
-            not _is_legacy_skipped_allocator(allocator)
-            and (surveyor_reset or lane_reset_count > 0)
+    if (
+        _allocator_invalidated_by_upstream(
+            allocator,
+            surveyor_reset=surveyor_reset,
+            lane_reset_count=lane_reset_count,
         )
         or allocator_only_retry
-    ):
+    ) and allocator is not None:
         _reset_allocator_execution(session, allocator)
         allocator_reset = True
 
@@ -378,27 +386,36 @@ def get_agent_execution_status_by_run_and_agent(
     return None if row is None else row.status.value
 
 
+def get_workflow_scoped_execution(
+    session: Session, workflow_run_id: str, agent_name: AgentNameDb
+) -> AgentExecution | None:
+    return session.scalars(
+        select(AgentExecution).where(
+            col(AgentExecution.workflow_run_id) == workflow_run_id,
+            col(AgentExecution.agent_name) == agent_name,
+        )
+    ).first()
+
+
+def get_workflow_allocator_execution(
+    session: Session, workflow_run_id: str
+) -> AgentExecution | None:
+    return get_workflow_scoped_execution(
+        session, workflow_run_id, AgentNameDb.ALLOCATOR
+    )
+
+
 def get_workflow_surveyor_execution_id(
     session: Session, workflow_run_id: str
 ) -> str | None:
-    row = session.scalars(
-        select(col(AgentExecution.id)).where(
-            col(AgentExecution.workflow_run_id) == workflow_run_id,
-            col(AgentExecution.agent_name) == AgentNameDb.SURVEYOR,
-        )
-    ).first()
-    return row
+    row = get_workflow_scoped_execution(session, workflow_run_id, AgentNameDb.SURVEYOR)
+    return None if row is None else row.id
 
 
 def get_workflow_surveyor_execution_status(
     session: Session, workflow_run_id: str
 ) -> str | None:
-    row = session.scalars(
-        select(AgentExecution).where(
-            col(AgentExecution.workflow_run_id) == workflow_run_id,
-            col(AgentExecution.agent_name) == AgentNameDb.SURVEYOR,
-        )
-    ).first()
+    row = get_workflow_scoped_execution(session, workflow_run_id, AgentNameDb.SURVEYOR)
     return None if row is None else row.status.value
 
 
@@ -526,7 +543,7 @@ def persist_agent_execution_structured_output(
     output_json: str | None,
 ) -> None:
     """Persist heavyweight structured rows derived from agent JSON."""
-    if not output_json or execution.agent_name == AgentNameDb.ALLOCATOR:
+    if not output_json:
         return
     match execution.agent_name:
         case AgentNameDb.SURVEYOR:
@@ -541,6 +558,8 @@ def persist_agent_execution_structured_output(
             replace_evaluation_report(session, execution, output_json)
         case AgentNameDb.APPRAISER:
             replace_appraiser_output(session, execution, output_json)
+        case _:
+            return
 
 
 def update_agent_execution(

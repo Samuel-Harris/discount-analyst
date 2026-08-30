@@ -11,8 +11,10 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field, model_validator
 
 from discount_analyst.domain.allocations.invariants import (
+    require_unique_casefold,
     validate_ordered_weight_range,
     validate_portfolio_weight_totals,
+    validate_shared_risk_clusters,
 )
 from discount_analyst.domain.allocations.policy import AllocationPolicy
 from discount_analyst.domain.allocations.snapshot import CurrentPortfolioSnapshot
@@ -97,18 +99,10 @@ class AllocatorInput(BaseModel):
 
     @model_validator(mode="after")
     def validate_lane_tickers(self) -> AllocatorInput:
-        seen: dict[str, str] = {}
-        for lane in self.lanes:
-            ticker = lane.identity.ticker
-            key = ticker.casefold()
-            previous = seen.get(key)
-            if previous is not None:
-                msg = (
-                    "Allocator input tickers must be unique case-insensitively; "
-                    f"{previous!r} and {ticker!r} collide."
-                )
-                raise ValueError(msg)
-            seen[key] = ticker
+        require_unique_casefold(
+            (lane.identity.ticker for lane in self.lanes),
+            item_kind="Allocator input tickers",
+        )
         return self
 
 
@@ -143,17 +137,11 @@ class AllocatorProposal(BaseModel):
 
     @model_validator(mode="after")
     def validate_proposal_shape(self) -> AllocatorProposal:
-        seen: dict[str, str] = {}
+        require_unique_casefold(
+            (position.ticker for position in self.positions),
+            item_kind="Proposal tickers",
+        )
         for position in self.positions:
-            key = position.ticker.casefold()
-            previous = seen.get(key)
-            if previous is not None:
-                msg = (
-                    "Proposal tickers must be unique case-insensitively; "
-                    f"{previous!r} and {position.ticker!r} collide."
-                )
-                raise ValueError(msg)
-            seen[key] = position.ticker
             validate_ordered_weight_range(
                 low_pct=position.acceptable_weight_low_pct,
                 target_pct=position.target_weight_pct,
@@ -180,38 +168,5 @@ class AllocatorProposal(BaseModel):
                 self.cash.acceptable_weight_high_pct,
             ],
         )
-        _validate_proposal_clusters(self.shared_risk_clusters)
+        validate_shared_risk_clusters(self.shared_risk_clusters)
         return self
-
-
-def _validate_proposal_clusters(
-    clusters: tuple[ProposedSharedRiskCluster, ...],
-) -> None:
-    seen_labels: dict[str, str] = {}
-    for cluster in clusters:
-        label_key = cluster.label.casefold()
-        previous = seen_labels.get(label_key)
-        if previous is not None:
-            msg = (
-                "Shared-risk cluster labels must be unique; "
-                f"{previous!r} and {cluster.label!r} collide."
-            )
-            raise ValueError(msg)
-        seen_labels[label_key] = cluster.label
-        if len(cluster.member_tickers) < 2:
-            msg = (
-                f"Shared-risk cluster {cluster.label!r} must name at least "
-                "two member tickers."
-            )
-            raise ValueError(msg)
-        seen_members: dict[str, str] = {}
-        for ticker in cluster.member_tickers:
-            member_key = ticker.casefold()
-            previous_member = seen_members.get(member_key)
-            if previous_member is not None:
-                msg = (
-                    f"Shared-risk cluster {cluster.label!r} repeats ticker "
-                    f"{previous_member!r}."
-                )
-                raise ValueError(msg)
-            seen_members[member_key] = ticker

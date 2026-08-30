@@ -161,17 +161,6 @@ def get_portfolio_allocation_for_workflow(
     return get_portfolio_allocation_for_execution(session, execution.id)
 
 
-def get_workflow_allocator_execution(
-    session: Session, workflow_run_id: str
-) -> AgentExecution | None:
-    return session.scalars(
-        select(AgentExecution).where(
-            col(AgentExecution.workflow_run_id) == workflow_run_id,
-            col(AgentExecution.agent_name) == AgentNameDb.ALLOCATOR,
-        )
-    ).first()
-
-
 def _policy_columns(
     position: AllocationPosition,
 ) -> tuple[AllocationPolicyKindDb, ForcedZeroReasonDb | None]:

@@ -84,6 +84,19 @@ def completed_lane_bundle_from_verdict(
     )
 
 
+def source_run_ids_by_ticker(
+    lane_bundles: tuple[CompletedLaneBundle, ...],
+) -> dict[str, str]:
+    indexed: dict[str, str] = {}
+    for bundle in lane_bundles:
+        key = bundle.ticker.casefold()
+        if key in indexed:
+            msg = f"Duplicate lane bundle ticker {bundle.ticker!r}."
+            raise AllocationAssemblyError(msg)
+        indexed[key] = bundle.source_run_id
+    return indexed
+
+
 def assemble_allocator_input(
     lanes: tuple[CompletedLaneBundle, ...],
     snapshot: CurrentPortfolioSnapshot,

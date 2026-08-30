@@ -1,7 +1,8 @@
 """Allocation invariant checks that never clip, normalise, or repair weights."""
 
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
+from typing import Protocol
 
 from discount_analyst.domain.allocations.constants import (
     COMPANY_WEIGHT_CAP_PCT,
@@ -11,6 +12,61 @@ from discount_analyst.domain.allocations.constants import (
 
 class AllocationInvariantError(ValueError):
     """A proposal or persisted allocation violated a hard numeric invariant."""
+
+
+class SharedRiskClusterShape(Protocol):
+    label: str
+    member_tickers: tuple[str, ...]
+
+
+def require_unique_casefold(
+    labels: Iterable[str],
+    *,
+    item_kind: str,
+) -> dict[str, str]:
+    seen: dict[str, str] = {}
+    for label in labels:
+        key = label.casefold()
+        previous = seen.get(key)
+        if previous is not None:
+            msg = (
+                f"{item_kind} must be unique case-insensitively; "
+                f"{previous!r} and {label!r} collide."
+            )
+            raise ValueError(msg)
+        seen[key] = label
+    return seen
+
+
+def validate_shared_risk_clusters(
+    clusters: Sequence[SharedRiskClusterShape],
+    *,
+    known_ticker_keys: frozenset[str] | None = None,
+) -> None:
+    require_unique_casefold(
+        (cluster.label for cluster in clusters),
+        item_kind="Shared-risk cluster labels",
+    )
+    for cluster in clusters:
+        if len(cluster.member_tickers) < 2:
+            msg = (
+                f"Shared-risk cluster {cluster.label!r} must name at least "
+                "two member tickers."
+            )
+            raise ValueError(msg)
+        require_unique_casefold(
+            cluster.member_tickers,
+            item_kind=f"Shared-risk cluster {cluster.label!r} tickers",
+        )
+        if known_ticker_keys is None:
+            continue
+        for ticker in cluster.member_tickers:
+            if ticker.casefold() not in known_ticker_keys:
+                msg = (
+                    f"Shared-risk cluster {cluster.label!r} names unknown "
+                    f"ticker {ticker!r}."
+                )
+                raise ValueError(msg)
 
 
 def validate_ordered_weight_range(

@@ -24,6 +24,7 @@ from discount_analyst.application.allocations.assemble import (
     CompletedLaneBundle,
     assemble_allocator_input,
     completed_lane_bundle_from_verdict,
+    source_run_ids_by_ticker,
 )
 from discount_analyst.application.allocations.errors import AllocationAssemblyError
 from discount_analyst.application.allocations.finalise import (
@@ -319,7 +320,7 @@ def test_finalise_cash_only_allocation() -> None:
         portfolio_rationale="Cash only.",
     )
 
-    allocation = finalise_allocator_proposal(proposal, packed, ())
+    allocation = finalise_allocator_proposal(proposal, packed, {})
 
     assert allocation.cash.target_weight_pct == 100.0
     assert allocation.positions == ()
@@ -376,7 +377,9 @@ def test_finalise_preserves_proposal_numbers_and_derives_actions() -> None:
     )
     before = proposal.model_dump()
 
-    allocation = finalise_allocator_proposal(proposal, packed, bundles)
+    allocation = finalise_allocator_proposal(
+        proposal, packed, source_run_ids_by_ticker(bundles)
+    )
 
     assert proposal.model_dump() == before
     by_ticker = {row.ticker: row for row in allocation.positions}
@@ -419,7 +422,7 @@ def test_finalise_rejects_existing_hold_increase() -> None:
     )
 
     with pytest.raises(AllocationInvariantError, match="Retain-or-reduce"):
-        finalise_allocator_proposal(proposal, packed, (held,))
+        finalise_allocator_proposal(proposal, packed, source_run_ids_by_ticker((held,)))
 
 
 def test_finalise_rejects_nonzero_forced_zero() -> None:
@@ -449,7 +452,9 @@ def test_finalise_rejects_nonzero_forced_zero() -> None:
     )
 
     with pytest.raises(AllocationInvariantError, match="Forced-zero"):
-        finalise_allocator_proposal(proposal, packed, (rejected,))
+        finalise_allocator_proposal(
+            proposal, packed, source_run_ids_by_ticker((rejected,))
+        )
 
 
 def test_finalise_enforces_company_cap_across_duplicate_names() -> None:
@@ -497,7 +502,9 @@ def test_finalise_enforces_company_cap_across_duplicate_names() -> None:
     )
 
     with pytest.raises(AllocationInvariantError, match="15.0% cap"):
-        finalise_allocator_proposal(proposal, packed, (arm_us, arm_uk))
+        finalise_allocator_proposal(
+            proposal, packed, source_run_ids_by_ticker((arm_us, arm_uk))
+        )
 
 
 def test_semiconductor_cluster_reduces_weaker_name() -> None:
@@ -562,7 +569,9 @@ def test_semiconductor_cluster_reduces_weaker_name() -> None:
         portfolio_rationale="Keep the stronger foundry idea; penalise the tool name.",
     )
 
-    allocation = finalise_allocator_proposal(proposal, packed, bundles)
+    allocation = finalise_allocator_proposal(
+        proposal, packed, source_run_ids_by_ticker(bundles)
+    )
 
     by_ticker = {row.ticker: row for row in allocation.positions}
     assert by_ticker["AMAT"].target_weight_pct < by_ticker["TSM"].target_weight_pct
@@ -591,7 +600,9 @@ def test_mock_proposal_caps_dual_listing_company_highs() -> None:
     bundles = (us, uk)
     packed = assemble_allocator_input(bundles, _cash_only(), ALLOCATION_DATE)
     proposal = mock_allocator_proposal(packed)
-    allocation = finalise_allocator_proposal(proposal, packed, bundles)
+    allocation = finalise_allocator_proposal(
+        proposal, packed, source_run_ids_by_ticker(bundles)
+    )
 
     highs = sum(row.acceptable_weight_high_pct for row in allocation.positions)
     assert highs <= 15.0

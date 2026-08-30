@@ -22,6 +22,7 @@ from discount_analyst.adapters.persistence.crud.db_utils import (
     utc_now,
 )
 from discount_analyst.adapters.persistence.crud.run_executions import (
+    get_workflow_scoped_execution,
     workflow_can_retry_failed_agents,
 )
 from discount_analyst.application.workflows.workflow_status import (
@@ -111,10 +112,10 @@ def recompute_workflow_status(session: Session, workflow_run_id: str) -> None:
     if wf.status == WorkflowRunStatusDb.FAILED and wf.error_message:
         return
 
-    surveyor = _workflow_scoped_execution(
+    surveyor = get_workflow_scoped_execution(
         session, workflow_run_id, AgentNameDb.SURVEYOR
     )
-    allocator = _workflow_scoped_execution(
+    allocator = get_workflow_scoped_execution(
         session, workflow_run_id, AgentNameDb.ALLOCATOR
     )
     runs = list(
@@ -272,12 +273,12 @@ def fetch_workflow_detail(
     if wf is None:
         return None
 
-    se = _workflow_scoped_execution(session, workflow_run_id, AgentNameDb.SURVEYOR)
+    se = get_workflow_scoped_execution(session, workflow_run_id, AgentNameDb.SURVEYOR)
     surveyor_execution: AgentExecutionRow | None = None
     if se is not None:
         surveyor_execution = _workflow_agent_execution_row(se)
 
-    allocator = _workflow_scoped_execution(
+    allocator = get_workflow_scoped_execution(
         session, workflow_run_id, AgentNameDb.ALLOCATOR
     )
     allocator_execution: AgentExecutionRow | None = None
@@ -361,17 +362,6 @@ def fetch_workflow_detail(
         "runs": runs_out,
     }
     return detail
-
-
-def _workflow_scoped_execution(
-    session: Session, workflow_run_id: str, agent_name: AgentNameDb
-) -> AgentExecution | None:
-    return session.scalars(
-        select(AgentExecution).where(
-            col(AgentExecution.workflow_run_id) == workflow_run_id,
-            col(AgentExecution.agent_name) == agent_name,
-        )
-    ).first()
 
 
 def _workflow_agent_execution_row(execution: AgentExecution) -> AgentExecutionRow:

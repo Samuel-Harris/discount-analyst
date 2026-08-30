@@ -5,6 +5,7 @@ from datetime import date
 from pydantic import BaseModel, Field, model_validator
 
 from discount_analyst.domain.allocations.constants import WEIGHT_SUM_TOLERANCE_PP
+from discount_analyst.domain.allocations.invariants import require_unique_casefold
 
 
 class CurrentPositionWeight(BaseModel):
@@ -19,17 +20,10 @@ class CurrentPortfolioSnapshot(BaseModel):
 
     @model_validator(mode="after")
     def validate_snapshot(self) -> CurrentPortfolioSnapshot:
-        seen: dict[str, str] = {}
-        for position in self.positions:
-            key = position.ticker.casefold()
-            previous = seen.get(key)
-            if previous is not None:
-                msg = (
-                    "Snapshot tickers must be unique case-insensitively; "
-                    f"{previous!r} and {position.ticker!r} collide."
-                )
-                raise ValueError(msg)
-            seen[key] = position.ticker
+        require_unique_casefold(
+            (position.ticker for position in self.positions),
+            item_kind="Snapshot tickers",
+        )
         total = sum(position.current_weight_pct for position in self.positions)
         total += self.cash_weight_pct
         if abs(total - 100.0) > WEIGHT_SUM_TOLERANCE_PP:
