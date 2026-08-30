@@ -31,15 +31,6 @@ class WorkflowRunHeaderRow(TypedDict):
     portfolio_tickers: list[str]
 
 
-class SurveyorExecutionRow(TypedDict):
-    id: str
-    agent_name: str
-    status: str
-    started_at: datetime | None
-    completed_at: datetime | None
-    model_name: ModelName | None
-
-
 class AgentExecutionRow(TypedDict):
     id: str
     agent_name: str
@@ -79,5 +70,6 @@ class TickerRunResumeRow(TypedDict):
 
 class WorkflowRunDetailRecord(WorkflowRunHeaderRow):
     can_retry_failed_agents: bool
-    surveyor_execution: SurveyorExecutionRow | None
+    surveyor_execution: AgentExecutionRow | None
+    curator_execution: AgentExecutionRow | None
     runs: list[TickerRunRow]

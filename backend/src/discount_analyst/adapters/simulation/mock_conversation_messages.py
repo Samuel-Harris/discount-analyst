@@ -253,3 +253,28 @@ def appraiser_messages_json(*, ticker: str) -> str:
             ),
         ]
     )
+
+
+def curator_messages_json() -> str:
+    return _dumps(
+        [
+            _msg(
+                "request",
+                [
+                    _user_prompt(
+                        "Construct the target portfolio from packed allocation evidence."
+                    ),
+                ],
+            ),
+            _msg(
+                "response",
+                [
+                    _text(
+                        "(mock) Curator: applied lane policy, the 15% company cap, "
+                        "and residual cash without calling tools."
+                    ),
+                    _text("`CuratorProposal` is finalised into `PortfolioAllocation`."),
+                ],
+            ),
+        ]
+    )

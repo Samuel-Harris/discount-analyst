@@ -5,6 +5,7 @@ import asyncio
 from collections import Counter
 from dataclasses import dataclass
 from datetime import date
+from pathlib import Path
 
 from pydantic import BaseModel
 from rich.console import Console
@@ -38,27 +39,21 @@ from discount_analyst.agents.surveyor.user_prompt import USER_PROMPT
 from discount_analyst.agents.researcher.schema import DeepResearchReport
 from discount_analyst.agents.strategist.schema import MispricingThesis
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
-from discount_analyst.agents.appraiser.schema import AppraiserInput
 from discount_analyst.config.ai_models_config import AIModelsConfig
 from discount_analyst.config.settings import settings as app_settings
 from discount_analyst.domain.model_selection.model_name import ModelName
+from discount_analyst.application.allocations.assemble import (
+    CompletedLaneBundle,
+    completed_lane_bundle_from_verdict,
+)
+from discount_analyst.application.allocations.errors import AllocationAssemblyError
 from discount_analyst.application.decisions.builders import (
-    build_rating_table_decision,
     build_sentinel_rejection,
     verdict_from_decision,
 )
+from discount_analyst.domain.allocations.invariants import AllocationInvariantError
 from discount_analyst.domain.decisions.schema import (
     Verdict,
-)
-from discount_analyst.domain.decisions.margin_of_safety import MarginOfSafetyAssessment
-
-from discount_analyst.application.workflows.appraiser_run_context import (
-    AppraiserRunContext,
-)
-from discount_analyst.entrypoints.cli.agents.run_appraiser import (
-    display_agent_output,
-    run_agent,
-    save_run_output,
 )
 from discount_analyst.agents.runtime.terminal_run import (
     TerminalRunOptions,
@@ -83,6 +78,13 @@ from discount_analyst.entrypoints.cli.shared.run_outputs import (
     TurnUsage,
 )
 from discount_analyst.entrypoints.cli.shared.usage import extract_turn_usage
+from discount_analyst.entrypoints.cli.workflows.cli_curator import (
+    load_cli_portfolio_snapshot,
+    run_cli_curator,
+)
+from discount_analyst.entrypoints.cli.workflows.cli_appraiser_lane import (
+    run_cli_appraiser_lane,
+)
 from discount_analyst.entrypoints.cli.workflows.workflow_display import (
     FailedAppraiserRun,
     FailedCandidateRun,
@@ -151,6 +153,7 @@ class WorkflowArgs(BaseModel):
     risk_free_rate_pct: float
     is_existing_position: bool
     profiler_tickers: list[str] | None = None
+    snapshot: Path
 
 
 def parse_args() -> WorkflowArgs:
@@ -160,7 +163,8 @@ def parse_args() -> WorkflowArgs:
             "then Researcher sequentially for each candidate, "
             "then Strategist and Sentinel for each successful Researcher and Strategist run, "
             "then Appraiser when the Sentinel valuation gate passes, "
-            "then deterministic rating; writes Verdict rows and a verdicts JSON artefact."
+            "then deterministic rating and a workflow-level Curator; "
+            "writes Verdict rows, a verdicts JSON artefact, and a PortfolioAllocation artefact."
         )
     )
     add_agent_cli_model_argument(parser)
@@ -202,6 +206,15 @@ def parse_args() -> WorkflowArgs:
             "each run produces one pipeline candidate."
         ),
     )
+    parser.add_argument(
+        "--snapshot",
+        type=Path,
+        required=True,
+        help=(
+            "JSON file containing a CurrentPortfolioSnapshot. Required; "
+            "allocation is not run without a real position snapshot."
+        ),
+    )
     raw = parser.parse_args()
     if not (1 <= raw.risk_free_rate_pct <= 15):
         parser.error(
@@ -221,6 +234,7 @@ def parse_args() -> WorkflowArgs:
         risk_free_rate_pct=raw.risk_free_rate_pct,
         is_existing_position=raw.is_existing_position,
         profiler_tickers=profiler_tickers,
+        snapshot=raw.snapshot,
     )
 
 
@@ -569,71 +583,9 @@ def save_sentinel_output(
     return str(out_path)
 
 
-async def _run_appraiser_final_rating_for_candidate(
-    *,
-    args: WorkflowArgs,
-    terminal: TerminalRunOptions,
-    candidate: SurveyorCandidate,
-    index: int,
-    source_entry_report_path: str,
-    researcher_out_path: str,
-    strat_path: str,
-    sentinel_path: str,
-    filename_suffix: str,
-    run_result: AgentRunResult,
-    strat_result: StrategistAgentRunResult,
-    sent_result: SentinelAgentRunResult,
-    verdicts: list[Verdict],
-) -> None:
-    appraiser_input = AppraiserInput(
-        lane_context=candidate.to_lane_context(),
-        deep_research=run_result.output,
-        thesis=strat_result.output,
-        evaluation=sent_result.output,
-        risk_free_rate_pct=args.risk_free_rate_pct,
-    )
-    run_context = AppraiserRunContext(
-        lane_context=candidate.to_lane_context(),
-        risk_free_rate_pct=args.risk_free_rate_pct,
-        model=args.model,
-    )
-    agent_result = await run_agent(
-        run_context,
-        appraiser_input,
-        use_perplexity=args.use_perplexity,
-        use_mcp_financial_data=args.use_mcp_financial_data,
-        terminal=terminal,
-    )
-    display_agent_output(agent_result.output)
-    appraiser_out_path = save_run_output(
-        run_context,
-        agent_result.output,
-        agent_result,
-        source_surveyor_report=source_entry_report_path,
-        source_candidate_index=index,
-        source_researcher_report=researcher_out_path,
-        source_strategist_report=strat_path,
-        source_sentinel_report=sentinel_path,
-        filename_suffix=filename_suffix,
-    )
-    console.print(f"Saved Appraiser output: [dim]{appraiser_out_path}[/dim]")
-
-    margin_of_safety = MarginOfSafetyAssessment.from_distribution(
-        agent_result.output.valuation_distribution
-    )
-    rating_decision = build_rating_table_decision(
-        lane_context=candidate.to_lane_context(),
-        thesis=strat_result.output,
-        evaluation=sent_result.output,
-        margin_of_safety=margin_of_safety,
-        is_existing_position=args.is_existing_position,
-        decision_date=date.today().isoformat(),
-    )
-    verdicts.append(verdict_from_decision(rating_decision))
-
-
 async def main() -> None:
     args = parse_args()
+    snapshot = load_cli_portfolio_snapshot(args.snapshot)
     terminal = terminal_run_options_for_cli(
         no_terminal=not args.use_terminal
     ).bind_session_id()
@@ -706,6 +658,7 @@ async def main() -> None:
     sentinel_failures: list[FailedSentinelRun] = []
     appraiser_failures: list[FailedAppraiserRun] = []
     verdicts: list[Verdict] = []
+    lane_bundles: list[CompletedLaneBundle] = []
     researcher_successes = 0
     strategist_successes = 0
     sentinel_successes = 0
@@ -842,7 +795,19 @@ async def main() -> None:
                 is_existing_position=args.is_existing_position,
                 decision_date=decision_day,
             )
-            verdicts.append(verdict_from_decision(rejection))
+            rejection_verdict = verdict_from_decision(rejection)
+            verdicts.append(rejection_verdict)
+            lane_bundles.append(
+                completed_lane_bundle_from_verdict(
+                    source_run_id=f"cli-{suffixes[index]}",
+                    verdict=rejection_verdict,
+                    sector=candidate.sector,
+                    industry=candidate.industry,
+                    deep_research=run_result.output,
+                    thesis=strat_result.output,
+                    evaluation=sent_result.output,
+                )
+            )
             console.log(
                 f"Skipping Appraiser for {candidate.ticker}: "
                 "valuation gate is Do not proceed "
@@ -857,8 +822,13 @@ async def main() -> None:
             f"running Appraiser for {candidate.ticker}..."
         )
         try:
-            await _run_appraiser_final_rating_for_candidate(
-                args=args,
+            verdict, appraiser_output = await run_cli_appraiser_lane(
+                console=console,
+                model=args.model,
+                risk_free_rate_pct=args.risk_free_rate_pct,
+                use_perplexity=args.use_perplexity,
+                use_mcp_financial_data=args.use_mcp_financial_data,
+                is_existing_position=args.is_existing_position,
                 terminal=terminal,
                 candidate=candidate,
                 index=index,
@@ -867,10 +837,22 @@ async def main() -> None:
                 strat_path=strat_path,
                 sentinel_path=sentinel_path,
                 filename_suffix=suffixes[index],
-                run_result=run_result,
-                strat_result=strat_result,
-                sent_result=sent_result,
-                verdicts=verdicts,
+                deep_research=run_result.output,
+                thesis=strat_result.output,
+                evaluation=sent_result.output,
+            )
+            verdicts.append(verdict)
+            lane_bundles.append(
+                completed_lane_bundle_from_verdict(
+                    source_run_id=f"cli-{suffixes[index]}",
+                    verdict=verdict,
+                    sector=candidate.sector,
+                    industry=candidate.industry,
+                    deep_research=run_result.output,
+                    thesis=strat_result.output,
+                    evaluation=sent_result.output,
+                    appraiser_output=appraiser_output,
+                )
             )
             appraiser_successes += 1
         except Exception as appr_exc:
@@ -892,6 +874,27 @@ async def main() -> None:
         verdicts_path = write_verdicts_json(verdicts=verdicts, model_name=args.model)
         console.print(f"\nSaved verdicts JSON: [dim]{verdicts_path}[/dim]\n")
         display_verdicts_table(verdicts)
+
+    if (
+        profiler_failures
+        or failures
+        or strategist_failures
+        or sentinel_failures
+        or appraiser_failures
+    ):
+        console.print(
+            "[yellow]Curator skipped because a lane failed or was cancelled.[/yellow]"
+        )
+    else:
+        try:
+            await run_cli_curator(
+                console=console,
+                model_name=args.model,
+                snapshot=snapshot,
+                lane_bundles=tuple(lane_bundles),
+            )
+        except (AllocationAssemblyError, AllocationInvariantError) as exc:
+            console.print(f"[red]Curator failed: {exc}[/red]")
 
     summary_lines = [
         f"Workflow complete: {entry_mode} entry through deterministic rating (gated)",

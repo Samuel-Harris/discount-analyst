@@ -19,6 +19,8 @@ from discount_analyst.agents.runtime.tool_descriptions import AGENT_TOOL_DESCRIP
 from discount_analyst.agents.common_prompts.current_date import format_current_date_line
 from discount_analyst.agents.sentinel import sentinel as sentinel_module
 from discount_analyst.agents.sentinel.sentinel import create_sentinel_agent
+from discount_analyst.agents.curator import curator as curator_module
+from discount_analyst.agents.curator.curator import create_curator_agent
 from discount_analyst.agents.strategist import strategist as strategist_module
 from discount_analyst.agents.strategist.strategist import create_strategist_agent
 from discount_analyst.config.ai_models_config import (
@@ -225,8 +227,9 @@ def test_regulatory_tool_roles_cover_every_agent() -> None:
         agent_factory.create_universe_toolset,
         agent_factory.create_filings_toolset,
     )
+    assert REGULATORY_TOOLSETS_BY_ROLE[AgentName.CURATOR] == ()
     for name in AgentName:
-        if name is AgentName.SURVEYOR:
+        if name in {AgentName.SURVEYOR, AgentName.CURATOR}:
             continue
         assert REGULATORY_TOOLSETS_BY_ROLE[name] == (
             agent_factory.create_filings_toolset,
@@ -270,6 +273,45 @@ def test_non_surveyor_receives_filings_without_universe(
     )
 
     assert captured["toolsets"] == [fx_toolset, filings_toolset]
+
+
+def test_curator_receives_frankfurter_without_filings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fx_toolset = object()
+    universe_toolset = object()
+    filings_toolset = object()
+    captured: dict[str, object] = {}
+
+    def fake_create_model_from_config(_config: AIModelConfig) -> TestModel:
+        return TestModel()
+
+    def fake_agent(**kwargs: object) -> SimpleNamespace:
+        captured["toolsets"] = kwargs.get("toolsets")
+        return SimpleNamespace(name=kwargs.get("name"))
+
+    monkeypatch.setattr(agent_factory, "create_frankfurter_toolset", lambda: fx_toolset)
+    monkeypatch.setattr(
+        agent_factory, "create_universe_toolset", lambda: universe_toolset
+    )
+    monkeypatch.setattr(
+        agent_factory, "create_filings_toolset", lambda: filings_toolset
+    )
+    monkeypatch.setattr(
+        agent_factory,
+        "create_model_from_config",
+        fake_create_model_from_config,
+    )
+    monkeypatch.setattr(agent_factory, "Agent", fake_agent)
+
+    create_agent(
+        spec=AgentSpec(name=AgentName.CURATOR, output_type=str, system_prompt="test"),
+        ai_models_config=AIModelsConfig(model_name=ModelName.DEEPSEEK_V4_PRO),
+        enable_web_research_tools=False,
+        use_mcp_financial_data=False,
+    )
+
+    assert captured["toolsets"] == [fx_toolset]
 
 
 def test_create_strategist_agent_does_not_force_web_mcp_off(
@@ -320,6 +362,25 @@ def test_create_sentinel_agent_is_interpretation_only(
 
     monkeypatch.setattr(sentinel_module, "create_agent", fake_create_agent)
     create_sentinel_agent(AIModelsConfig(model_name=ModelName.DEEPSEEK_V4_PRO))
+
+    assert captured["enable_web_research_tools"] is False
+    assert captured["use_perplexity"] is False
+    assert captured["use_mcp_financial_data"] is False
+    terminal = captured["terminal"]
+    assert getattr(terminal, "enabled") is False
+
+
+def test_create_curator_agent_is_closed_book(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_create_agent(**kwargs: object) -> SimpleNamespace:
+        captured.update(kwargs)
+        return SimpleNamespace()
+
+    monkeypatch.setattr(curator_module, "create_agent", fake_create_agent)
+    create_curator_agent(AIModelsConfig(model_name=ModelName.DEEPSEEK_V4_PRO))
 
     assert captured["enable_web_research_tools"] is False
     assert captured["use_perplexity"] is False

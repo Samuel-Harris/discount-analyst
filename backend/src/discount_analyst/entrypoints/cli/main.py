@@ -16,7 +16,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
     agent = sub.add_parser("agent", help="Run a single pipeline agent")
     agent_sub = agent.add_subparsers(dest="agent_name", required=True)
-    for name in ("surveyor", "researcher", "strategist", "sentinel", "appraiser"):
+    for name in (
+        "surveyor",
+        "researcher",
+        "strategist",
+        "sentinel",
+        "appraiser",
+        "curator",
+    ):
         agent_sub.add_parser(name, help=f"Run the {name} agent")
 
     workflow = sub.add_parser("workflow", help="Multi-agent workflows")
@@ -98,6 +105,10 @@ def _run_agent(agent_name: str, agent_args: list[str]) -> None:
         from discount_analyst.entrypoints.cli.agents import run_appraiser
 
         asyncio.run(run_appraiser.main())
+    elif agent_name == "curator":
+        from discount_analyst.entrypoints.cli.agents import run_curator
+
+        asyncio.run(run_curator.main())
     else:
         raise SystemExit(f"Unknown agent: {agent_name}")
 

@@ -25,6 +25,7 @@ function minimalDetail(id: string): WorkflowRunDetailResponse {
       started_at: null,
       completed_at: null,
     },
+    curator_execution: null,
     runs: [],
   };
 }

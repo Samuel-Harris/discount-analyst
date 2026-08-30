@@ -45,6 +45,7 @@ class AgentNameDb(StrEnum):
     STRATEGIST = "strategist"
     SENTINEL = "sentinel"
     APPRAISER = "appraiser"
+    CURATOR = "curator"
 
 
 class DecisionTypeDb(StrEnum):
@@ -640,3 +641,169 @@ class AgentConversationMessagePart(SQLModel, table=True):
     content_text: str | None = None
     tool_name: str | None = None
     tool_call_id: str | None = None
+
+
+class AllocationPolicyKindDb(StrEnum):
+    INVESTABLE = "investable"
+    RETAIN_OR_REDUCE = "retain_or_reduce"
+    FORCED_ZERO = "forced_zero"
+
+
+class ForcedZeroReasonDb(StrEnum):
+    NEW_HOLD = "new_hold"
+    SELL = "sell"
+    STRONG_SELL = "strong_sell"
+
+
+class RebalanceActionDb(StrEnum):
+    ENTER = "enter"
+    INCREASE = "increase"
+    HOLD = "hold"
+    REDUCE = "reduce"
+    EXIT = "exit"
+    AVOID = "avoid"
+
+
+_WEIGHT_RANGE_CHECK = (
+    "0 <= acceptable_weight_low_pct "
+    "AND acceptable_weight_low_pct <= target_weight_pct "
+    "AND target_weight_pct <= acceptable_weight_high_pct "
+    "AND acceptable_weight_high_pct <= 100 "
+    "AND 0 <= current_weight_pct AND current_weight_pct <= 100"
+)
+
+
+class PortfolioAllocation(SQLModel, table=True):
+    __tablename__ = "portfolio_allocations"  # pyright: ignore[reportAssignmentType]
+    __table_args__ = (
+        UniqueConstraint("agent_execution_id"),
+        CheckConstraint(
+            "0 <= cash_acceptable_weight_low_pct "
+            "AND cash_acceptable_weight_low_pct <= cash_target_weight_pct "
+            "AND cash_target_weight_pct <= cash_acceptable_weight_high_pct "
+            "AND cash_acceptable_weight_high_pct <= 100 "
+            "AND 0 <= current_cash_weight_pct AND current_cash_weight_pct <= 100",
+            name="portfolio_allocation_cash_range",
+        ),
+    )
+
+    id: str = Field(primary_key=True)
+    agent_execution_id: str = Field(foreign_key="agent_executions.id", index=True)
+    allocation_date: date
+    current_cash_weight_pct: float
+    cash_target_weight_pct: float
+    cash_acceptable_weight_low_pct: float
+    cash_acceptable_weight_high_pct: float
+    cash_rationale: str
+    portfolio_rationale: str
+
+
+class PortfolioAllocationPosition(SQLModel, table=True):
+    __tablename__ = "portfolio_allocation_positions"  # pyright: ignore[reportAssignmentType]
+    __table_args__ = (
+        UniqueConstraint("allocation_id", "source_run_id"),
+        UniqueConstraint("allocation_id", "sort_order"),
+        CheckConstraint(
+            _WEIGHT_RANGE_CHECK, name="portfolio_allocation_position_range"
+        ),
+        CheckConstraint(
+            """
+            (
+                policy_kind = 'investable'
+                AND forced_zero_reason IS NULL
+            )
+            OR
+            (
+                policy_kind = 'retain_or_reduce'
+                AND forced_zero_reason IS NULL
+                AND target_weight_pct <= current_weight_pct
+                AND acceptable_weight_high_pct <= current_weight_pct
+            )
+            OR
+            (
+                policy_kind = 'forced_zero'
+                AND forced_zero_reason IS NOT NULL
+                AND target_weight_pct = 0
+                AND acceptable_weight_low_pct = 0
+                AND acceptable_weight_high_pct = 0
+            )
+            """,
+            name="portfolio_allocation_position_policy",
+        ),
+    )
+
+    id: str = Field(primary_key=True)
+    allocation_id: str = Field(foreign_key="portfolio_allocations.id", index=True)
+    source_run_id: str = Field(foreign_key="runs.id", index=True)
+    sort_order: int
+    ticker: str
+    company_name: str
+    is_existing_position: bool
+    current_weight_pct: float
+    policy_kind: AllocationPolicyKindDb = Field(
+        sa_column=Column(
+            SAEnum(
+                AllocationPolicyKindDb,
+                native_enum=False,
+                values_callable=_str_enum_sql_values,
+            ),
+            nullable=False,
+        ),
+    )
+    forced_zero_reason: ForcedZeroReasonDb | None = Field(
+        default=None,
+        sa_column=Column(
+            SAEnum(
+                ForcedZeroReasonDb,
+                native_enum=False,
+                values_callable=_str_enum_sql_values,
+            ),
+            nullable=True,
+        ),
+    )
+    target_weight_pct: float
+    acceptable_weight_low_pct: float
+    acceptable_weight_high_pct: float
+    action: RebalanceActionDb = Field(
+        sa_column=Column(
+            SAEnum(
+                RebalanceActionDb,
+                native_enum=False,
+                values_callable=_str_enum_sql_values,
+            ),
+            nullable=False,
+        ),
+    )
+    rationale: str
+
+
+class PortfolioAllocationRiskCluster(SQLModel, table=True):
+    __tablename__ = "portfolio_allocation_risk_clusters"  # pyright: ignore[reportAssignmentType]
+    __table_args__ = (
+        UniqueConstraint("allocation_id", "sort_order"),
+        UniqueConstraint("allocation_id", "label"),
+    )
+
+    id: str = Field(primary_key=True)
+    allocation_id: str = Field(foreign_key="portfolio_allocations.id", index=True)
+    sort_order: int
+    label: str
+    mechanism: str
+    allocation_effect: str
+
+
+class PortfolioAllocationRiskClusterMember(SQLModel, table=True):
+    __tablename__ = "portfolio_allocation_risk_cluster_members"  # pyright: ignore[reportAssignmentType]
+    __table_args__ = (
+        UniqueConstraint("cluster_id", "allocation_position_id"),
+        UniqueConstraint("cluster_id", "sort_order"),
+    )
+
+    id: str = Field(primary_key=True)
+    cluster_id: str = Field(
+        foreign_key="portfolio_allocation_risk_clusters.id", index=True
+    )
+    allocation_position_id: str = Field(
+        foreign_key="portfolio_allocation_positions.id", index=True
+    )
+    sort_order: int

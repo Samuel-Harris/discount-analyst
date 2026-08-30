@@ -1,3 +1,8 @@
+import {
+  getWorkflowAgentConversationApiAgentsWorkflowRunsWorkflowRunIdAgentsWorkflowAgentNameConversationGet,
+  type ConversationResponse,
+} from "./generated";
+
 export type {
   AgentExecutionSummary,
   ConversationResponse,
@@ -21,8 +26,18 @@ export {
   getDashboardStatusApiStatusGet as fetchDashboardStatus,
   getPortfolioApiPortfolioGet as fetchPortfolio,
   getRunAgentConversationApiAgentsRunsRunIdAgentsAgentNameConversationGet as fetchRunAgentConversation,
-  getSurveyorConversationApiAgentsWorkflowRunsWorkflowRunIdAgentsSurveyorConversationGet as fetchSurveyorConversation,
   getWorkflowRunApiWorkflowRunsWorkflowRunIdGet as fetchWorkflowRunDetail,
   listWorkflowRunsApiWorkflowRunsGet as fetchWorkflowRuns,
   retryFailedAgentsApiWorkflowRunsWorkflowRunIdRetryFailedAgentsPost as retryFailedAgents,
 } from "./generated";
+
+export function fetchSurveyorConversation(
+  workflowRunId: string,
+  options?: RequestInit,
+): Promise<ConversationResponse> {
+  return getWorkflowAgentConversationApiAgentsWorkflowRunsWorkflowRunIdAgentsWorkflowAgentNameConversationGet(
+    workflowRunId,
+    "surveyor",
+    options,
+  );
+}

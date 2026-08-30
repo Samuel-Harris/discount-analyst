@@ -21,7 +21,6 @@ from discount_analyst.adapters.persistence.crud.run_executions import (
     insert_ticker_run_with_agents,
 )
 from discount_analyst.adapters.persistence.crud.workflow_runs import (
-    insert_surveyor_workflow_execution,
     insert_workflow_run,
 )
 from discount_analyst.adapters.persistence.models import (
@@ -195,6 +194,16 @@ def test_surveyor_conversation_after_seed(client: TestClient) -> None:
     assert "assistant_response" in r.json()
 
 
+def test_curator_conversation_after_seed(client: TestClient) -> None:
+    app = cast(FastAPI, client.app)
+    with app.state.db_session_factory() as session:
+        seed(session)
+    wf_id = client.get("/api/workflow_runs").json()[0]["id"]
+    r = client.get(f"/api/agents/workflow_runs/{wf_id}/agents/curator/conversation")
+    assert r.status_code == 200
+    assert "assistant_response" in r.json()
+
+
 def test_run_agent_conversation_after_seed(client: TestClient) -> None:
     app = cast(FastAPI, client.app)
     with app.state.db_session_factory() as session:
@@ -219,11 +228,7 @@ def _insert_retryable_workflow(app: FastAPI) -> tuple[str, str]:
             workflow_run_id=workflow_run_id,
             portfolio_tickers=["RET.L"],
             is_mock=True,
-        )
-        insert_surveyor_workflow_execution(
-            session,
-            execution_id=surveyor_execution_id,
-            workflow_run_id=workflow_run_id,
+            surveyor_execution_id=surveyor_execution_id,
         )
         insert_ticker_run_with_agents(
             session,

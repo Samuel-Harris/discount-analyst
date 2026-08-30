@@ -3,13 +3,22 @@
 from __future__ import annotations
 
 import random
+from collections import defaultdict
 from datetime import date
 
+from discount_analyst.agents.curator.schema import (
+    CuratorInput,
+    CuratorProposal,
+    ProposedCash,
+    ProposedPosition,
+    ProposedSharedRiskCluster,
+)
 from discount_analyst.agents.appraiser.schema import (
     AppraiserOutput,
     ValuationMethod,
     ValuationMethodResult,
 )
+from discount_analyst.domain.allocations.constants import COMPANY_WEIGHT_CAP_PCT
 from discount_analyst.domain.valuation.intrinsic_value_distribution import (
     IntrinsicValueDistribution,
 )
@@ -474,4 +483,142 @@ def mock_rating_table_decision(
         margin_of_safety=mos,
         is_existing_position=is_existing_position,
         decision_date=date.today().isoformat(),
+    )
+
+
+def mock_curator_proposal(curator_input: CuratorInput) -> CuratorProposal:
+    """Deterministic CuratorProposal that obeys policy, the 15% cap, and 100% totals."""
+    sized: dict[str, ProposedPosition] = {}
+    company_targets: dict[str, float] = defaultdict(float)
+    company_highs: dict[str, float] = defaultdict(float)
+
+    forced_lanes = [
+        lane
+        for lane in curator_input.lanes
+        if lane.identity.policy.kind == "forced_zero"
+    ]
+    retain_lanes = [
+        lane
+        for lane in curator_input.lanes
+        if lane.identity.policy.kind == "retain_or_reduce"
+    ]
+    investable_lanes = [
+        lane
+        for lane in curator_input.lanes
+        if lane.identity.policy.kind == "investable"
+    ]
+
+    for lane in forced_lanes:
+        ticker = lane.identity.ticker
+        sized[ticker] = ProposedPosition(
+            ticker=ticker,
+            target_weight_pct=0.0,
+            acceptable_weight_low_pct=0.0,
+            acceptable_weight_high_pct=0.0,
+            rationale="Forced zero by lane rating.",
+        )
+
+    for lane in retain_lanes:
+        ticker = lane.identity.ticker
+        company_key = lane.identity.company_name.casefold()
+        current = lane.identity.current_weight_pct
+        room = round(COMPANY_WEIGHT_CAP_PCT - company_targets[company_key], 2)
+        target = round(min(current, max(0.0, room)), 2)
+        low = round(max(0.0, target - 1.0), 2)
+        sized[ticker] = ProposedPosition(
+            ticker=ticker,
+            target_weight_pct=target,
+            acceptable_weight_low_pct=low,
+            acceptable_weight_high_pct=target,
+            rationale="Existing HOLD retained or reduced within the no-trade band.",
+        )
+        company_targets[company_key] += target
+        company_highs[company_key] += target
+
+    leftover = round(
+        100.0 - sum(position.target_weight_pct for position in sized.values()),
+        2,
+    )
+    for index, lane in enumerate(investable_lanes):
+        ticker = lane.identity.ticker
+        company_key = lane.identity.company_name.casefold()
+        remaining_names = len(investable_lanes) - index
+        room = round(
+            min(
+                COMPANY_WEIGHT_CAP_PCT - company_targets[company_key],
+                COMPANY_WEIGHT_CAP_PCT - company_highs[company_key],
+            ),
+            2,
+        )
+        even = round(leftover / remaining_names, 2) if remaining_names else 0.0
+        target = round(max(0.0, min(room, even, leftover)), 2)
+        leftover = round(leftover - target, 2)
+        company_targets[company_key] += target
+        if target == 0.0:
+            sized[ticker] = ProposedPosition(
+                ticker=ticker,
+                target_weight_pct=0.0,
+                acceptable_weight_low_pct=0.0,
+                acceptable_weight_high_pct=0.0,
+                rationale="No residual capital after higher-conviction names.",
+            )
+            continue
+        low = round(max(0.0, target - 1.0), 2)
+        high_room = round(COMPANY_WEIGHT_CAP_PCT - company_highs[company_key], 2)
+        high = round(min(COMPANY_WEIGHT_CAP_PCT, target + 1.0, high_room), 2)
+        if high < target:
+            high = target
+        company_highs[company_key] += high
+        sized[ticker] = ProposedPosition(
+            ticker=ticker,
+            target_weight_pct=target,
+            acceptable_weight_low_pct=low,
+            acceptable_weight_high_pct=high,
+            rationale="Conviction-weighted mock allocation.",
+        )
+
+    cash_target = leftover
+    cash_low = round(max(0.0, cash_target - 1.0), 2)
+    cash_high = round(min(100.0, cash_target + 1.0), 2)
+    positions = tuple(sized[lane.identity.ticker] for lane in curator_input.lanes)
+    return CuratorProposal(
+        allocation_date=curator_input.allocation_date,
+        positions=positions,
+        cash=ProposedCash(
+            target_weight_pct=cash_target,
+            acceptable_weight_low_pct=cash_low,
+            acceptable_weight_high_pct=cash_high,
+            rationale="Residual capital held in cash.",
+        ),
+        shared_risk_clusters=_mock_shared_risk_clusters(curator_input),
+        portfolio_rationale=(
+            "Mock Curator sizes forced-zero names at zero, keeps existing HOLD "
+            "at or below the 15% company cap, and places leftover capital in "
+            "investable names or cash."
+        ),
+    )
+
+
+def _mock_shared_risk_clusters(
+    curator_input: CuratorInput,
+) -> tuple[ProposedSharedRiskCluster, ...]:
+    members = tuple(
+        lane.identity.ticker
+        for lane in curator_input.lanes
+        if "semiconductor" in lane.identity.sector.casefold()
+        or "semiconductor" in lane.identity.industry.casefold()
+        or "foundry" in lane.identity.industry.casefold()
+    )
+    if len(members) < 2:
+        return ()
+    return (
+        ProposedSharedRiskCluster(
+            label="Semiconductor supply chain",
+            member_tickers=members,
+            mechanism="Shared foundry and equipment cycle risk.",
+            allocation_effect=(
+                "Weaker correlated exposure is kept at zero or reduced versus "
+                "the stronger idea."
+            ),
+        ),
     )

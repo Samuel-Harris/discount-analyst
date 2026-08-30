@@ -14,6 +14,12 @@ from typing import Any
 from sqlalchemy import select
 from sqlmodel import Session, col
 
+from discount_analyst.adapters.persistence.crud.portfolio_allocations import (
+    delete_portfolio_allocation_for_execution,
+)
+from discount_analyst.application.allocations.skip_reasons import (
+    LEGACY_WORKFLOW_WITHOUT_POSITION_SNAPSHOT,
+)
 from discount_analyst.application.workflows.agent_lane_order import LANE_AGENT_SLUGS
 from discount_analyst.adapters.persistence.crud.agent_output_persistence import (
     appraiser_output_from_report,
@@ -87,6 +93,7 @@ _AGENT_LANE_ORDER = {
 class RetryFailedAgentsPreparation:
     workflow_run_id: str
     surveyor_reset: bool
+    curator_reset: bool
     lane_reset_count: int
     agent_execution_reset_count: int
 
@@ -137,18 +144,21 @@ def workflow_can_retry_failed_agents(
     *,
     workflow_status: WorkflowRunStatusDb,
     surveyor: AgentExecution | None,
+    curator: AgentExecution | None,
     runs: list[Run],
     executions_by_run_id: dict[str, list[AgentExecution]],
 ) -> bool:
-    """Return whether a terminal workflow has failed or cancelled lane work to retry."""
+    """Return whether a terminal workflow has failed or cancelled work to retry."""
     if workflow_status.value not in _TERMINAL_RUN_STATUSES:
         return False
     if surveyor is not None and surveyor.status == ExecutionStatusDb.FAILED:
         return True
-    return any(
+    if any(
         _first_retry_lane_order(run, executions_by_run_id.get(run.id, [])) is not None
         for run in runs
-    )
+    ):
+        return True
+    return _curator_is_retryable(curator, runs)
 
 
 def _first_retry_lane_order(run: Run, executions: list[AgentExecution]) -> int | None:
@@ -174,6 +184,38 @@ def _first_retry_lane_order(run: Run, executions: list[AgentExecution]) -> int |
     return None
 
 
+def _is_legacy_skipped_curator(execution: AgentExecution) -> bool:
+    return (
+        execution.status == ExecutionStatusDb.SKIPPED
+        and execution.error_message == LEGACY_WORKFLOW_WITHOUT_POSITION_SNAPSHOT
+    )
+
+
+def _curator_invalidated_by_upstream(
+    curator: AgentExecution | None,
+    *,
+    surveyor_reset: bool,
+    lane_reset_count: int,
+) -> bool:
+    if curator is None or _is_legacy_skipped_curator(curator):
+        return False
+    return surveyor_reset or lane_reset_count > 0
+
+
+def _curator_is_retryable(curator: AgentExecution | None, runs: list[Run]) -> bool:
+    if curator is None or _is_legacy_skipped_curator(curator):
+        return False
+    if curator.status not in _RETRYABLE_LANE_EXECUTION_STATUSES:
+        return False
+    return all(run.status == WorkflowRunStatusDb.COMPLETED for run in runs)
+
+
+def _reset_curator_execution(session: Session, curator: AgentExecution) -> None:
+    delete_portfolio_allocation_for_execution(session, curator.id)
+    _reset_agent_execution(curator)
+    session.add(curator)
+
+
 def prepare_retry_failed_agents(
     session: Session,
     workflow_run_id: str,
@@ -186,15 +228,13 @@ def prepare_retry_failed_agents(
         raise RetryWorkflowRunNotTerminalError(workflow_run_id)
 
     surveyor_reset = False
+    curator_reset = False
     lane_reset_count = 0
     agent_execution_reset_count = 0
 
-    surveyor = session.scalars(
-        select(AgentExecution).where(
-            col(AgentExecution.workflow_run_id) == workflow_run_id,
-            col(AgentExecution.agent_name) == AgentNameDb.SURVEYOR,
-        )
-    ).first()
+    surveyor = get_workflow_scoped_execution(
+        session, workflow_run_id, AgentNameDb.SURVEYOR
+    )
     if surveyor is not None and surveyor.status == ExecutionStatusDb.FAILED:
         _reset_agent_execution(surveyor)
         session.add(surveyor)
@@ -203,6 +243,8 @@ def prepare_retry_failed_agents(
     runs = list(
         session.scalars(select(Run).where(col(Run.workflow_run_id) == workflow_run_id))
     )
+    curator = get_workflow_curator_execution(session, workflow_run_id)
+    curator_only_retry = _curator_is_retryable(curator, runs)
     for run in runs:
         executions = sorted(
             session.scalars(
@@ -239,7 +281,18 @@ def prepare_retry_failed_agents(
                 session.add(execution)
                 agent_execution_reset_count += 1
 
-    if not surveyor_reset and lane_reset_count == 0:
+    if (
+        _curator_invalidated_by_upstream(
+            curator,
+            surveyor_reset=surveyor_reset,
+            lane_reset_count=lane_reset_count,
+        )
+        or curator_only_retry
+    ) and curator is not None:
+        _reset_curator_execution(session, curator)
+        curator_reset = True
+
+    if not surveyor_reset and lane_reset_count == 0 and not curator_reset:
         raise NoFailedAgentsToRetryError(workflow_run_id)
 
     workflow.status = WorkflowRunStatusDb.RUNNING
@@ -250,6 +303,7 @@ def prepare_retry_failed_agents(
     return RetryFailedAgentsPreparation(
         workflow_run_id=workflow_run_id,
         surveyor_reset=surveyor_reset,
+        curator_reset=curator_reset,
         lane_reset_count=lane_reset_count,
         agent_execution_reset_count=agent_execution_reset_count,
     )
@@ -332,27 +386,34 @@ def get_agent_execution_status_by_run_and_agent(
     return None if row is None else row.status.value
 
 
+def get_workflow_scoped_execution(
+    session: Session, workflow_run_id: str, agent_name: AgentNameDb
+) -> AgentExecution | None:
+    return session.scalars(
+        select(AgentExecution).where(
+            col(AgentExecution.workflow_run_id) == workflow_run_id,
+            col(AgentExecution.agent_name) == agent_name,
+        )
+    ).first()
+
+
+def get_workflow_curator_execution(
+    session: Session, workflow_run_id: str
+) -> AgentExecution | None:
+    return get_workflow_scoped_execution(session, workflow_run_id, AgentNameDb.CURATOR)
+
+
 def get_workflow_surveyor_execution_id(
     session: Session, workflow_run_id: str
 ) -> str | None:
-    row = session.scalars(
-        select(col(AgentExecution.id)).where(
-            col(AgentExecution.workflow_run_id) == workflow_run_id,
-            col(AgentExecution.agent_name) == AgentNameDb.SURVEYOR,
-        )
-    ).first()
-    return row
+    row = get_workflow_scoped_execution(session, workflow_run_id, AgentNameDb.SURVEYOR)
+    return None if row is None else row.id
 
 
 def get_workflow_surveyor_execution_status(
     session: Session, workflow_run_id: str
 ) -> str | None:
-    row = session.scalars(
-        select(AgentExecution).where(
-            col(AgentExecution.workflow_run_id) == workflow_run_id,
-            col(AgentExecution.agent_name) == AgentNameDb.SURVEYOR,
-        )
-    ).first()
+    row = get_workflow_scoped_execution(session, workflow_run_id, AgentNameDb.SURVEYOR)
     return None if row is None else row.status.value
 
 
@@ -496,7 +557,7 @@ def persist_agent_execution_structured_output(
         case AgentNameDb.APPRAISER:
             replace_appraiser_output(session, execution, output_json)
         case _:
-            pass
+            return
 
 
 def update_agent_execution(

@@ -31,7 +31,40 @@ export const AgentNameSlug = {
   strategist: 'strategist',
   sentinel: 'sentinel',
   appraiser: 'appraiser',
+  curator: 'curator',
 } as const;
+
+export type AllocationPositionPolicy = InvestablePolicy | RetainOrReducePolicy | ForcedZeroPolicy;
+
+export interface AllocationPosition {
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  acceptable_weight_high_pct: number;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  acceptable_weight_low_pct: number;
+  action: RebalanceAction;
+  company_name: string;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  current_weight_pct: number;
+  is_existing_position: boolean;
+  policy: AllocationPositionPolicy;
+  rationale: string;
+  source_run_id: string;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  target_weight_pct: number;
+  ticker: string;
+}
 
 export type CandidateGateStatusApi = typeof CandidateGateStatusApi[keyof typeof CandidateGateStatusApi];
 
@@ -56,6 +89,30 @@ export interface CandidateGateSummary {
   is_actively_trading: CandidateGateSummaryIsActivelyTrading;
   resolved_ticker: CandidateGateSummaryResolvedTicker;
   source_ticker: string;
+}
+
+export interface CashAllocation {
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  acceptable_weight_high_pct: number;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  acceptable_weight_low_pct: number;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  current_weight_pct: number;
+  rationale: string;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  target_weight_pct: number;
 }
 
 export interface ConversationResponse {
@@ -113,9 +170,29 @@ export const ExecutionStatusApi = {
   cancelled: 'cancelled',
 } as const;
 
+export interface ForcedZeroPolicy {
+  kind?: 'forced_zero';
+  reason: ForcedZeroReason;
+}
+
+export type ForcedZeroReason = typeof ForcedZeroReason[keyof typeof ForcedZeroReason];
+
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const ForcedZeroReason = {
+  new_hold: 'new_hold',
+  sell: 'sell',
+  strong_sell: 'strong_sell',
+} as const;
+
 export interface HTTPValidationError {
   detail?: ValidationError[];
 }
+
+export const InvestablePolicyValue = {
+  kind: 'investable',
+} as const;
+export type InvestablePolicy = typeof InvestablePolicyValue;
 
 export type ModelName = typeof ModelName[keyof typeof ModelName];
 
@@ -137,6 +214,14 @@ export const ModelName = {
   'deepseek-v4-pro': 'deepseek-v4-pro',
 } as const;
 
+export interface PortfolioAllocation {
+  allocation_date: string;
+  cash: CashAllocation;
+  portfolio_rationale: string;
+  positions: AllocationPosition[];
+  shared_risk_clusters: SharedRiskCluster[];
+}
+
 export interface PortfolioResponse {
   portfolio_tickers: string[];
 }
@@ -146,19 +231,33 @@ export interface ProfilerRunCreated {
   ticker: string;
 }
 
-export type SurveyorExecutionSummaryCompletedAt = string | null;
+export type RebalanceAction = typeof RebalanceAction[keyof typeof RebalanceAction];
 
-export type SurveyorExecutionSummaryModelName = ModelName | null;
 
-export type SurveyorExecutionSummaryStartedAt = string | null;
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const RebalanceAction = {
+  enter: 'enter',
+  increase: 'increase',
+  hold: 'hold',
+  reduce: 'reduce',
+  exit: 'exit',
+  avoid: 'avoid',
+} as const;
 
-export interface SurveyorExecutionSummary {
-  agent_name: AgentNameSlug;
-  completed_at: SurveyorExecutionSummaryCompletedAt;
-  id: string;
-  model_name?: SurveyorExecutionSummaryModelName;
-  started_at: SurveyorExecutionSummaryStartedAt;
-  status: ExecutionStatusApi;
+export interface RetainOrReducePolicy {
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  current_weight_pct: number;
+  kind?: 'retain_or_reduce';
+}
+
+export interface SharedRiskCluster {
+  allocation_effect: string;
+  label: string;
+  mechanism: string;
+  member_tickers: string[];
 }
 
 export type TickerRunDetailCandidateGate = CandidateGateSummary | null;
@@ -204,13 +303,16 @@ export interface ValidationError {
 
 export type WorkflowRunDetailResponseCompletedAt = string | null;
 
+export type WorkflowRunDetailResponseCuratorExecution = AgentExecutionSummary | null;
+
 export type WorkflowRunDetailResponseErrorMessage = string | null;
 
-export type WorkflowRunDetailResponseSurveyorExecution = SurveyorExecutionSummary | null;
+export type WorkflowRunDetailResponseSurveyorExecution = AgentExecutionSummary | null;
 
 export interface WorkflowRunDetailResponse {
   can_retry_failed_agents: boolean;
   completed_at: WorkflowRunDetailResponseCompletedAt;
+  curator_execution: WorkflowRunDetailResponseCuratorExecution;
   error_message: WorkflowRunDetailResponseErrorMessage;
   id: string;
   is_mock: boolean;
@@ -245,6 +347,15 @@ export const WorkflowRunStatusApi = {
   completed: 'completed',
   failed: 'failed',
   cancelled: 'cancelled',
+} as const;
+
+export type WorkflowScopedAgentNameSlug = typeof WorkflowScopedAgentNameSlug[keyof typeof WorkflowScopedAgentNameSlug];
+
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const WorkflowScopedAgentNameSlug = {
+  surveyor: 'surveyor',
+  curator: 'curator',
 } as const;
 
 export type YfinanceFreshnessResponseLatestVersion = string | null;
@@ -282,19 +393,21 @@ export const getRunAgentConversationApiAgentsRunsRunIdAgentsAgentNameConversatio
 
 
 /**
- * @summary Get Surveyor Conversation
+ * @summary Get Workflow Agent Conversation
  */
-export const getGetSurveyorConversationApiAgentsWorkflowRunsWorkflowRunIdAgentsSurveyorConversationGetUrl = (workflowRunId: string,) => {
+export const getGetWorkflowAgentConversationApiAgentsWorkflowRunsWorkflowRunIdAgentsWorkflowAgentNameConversationGetUrl = (workflowRunId: string,
+    workflowAgentName: WorkflowScopedAgentNameSlug,) => {
 
 
   
 
-  return `/api/agents/workflow_runs/${workflowRunId}/agents/surveyor/conversation`
+  return `/api/agents/workflow_runs/${workflowRunId}/agents/${workflowAgentName}/conversation`
 }
 
-export const getSurveyorConversationApiAgentsWorkflowRunsWorkflowRunIdAgentsSurveyorConversationGet = async (workflowRunId: string, options?: RequestInit): Promise<ConversationResponse> => {
+export const getWorkflowAgentConversationApiAgentsWorkflowRunsWorkflowRunIdAgentsWorkflowAgentNameConversationGet = async (workflowRunId: string,
+    workflowAgentName: WorkflowScopedAgentNameSlug, options?: RequestInit): Promise<ConversationResponse> => {
   
-  return dashboardMutator<ConversationResponse>(getGetSurveyorConversationApiAgentsWorkflowRunsWorkflowRunIdAgentsSurveyorConversationGetUrl(workflowRunId),
+  return dashboardMutator<ConversationResponse>(getGetWorkflowAgentConversationApiAgentsWorkflowRunsWorkflowRunIdAgentsWorkflowAgentNameConversationGetUrl(workflowRunId,workflowAgentName),
   {      
     ...options,
     method: 'GET'
@@ -440,6 +553,30 @@ export const getGetWorkflowRunApiWorkflowRunsWorkflowRunIdGetUrl = (workflowRunI
 export const getWorkflowRunApiWorkflowRunsWorkflowRunIdGet = async (workflowRunId: string, options?: RequestInit): Promise<WorkflowRunDetailResponse> => {
   
   return dashboardMutator<WorkflowRunDetailResponse>(getGetWorkflowRunApiWorkflowRunsWorkflowRunIdGetUrl(workflowRunId),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
+ * @summary Get Workflow Allocation
+ */
+export const getGetWorkflowAllocationApiWorkflowRunsWorkflowRunIdAllocationGetUrl = (workflowRunId: string,) => {
+
+
+  
+
+  return `/api/workflow_runs/${workflowRunId}/allocation`
+}
+
+export const getWorkflowAllocationApiWorkflowRunsWorkflowRunIdAllocationGet = async (workflowRunId: string, options?: RequestInit): Promise<PortfolioAllocation> => {
+  
+  return dashboardMutator<PortfolioAllocation>(getGetWorkflowAllocationApiWorkflowRunsWorkflowRunIdAllocationGetUrl(workflowRunId),
   {      
     ...options,
     method: 'GET'

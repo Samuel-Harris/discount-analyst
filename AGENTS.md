@@ -1,4 +1,4 @@
-<!-- Generated: 2026-02-23 | Updated: 2026-08-30 (verify-discount-analyst skill) -->
+<!-- Generated: 2026-02-23 | Updated: 2026-08-30 (curator pipeline) -->
 
 # Discount Analyst
 
@@ -10,9 +10,9 @@ An AI-powered stock analysis tool ("Discount Analyst") for identifying and valui
 
 The live automated pipeline is documented in [`current_workflow.md`](current_workflow.md) (regenerate with the `sync-workflow` skill). Dashboard and CLI run:
 
-**Surveyor** (universe screen) and/or **Profiler** (named portfolio tickers) → deterministic candidate gate (dashboard only) → **Researcher** → **Strategist** → **Sentinel** (valuation gate) → **Appraiser** (if the gate passes) → deterministic rating table → `Verdict`.
+**Surveyor** (universe screen) and/or **Profiler** (named portfolio tickers) → deterministic candidate gate (dashboard only) → **Researcher** → **Strategist** → **Sentinel** (valuation gate) → **Appraiser** (if the gate passes) → deterministic rating table → `Verdict` → **Curator** (workflow-level portfolio construction, after every ticker lane is terminal-success).
 
-Human decision sits after that `Verdict`. One-shot agents remain available via `uv run discount-analyst agent {surveyor,profiler,researcher,strategist,sentinel,appraiser}`.
+Human decision sits after that allocation. One-shot agents remain available via `uv run discount-analyst agent {surveyor,profiler,researcher,strategist,sentinel,appraiser,curator}`.
 
 ## Key Files
 

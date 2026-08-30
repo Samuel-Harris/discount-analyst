@@ -21,7 +21,7 @@ Server-side home for Discount Analyst: the installable `discount_analyst` monoli
 
 | Directory                           | Purpose                                                             |
 | ----------------------------------- | ------------------------------------------------------------------- |
-| `src/discount_analyst/domain/`      | Pure domain: valuation, decisions, model selection.                 |
+| `src/discount_analyst/domain/`      | Pure domain: valuation, decisions, model selection, allocations.    |
 | `src/discount_analyst/agents/`      | Agent stages + `runtime/` + `tools/` + `common_prompts/`.           |
 | `src/discount_analyst/application/` | Ports, workflow helpers, decision builders, gate result types.      |
 | `src/discount_analyst/adapters/`    | Persistence, market data, orchestration, simulation, observability. |
@@ -37,7 +37,7 @@ Server-side home for Discount Analyst: the installable `discount_analyst` monoli
 
 | Put it in…         | When…                                            | Examples                                                 | Forbidden                                                    |
 | ------------------ | ------------------------------------------------ | -------------------------------------------------------- | ------------------------------------------------------------ |
-| `domain/`          | Pure rules/types with no I/O                     | `IntrinsicValueDistribution`, rating matrix, `ModelName` | Importing agents, adapters, FastAPI, SQLModel, httpx         |
+| `domain/`          | Pure rules/types with no I/O                     | `IntrinsicValueDistribution`, rating matrix, `ModelName`, `PortfolioAllocation` | Importing agents, adapters, FastAPI, SQLModel, httpx         |
 | `agents/`          | LLM stage factories, prompts, agent tool clients | Surveyor/Appraiser, `agents.tools.web_research`          | Importing adapters or entrypoints                            |
 | `application/`     | Use-cases, ports, builders over agent schemas    | `application.decisions.builders`, gate result DTOs       | Importing adapters, entrypoints, composition, SQLModel       |
 | `adapters/`        | DB, FMP/EODHD gates, mock mode, pipeline runner  | `adapters.persistence`, `adapters.orchestration`         | Cross-imports between persistence / market_data / simulation |
@@ -53,7 +53,7 @@ Server-side home for Discount Analyst: the installable `discount_analyst` monoli
 
 Coarse layers (high → low): `composition` → `entrypoints` → `adapters` → `application` → `agents` → `config` → `domain`.
 
-Also enforced: domain purity / protected importers; application forbidden adapters+SQLModel; API↔CLI independence; persistence ↔ market_data ↔ simulation independence; agent stage order (appraiser → … → surveyor).
+Also enforced: domain purity / protected importers; application forbidden adapters+SQLModel; API↔CLI independence; persistence ↔ market_data ↔ simulation independence; agent stage order (curator → appraiser → … → surveyor).
 
 Run: `uv run lint-imports` (also pre-commit + CI job `import-linter`).
 

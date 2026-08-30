@@ -9,9 +9,15 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from sqlmodel import Session
 
-from discount_analyst.adapters.persistence.crud import conversations as conv
+from discount_analyst.adapters.persistence.crud.conversations import (
+    get_conversation_for_workflow_agent,
+)
+from discount_analyst.adapters.persistence.models import AgentNameDb
 from discount_analyst.adapters.persistence.crud import run_executions as runs
 from discount_analyst.adapters.persistence.crud import workflow_runs as workflow_crud
+from discount_analyst.adapters.persistence.crud.portfolio_allocations import (
+    get_portfolio_allocation_for_workflow,
+)
 from discount_analyst.adapters.persistence.crud.db_utils import new_id
 from discount_analyst.application.workflows.agent_lane_order import (
     PROFILER_ENTRY_AGENT_NAMES,
@@ -63,9 +69,7 @@ async def test_mock_workflow_completes_profiler_and_surveyor(
             workflow_run_id=workflow_run_id,
             portfolio_tickers=portfolio,
             is_mock=True,
-        )
-        workflow_crud.insert_surveyor_workflow_execution(
-            session, execution_id=survey, workflow_run_id=workflow_run_id
+            surveyor_execution_id=survey,
         )
     run_id = new_id()
     with session_factory() as session:
@@ -89,10 +93,14 @@ async def test_mock_workflow_completes_profiler_and_surveyor(
     with session_factory() as session:
         detail = workflow_crud.fetch_workflow_detail(session, workflow_run_id)
     assert detail is not None
+    assert detail["status"] == "completed"
     surveyor_execution = detail["surveyor_execution"]
     assert surveyor_execution is not None
     assert surveyor_execution["status"] == "completed"
     assert surveyor_execution["model_name"] is None
+    curator_execution = detail["curator_execution"]
+    assert curator_execution is not None
+    assert curator_execution["status"] == "completed"
     surveyor_lanes = [r for r in detail["runs"] if r["entry_path"] == "surveyor"]
     profiler_lanes = [r for r in detail["runs"] if r["entry_path"] == "profiler"]
     assert len(profiler_lanes) == 1
@@ -108,10 +116,18 @@ async def test_mock_workflow_completes_profiler_and_surveyor(
         assert a["model_name"] is None
 
     with session_factory() as session:
-        surveyor_conv = conv.get_conversation_for_workflow_surveyor(
-            session, workflow_run_id
+        surveyor_conv = get_conversation_for_workflow_agent(
+            session, workflow_run_id, agent_name=AgentNameDb.SURVEYOR
         )
+        allocation = get_portfolio_allocation_for_workflow(session, workflow_run_id)
     assert surveyor_conv is not None
+    assert allocation is not None
+    equity = sum(position.target_weight_pct for position in allocation.positions)
+    assert abs(equity + allocation.cash.target_weight_pct - 100.0) <= 0.05
+    for position in allocation.positions:
+        if position.policy.kind == "forced_zero":
+            assert position.target_weight_pct == 0.0
+            assert position.acceptable_weight_high_pct == 0.0
 
 
 @pytest.mark.asyncio
@@ -133,11 +149,7 @@ async def test_surveyor_failure_stops_workflow_before_profiler_branches(
             workflow_run_id=workflow_run_id,
             portfolio_tickers=["M1.L"],
             is_mock=True,
-        )
-        workflow_crud.insert_surveyor_workflow_execution(
-            session,
-            execution_id=surveyor_execution_id,
-            workflow_run_id=workflow_run_id,
+            surveyor_execution_id=surveyor_execution_id,
         )
         runs.insert_ticker_run_with_agents(
             session,
@@ -170,6 +182,9 @@ async def test_surveyor_failure_stops_workflow_before_profiler_branches(
     surveyor_execution = detail["surveyor_execution"]
     assert surveyor_execution is not None
     assert surveyor_execution["status"] == "failed"
+    curator_execution = detail["curator_execution"]
+    assert curator_execution is not None
+    assert curator_execution["status"] == "cancelled"
 
     profiler_lane = next(
         run for run in detail["runs"] if run["entry_path"] == "profiler"
@@ -196,11 +211,6 @@ async def test_manual_cancel_marks_workflow_and_children_cancelled(
             workflow_run_id=workflow_run_id,
             portfolio_tickers=["M1.L"],
             is_mock=True,
-        )
-        workflow_crud.insert_surveyor_workflow_execution(
-            session,
-            execution_id=new_id(),
-            workflow_run_id=workflow_run_id,
         )
         runs.insert_ticker_run_with_agents(
             session,
@@ -261,11 +271,6 @@ async def test_appraiser_conversation_failure_does_not_leave_appraiser_completed
             workflow_run_id=workflow_run_id,
             portfolio_tickers=["M1.L"],
             is_mock=True,
-        )
-        workflow_crud.insert_surveyor_workflow_execution(
-            session,
-            execution_id=new_id(),
-            workflow_run_id=workflow_run_id,
         )
         runs.insert_ticker_run_with_agents(
             session,
@@ -355,11 +360,6 @@ async def test_lane_abort_marks_unreached_downstream_agents_skipped(
             portfolio_tickers=["M1.L"],
             is_mock=True,
         )
-        workflow_crud.insert_surveyor_workflow_execution(
-            session,
-            execution_id=new_id(),
-            workflow_run_id=workflow_run_id,
-        )
         runs.insert_ticker_run_with_agents(
             session,
             run_id=new_id(),
@@ -405,6 +405,9 @@ async def test_lane_abort_marks_unreached_downstream_agents_skipped(
     assert statuses["strategist"] == "skipped"
     assert statuses["sentinel"] == "skipped"
     assert statuses["appraiser"] == "skipped"
+    curator_execution = detail["curator_execution"]
+    assert curator_execution is not None
+    assert curator_execution["status"] == "skipped"
 
 
 @pytest.mark.asyncio
@@ -428,11 +431,7 @@ async def test_retry_resume_skips_completed_surveyor_without_duplicate_lanes(
             workflow_run_id=workflow_run_id,
             portfolio_tickers=portfolio,
             is_mock=True,
-        )
-        workflow_crud.insert_surveyor_workflow_execution(
-            session,
-            execution_id=surveyor_execution_id,
-            workflow_run_id=workflow_run_id,
+            surveyor_execution_id=surveyor_execution_id,
         )
         runs.insert_ticker_run_with_agents(
             session,

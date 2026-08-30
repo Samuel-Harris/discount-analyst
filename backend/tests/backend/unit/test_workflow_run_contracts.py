@@ -9,6 +9,7 @@ from uuid import UUID
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from discount_analyst.domain.allocations.allocation import PortfolioAllocation
 from discount_analyst.entrypoints.api.contracts.api import (
     ConversationResponse,
     CreateWorkflowRunResponse,
@@ -66,6 +67,8 @@ def test_workflow_run_detail_matches_contract_after_post(client: TestClient) -> 
     assert m.surveyor_execution is not None
     assert m.surveyor_execution.agent_name == "surveyor"
     assert m.surveyor_execution.model_name is None
+    assert m.curator_execution is not None
+    assert m.curator_execution.agent_name == "curator"
     assert len(m.runs) == 1
     run0 = m.runs[0]
     assert run0.entry_path == "profiler"
@@ -100,6 +103,9 @@ def test_workflow_run_detail_seed_profiler_and_surveyor_lanes(
     profiler_lane = next(r for r in detail.runs if r.entry_path == "profiler")
     names = [a.agent_name for a in profiler_lane.agent_executions]
     assert names[0] == "profiler"
+    assert detail.curator_execution is not None
+    assert detail.curator_execution.agent_name == "curator"
+    assert detail.curator_execution.status == "completed"
 
 
 def test_list_newest_workflow_first(client: TestClient) -> None:
@@ -139,6 +145,14 @@ def test_conversation_endpoints_validate(client: TestClient) -> None:
     assert surv.system_prompt
     assert surv.assistant_response
 
+    alloc = ConversationResponse.model_validate(
+        client.get(
+            f"/api/agents/workflow_runs/{wf_id}/agents/curator/conversation"
+        ).json()
+    )
+    assert alloc.system_prompt
+    assert alloc.assistant_response
+
     runs = client.get(f"/api/workflow_runs/{wf_id}").json()["runs"]
     run_id = next(r["id"] for r in runs if r["entry_path"] == "profiler")
     prof = ConversationResponse.model_validate(
@@ -171,6 +185,49 @@ def test_run_agent_conversation_invalid_agent_name(client: TestClient) -> None:
         "/api/agents/runs/00000000-0000-4000-8000-000000000005/agents/not-an-agent/conversation"
     )
     assert r.status_code == 422
+
+
+def test_workflow_agent_conversation_rejects_lane_agent_name(
+    client: TestClient,
+) -> None:
+    r = client.get(
+        "/api/agents/workflow_runs/00000000-0000-4000-8000-000000000006"
+        "/agents/profiler/conversation"
+    )
+    assert r.status_code == 422
+
+
+def test_workflow_allocation_after_seed(client: TestClient) -> None:
+    app = cast(FastAPI, client.app)
+    with app.state.db_session_factory() as session:
+        seed(session)
+    wf_id = client.get("/api/workflow_runs").json()[0]["id"]
+    allocation = PortfolioAllocation.model_validate(
+        client.get(f"/api/workflow_runs/{wf_id}/allocation").json()
+    )
+    cash_and_targets = allocation.cash.target_weight_pct + sum(
+        position.target_weight_pct for position in allocation.positions
+    )
+    assert abs(cash_and_targets - 100.0) <= 0.05
+
+
+def test_workflow_allocation_not_found_when_pending(client: TestClient) -> None:
+    wf_id = client.post(
+        "/api/workflow_runs",
+        json={"portfolio_tickers": ["PEND.L"], "is_mock": True},
+    ).json()["workflow_run_id"]
+    assert client.get(f"/api/workflow_runs/{wf_id}/allocation").status_code == 404
+
+
+def test_workflow_allocation_not_found_for_missing_workflow(
+    client: TestClient,
+) -> None:
+    assert (
+        client.get(
+            "/api/workflow_runs/00000000-0000-4000-8000-000000000007/allocation"
+        ).status_code
+        == 404
+    )
 
 
 def test_portfolio_response_contract(client: TestClient) -> None:
