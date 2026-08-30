@@ -7,31 +7,36 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlmodel import Session
+from sqlmodel import Session, col, select
 
 from discount_analyst.adapters.persistence.crud.conversations import (
+    get_conversation_for_run_agent,
     get_conversation_for_workflow_agent,
 )
-from discount_analyst.adapters.persistence.models import AgentNameDb
 from discount_analyst.adapters.persistence.crud import run_executions as runs
 from discount_analyst.adapters.persistence.crud import workflow_runs as workflow_crud
 from discount_analyst.adapters.persistence.crud.portfolio_allocations import (
     get_portfolio_allocation_for_workflow,
 )
 from discount_analyst.adapters.persistence.crud.db_utils import new_id
-from discount_analyst.application.workflows.agent_lane_order import (
-    PROFILER_ENTRY_AGENT_NAMES,
-)
-from discount_analyst.adapters.simulation import mock_outputs
 from discount_analyst.adapters.persistence.migrate import migrate_to_head
 from discount_analyst.adapters.persistence.models import (
     AgentExecution,
+    AgentNameDb,
     ExecutionStatusDb,
     Run,
+    WorkflowInvestmentThesis,
+    WorkflowInvestmentThesisOriginDb,
     WorkflowRun,
     WorkflowRunStatusDb,
 )
+from discount_analyst.adapters.simulation import mock_outputs
+from discount_analyst.agents.strategist.schema import MispricingThesis
+from discount_analyst.application.workflows.agent_lane_order import (
+    PROFILER_ENTRY_AGENT_NAMES,
+)
 from discount_analyst.adapters.persistence.session import (
+    SessionFactory,
     create_dashboard_engine,
     create_session_factory,
 )
@@ -185,6 +190,16 @@ async def test_surveyor_failure_stops_workflow_before_profiler_branches(
     curator_execution = detail["curator_execution"]
     assert curator_execution is not None
     assert curator_execution["status"] == "cancelled"
+
+    with session_factory() as session:
+        snapshots = list(
+            session.scalars(
+                select(WorkflowInvestmentThesis).where(
+                    col(WorkflowInvestmentThesis.workflow_run_id) == workflow_run_id
+                )
+            )
+        )
+    assert snapshots == []
 
     profiler_lane = next(
         run for run in detail["runs"] if run["entry_path"] == "profiler"
@@ -509,3 +524,109 @@ async def test_retry_resume_skips_completed_surveyor_without_duplicate_lanes(
     assert current_surveyor_lane_ids == original_surveyor_lane_ids
     profiler_lane = next(row for row in detail["runs"] if row["id"] == profiler_run_id)
     assert profiler_lane["status"] == "completed"
+
+
+def _bootstrap_mock_workflow(
+    session_factory: SessionFactory,
+    *,
+    workflow_run_id: str,
+    portfolio: list[str],
+) -> None:
+    with session_factory() as session:
+        workflow_crud.insert_workflow_run(
+            session,
+            workflow_run_id=workflow_run_id,
+            portfolio_tickers=portfolio,
+            is_mock=True,
+        )
+        runs.insert_ticker_run_with_agents(
+            session,
+            run_id=new_id(),
+            workflow_run_id=workflow_run_id,
+            ticker=portfolio[0],
+            company_name=portfolio[0],
+            entry_path="profiler",
+            is_existing_position=True,
+            is_mock=True,
+            agent_names=PROFILER_ENTRY_AGENT_NAMES,
+        )
+        session.commit()
+
+
+@pytest.mark.asyncio
+async def test_second_mock_workflow_keeps_snapshotted_thesis(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "two_run.sqlite"
+    settings = dashboard_settings_for_tests(database_path=db_path)
+    configure_dashboard_observability(settings)
+    engine = create_dashboard_engine(settings)
+    migrate_to_head(str(engine.url))
+    session_factory = create_session_factory(engine)
+    portfolio = ["M1.L"]
+    first_workflow_id = new_id()
+    _bootstrap_mock_workflow(
+        session_factory, workflow_run_id=first_workflow_id, portfolio=portfolio
+    )
+    runner = DashboardPipelineRunner(session_factory, settings)
+    with patch("asyncio.sleep", new=AsyncMock()):
+        await runner.execute_workflow(first_workflow_id)
+
+    with session_factory() as session:
+        first_snapshots = list(
+            session.scalars(
+                select(WorkflowInvestmentThesis).where(
+                    col(WorkflowInvestmentThesis.workflow_run_id) == first_workflow_id
+                )
+            )
+        )
+    assert first_snapshots
+    assert {row.origin for row in first_snapshots} == {
+        WorkflowInvestmentThesisOriginDb.REPLACED
+    }
+    chosen = first_snapshots[0]
+    prior_argument = chosen.mispricing_argument
+    prior_ticker = chosen.ticker
+
+    second_workflow_id = new_id()
+    _bootstrap_mock_workflow(
+        session_factory, workflow_run_id=second_workflow_id, portfolio=portfolio
+    )
+    with patch("asyncio.sleep", new=AsyncMock()):
+        await runner.execute_workflow(second_workflow_id)
+
+    with session_factory() as session:
+        second_run = session.scalars(
+            select(Run).where(
+                col(Run.workflow_run_id) == second_workflow_id,
+                col(Run.ticker) == prior_ticker,
+            )
+        ).one()
+        strategist_conv = get_conversation_for_run_agent(
+            session, run_id=second_run.id, agent_name=AgentNameDb.STRATEGIST.value
+        )
+        curator_conv = get_conversation_for_workflow_agent(
+            session, second_workflow_id, agent_name=AgentNameDb.CURATOR
+        )
+        second_snapshots = list(
+            session.scalars(
+                select(WorkflowInvestmentThesis).where(
+                    col(WorkflowInvestmentThesis.workflow_run_id) == second_workflow_id
+                )
+            )
+        )
+    assert strategist_conv is not None
+    assert "<prior_mispricing_thesis>" in strategist_conv["messages_json"]
+    assert prior_argument in strategist_conv["messages_json"]
+    live = MispricingThesis.model_validate_json(strategist_conv["assistant_response"])
+    assert live.mispricing_argument == prior_argument
+    assert curator_conv is not None
+    assert prior_argument in curator_conv["messages_json"]
+    matching = [
+        row
+        for row in second_snapshots
+        if row.ticker.casefold() == prior_ticker.casefold()
+    ]
+    assert matching
+    assert matching[0].origin == WorkflowInvestmentThesisOriginDb.COPIED_PRIOR
+    assert matching[0].mispricing_argument == prior_argument

@@ -24,10 +24,10 @@ from discount_analyst.application.workflows.agent_lane_order import LANE_AGENT_S
 from discount_analyst.adapters.persistence.crud.agent_output_persistence import (
     appraiser_output_from_report,
     persist_profiler_output,
+    persist_strategist_decision,
     persist_surveyor_output,
     replace_appraiser_output,
     replace_evaluation_report,
-    replace_mispricing_thesis,
     replace_research_report,
     upsert_run_final_decision,
 )
@@ -551,7 +551,7 @@ def persist_agent_execution_structured_output(
         case AgentNameDb.RESEARCHER:
             replace_research_report(session, execution, output_json)
         case AgentNameDb.STRATEGIST:
-            replace_mispricing_thesis(session, execution, output_json)
+            persist_strategist_decision(session, execution, output_json)
         case AgentNameDb.SENTINEL:
             replace_evaluation_report(session, execution, output_json)
         case AgentNameDb.APPRAISER:

@@ -26,7 +26,7 @@ def test_startup_applies_alembic_head_and_is_idempotent(tmp_path: Path) -> None:
         revision = session.exec(text("SELECT version_num FROM alembic_version")).one()
 
     table_names = {row[0] for row in tables}
-    assert revision[0] == "0014_rename_allocator_to_curator"
+    assert revision[0] == "0015_workflow_investment_theses"
     assert "workflow_runs" in table_names
     assert "candidate_snapshots" in table_names
     assert "agent_conversation_message_parts" in table_names
@@ -34,6 +34,7 @@ def test_startup_applies_alembic_head_and_is_idempotent(tmp_path: Path) -> None:
     assert "portfolio_allocation_positions" in table_names
     assert "portfolio_allocation_risk_clusters" in table_names
     assert "portfolio_allocation_risk_cluster_members" in table_names
+    assert "workflow_investment_theses" in table_names
     assert "workflow_agent_executions" not in table_names
     assert not any(name.endswith("_json") for name in table_names)
 

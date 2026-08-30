@@ -1,6 +1,17 @@
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    RootModel,
+    TypeAdapter,
+    model_validator,
+)
+
+from discount_analyst.agents.runtime.structured_output_unwrap import (
+    unwrap_singleton_output_envelope,
+)
 
 
 class MispricingThesis(BaseModel):
@@ -78,3 +89,35 @@ class MispricingThesis(BaseModel):
             "multiple concrete data points."
         )
     )
+
+
+class KeepPriorThesis(BaseModel):
+    """Keep the prior live thesis verbatim. Do not echo thesis fields."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    decision: Literal["keep_prior"] = "keep_prior"
+
+
+class ReplaceThesis(BaseModel):
+    """Replace the live thesis with a newly authored MispricingThesis."""
+
+    decision: Literal["replace"] = "replace"
+    thesis: MispricingThesis
+
+
+class StrategistDecision(RootModel[KeepPriorThesis | ReplaceThesis]):
+    """Discriminated keep/replace decision; flattens singleton envelopes first."""
+
+    root: Annotated[KeepPriorThesis | ReplaceThesis, Field(discriminator="decision")]
+
+    @model_validator(mode="before")
+    @classmethod
+    def unwrap_singleton_envelope(cls, value: object) -> object:
+        return unwrap_singleton_output_envelope(value)
+
+
+STRATEGIST_DECISION_ADAPTER: TypeAdapter[StrategistDecision] = TypeAdapter(
+    StrategistDecision
+)
+STRATEGIST_DECISION_TYPE_NAME = "StrategistDecision"

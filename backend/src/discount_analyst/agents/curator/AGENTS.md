@@ -14,7 +14,7 @@ Curator is **not** a ticker-lane agent. It is a peer of Surveyor: one `AgentExec
 | File               | Description                                                                                          |
 | ------------------ | ---------------------------------------------------------------------------------------------------- |
 | `curator.py`     | Factory for the closed-book Curator (`create_curator_agent`).                                    |
-| `schema.py`        | Self-contained `CuratorInput` / `CuratorProposal` (does not import Researcher–Appraiser schemas). |
+| `schema.py`        | Self-contained `CuratorInput` / `CuratorProposal` plus field-identical `PackedMispricingThesis` (does not import Researcher–Appraiser schemas). |
 | `system_prompt.py` | Concentrated best-ideas stance, closed-book rule, and creed (no fixed holding period).               |
 | `user_prompt.py`   | `create_user_prompt(curator_input=...)`: tagged `CuratorInput` JSON plus `final_result` step.    |
 | `__init__.py`      | Package initialization for the curator module.                                                     |
@@ -28,7 +28,7 @@ None.
 ### Working In This Directory
 
 - **Agent tools**: Closed book. `create_curator_agent` always passes `enable_web_research_tools=False`, `use_perplexity=False`, `use_mcp_financial_data=False`, and disables the terminal session. `REGULATORY_TOOLSETS_BY_ROLE[CURATOR]` is empty. Dashboard Perplexity/MCP/terminal flags are not forwarded. Frankfurter `convert_currency` remains attached by the shared factory; the prompt forbids calling it.
-- **Schemas**: Keep `schema.py` free of imports from `agents.researcher`, `strategist`, `sentinel`, and `appraiser`. Application packing owns the compact-evidence mapping.
+- **Schemas**: Keep `schema.py` free of imports from `agents.researcher`, `strategist`, `sentinel`, and `appraiser`. Application packing owns the compact-evidence mapping, including `live_thesis` (`PackedMispricingThesis`) on every lane variant. Do not invent or edit theses.
 - **Output contract**: The LLM returns `CuratorProposal`. Persist `PortfolioAllocation` only after `finalise_curator_proposal` succeeds. Invalid weights fail the workflow; do not clip or normalise leftover weight into cash.
 
 ### Testing Requirements

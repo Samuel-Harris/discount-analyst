@@ -166,16 +166,17 @@ def researcher_messages_json(*, ticker: str) -> str:
     )
 
 
-def strategist_messages_json(*, ticker: str) -> str:
+def strategist_messages_json(*, ticker: str, user_prompt: str | None = None) -> str:
+    prompt = user_prompt or (
+        f"From the deep research on {ticker}, articulate a falsifiable "
+        "mispricing thesis with risks and monitoring signals."
+    )
     return _dumps(
         [
             _msg(
                 "request",
                 [
-                    _user_prompt(
-                        f"From the deep research on {ticker}, articulate a falsifiable "
-                        "mispricing thesis with risks and monitoring signals."
-                    ),
+                    _user_prompt(prompt),
                 ],
             ),
             _msg(
@@ -255,15 +256,16 @@ def appraiser_messages_json(*, ticker: str) -> str:
     )
 
 
-def curator_messages_json() -> str:
+def curator_messages_json(*, user_prompt: str | None = None) -> str:
+    prompt = user_prompt or (
+        "Construct the target portfolio from packed allocation evidence."
+    )
     return _dumps(
         [
             _msg(
                 "request",
                 [
-                    _user_prompt(
-                        "Construct the target portfolio from packed allocation evidence."
-                    ),
+                    _user_prompt(prompt),
                 ],
             ),
             _msg(

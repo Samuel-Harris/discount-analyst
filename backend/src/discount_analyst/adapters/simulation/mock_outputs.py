@@ -38,7 +38,12 @@ from discount_analyst.agents.sentinel.schema import (
     RedFlagScreen,
     ThesisVerdict,
 )
-from discount_analyst.agents.strategist.schema import MispricingThesis
+from discount_analyst.agents.strategist.schema import (
+    KeepPriorThesis,
+    MispricingThesis,
+    ReplaceThesis,
+    StrategistDecision,
+)
 from discount_analyst.agents.surveyor.schema import (
     Currency,
     Exchange,
@@ -236,6 +241,15 @@ def mock_thesis(candidate: SurveyorCandidate | SurveyorLaneContext) -> Mispricin
         permanent_loss_scenarios=["PL1", "PL2"],
         conviction_level="Medium",
     )
+
+
+def mock_strategist_decision(
+    lane_context: SurveyorLaneContext,
+    prior: MispricingThesis | None,
+) -> StrategistDecision:
+    if prior is not None:
+        return StrategistDecision(KeepPriorThesis())
+    return StrategistDecision(ReplaceThesis(thesis=mock_thesis(lane_context)))
 
 
 def mock_sentinel_proceed_for_dashboard_lane(ticker: str) -> bool:

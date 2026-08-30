@@ -9,6 +9,9 @@ from discount_analyst.adapters.persistence.crud.run_executions import (
     get_appraiser_output_for_run,
     get_completed_agent_output_json,
 )
+from discount_analyst.adapters.persistence.crud.workflow_investment_theses import (
+    get_latest_investment_thesis_for_ticker,
+)
 from discount_analyst.adapters.persistence.models import (
     AgentNameDb,
     CandidateSnapshot,
@@ -74,6 +77,7 @@ def load_completed_lane_bundles(
                     rejection_reason=rejection_reason,
                     sector=sector,
                     industry=industry,
+                    thesis=get_latest_investment_thesis_for_ticker(session, run.ticker),
                 )
             )
             continue

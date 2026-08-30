@@ -24,10 +24,14 @@ from discount_analyst.adapters.persistence.crud.run_executions import (
     get_workflow_curator_execution,
     update_agent_execution,
 )
+from discount_analyst.adapters.persistence.crud.workflow_investment_theses import (
+    persist_chosen_position_theses,
+)
 from discount_analyst.adapters.persistence.crud.workflow_runs import (
     list_ticker_runs_for_workflow,
 )
 from discount_analyst.adapters.persistence.models import (
+    AgentExecution,
     AgentNameDb,
     ExecutionStatusDb,
     WorkflowRunStatusDb,
@@ -214,7 +218,9 @@ class CuratorStage:
             return _CuratorRunResult(
                 proposal=mock_outputs.mock_curator_proposal(curator_input),
                 messages=None,
-                messages_json=mock_conversation_messages.curator_messages_json(),
+                messages_json=mock_conversation_messages.curator_messages_json(
+                    user_prompt=create_user_prompt(curator_input=curator_input),
+                ),
             )
 
         ai_cfg = llm.ai_models_config
@@ -259,6 +265,15 @@ def persist_completed_curator_execution(
 ) -> None:
     persist_portfolio_allocation(
         session, agent_execution_id=execution_id, allocation=allocation
+    )
+    execution = session.get(AgentExecution, execution_id)
+    if execution is None or execution.workflow_run_id is None:
+        msg = f"Curator execution {execution_id} is missing a workflow parent."
+        raise ValueError(msg)
+    persist_chosen_position_theses(
+        session,
+        workflow_run_id=execution.workflow_run_id,
+        allocation=allocation,
     )
     complete_agent_execution_with_conversation(
         session,

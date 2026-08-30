@@ -31,7 +31,7 @@ def create_user_prompt(
     return f"""
 Evaluate the following investment candidate.
 
-**Upstream contract:** You receive **screening context**, **neutral deep research**, and a **mispricing thesis** (with bespoke questions). The research does not endorse the thesis; the thesis does not excuse gaps in the research.
+**Upstream contract:** You receive **screening context**, **neutral deep research**, and the **live mispricing thesis** (with bespoke questions). The research does not endorse the thesis; the thesis does not excuse gaps in the research.
 
 **Your task:** Stress-test the thesis against the evidence and deliver a **clear, defensible verdict**. You are **the adversary, not a validator** — earn the conclusion. Apply the epistemic, numeric, and red-flag calibration rules strictly.
 

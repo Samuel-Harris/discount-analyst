@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-04-02 | Updated: 2026-08-30 (curator) -->
+<!-- Generated: 2026-04-02 | Updated: 2026-08-30 -->
 
 # agents
 
@@ -23,7 +23,7 @@ Contains AI agent packages used by the project workflows. This directory groups 
 | `surveyor/`       | Surveyor agent implementation and prompts for candidate discovery (see `surveyor/AGENTS.md`)                      |
 | `profiler/`       | Profiler implementation and prompts for named-ticker screening                                                   |
 | `researcher/` | Researcher agent implementation and prompts for structured deep-research evidence output (see `researcher/AGENTS.md`) |
-| `strategist/` | Strategist agent implementation and prompts for `MispricingThesis` output (see `strategist/AGENTS.md`)                |
+| `strategist/` | Strategist agent implementation and prompts for `StrategistDecision` / live `MispricingThesis` (see `strategist/AGENTS.md`) |
 | `sentinel/`   | Sentinel agent implementation and prompts for `EvaluationReport` output (see `sentinel/AGENTS.md`)                    |
 | `appraiser/`  | Appraiser agent implementation and prompts for method-agnostic valuation distributions (see `appraiser/AGENTS.md`)    |
 | `curator/`  | Closed-book workflow-level Curator: sizes a concentrated target portfolio after all ticker lanes (see `curator/AGENTS.md`) |

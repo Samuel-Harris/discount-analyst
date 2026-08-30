@@ -12,6 +12,7 @@ from discount_analyst.agents.curator.schema import (
     CompactSentinelEvidence,
     CompactStrategistEvidence,
     DataQualityRejectionLaneEvidence,
+    PackedMispricingThesis,
     ProposedCash,
     ProposedPosition,
     ProposedSharedRiskCluster,
@@ -45,6 +46,22 @@ def _identity(
     )
 
 
+def _packed_thesis(*, ticker: str = "ABC.L") -> PackedMispricingThesis:
+    return PackedMispricingThesis(
+        ticker=ticker,
+        company_name="Abc plc",
+        mispricing_type="Cyclical trough",
+        market_belief="The market believes decline is structural.",
+        mispricing_argument="The trough is cyclical.",
+        resolution_mechanism="Earnings normalisation.",
+        falsification_conditions=["C1", "C2", "C3"],
+        thesis_risks=["Risk"],
+        evaluation_questions=["Q1", "Q2", "Q3", "Q4", "Q5"],
+        permanent_loss_scenarios=["Loss"],
+        conviction_level="Medium",
+    )
+
+
 def test_data_quality_evidence_cannot_carry_valuation_fields() -> None:
     evidence = DataQualityRejectionLaneEvidence(
         identity=_identity(
@@ -66,6 +83,7 @@ def test_sentinel_rejection_evidence_cannot_carry_appraiser_fields() -> None:
             rating=InvestmentRating.STRONG_SELL,
         ),
         rejection_reason="Thesis broken.",
+        live_thesis=_packed_thesis(),
         researcher=CompactResearcherEvidence(
             customer_segments="Customers", risks=("Risk",)
         ),

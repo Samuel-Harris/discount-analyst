@@ -37,8 +37,12 @@ from discount_analyst.agents.profiler.user_prompt import create_profiler_user_pr
 from discount_analyst.agents.surveyor.surveyor import create_surveyor_agent
 from discount_analyst.agents.surveyor.user_prompt import USER_PROMPT
 from discount_analyst.agents.researcher.schema import DeepResearchReport
-from discount_analyst.agents.strategist.schema import MispricingThesis
+from discount_analyst.agents.strategist.schema import (
+    MispricingThesis,
+    StrategistDecision,
+)
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
+from discount_analyst.application.theses import resolve_live_thesis
 from discount_analyst.config.ai_models_config import AIModelsConfig
 from discount_analyst.config.settings import settings as app_settings
 from discount_analyst.domain.model_selection.model_name import ModelName
@@ -123,6 +127,7 @@ class AgentRunResult:
 
 @dataclass
 class StrategistAgentRunResult:
+    decision: StrategistDecision
     output: MispricingThesis
     elapsed_s: float
     input_tokens: int
@@ -413,6 +418,7 @@ async def run_strategist_once(
     user_prompt = create_strategist_user_prompt(
         lane_context=surveyor_candidate.to_lane_context(),
         deep_research=deep_research,
+        prior_thesis=None,
     )
 
     outcome = await run_streamed_agent(
@@ -422,12 +428,14 @@ async def run_strategist_once(
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
         terminal=terminal,
     )
-    output = outcome.output
+    decision = outcome.output
+    output = resolve_live_thesis(decision, None)
     usage = outcome.usage
     turn_usage = extract_turn_usage(outcome.all_messages)
     elapsed_s = outcome.elapsed_s
     console.log(f"Strategist completed for {surveyor_candidate.ticker}.")
     return StrategistAgentRunResult(
+        decision=decision,
         output=output,
         elapsed_s=elapsed_s,
         input_tokens=usage.input_tokens,
@@ -536,7 +544,8 @@ def save_strategist_output(
         cache_read_tokens=run_result.cache_read_tokens,
         tool_calls=run_result.tool_calls,
         turn_usage=run_result.turn_usage,
-        output=run_result.output,
+        output=run_result.decision,
+        live_thesis=run_result.output,
     )
     out_path = write_agent_json(
         payload=run_output,

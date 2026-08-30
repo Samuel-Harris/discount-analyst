@@ -12,6 +12,7 @@ from discount_analyst.agents.curator.schema import (
     CompactSentinelEvidence,
     CompactStrategistEvidence,
     DataQualityRejectionLaneEvidence,
+    PackedMispricingThesis,
     RatingTableLaneEvidence,
     SentinelRejectionLaneEvidence,
     CuratorLaneIdentity,
@@ -159,10 +160,12 @@ def _pack_lane(
         rating=bundle.rating,
     )
     if bundle.decision_kind == "rating_table":
+        live_thesis = _require_thesis(bundle)
         return RatingTableLaneEvidence(
             identity=identity,
+            live_thesis=_pack_live_thesis(live_thesis),
             researcher=_require_researcher(bundle),
-            strategist=_require_strategist(bundle),
+            strategist=_compact_strategist(live_thesis),
             sentinel=_require_sentinel(bundle),
             appraiser=_require_appraiser(bundle),
         )
@@ -173,27 +176,31 @@ def _pack_lane(
                 "carry Appraiser valuation evidence."
             )
             raise AllocationAssemblyError(msg)
+        live_thesis = _require_thesis(bundle)
         return SentinelRejectionLaneEvidence(
             identity=identity,
+            live_thesis=_pack_live_thesis(live_thesis),
             rejection_reason=_require_rejection_reason(bundle),
             researcher=_require_researcher(bundle),
-            strategist=_require_strategist(bundle),
+            strategist=_compact_strategist(live_thesis),
             sentinel=_require_sentinel(bundle),
         )
     if (
         bundle.deep_research is not None
-        or bundle.thesis is not None
         or bundle.evaluation is not None
         or bundle.appraiser_output is not None
     ):
         msg = (
             f"Data-quality rejection lane {bundle.ticker!r} cannot "
-            "carry research, thesis, Sentinel, or valuation evidence."
+            "carry research, Sentinel, or valuation evidence."
         )
         raise AllocationAssemblyError(msg)
     return DataQualityRejectionLaneEvidence(
         identity=identity,
         rejection_reason=_require_rejection_reason(bundle),
+        live_thesis=(
+            _pack_live_thesis(bundle.thesis) if bundle.thesis is not None else None
+        ),
     )
 
 
@@ -215,11 +222,19 @@ def _require_researcher(bundle: CompletedLaneBundle) -> CompactResearcherEvidenc
     )
 
 
-def _require_strategist(bundle: CompletedLaneBundle) -> CompactStrategistEvidence:
+def _require_thesis(bundle: CompletedLaneBundle) -> MispricingThesis:
     thesis = bundle.thesis
     if thesis is None:
         msg = f"Lane {bundle.ticker!r} is missing Strategist evidence."
         raise AllocationAssemblyError(msg)
+    return thesis
+
+
+def _pack_live_thesis(thesis: MispricingThesis) -> PackedMispricingThesis:
+    return PackedMispricingThesis.model_validate(thesis.model_dump())
+
+
+def _compact_strategist(thesis: MispricingThesis) -> CompactStrategistEvidence:
     return CompactStrategistEvidence(
         thesis_summary=thesis.mispricing_argument,
         conviction=thesis.conviction_level,

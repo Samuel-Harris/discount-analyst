@@ -19,8 +19,12 @@ from discount_analyst.domain.model_selection.model_name import ModelName
 from discount_analyst.agents.runtime.agent_names import AgentName
 from discount_analyst.agents.runtime.streamed_agent_run import run_streamed_agent
 from discount_analyst.agents.researcher.schema import DeepResearchReport
-from discount_analyst.agents.strategist.schema import MispricingThesis
+from discount_analyst.agents.strategist.schema import (
+    MispricingThesis,
+    StrategistDecision,
+)
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
+from discount_analyst.application.theses import resolve_live_thesis
 from discount_analyst.agents.runtime.terminal_run import TerminalRunOptions
 from discount_analyst.entrypoints.cli.shared.cli import (
     add_agent_cli_model_argument,
@@ -55,6 +59,7 @@ class ResearcherTarget(NamedTuple):
 
 @dataclass
 class AgentRunResult:
+    decision: StrategistDecision
     output: MispricingThesis
     elapsed_s: float
     input_tokens: int
@@ -78,6 +83,7 @@ class StrategistArgs(BaseModel):
     use_mcp_financial_data: bool
     use_terminal: bool
     selectors: list[Selector]
+    prior_thesis: Path | None
 
 
 def parse_args() -> StrategistArgs:
@@ -109,6 +115,15 @@ def parse_args() -> StrategistArgs:
         ),
     )
     add_agent_terminal_argument(parser)
+    parser.add_argument(
+        "--prior-thesis",
+        type=Path,
+        default=None,
+        help=(
+            "Optional path to a prior MispricingThesis JSON. "
+            "Without it, keep_prior is invalid."
+        ),
+    )
     raw = parser.parse_args()
     selectors = [
         parse_report_selector(
@@ -125,6 +140,7 @@ def parse_args() -> StrategistArgs:
         use_mcp_financial_data=not raw.no_mcp,
         use_terminal=not raw.no_terminal,
         selectors=selectors,
+        prior_thesis=raw.prior_thesis,
     )
 
 
@@ -145,6 +161,17 @@ def load_surveyor_run_output(path: Path) -> SurveyorRunOutput:
     except ValidationError as exc:
         raise ValueError(
             f"Invalid Surveyor run output JSON shape at {path}: {exc}"
+        ) from exc
+
+
+def _load_prior_thesis(path: Path | None) -> MispricingThesis | None:
+    if path is None:
+        return None
+    try:
+        return MispricingThesis.model_validate_json(path.read_text())
+    except ValidationError as exc:
+        raise ValueError(
+            f"Invalid prior MispricingThesis JSON at {path}: {exc}"
         ) from exc
 
 
@@ -232,6 +259,7 @@ async def run_agent(
     use_perplexity: bool,
     use_mcp_financial_data: bool,
     terminal: TerminalRunOptions,
+    prior_thesis: MispricingThesis | None,
 ) -> AgentRunResult:
     """Run the Strategist agent and return output with usage stats."""
     ai_models_config = AIModelsConfig(model_name=model_name)
@@ -244,6 +272,7 @@ async def run_agent(
     user_prompt = create_user_prompt(
         lane_context=surveyor_candidate.to_lane_context(),
         deep_research=deep_research,
+        prior_thesis=prior_thesis,
     )
 
     outcome = await run_streamed_agent(
@@ -253,7 +282,8 @@ async def run_agent(
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
         terminal=terminal,
     )
-    output = outcome.output
+    decision = outcome.output
+    output = resolve_live_thesis(decision, prior_thesis)
     usage = outcome.usage
     turn_usage = extract_turn_usage(outcome.all_messages)
     elapsed_s = outcome.elapsed_s
@@ -266,6 +296,7 @@ async def run_agent(
         )
 
     return AgentRunResult(
+        decision=decision,
         output=output,
         elapsed_s=elapsed_s,
         input_tokens=usage.input_tokens,
@@ -298,7 +329,8 @@ def save_run_output(
         cache_read_tokens=run_result.cache_read_tokens,
         tool_calls=run_result.tool_calls,
         turn_usage=run_result.turn_usage,
-        output=run_result.output,
+        output=run_result.decision,
+        live_thesis=run_result.output,
     )
     return write_agent_json(
         payload=run_output,
@@ -327,6 +359,7 @@ async def main() -> None:
     targets = resolve_targets(args.selectors)
     if not targets:
         raise SystemExit("No Researcher artefacts selected to run Strategist.")
+    prior_thesis = _load_prior_thesis(args.prior_thesis)
 
     suffixes = _build_suffixes(targets)
     failures: list[FailedStrategistRun] = []
@@ -358,6 +391,7 @@ async def main() -> None:
                 use_perplexity=args.use_perplexity,
                 use_mcp_financial_data=args.use_mcp_financial_data,
                 terminal=terminal,
+                prior_thesis=prior_thesis,
             )
             display_output(run_result.output)
             out_path = save_run_output(
