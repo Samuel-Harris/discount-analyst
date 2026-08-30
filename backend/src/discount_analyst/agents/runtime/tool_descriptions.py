@@ -100,22 +100,21 @@ Returns:
     The answer based on SEC filings.""",
     ),
     AgentName.SURVEYOR: SearchToolDescriptions(
-        web_search="""Search the general web to discover and qualify small-cap equity candidates (UK and US).
+        web_search="""Search the general web to qualify small-cap equity candidates (UK and US).
 
-Use this tool to find:
+Use this tool after yfinance `EquityQuery` / `screen` via `terminal_exec` has built the
+universe. Paid FMP/EODHD screeners are forbidden. Use web search to find:
 - Thematic ideas, sectors, and industries where under-covered names may trade cheaply
 - Recent news, controversies, and red flags for specific tickers or companies
-- Business models, competitive positioning, and qualitative context beyond raw screens
+- Business models, competitive positioning, and qualitative context beyond the yfinance screen
 - Analyst commentary, media coverage frequency, and signals about sell-side coverage depth
 - UK-listed stocks: RNS announcements (e.g. Director/PDMR dealing, material events)
-- Liquidity, exchange listing, and operating-history clues when MCP data is incomplete
+- Liquidity, exchange listing, and operating-history clues when filings or yfinance are incomplete
 
-Prefer FMP/EODHD MCP tools for repeatable numeric screens (market cap, ratios, statements).
-Use this tool to broaden the funnel, stress-test narratives, and fill UK gaps where filings tools
-are weaker.
-
-DO NOT rely on this tool alone for:
-- Precise audited line items for US names when SEC filings search can answer (use sec_filings_search)
+DO NOT rely on this tool for:
+- Universe screening (use `terminal_exec` with yfinance)
+- Precise audited US line items when SEC filings search can answer (use sec_filings_search)
+- Repeatable numeric screens via FMP or EODHD MCP
 
 Args:
     question: A natural-language question naming the company, ticker, or theme and what you need
@@ -127,12 +126,13 @@ Returns:
         sec_filings_search="""Search official SEC filings for US-listed companies only.
 
 Use this tool to verify and deepen screening for NASDAQ/NYSE names:
-- 10-K and 10-Q disclosures vs claims from financial data endpoints
+- 10-K and 10-Q disclosures vs claims from the yfinance screen
 - Form 4 insider buying and selling patterns
 - 8-K material events and proxy / governance disclosures
 - Risk factors, MD&A, and segment detail from regulatory text
 
-This is not the primary tool for UK/LSE/AIM names (use web_search and EODHD fundamentals).
+This is not the primary tool for UK/LSE/AIM names (use official UK filing tools, issuer
+reports, and web_search for RNS).
 
 Args:
     question: Include ticker or company name and the filing angle (e.g. "Summarize insider

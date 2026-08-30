@@ -86,23 +86,25 @@ class EvaluationReport(BaseModel):
     material_data_gaps: str = Field(
         description=(
             "Any data gaps that are load-bearing for the thesis and have not "
-            "been resolved. If these gaps prevent a confident recommendation, "
+            "been resolved. If these gaps prevent a confident thesis verdict, "
             "state that explicitly."
         )
     )
     caveats: list[str] = Field(
         description=(
-            "Specific conditions or uncertainties the Appraiser and final "
-            "decision agent should be aware of."
+            "Specific conditions or uncertainties Appraiser and Curator should "
+            "be aware of. Ratings and proceed/fail are derived in code, not by "
+            "another LLM."
         )
     )
 
 
 def sentinel_proceeds_to_valuation(evaluation: EvaluationReport) -> bool:
-    """True if Sentinel output authorises the Appraiser / DCF stage.
+    """True if Sentinel output authorises the Appraiser stage.
 
     Blocks valuation when the red-flag screen is ``Serious concern`` or when
-    ``thesis_verdict`` is outside the proceed set.
+    ``thesis_verdict`` is outside the proceed set. DCF is optional inside
+    Appraiser; this gate does not require it.
     """
 
     if (

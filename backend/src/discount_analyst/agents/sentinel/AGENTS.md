@@ -1,11 +1,11 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-04-05 | Updated: 2026-08-28 -->
+<!-- Generated: 2026-04-05 | Updated: 2026-08-30 -->
 
 # sentinel
 
 ## Purpose
 
-The `sentinel` directory contains the Sentinel AI agent. It consumes a `SurveyorCandidate`, `DeepResearchReport`, and `MispricingThesis` and produces an `EvaluationReport` (question assessments, red-flag screen, `thesis_verdict`). Whether to run valuation is **derived** via `sentinel_proceeds_to_valuation(evaluation)` in `schema.py` (thesis proceed set **and** red-flag screen — blocks on ``Serious concern``) — there is no stored `recommendation` field.
+The `sentinel` directory contains the Sentinel AI agent. It consumes a `SurveyorCandidate`, `DeepResearchReport`, and the **live** `MispricingThesis` and produces an `EvaluationReport` (question assessments, red-flag screen, `thesis_verdict`). Whether to run valuation is **derived** via `sentinel_proceeds_to_valuation(evaluation)` in `schema.py` (thesis proceed set **and** red-flag screen — blocks on ``Serious concern``) — there is no stored `recommendation` field.
 
 ## Key Files
 
@@ -15,7 +15,7 @@ The `sentinel` directory contains the Sentinel AI agent. It consumes a `Surveyor
 | `schema.py`        | Output contract: `EvaluationReport`, `ThesisVerdict` / `OverallRedFlagVerdict` (`StrEnum`), `sentinel_proceeds_to_valuation`. |
 | `derive_thesis_verdict.py` | Pure `derive_thesis_verdict` / `finalise_sentinel_evaluation` (code wins; not applied on read). |
 | `system_prompt.py` | System prompt and Sentinel role instructions.                                                                                 |
-| `user_prompt.py`   | `create_user_prompt`: injects candidate, deep research, and thesis as tagged context.                                         |
+| `user_prompt.py`   | `create_user_prompt`: injects candidate, deep research, and the live thesis as tagged context.                                         |
 | `__init__.py`      | Package initialization for the sentinel module.                                                                               |
 
 ## Subdirectories

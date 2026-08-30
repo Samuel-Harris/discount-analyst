@@ -16,6 +16,9 @@ from discount_analyst.adapters.persistence.crud.db_utils import (
     new_id,
     require_lane_run_id,
 )
+from discount_analyst.adapters.persistence.crud.workflow_investment_theses import (
+    get_latest_investment_thesis_for_ticker,
+)
 from discount_analyst.adapters.persistence.models import (
     AgentExecution,
     AppraiserReport,
@@ -41,6 +44,7 @@ from discount_analyst.adapters.persistence.models import (
     RunFinalDecision,
     RunFinalDecisionMitigatingFactor,
     RunFinalDecisionSupportingFactor,
+    WorkflowInvestmentThesisOriginDb,
 )
 from discount_analyst.agents.appraiser.schema import (
     AppraiserOutput,
@@ -57,9 +61,12 @@ from discount_analyst.agents.sentinel.schema import (
     EvaluationReport as EvaluationReportSchema,
 )
 from discount_analyst.agents.strategist.schema import (
+    STRATEGIST_DECISION_ADAPTER,
     MispricingThesis as MispricingThesisSchema,
+    ReplaceThesis,
 )
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
+from discount_analyst.application.theses import resolve_live_thesis
 
 
 def persist_surveyor_output(
@@ -268,12 +275,13 @@ def replace_research_report(
         )
 
 
-def replace_mispricing_thesis(
+def persist_mispricing_thesis(
     session: Session,
     execution: AgentExecution,
-    output_json: str,
+    thesis: MispricingThesisSchema,
+    *,
+    origin: WorkflowInvestmentThesisOriginDb,
 ) -> None:
-    output = MispricingThesisSchema.model_validate_json(output_json)
     existing = session.scalars(
         select(MispricingThesis).where(
             col(MispricingThesis.agent_execution_id) == execution.id
@@ -308,14 +316,15 @@ def replace_mispricing_thesis(
     row = MispricingThesis(
         id=new_id(),
         agent_execution_id=execution.id,
-        mispricing_type=output.mispricing_type,
-        market_belief=output.market_belief,
-        mispricing_argument=output.mispricing_argument,
-        resolution_mechanism=output.resolution_mechanism,
-        conviction_level=output.conviction_level,
+        mispricing_type=thesis.mispricing_type,
+        market_belief=thesis.market_belief,
+        mispricing_argument=thesis.mispricing_argument,
+        resolution_mechanism=thesis.resolution_mechanism,
+        conviction_level=thesis.conviction_level,
+        origin=origin,
     )
     session.add(row)
-    for idx, value in enumerate(output.falsification_conditions):
+    for idx, value in enumerate(thesis.falsification_conditions):
         session.add(
             MispricingThesisFalsificationCondition(
                 id=new_id(),
@@ -324,7 +333,7 @@ def replace_mispricing_thesis(
                 condition_text=value,
             )
         )
-    for idx, value in enumerate(output.thesis_risks):
+    for idx, value in enumerate(thesis.thesis_risks):
         session.add(
             MispricingThesisRisk(
                 id=new_id(),
@@ -333,7 +342,7 @@ def replace_mispricing_thesis(
                 risk_text=value,
             )
         )
-    for idx, value in enumerate(output.evaluation_questions):
+    for idx, value in enumerate(thesis.evaluation_questions):
         session.add(
             MispricingThesisEvaluationQuestion(
                 id=new_id(),
@@ -342,7 +351,7 @@ def replace_mispricing_thesis(
                 question_text=value,
             )
         )
-    for idx, value in enumerate(output.permanent_loss_scenarios):
+    for idx, value in enumerate(thesis.permanent_loss_scenarios):
         session.add(
             MispricingThesisPermanentLossScenario(
                 id=new_id(),
@@ -351,6 +360,34 @@ def replace_mispricing_thesis(
                 scenario_text=value,
             )
         )
+
+
+def persist_strategist_decision(
+    session: Session,
+    execution: AgentExecution,
+    output_json: str,
+) -> None:
+    decision = STRATEGIST_DECISION_ADAPTER.validate_json(output_json)
+    if isinstance(decision.root, ReplaceThesis):
+        persist_mispricing_thesis(
+            session,
+            execution,
+            decision.root.thesis,
+            origin=WorkflowInvestmentThesisOriginDb.REPLACED,
+        )
+        return
+    run = session.get(Run, execution.run_id)
+    if run is None:
+        msg = "Strategist keep_prior requires a ticker run."
+        raise ValueError(msg)
+    prior = get_latest_investment_thesis_for_ticker(session, run.ticker)
+    live = resolve_live_thesis(decision, prior)
+    persist_mispricing_thesis(
+        session,
+        execution,
+        live,
+        origin=WorkflowInvestmentThesisOriginDb.COPIED_PRIOR,
+    )
 
 
 def replace_evaluation_report(

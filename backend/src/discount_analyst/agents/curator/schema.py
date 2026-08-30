@@ -26,6 +26,25 @@ class CompactResearcherEvidence(BaseModel):
     risks: tuple[str, ...]
 
 
+class PackedMispricingThesis(BaseModel):
+    """Field-identical copy of Strategist ``MispricingThesis`` for Curator input.
+
+    Kept here so ``schema.py`` does not import the Strategist package.
+    """
+
+    ticker: str
+    company_name: str
+    mispricing_type: str
+    market_belief: str
+    mispricing_argument: str
+    resolution_mechanism: str
+    falsification_conditions: list[str]
+    thesis_risks: list[str]
+    evaluation_questions: list[str]
+    permanent_loss_scenarios: list[str]
+    conviction_level: Literal["Low", "Medium", "High"]
+
+
 class CompactStrategistEvidence(BaseModel):
     thesis_summary: str
     conviction: Literal["Low", "Medium", "High"]
@@ -63,6 +82,7 @@ class CuratorLaneIdentity(BaseModel):
 class RatingTableLaneEvidence(BaseModel):
     decision_kind: Literal["rating_table"] = "rating_table"
     identity: CuratorLaneIdentity
+    live_thesis: PackedMispricingThesis
     researcher: CompactResearcherEvidence
     strategist: CompactStrategistEvidence
     sentinel: CompactSentinelEvidence
@@ -72,6 +92,7 @@ class RatingTableLaneEvidence(BaseModel):
 class SentinelRejectionLaneEvidence(BaseModel):
     decision_kind: Literal["sentinel_rejection"] = "sentinel_rejection"
     identity: CuratorLaneIdentity
+    live_thesis: PackedMispricingThesis
     rejection_reason: str
     researcher: CompactResearcherEvidence
     strategist: CompactStrategistEvidence
@@ -82,6 +103,7 @@ class DataQualityRejectionLaneEvidence(BaseModel):
     decision_kind: Literal["data_quality_rejection"] = "data_quality_rejection"
     identity: CuratorLaneIdentity
     rejection_reason: str
+    live_thesis: PackedMispricingThesis | None = None
 
 
 CuratorLaneEvidence = Annotated[

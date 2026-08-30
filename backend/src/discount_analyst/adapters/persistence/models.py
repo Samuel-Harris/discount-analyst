@@ -54,6 +54,11 @@ class DecisionTypeDb(StrEnum):
     DATA_QUALITY_REJECTION = "data_quality_rejection"
 
 
+class WorkflowInvestmentThesisOriginDb(StrEnum):
+    REPLACED = "replaced"
+    COPIED_PRIOR = "copied_prior"
+
+
 class CandidateGateStatusDb(StrEnum):
     PASSED = "passed"
     REJECTED = "rejected"
@@ -328,7 +333,13 @@ class ResearchReportSourceNote(SQLModel, table=True):
 
 class MispricingThesis(SQLModel, table=True):
     __tablename__ = "mispricing_theses"  # pyright: ignore[reportAssignmentType]
-    __table_args__ = (UniqueConstraint("agent_execution_id"),)
+    __table_args__ = (
+        UniqueConstraint("agent_execution_id"),
+        CheckConstraint(
+            "origin IN ('replaced', 'copied_prior')",
+            name="mispricing_thesis_origin",
+        ),
+    )
 
     id: str = Field(primary_key=True)
     agent_execution_id: str = Field(foreign_key="agent_executions.id", index=True)
@@ -337,6 +348,16 @@ class MispricingThesis(SQLModel, table=True):
     mispricing_argument: str
     resolution_mechanism: str
     conviction_level: str
+    origin: WorkflowInvestmentThesisOriginDb = Field(
+        sa_column=Column(
+            SAEnum(
+                WorkflowInvestmentThesisOriginDb,
+                native_enum=False,
+                values_callable=_str_enum_sql_values,
+            ),
+            nullable=False,
+        ),
+    )
 
 
 class MispricingThesisFalsificationCondition(SQLModel, table=True):
@@ -790,6 +811,79 @@ class PortfolioAllocationRiskCluster(SQLModel, table=True):
     label: str
     mechanism: str
     allocation_effect: str
+
+
+class WorkflowInvestmentThesis(SQLModel, table=True):
+    __tablename__ = "workflow_investment_theses"  # pyright: ignore[reportAssignmentType]
+    __table_args__ = (UniqueConstraint("workflow_run_id", "ticker"),)
+
+    id: str = Field(primary_key=True)
+    workflow_run_id: str = Field(foreign_key="workflow_runs.id", index=True)
+    ticker: str
+    company_name: str
+    mispricing_type: str
+    market_belief: str
+    mispricing_argument: str
+    resolution_mechanism: str
+    conviction_level: str
+    origin: WorkflowInvestmentThesisOriginDb = Field(
+        sa_column=Column(
+            SAEnum(
+                WorkflowInvestmentThesisOriginDb,
+                native_enum=False,
+                values_callable=_str_enum_sql_values,
+            ),
+            nullable=False,
+        ),
+    )
+
+
+class WorkflowInvestmentThesisFalsificationCondition(SQLModel, table=True):
+    __tablename__ = "workflow_investment_thesis_falsification_conditions"  # pyright: ignore[reportAssignmentType]
+    __table_args__ = (UniqueConstraint("workflow_investment_thesis_id", "sort_order"),)
+
+    id: str = Field(primary_key=True)
+    workflow_investment_thesis_id: str = Field(
+        foreign_key="workflow_investment_theses.id", index=True
+    )
+    sort_order: int
+    condition_text: str
+
+
+class WorkflowInvestmentThesisRisk(SQLModel, table=True):
+    __tablename__ = "workflow_investment_thesis_risks"  # pyright: ignore[reportAssignmentType]
+    __table_args__ = (UniqueConstraint("workflow_investment_thesis_id", "sort_order"),)
+
+    id: str = Field(primary_key=True)
+    workflow_investment_thesis_id: str = Field(
+        foreign_key="workflow_investment_theses.id", index=True
+    )
+    sort_order: int
+    risk_text: str
+
+
+class WorkflowInvestmentThesisEvaluationQuestion(SQLModel, table=True):
+    __tablename__ = "workflow_investment_thesis_evaluation_questions"  # pyright: ignore[reportAssignmentType]
+    __table_args__ = (UniqueConstraint("workflow_investment_thesis_id", "sort_order"),)
+
+    id: str = Field(primary_key=True)
+    workflow_investment_thesis_id: str = Field(
+        foreign_key="workflow_investment_theses.id", index=True
+    )
+    sort_order: int
+    question_text: str
+
+
+class WorkflowInvestmentThesisPermanentLossScenario(SQLModel, table=True):
+    __tablename__ = "workflow_investment_thesis_permanent_loss_scenarios"  # pyright: ignore[reportAssignmentType]
+    __table_args__ = (UniqueConstraint("workflow_investment_thesis_id", "sort_order"),)
+
+    id: str = Field(primary_key=True)
+    workflow_investment_thesis_id: str = Field(
+        foreign_key="workflow_investment_theses.id", index=True
+    )
+    sort_order: int
+    scenario_text: str
 
 
 class PortfolioAllocationRiskClusterMember(SQLModel, table=True):

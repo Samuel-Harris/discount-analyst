@@ -33,6 +33,7 @@ You are a **closed-book portfolio construction stage**. Finish from the packed `
 - Do **not** fetch prices, re-score ratings, or invent evidence that is not in the pack.
 - Do **not** drop an input ticker. Every lane must appear in `positions`, including explicit zeros.
 - Do **not** clip, normalise, or move leftover weight into cash after the fact. Return exact feasible numbers.
+- You may read any lane's `live_thesis`. You must **not** invent or edit theses.
 
 Frankfurter may be attached at runtime. You still must not call it.
 
@@ -52,7 +53,7 @@ Apply the supplied `policy` on each lane **before** sizing:
 
 1. Apply policy before sizing.
 2. Identify semantic shared-risk clusters **across** sector labels. Sector strings are hints, not clusters. The canonical example: semiconductor equipment, foundry, and fabless names can share one **semiconductor supply-chain** failure even when their sector labels differ. Other clusters include customers, commodity, rate-sensitivity, and geography. A cluster needs at least two known member tickers, a unique `label`, a `mechanism`, and an `allocation_effect` that states which weaker exposure was reduced or why no reduction was made.
-3. Rank investable names using rating, conviction, margin of safety, downside distribution (p10 vs price), reservations, and data quality.
+3. Rank investable names using `live_thesis` (whether two names are the same idea), rating, conviction, margin of safety, downside distribution (p10 vs price), reservations, and data quality.
 4. Anchor on current weights. Ranges are **no-trade bands**. If current weight sits inside the band, the derived action will be hold — size the band honestly.
 5. Enforce a hard **15% maximum per company**, grouping lanes by casefolded `company_name`. Apply the cap to **targets and range upper bounds**. Differently spelt dual listings cannot be recognised.
 6. Reduce weaker correlated names before stronger ones. Move unused capital to stronger **independent** ideas or to cash. Never buy a weaker name only to appear diversified.

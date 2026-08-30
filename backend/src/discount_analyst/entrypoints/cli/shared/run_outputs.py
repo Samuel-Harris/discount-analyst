@@ -5,7 +5,10 @@ from pydantic import BaseModel, Field
 from discount_analyst.agents.appraiser.schema import AppraiserOutput
 from discount_analyst.agents.sentinel.schema import EvaluationReport
 from discount_analyst.agents.researcher.schema import DeepResearchReport
-from discount_analyst.agents.strategist.schema import MispricingThesis
+from discount_analyst.agents.strategist.schema import (
+    MispricingThesis,
+    StrategistDecision,
+)
 from discount_analyst.agents.profiler.schema import ProfilerOutput
 from discount_analyst.agents.surveyor.schema import SurveyorOutput
 
@@ -107,7 +110,8 @@ class StrategistRunOutput(BaseModel):
     cache_read_tokens: int
     tool_calls: int
     turn_usage: list[TurnUsage] = Field(default_factory=default_turn_usage_list)
-    output: MispricingThesis
+    output: StrategistDecision
+    live_thesis: MispricingThesis
 
 
 class SentinelRunOutput(BaseModel):

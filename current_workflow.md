@@ -6,20 +6,15 @@ Implementation-accurate snapshot of the agentic pipeline. Ground truth is the co
 
 ## Changes since last sync
 
-Previous snapshot: 2026-08-30 (same calendar day; last committed with `#77` / `0b9fd10`). This pass re-read factories, runners, gates, and live `model_json_schema()` / enum values.
+Previous snapshot: 2026-08-30 (Curator / CODE-34). This pass re-read factories, runners, gates, Alembic head, and live `model_json_schema()` / enum values.
 
-**New agent package: Curator.** Live stages are now **surveyor, profiler, researcher, strategist, sentinel, appraiser, curator**. Curator is workflow-scoped (peer of Surveyor), **not** in `agent_lane_order.py`. There is still **no Arbiter agent**. Final per-ticker ratings after a passing Sentinel gate still come from `rating_table_v1`; Curator sizes the book from those verdicts plus a current-position snapshot.
+**Versioned live theses (CODE-87).** Strategist `output_type` is now `StrategistDecision` (`keep_prior` \| `replace` + nested `MispricingThesis`). Application `resolve_live_thesis` is the only keep resolver. Dashboard lanes load the latest chosen thesis by ticker (casefold) from `workflow_investment_theses` on completed workflows, else the newest completed Curator allocation with `target_weight_pct > 0` and that lane’s Strategist `mispricing_theses` row. Profiler and Researcher never see it. Sentinel/Appraiser receive the in-run live `MispricingThesis`. Curator packing adds field-identical `PackedMispricingThesis` as `live_thesis` (required on rating-table and sentinel-rejection lanes; optional prior on data-quality rejection). After `finalise_curator_proposal` succeeds, `persist_chosen_position_theses` copies this-run Strategist theses for every position with `target_weight_pct > 0` onto this workflow (`origin` copied from the keep/replace discriminator stored on the execution-scoped `mispricing_theses` row). Failed, cancelled, or skipped Curator writes **no** snapshots. CLI `workflow run` still passes `prior_thesis=None`. One-shot Strategist accepts `--prior-thesis PATH`.
 
-**Unchanged:** Candidate gate (delist-only; skipped in mock and unused by CLI), Sentinel derivation + valuation gate, Appraiser weight-blend validator, `is_existing_position` (action wording + Sentinel prompt + Curator policy), mock DEV-forced path, one dashboard model for every stage, Surveyor’s terminal-required construction.
+**Unchanged:** Candidate gate (delist-only; skipped in mock and unused by CLI), Sentinel derivation + valuation gate, Appraiser weight-blend validator, Curator policy/invariants/15% cap, `is_existing_position` wording, mock DEV-forced path, one dashboard model for every stage, Surveyor’s terminal-required construction, no Arbiter agent.
 
-**Curator behaviour (from live code, not the previous snapshot):**
+**Curator (still as of CODE-34, plus thesis packing):** Dashboard `execute_workflow` runs `CuratorStage` after the ticker loop. Skip if lanes are not all `completed` (`lanes_not_all_completed`). A missing live snapshot **fails** Curator and the workflow. Mock synthesises `equal_weight_existing_snapshot`. CLI requires `--snapshot` JSON. Persist still uses `0013`/`0014` allocation tables; thesis snapshots are `0015_workflow_investment_theses`.
 
-1. Dashboard `execute_workflow` runs `CuratorStage` after the ticker loop. If any lane is not `completed`, Curator is marked `skipped` with `lanes_not_all_completed`. A missing live snapshot **fails** Curator and the workflow (`RuntimeError("Current portfolio snapshot is missing.")`). Mock dashboard synthesises `equal_weight_existing_snapshot` (20% cash, remainder equal among `is_existing_position` tickers). CLI requires `--snapshot` JSON.
-2. Policy (`allocation_policy_for`): BUY/STRONG BUY → `investable`; existing HOLD → `retain_or_reduce`; new HOLD / SELL / STRONG SELL → `forced_zero`. Rejection Verdicts are valid completed evidence and inherit that mapping. Company cap is 15% by casefolded `company_name`. Totals must be 100 ± 0.05 pp; code does **not** clip or normalise leftover weight.
-3. Persistence: Alembic `0013_portfolio_allocations` (normalised tables + backfill of legacy workflow-scoped executions as `skipped` / `legacy_workflow_without_position_snapshot` with historical `agent_name='allocator'`). `0014_rename_allocator_to_curator` rewrites those rows to `curator`. Audit GET: `/api/workflow_runs/{id}/allocation` (404 unless Curator completed) and `/api/agents/workflow_runs/{id}/agents/{surveyor|curator}/conversation`.
-4. Status: pending/running Curator keeps a lane-successful workflow `running`. Failed/cancelled lanes fail/cancel the workflow regardless of Curator. Legacy skipped Curator + completed lanes stays `completed`.
-
-Skill-table path drift (for the next operator): dashboard runner is `adapters/orchestration/sqlmodel_runner.py`, HTTP is `entrypoints/api/routers/workflow_runs.py`, CLI is `entrypoints/cli/workflows/run_full_workflow.py` plus `cli_curator.py`, builders are `application/decisions/builders.py`, lane order is `application/workflows/agent_lane_order.py`, rating enum is `domain/decisions/investment_rating.py`.
+Skill-table path drift (for the next operator): dashboard runner is `adapters/orchestration/sqlmodel_runner.py`, HTTP is `entrypoints/api/routers/workflow_runs.py`, CLI is `entrypoints/cli/workflows/run_full_workflow.py` plus `cli_curator.py`, builders are `application/decisions/builders.py`, live-thesis resolve is `application/theses.py`, lane order is `application/workflows/agent_lane_order.py`, rating enum is `domain/decisions/investment_rating.py`.
 
 Checked and recorded below: schemas, agents, gates/orchestration, ratings, tools/data. Prompt vs code conflicts are listed in [Findings](#findings-prompt-vs-code), not silently “corrected” in the narrative.
 
@@ -96,11 +91,11 @@ CLI omits the candidate-gate diamond: Surveyor or Profiler output goes straight 
 | Profiler       | Financial screener of a **named** stock; resist favourable framing | Ticker string                           | `ProfilerOutput` wrapping one `SurveyorCandidate` | Same as Surveyor except no universe listing tools (filings only)                                                                                       |
 | Candidate gate | Deterministic, not an LLM                                          | `SurveyorCandidate`                     | `PassedCandidateGate` / `RejectedCandidateGate`   | FMP (+ EODHD fallback for `.L`). Identity-unknown and listing-unconfirmed **admit**. DQR is **delist-only**. **Skipped in mock.** **Not used by CLI.** |
 | Researcher     | **Neutral evidence assembler**; no recommendation language         | `SurveyorLaneContext`                   | `DeepResearchReport`                              | Web research + financial MCP + optional terminal + official filings                                                                                    |
-| Strategist     | **Second-level thinker**; interpreter not researcher               | Lane context + `DeepResearchReport`     | `MispricingThesis`                                | Web research + financial MCP + optional terminal + official filings (factory still forwards dashboard flags; see Findings)                             |
-| Sentinel       | **Adversary, not a validator**                                     | Lane context + research + thesis        | `EvaluationReport`                                | FX (`convert_currency`) + official filings. No web, MCP, or terminal. `thesis_verdict` overwritten in Python after a live run.                         |
+| Strategist     | **Second-level thinker**; interpreter not researcher               | Lane context + `DeepResearchReport` + optional prior `MispricingThesis` | `StrategistDecision` (`keep_prior` \| `replace`); live thesis via `resolve_live_thesis` | Web research + financial MCP + optional terminal + official filings. Prompt forbids expanding research; tools may only confirm or falsify packed claims. |
+| Sentinel       | **Adversary, not a validator**                                     | Lane context + research + **live** thesis | `EvaluationReport`                                | FX (`convert_currency`) + official filings. No web, MCP, or terminal. `thesis_verdict` overwritten in Python after a live run.                         |
 | Appraiser      | Valuation specialist; **no Buy/Hold/Sell**                         | `AppraiserInput`                        | `AppraiserOutput`                                 | Web research + financial MCP + optional terminal + official filings                                                                                    |
 | Rating table   | Deterministic                                                      | Lane + thesis + evaluation + MoS        | `RatingTableDecision` inside `Verdict`            | None                                                                                                                                                   |
-| Curator      | Closed-book **portfolio constructor**; does not re-rate names      | `CuratorInput` (snapshot + compact lanes) | `CuratorProposal` then `PortfolioAllocation` | FX attached by factory but **must not be called**. No web, MCP, terminal, or filings (`REGULATORY_TOOLSETS_BY_ROLE[CURATOR] = ()`).                  |
+| Curator      | Closed-book **portfolio constructor**; does not re-rate or edit theses | `CuratorInput` (snapshot + compact lanes + `live_thesis`) | `CuratorProposal` then `PortfolioAllocation` | FX attached by factory but **must not be called**. No web, MCP, terminal, or filings (`REGULATORY_TOOLSETS_BY_ROLE[CURATOR] = ()`).                  |
 
 Shared investing creed: `discount_analyst.agents.common_prompts.creed.INVESTING_CREED` (prepended or wrapped by every agent system prompt).
 
@@ -262,6 +257,19 @@ No `minItems` on the lists.
 
 `evaluation_questions` description: each question must be answerable from the last reported period plus the last trading update; a future print (e.g. “what will FY26 report?”) must not be load-bearing. Descriptions say “minimum 3 / 5 / 2” for some lists; **JSON schema has no `minItems`** on those arrays.
 
+### `StrategistDecision` (discriminated on `decision`)
+
+Factory `output_type` (`agents/strategist/schema.py`, `RootModel` `StrategistDecision` / `STRATEGIST_DECISION_ADAPTER`):
+
+| `decision`     | Model              | Extra fields                         |
+| -------------- | ------------------ | ------------------------------------ |
+| `keep_prior`   | `KeepPriorThesis`  | none (`additionalProperties: false`) |
+| `replace`      | `ReplaceThesis`    | required nested `thesis`             |
+
+Keep with no prior is a lane failure (`KeepPriorWithoutThesisError` from `application/theses.resolve_live_thesis`). Keep copies the prior object bit-for-bit; the model must not echo thesis fields. Conversation reconstruction still yields a `MispricingThesis` because keep copies the prior into this execution’s `mispricing_theses` tables.
+
+`PackedMispricingThesis` in `agents/curator/schema.py` is field-identical to `MispricingThesis` so Curator does not import the Strategist package.
+
 ### `EvaluationReport` (all required)
 
 `ticker`, `company_name`, `question_assessments` (`QuestionAssessment`[]), `red_flag_screen` (`RedFlagScreen`), `thesis_verdict`, `verdict_rationale`, `material_data_gaps`, `caveats` (string[]).
@@ -344,13 +352,15 @@ Constants: `WEIGHT_SUM_TOLERANCE_PP = 0.05`, `COMPANY_WEIGHT_CAP_PCT = 15.0`.
 
 `CuratorLaneIdentity`: `ticker`, `company_name`, `is_existing_position`, `current_weight_pct` (0–100), `sector`, `industry`, `policy`, `rating`.
 
+`PackedMispricingThesis`: same fields as `MispricingThesis` (see above). Compact `strategist` evidence is derived from that object so ranking cues cannot drift.
+
 `CuratorLaneEvidence` discriminated on `decision_kind`:
 
-| `decision_kind`            | Extra fields besides `identity`                                      |
-| -------------------------- | -------------------------------------------------------------------- |
-| `rating_table`             | `researcher`, `strategist`, `sentinel`, `appraiser`                  |
-| `sentinel_rejection`       | `rejection_reason`, `researcher`, `strategist`, `sentinel`           |
-| `data_quality_rejection`   | `rejection_reason`                                                   |
+| `decision_kind`            | Extra fields besides `identity`                                                                 |
+| -------------------------- | ----------------------------------------------------------------------------------------------- |
+| `rating_table`             | required `live_thesis`, `researcher`, `strategist`, `sentinel`, `appraiser`                     |
+| `sentinel_rejection`       | required `live_thesis`, `rejection_reason`, `researcher`, `strategist`, `sentinel`              |
+| `data_quality_rejection`   | `rejection_reason`, optional `live_thesis` (prior only; no research/sentinel/appraiser)         |
 
 `CuratorInput`: `allocation_date`, `snapshot`, `lanes`. Validator: case-insensitive unique lane tickers.
 
@@ -422,9 +432,13 @@ CLI: **no gate** (`run_full_workflow.py` uses `SurveyorCandidate.to_lane_context
 
 ### Researcher / Strategist / Sentinel
 
-Serial. User prompts inject `<SurveyorLaneContext>` plus the quantitative-omission note (`lane_context_prompt.py`): screening metrics are not trusted numbers.
+Serial. User prompts inject `<SurveyorLaneContext>` plus the quantitative-omission note (`lane_context_prompt.py`): screening metrics are not trusted numbers. Researcher does **not** receive a prior thesis.
 
-Researcher and Appraiser get Perplexity/MCP/terminal flags from settings. Strategist factory still forwards those same flags (`use_mcp_financial_data=True` default; `enable_web_research_tools` left at `create_agent` default `True`). Sentinel has no web/MCP/terminal: `create_sentinel_agent(ai_cfg)` only; live path uses `run_streamed_agent` with terminal disabled, then `finalise_sentinel_evaluation` before persist. Official filing tools are attached for all of these stages. Dashboard `is_existing_position` is passed into the Sentinel user prompt.
+Dashboard `TickerLaneStage._run_strategist` loads `get_latest_investment_thesis_for_ticker` (casefold) and injects `<prior_mispricing_thesis>` when present. `keep_prior` is forbidden with no prior. After Strategist, `resolve_live_thesis` yields the in-run `MispricingThesis` passed to Sentinel and Appraiser. Persist stores `StrategistDecision` JSON then copies replace/keep into execution-scoped `mispricing_theses` (`persist_strategist_decision`). Resume reconstructs that copied `MispricingThesis` via `assistant_response_for_run_agent`, not the keep/replace wrapper.
+
+Lookup order (`workflow_investment_theses.get_latest_investment_thesis_for_ticker`): newest **completed** workflow with a snapshot row for the ticker; else newest completed workflow whose Curator allocation chose the ticker (`target_weight_pct > 0`) and that lane’s Strategist row. Failed/cancelled workflows never become latest. CLI `workflow run` passes `prior_thesis=None`. One-shot: `uv run discount-analyst agent strategist --prior-thesis PATH`.
+
+Researcher and Appraiser get Perplexity/MCP/terminal flags from settings. Strategist factory still forwards those same flags (`use_mcp_financial_data=True` default; `enable_web_research_tools` left at `create_agent` default `True`). Sentinel has no web/MCP/terminal: `create_sentinel_agent(ai_cfg)` only; live path uses `run_streamed_agent` with terminal disabled, then `finalise_sentinel_evaluation` before persist. Official filing tools are attached for all of these stages. Dashboard `is_existing_position` is passed into the Sentinel user prompt. Sentinel/Appraiser prompts name the injected object the **live** thesis.
 
 Researcher prompt order is yfinance market snapshot → official filings and issuer documents → targeted narrative research → optional paid gap-fill. Sentinel normally evaluates packed evidence without a tool call; it may make one SEC call or one UK resolve/accounts chain for a load-bearing fact, and cannot claim to refresh market data.
 
@@ -446,9 +460,9 @@ Factory: `create_curator_agent` → `CuratorProposal`. Closed book like Sentinel
 
 Dashboard: `CuratorStage.run` after the ticker loop in `execute_workflow`. Skip if already `completed` or `skipped`. If any ticker run is not `completed`, mark Curator `skipped` with `lanes_not_all_completed`. Live dashboard `load_dashboard_portfolio_snapshot(..., is_mock=False)` returns `None` and the stage raises `RuntimeError("Current portfolio snapshot is missing.")` — there is no 100% cash fallback. Mock uses `equal_weight_existing_snapshot` (20% cash and equal remaining weight across existing-position tickers; **100% cash** if that set is empty) then `mock_curator_proposal` after a 5s sleep.
 
-Application packing (`assemble_curator_input`) maps Researcher/Strategist/Sentinel/Appraiser schemas into compact evidence so the Curator package does not import those stages. `finalise_curator_proposal` stamps current weights, company names, policy, `source_run_id`, and `action`; invalid numbers fail the workflow.
+Application packing (`assemble_curator_input`) maps Researcher/Strategist/Sentinel/Appraiser schemas into compact evidence so the Curator package does not import those stages. Every lane carries `live_thesis` (`PackedMispricingThesis`); compact Strategist evidence is derived from that object. Data-quality lanes may carry an optional prior only. The Curator prompt ranks using `live_thesis` (whether two names are independent ideas) and must not invent or edit theses. `finalise_curator_proposal` stamps current weights, company names, policy, `source_run_id`, and `action`; invalid numbers fail the workflow.
 
-Persist: normalised `portfolio_allocations*` tables plus conversation (`persist_completed_curator_execution`). `GET /api/workflow_runs/{id}/allocation` returns `PortfolioAllocation` only when Curator is **completed** (404 otherwise). Conversation: `GET /api/agents/workflow_runs/{id}/agents/{surveyor|curator}/conversation`.
+Persist: normalised `portfolio_allocations*` tables plus conversation (`persist_completed_curator_execution`), then `persist_chosen_position_theses` in the same transaction for every position with `target_weight_pct > 0` (`origin` copied from this-run Strategist `keep_prior` → `copied_prior` or `replace` → `replaced`). Cash and zero-weight rows are not snapshotted. Chosen positions with no this-run Strategist thesis raise `ValueError`. `GET /api/workflow_runs/{id}/allocation` returns `PortfolioAllocation` only when Curator is **completed** (404 otherwise). Conversation: `GET /api/agents/workflow_runs/{id}/agents/{surveyor|curator}/conversation`.
 
 CLI: `--snapshot` is required. `run_cli_curator` after the candidate loop unless a Profiler, Researcher, Strategist, Sentinel, or Appraiser lane failed. One-shot: `uv run discount-analyst agent curator <CuratorInput JSON>`.
 
@@ -458,7 +472,7 @@ Curator is **not** a graph node and is **not** in `agent_lane_order.py` / `agent
 
 ### Mock mode
 
-Triggered by workflow `is_mock` (dashboard DEV always). `pipeline_llm_config(..., is_mock=True)` yields `ai_models_config=None`, `model_name=None`. Each mock agent sleeps 5s and uses `adapters.simulation.mock_outputs`. Mock Sentinel proceed is **deterministic ticker char-sum parity** (`mock_sentinel_proceed_for_dashboard_lane`). Mock rating uses `mock_rating_table_decision` rather than live MoS from a distribution. Mock Curator uses `mock_curator_proposal` (forced-zero at 0; retain-or-reduce at `min(current, 15% company room)`; leftover to investable names then cash).
+Triggered by workflow `is_mock` (dashboard DEV always). `pipeline_llm_config(..., is_mock=True)` yields `ai_models_config=None`, `model_name=None`. Each mock agent sleeps 5s and uses `adapters.simulation.mock_outputs`. Mock Strategist returns `keep_prior` when a prior thesis exists, otherwise `replace` with `mock_thesis`. Mock Sentinel proceed is **deterministic ticker char-sum parity** (`mock_sentinel_proceed_for_dashboard_lane`). Mock rating uses `mock_rating_table_decision` rather than live MoS from a distribution. Mock Curator uses `mock_curator_proposal` (forced-zero at 0; retain-or-reduce at `min(current, 15% company room)`; leftover to investable names then cash). Mock Strategist and Curator conversation JSON now store the real user prompt so prior-thesis / `live_thesis` blocks are visible in the dashboard conversation view.
 
 A completed dashboard run with `is_mock=true` did **not** hit live LLM/MCP/FMP for those stages.
 
@@ -505,7 +519,7 @@ Create workflow
 SurveyorCandidate
   └─ gate → SurveyorLaneContext (identity + narrative; no market cap / key_metrics)
         └─ Researcher → DeepResearchReport
-              └─ Strategist → MispricingThesis
+              └─ Strategist → StrategistDecision → live MispricingThesis
                     └─ Sentinel → EvaluationReport
                           ├─ gate fail → SentinelRejection → Verdict
                           └─ gate pass → AppraiserInput
@@ -513,12 +527,13 @@ SurveyorCandidate
                                       └─ MarginOfSafetyAssessment
                                             └─ RatingTableDecision → Verdict
                                                   └─ all lanes completed + snapshot
-                                                        └─ CuratorInput
+                                                        └─ CuratorInput (incl. live_thesis)
                                                               └─ CuratorProposal
                                                                     └─ finalise → PortfolioAllocation
+                                                                          └─ snapshot chosen theses (target_weight_pct > 0)
 ```
 
-Dashboard persists agent conversations (including Alembic 0012 token columns on response messages), candidate-snapshot gate columns, `RunFinalDecision` (decomposed Verdict), and Curator rows (`0013_portfolio_allocations`, renamed `allocator` → `curator` in `0014_rename_allocator_to_curator`). `GET …/allocation` reconstructs `PortfolioAllocation` only when Curator completed.
+Dashboard persists agent conversations (including Alembic 0012 token columns on response messages), candidate-snapshot gate columns, `RunFinalDecision` (decomposed Verdict), Curator rows (`0013_portfolio_allocations`, renamed `allocator` → `curator` in `0014_rename_allocator_to_curator`), and chosen-position thesis snapshots (`0015_workflow_investment_theses`). `GET …/allocation` reconstructs `PortfolioAllocation` only when Curator completed. Next-run prior load is by ticker from those snapshots (then Strategist fallback), not a live FK.
 
 ---
 
@@ -547,6 +562,8 @@ Dashboard persists agent conversations (including Alembic 0012 token columns on 
 | Allocation domain                              | `domain/allocations/`                                                                                              |
 | Rating table                                   | `domain/decisions/rating_decision_table.py`                                                                        |
 | Verdict schemas                                | `domain/decisions/schema.py`                                                                                       |
+| Live-thesis resolve                            | `application/theses.py` (`resolve_live_thesis`)                                                                    |
+| Thesis snapshot CRUD                           | `adapters/persistence/crud/workflow_investment_theses.py`                                                          |
 | Agent factories / prompts / schemas            | `agents/<name>/`                                                                                                   |
 | Sentinel thesis-verdict derivation             | `agents/sentinel/derive_thesis_verdict.py`                                                                         |
 | Shared agent runtime                           | `agents/runtime/` (`create_agent`, streaming, terminal bind)                                                       |
@@ -560,10 +577,11 @@ Dashboard persists agent conversations (including Alembic 0012 token columns on 
 | Alembic (conversation token columns)           | `backend/migrations/versions/0012_conversation_message_usage.py`                                                   |
 | Alembic (portfolio allocations + Curator backfill) | `backend/migrations/versions/0013_portfolio_allocations.py`                                                  |
 | Alembic (rename `allocator` → `curator`)       | `backend/migrations/versions/0014_rename_allocator_to_curator.py`                                                  |
+| Alembic (workflow investment thesis snapshots) | `backend/migrations/versions/0015_workflow_investment_theses.py`                                                   |
 | Intrinsic value distribution (Appraiser I/O)   | `domain/valuation/intrinsic_value_distribution.py`                                                                 |
 | Valuation toolkit (optional Appraiser helpers) | `domain/valuation/toolkit/`                                                                                        |
 
-CLI one-shots: `uv run discount-analyst agent {surveyor,profiler,researcher,strategist,sentinel,appraiser,curator}`. Admin: `uv run discount-analyst admin refresh-regulatory-data`.
+CLI one-shots: `uv run discount-analyst agent {surveyor,profiler,researcher,strategist,sentinel,appraiser,curator}`. Strategist accepts optional `--prior-thesis PATH`. Admin: `uv run discount-analyst admin refresh-regulatory-data`.
 
 ---
 
@@ -571,13 +589,8 @@ CLI one-shots: `uv run discount-analyst agent {surveyor,profiler,researcher,stra
 
 These are disagreements to resolve in code, prompts, or docs — not silently normalised here.
 
-1. **Beneish M-Score.** Surveyor prompt says it is “computed deterministically elsewhere”. **No Beneish implementation exists** in this package (grep only hits the prompt).
-2. **`StockCategory`.** Enum `value`/`growth` is unused (no field on `SurveyorCandidate`). Appraiser user prompt still says not to label the stock “value” or “growth”. Surveyor prompt still asks for a value/growth-balanced shortlist.
-3. **Stale agent names in schemas/prompts.** Strategist `evaluation_questions` description still says “the Evaluation Agent”. Sentinel `caveats`: “Appraiser and **final decision agent**”. `sentinel_proceeds_to_valuation` docstring: “Appraiser / **DCF** stage”. There is no Evaluation/Arbiter/final-decision LLM; DCF is optional inside Appraiser.
-4. **Researcher input type.** User prompt and factories pass `SurveyorLaneContext`. Researcher `DeepResearchReport` / `DataGapsUpdate` descriptions still say “Surveyor candidate”.
-5. **CLI vs dashboard gates.** CLI full workflow never calls `validate_candidate`. Dashboard always does (except mock). Same agent chain, different admission policy.
-6. **Strategist stance vs factory.** System prompt: interpreter, not researcher. `create_strategist_agent` still defaults `use_mcp_financial_data=True` and does not pass `enable_web_research_tools=False`, so dashboard Strategist still gets web/MCP/terminal from settings. Sentinel and Curator are the production factories without web/MCP/terminal; Curator also has an empty regulatory toolset.
-7. **Perplexity tool descriptions vs prompt policy.** Surveyor’s Perplexity `web_search` docstring still tells the model to prefer FMP/EODHD MCP for numeric screens. The Surveyor system prompt forbids paid screeners and requires yfinance `EquityQuery` / `screen` via `terminal_exec`. Sentinel and Curator have unused Perplexity description strings in the same map; they are never registered.
+1. **CLI vs dashboard gates.** CLI full workflow never calls `validate_candidate`. Dashboard always does (except mock). Same agent chain, different admission policy.
+2. **Perplexity description map includes unused stages.** Sentinel and Curator have Perplexity description strings in `AGENT_TOOL_DESCRIPTIONS` so the map stays exhaustive, but those factories never register Perplexity tools.
 
 ---
 

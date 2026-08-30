@@ -5,7 +5,7 @@
 
 ## Purpose
 
-The `researcher` directory contains the implementation of the "Researcher" AI agent. This agent consumes a `SurveyorCandidate` and produces a structured, neutral `DeepResearchReport` JSON payload focused on evidence synthesis, market narrative, and explicit data-gaps progression.
+The `researcher` directory contains the implementation of the "Researcher" AI agent. This agent consumes a `SurveyorLaneContext` and produces a structured, neutral `DeepResearchReport` JSON payload focused on evidence synthesis, market narrative, and explicit data-gaps progression.
 
 ## Key Files
 
@@ -13,7 +13,7 @@ The `researcher` directory contains the implementation of the "Researcher" AI ag
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `researcher.py`    | Factory for the Researcher agent (`create_researcher_agent`).                                                                              |
 | `system_prompt.py` | System prompt defining neutral-evidence behaviour, yfinance-first market data, official filing precedence, and schema-only output requirements. |
-| `user_prompt.py`   | `create_user_prompt`: injects one `SurveyorCandidate` JSON block and requires `DeepResearchReport` output.                                 |
+| `user_prompt.py`   | `create_user_prompt`: injects one `SurveyorLaneContext` JSON block and requires `DeepResearchReport` output.                                 |
 | `__init__.py`      | Package initialization for the researcher module.                                                                                          |
 
 ## Subdirectories

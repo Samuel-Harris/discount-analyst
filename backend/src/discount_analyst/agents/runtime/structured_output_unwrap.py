@@ -1,7 +1,7 @@
 """Unwrap singleton envelopes around pydantic-ai ``final_result`` arguments."""
 
 from functools import cache
-from typing import cast
+from typing import cast, get_origin
 
 from pydantic import BaseModel, model_validator
 
@@ -38,8 +38,12 @@ def unwrapping_output_type[OutT](output_type: type[OutT]) -> type[OutT]:
 
     ``ToolOutput(Annotated[Model, BeforeValidator(...)])`` is not model-like, so
     pydantic-ai wraps the JSON schema under ``response``. A private subclass keeps
-    ``final_result`` parameters as the flat stage fields.
+    ``final_result`` parameters as the flat stage fields. Typing constructs with a
+    ``get_origin`` (Annotated unions, generics) cannot be subclassed and are
+    returned unchanged; those types unwrap envelopes on the union itself.
     """
+    if get_origin(output_type) is not None:
+        return output_type
     if not issubclass(output_type, BaseModel):
         return output_type
 

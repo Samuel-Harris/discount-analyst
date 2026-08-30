@@ -232,7 +232,7 @@ def _resolve_target(
     appraiser_input = AppraiserInput(
         lane_context=surveyor_candidate.to_lane_context(),
         deep_research=researcher.output,
-        thesis=strategist.output,
+        thesis=strategist.live_thesis,
         evaluation=sent.output,
         risk_free_rate_pct=risk_free_rate_pct,
     )

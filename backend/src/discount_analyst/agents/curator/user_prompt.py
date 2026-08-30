@@ -9,7 +9,7 @@ def create_user_prompt(*, curator_input: CuratorInput) -> str:
     return f"""
 Construct the target portfolio from this packed allocation evidence.
 
-**Upstream contract:** You receive one `CuratorInput`: the current-position snapshot and one compact evidence row per completed lane. Lane ratings and `policy` are **final**. You do not re-rate names.
+**Upstream contract:** You receive one `CuratorInput`: the current-position snapshot and one compact evidence row per completed lane. Each lane may carry a `live_thesis` (required except an optional prior on data-quality rejection). Lane ratings and `policy` are **final**. You do not re-rate names or edit theses.
 
 **Downstream contract:** Return `CuratorProposal` with one `positions` row per input lane, required `cash`, `shared_risk_clusters`, and `portfolio_rationale`. Application code stamps current weights, company names, policy, and `source_run_id` afterwards. It will not repair your numbers.
 
@@ -26,8 +26,8 @@ Construct the target portfolio from this packed allocation evidence.
 ## Your task
 
 1. Apply each lane's `policy` before sizing.
-2. Form semantic shared-risk clusters, including supply-chain links that sector labels miss.
-3. Rank investable names on rating, conviction, margin of safety, downside, reservations, and data quality.
+2. Form semantic shared-risk clusters from `live_thesis` mechanisms as well as sector labels, including supply-chain links that sector strings miss.
+3. Rank investable names on whether their live theses are independent ideas, then rating, conviction, margin of safety, downside, reservations, and data quality.
 4. Anchor on current weights; treat ranges as no-trade bands.
 5. Keep any one company at or below 15% (targets and range uppers), grouping by casefolded company name.
 6. Reduce weaker correlated names first. Unused capital goes to stronger independent ideas or cash — never to a weak diversifier.

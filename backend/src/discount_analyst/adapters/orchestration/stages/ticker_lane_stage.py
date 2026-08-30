@@ -52,7 +52,10 @@ from discount_analyst.agents.sentinel.system_prompt import (
 from discount_analyst.agents.sentinel.user_prompt import (
     create_user_prompt as create_sentinel_user_prompt,
 )
-from discount_analyst.agents.strategist.schema import MispricingThesis
+from discount_analyst.agents.strategist.schema import (
+    MispricingThesis,
+    StrategistDecision,
+)
 from discount_analyst.agents.strategist.strategist import create_strategist_agent
 from discount_analyst.agents.strategist.system_prompt import (
     SYSTEM_PROMPT as STRATEGIST_SYSTEM_PROMPT,
@@ -70,6 +73,10 @@ from discount_analyst.application.decisions.builders import (
 from discount_analyst.adapters.persistence.crud.run_executions import (
     update_ticker_run_completion,
 )
+from discount_analyst.adapters.persistence.crud.workflow_investment_theses import (
+    get_latest_investment_thesis_for_ticker,
+)
+from discount_analyst.application.theses import resolve_live_thesis
 from discount_analyst.domain.model_selection.model_name import ModelName
 from discount_analyst.domain.decisions.margin_of_safety import MarginOfSafetyAssessment
 
@@ -320,6 +327,9 @@ class TickerLaneStage:
         )
         if strategist_exec_id is None:
             raise RuntimeError(f"Missing strategist execution for run {run_id}")
+        prior = await host.db(
+            get_latest_investment_thesis_for_ticker, lane_context.ticker
+        )
         strategist_status = await host.get_agent_status(
             run_id, AgentNameDb.STRATEGIST.value
         )
@@ -356,10 +366,17 @@ class TickerLaneStage:
         s_mock_json: str | None = None
         if is_mock:
             await asyncio.sleep(5)
-            thesis = mock_outputs.mock_thesis(lane_context)
+            decision: StrategistDecision = mock_outputs.mock_strategist_decision(
+                lane_context, prior
+            )
             s_messages = None
             s_mock_json = mock_conversation_messages.strategist_messages_json(
-                ticker=lane_context.ticker
+                ticker=lane_context.ticker,
+                user_prompt=create_strategist_user_prompt(
+                    lane_context=lane_context,
+                    deep_research=research_out,
+                    prior_thesis=prior,
+                ),
             )
         else:
             ai_cfg = llm.ai_models_config
@@ -376,17 +393,20 @@ class TickerLaneStage:
                     terminal=t,
                 ),
                 user_prompt=create_strategist_user_prompt(
-                    lane_context=lane_context, deep_research=research_out
+                    lane_context=lane_context,
+                    deep_research=research_out,
+                    prior_thesis=prior,
                 ),
                 usage_limits=ai_cfg.model.usage_limits,
             )
-            thesis = outcome.output
+            decision = outcome.output
             s_messages = list(outcome.all_messages)
             s_mock_json = None
+        live_thesis = resolve_live_thesis(decision, prior)
         await host.complete_exec_with_conversation(
             execution_id=strategist_exec_id,
             system_prompt=with_current_date(STRATEGIST_SYSTEM_PROMPT),
-            output_json=thesis.model_dump_json(),
+            output_json=decision.model_dump_json(),
             messages=s_messages,
             messages_json=s_mock_json,
         )
@@ -397,7 +417,7 @@ class TickerLaneStage:
             run_id=run_id,
             ticker=lane_context.ticker,
         )
-        return thesis
+        return live_thesis
 
     async def _run_sentinel(
         self,

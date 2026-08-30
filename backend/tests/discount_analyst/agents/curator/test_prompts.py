@@ -21,4 +21,6 @@ def test_user_prompt_embeds_packed_input_and_forbids_tools() -> None:
     assert "<CuratorInput>" in prompt
     assert "Do **not** call tools" in prompt
     assert "CuratorProposal" in prompt
+    assert "live_thesis" in prompt
+    assert "independent ideas" in prompt
     assert packed.model_dump_json(indent=2) in prompt

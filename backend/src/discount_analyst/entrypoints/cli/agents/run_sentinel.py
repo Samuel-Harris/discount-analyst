@@ -352,7 +352,7 @@ async def main() -> None:
                 model_name=args.model,
                 surveyor_candidate=target.surveyor_candidate,
                 deep_research=target.deep_research,
-                thesis=so.output,
+                thesis=so.live_thesis,
             )
             display_output(run_result.output)
             out_path = save_run_output(

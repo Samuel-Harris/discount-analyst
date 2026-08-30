@@ -257,6 +257,12 @@ def test_assemble_maps_all_verdict_kinds() -> None:
     buy_lane = next(lane for lane in packed.lanes if lane.identity.ticker == "NVDA")
     assert buy_lane.decision_kind == "rating_table"
     assert buy_lane.appraiser.expected_value > 0
+    assert buy_lane.live_thesis.ticker == "NVDA"
+    assert (
+        buy_lane.strategist.thesis_summary == buy_lane.live_thesis.mispricing_argument
+    )
+    assert fail.live_thesis is not None
+    assert junk.live_thesis is None
 
 
 def test_assemble_rejects_existing_position_missing_from_snapshot() -> None:
@@ -303,6 +309,32 @@ def test_assemble_rejects_valuation_on_data_quality_lane() -> None:
 
     with pytest.raises(AllocationAssemblyError, match="cannot carry"):
         assemble_curator_input((mixed,), _cash_only(), ALLOCATION_DATE)
+
+
+def test_assemble_packs_optional_prior_on_data_quality_lane() -> None:
+    candidate = mock_surveyor_candidate(ticker="JUNK")
+    prior = mock_thesis(candidate)
+    bundle = _data_quality_bundle(
+        "JUNK", is_existing_position=False, source_run_id="run-dqr"
+    )
+    with_prior = CompletedLaneBundle(
+        source_run_id=bundle.source_run_id,
+        ticker=bundle.ticker,
+        company_name=bundle.company_name,
+        is_existing_position=bundle.is_existing_position,
+        rating=bundle.rating,
+        decision_kind=bundle.decision_kind,
+        rejection_reason=bundle.rejection_reason,
+        sector=bundle.sector,
+        industry=bundle.industry,
+        thesis=prior,
+    )
+
+    packed = assemble_curator_input((with_prior,), _cash_only(), ALLOCATION_DATE)
+
+    assert packed.lanes[0].decision_kind == "data_quality_rejection"
+    assert packed.lanes[0].live_thesis is not None
+    assert packed.lanes[0].live_thesis.mispricing_argument == prior.mispricing_argument
 
 
 def test_finalise_cash_only_allocation() -> None:
