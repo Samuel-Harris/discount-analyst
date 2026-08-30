@@ -57,7 +57,7 @@ Evaluate the following investment candidate.
 
 ---
 
-## Mispricing thesis
+## Live mispricing thesis
 
 <MispricingThesis>
 {thesis_json}

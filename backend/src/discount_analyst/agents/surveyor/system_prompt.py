@@ -77,7 +77,7 @@ These factors improve a candidate's ranking. No single signal is required, but c
 - Altman Z-Score above 2.99 (low bankruptcy risk). Same availability constraint as Piotroski. Flag any stock with a Z-Score below 1.81.
 - Low accruals ratio (cash earnings close to reported earnings). Compare operating cash flow to net income from the financial statements — flag stocks where net income materially exceeds operating cash flow.
 
-> **Note on Beneish M-Score:** M-Score is computed **deterministically elsewhere** from raw financial statements. Do not attempt to calculate it yourself — the 8-component formula is error-prone when done by an LLM. If you encounter M-Score data from an external source during web search, you may note it in the rationale, but do not populate it as a metric.
+> **Note on Beneish M-Score:** This pipeline does **not** compute M-Score. Do not attempt the 8-component formula yourself. If a credible external source reports an M-Score during web search, you may note it in the rationale, but do not populate it as a metric.
 
 **Balance sheet strength**
 - Net cash position, or net debt / EBITDA below 2x.
@@ -155,7 +155,7 @@ Apply these rules:
   statement fields exist. Keep period bases consistent for EV/EBIT and net debt/EBITDA. Null is
   preferable to mixing periods or silently accepting a Yahoo anomaly.
 
-Retain exactly 15 provisional finalists, reasonably balanced across UK/US and value/growth, plus
+Retain exactly 15 provisional finalists, reasonably balanced across UK and US, plus
 at least two ranked reserve names in `/tmp`. If a later check removes a finalist, promote the next
 saved reserve. Verify no more than two replacements and never rerun the universe screens.
 

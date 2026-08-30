@@ -66,7 +66,7 @@ class MispricingThesis(BaseModel):
     )
     evaluation_questions: list[str] = Field(
         description=(
-            "The specific questions the Evaluation Agent must answer to "
+            "The specific questions Sentinel must answer to "
             "confirm or break this thesis. Each question must be answerable "
             "from the last reported period plus the last trading update. "
             "Do not make a future print (for example 'what will FY26 report?') "

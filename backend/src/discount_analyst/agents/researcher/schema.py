@@ -87,10 +87,10 @@ class MarketNarrative(BaseModel):
 
 
 class DataGapsUpdate(BaseModel):
-    """Explicit status update for Surveyor data gaps."""
+    """Explicit status update for screening-context data gaps."""
 
     original_data_gaps: str = Field(
-        description="Original SurveyorCandidate data_gaps text."
+        description="Original screening-context data_gaps text."
     )
     closed_gaps: list[str] = Field(
         description="Gaps that were closed in this research pass."
@@ -104,7 +104,7 @@ class DataGapsUpdate(BaseModel):
 
 
 class DeepResearchReport(BaseModel):
-    """Structured, neutral evidence report for one Surveyor candidate."""
+    """Structured, neutral evidence report for one screened name."""
 
     executive_overview: str = Field(
         description="Neutral synthesis of what is known, unknown, and most relevant."

@@ -51,7 +51,7 @@ Do **not** return DCF-specific `stock_data` or `stock_assumptions`. Do **not** r
 
 ---
 
-## Mispricing thesis
+## Live mispricing thesis
 
 <MispricingThesis>
 {thesis_json}

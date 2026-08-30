@@ -16,7 +16,7 @@ Curator is **not** a ticker-lane agent. It is a peer of Surveyor: one `AgentExec
 | `curator.py`     | Factory for the closed-book Curator (`create_curator_agent`).                                    |
 | `schema.py`        | Self-contained `CuratorInput` / `CuratorProposal` plus field-identical `PackedMispricingThesis` (does not import Researcher–Appraiser schemas). |
 | `system_prompt.py` | Concentrated best-ideas stance, closed-book rule, and creed (no fixed holding period).               |
-| `user_prompt.py`   | `create_user_prompt(curator_input=...)`: tagged `CuratorInput` JSON plus `final_result` step.    |
+| `user_prompt.py`   | `create_user_prompt(curator_input=...)`: tagged `CuratorInput` JSON; rank using `live_thesis`; `final_result` step.    |
 | `__init__.py`      | Package initialization for the curator module.                                                     |
 
 ## Subdirectories

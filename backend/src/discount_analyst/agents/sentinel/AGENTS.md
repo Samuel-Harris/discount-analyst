@@ -15,7 +15,7 @@ The `sentinel` directory contains the Sentinel AI agent. It consumes a `Surveyor
 | `schema.py`        | Output contract: `EvaluationReport`, `ThesisVerdict` / `OverallRedFlagVerdict` (`StrEnum`), `sentinel_proceeds_to_valuation`. |
 | `derive_thesis_verdict.py` | Pure `derive_thesis_verdict` / `finalise_sentinel_evaluation` (code wins; not applied on read). |
 | `system_prompt.py` | System prompt and Sentinel role instructions.                                                                                 |
-| `user_prompt.py`   | `create_user_prompt`: injects candidate, deep research, and thesis as tagged context.                                         |
+| `user_prompt.py`   | `create_user_prompt`: injects candidate, deep research, and the live thesis as tagged context.                                         |
 | `__init__.py`      | Package initialization for the sentinel module.                                                                               |
 
 ## Subdirectories

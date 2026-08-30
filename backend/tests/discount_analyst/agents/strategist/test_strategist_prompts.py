@@ -37,3 +37,4 @@ def test_system_prompt_describes_keep_versus_replace() -> None:
     assert "keep_prior" in SYSTEM_PROMPT
     assert "StrategistDecision" in SYSTEM_PROMPT
     assert "**Do not rephrase a keep.**" in SYSTEM_PROMPT
+    assert "Do not expand the research scope" in SYSTEM_PROMPT
