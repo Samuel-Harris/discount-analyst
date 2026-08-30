@@ -587,6 +587,11 @@ class AgentConversationMessage(SQLModel, table=True):
             nullable=False,
         ),
     )
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cache_write_tokens: int | None = None
+    cache_read_tokens: int | None = None
+    total_tokens: int | None = None
 
 
 class AgentConversationMessagePart(SQLModel, table=True):

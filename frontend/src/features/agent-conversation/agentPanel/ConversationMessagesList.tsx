@@ -18,6 +18,13 @@ interface MessagePart {
 interface ConversationMessage {
   kind: MessageKind;
   parts: MessagePart[];
+  usage?: MessageUsage;
+}
+
+interface MessageUsage {
+  input_tokens: number;
+  context_window_tokens?: number;
+  context_window_used_pct?: number;
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -49,9 +56,47 @@ function normaliseMessages(raw: unknown): ConversationMessage[] | null {
       if (typeof p.args === "string") part.args = p.args;
       parts.push(part);
     }
-    out.push({ kind, parts });
+    out.push({ kind, parts, usage: readMessageUsage(item) });
   }
   return out;
+}
+
+function readMessageUsage(item: Record<string, unknown>): MessageUsage | undefined {
+  const raw = item.usage;
+  if (!isRecord(raw)) return undefined;
+  const inputTokens = raw.input_tokens;
+  if (typeof inputTokens !== "number" || !Number.isFinite(inputTokens)) {
+    return undefined;
+  }
+  const usage: MessageUsage = { input_tokens: inputTokens };
+  if (
+    typeof raw.context_window_tokens === "number" &&
+    Number.isFinite(raw.context_window_tokens)
+  ) {
+    usage.context_window_tokens = raw.context_window_tokens;
+  }
+  if (
+    typeof raw.context_window_used_pct === "number" &&
+    Number.isFinite(raw.context_window_used_pct)
+  ) {
+    usage.context_window_used_pct = raw.context_window_used_pct;
+  }
+  return usage;
+}
+
+function formatTokenCount(n: number): string {
+  return n.toLocaleString("en-GB");
+}
+
+function formatContextUsage(usage: MessageUsage): string {
+  const input = formatTokenCount(usage.input_tokens);
+  if (
+    usage.context_window_tokens !== undefined &&
+    usage.context_window_used_pct !== undefined
+  ) {
+    return `Context ${input} / ${formatTokenCount(usage.context_window_tokens)} tokens (${usage.context_window_used_pct.toFixed(1)}%)`;
+  }
+  return `Context ${input} tokens`;
 }
 
 function truncateMiddle(s: string, max: number): string {
@@ -198,6 +243,11 @@ export function ConversationMessagesList({
               <span className="conversation-message-index">
                 Message {mi + 1}
               </span>
+              {msg.usage ? (
+                <span className="conversation-message-context">
+                  {formatContextUsage(msg.usage)}
+                </span>
+              ) : null}
             </div>
             <div className="conversation-message-parts">
               {msg.parts.map((part, pi) => (

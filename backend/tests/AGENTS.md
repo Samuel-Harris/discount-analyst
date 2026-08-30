@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-23 | Updated: 2026-08-28 -->
+<!-- Generated: 2026-02-23 | Updated: 2026-08-30 -->
 
 # tests
 
@@ -38,7 +38,7 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | `tests/backend/unit/test_mock_rating_table_dashboard.py`                | Deterministic mock `RatingTableDecision` helpers for dashboard payloads.                                                                                                                                      |
 | `tests/backend/unit/test_appraiser_output_persistence.py`               | Appraiser `AppraiserReport` persistence and `get_appraiser_report_for_run` join behaviour.                                                                                                                    |
 | `tests/backend/unit/test_agent_output_persistence.py`                   | Profiler `CandidateSnapshot` persistence (exactly one row at `sort_order=0`).                                                                                                                                 |
-| `tests/backend/unit/test_migration_startup.py`                          | Alembic head on startup, metadata verify, and 0009→head agent-execution unify remap (head is 0011).                                               |
+| `tests/backend/unit/test_migration_startup.py`                          | Alembic head on startup, metadata verify, and 0009→head agent-execution unify remap (head is 0012).                                               |
 | `tests/backend/integration/test_mock_workflow.py`                       | Mock pipeline persistence for `DashboardPipelineRunner` (no live LLM calls); mixed Sentinel lanes.                                                                                                            |
 | `tests/backend/integration/test_dashboard_http_e2e.py`                  | Async HTTP path: create mock workflow run, poll until completed, assert detail and conversations.                                                                                                             |
 
@@ -51,6 +51,7 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | `discount_analyst/agents/common/`    | Tests for streamed agent orchestration and structured-output unwrap.                                   |
 | `discount_analyst/agents/appraiser/` | Tests for Appraiser schema contracts.                                                                  |
 | `discount_analyst/agents/sentinel/`  | Tests for Sentinel schema helpers.                                                                     |
+| `discount_analyst/model_selection/`  | Tests for the per-model context-window table used by conversation usage telemetry.                     |
 | `discount_analyst/pipeline/`         | Tests for programmatic verdict builders, tagged `Verdict` JSON, candidate gates, and the rating table. |
 | `discount_analyst/valuation/`        | Tests for deterministic valuation toolkit helpers (`discount_analyst.valuation.toolkit`).              |
 | `scripts/`                           | Tests for script helpers where present.                                                                |

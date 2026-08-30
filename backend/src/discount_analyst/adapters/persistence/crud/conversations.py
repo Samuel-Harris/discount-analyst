@@ -16,6 +16,10 @@ from discount_analyst.adapters.persistence.crud.agent_output_persistence import 
 from discount_analyst.adapters.persistence.crud.candidate_snapshots import (
     snapshot_to_candidate,
 )
+from discount_analyst.adapters.persistence.crud.conversation_usage import (
+    token_usage_from_message_payload,
+    token_usage_from_message_row,
+)
 from discount_analyst.adapters.persistence.crud.db_utils import dump_json_string, new_id
 from discount_analyst.adapters.persistence.models import (
     AgentConversation,
@@ -65,6 +69,10 @@ from discount_analyst.agents.strategist.schema import (
     MispricingThesis as MispricingThesisSchema,
 )
 from discount_analyst.agents.surveyor.schema import KeyMetrics, SurveyorOutput
+from discount_analyst.domain.model_selection.context_windows import (
+    attach_context_window,
+)
+from discount_analyst.domain.model_selection.model_name import ModelName
 
 logger = logging.getLogger(__name__)
 
@@ -192,11 +200,17 @@ def replace_conversation_messages(
             if msg_kind_raw == "request"
             else MessageKindDb.RESPONSE
         )
+        usage = token_usage_from_message_payload(message_obj)
         msg_row = AgentConversationMessage(
             id=new_id(),
             conversation_id=conversation_id,
             message_index=message_index,
             message_kind=msg_kind,
+            input_tokens=None if usage is None else usage.input_tokens,
+            output_tokens=None if usage is None else usage.output_tokens,
+            cache_write_tokens=None if usage is None else usage.cache_write_tokens,
+            cache_read_tokens=None if usage is None else usage.cache_read_tokens,
+            total_tokens=None if usage is None else usage.total_tokens,
         )
         session.add(msg_row)
         parts_any: Any = message_obj.get("parts", [])
@@ -226,7 +240,12 @@ def replace_conversation_messages(
             session.add(part_row)
 
 
-def build_messages_json(session: Session, conversation_id: str) -> str:
+def build_messages_json(
+    session: Session,
+    conversation_id: str,
+    *,
+    model_name: ModelName | None = None,
+) -> str:
     msg_rows = list(
         session.scalars(
             select(AgentConversationMessage)
@@ -266,12 +285,16 @@ def build_messages_json(session: Session, conversation_id: str) -> str:
                     part["tool_call_id"] = part_row.tool_call_id
             parts.append(part)
 
-        out.append(
-            {
-                "kind": msg_row.message_kind.value,
-                "parts": parts,
-            }
-        )
+        message_json: dict[str, Any] = {
+            "kind": msg_row.message_kind.value,
+            "parts": parts,
+        }
+        usage = token_usage_from_message_row(msg_row)
+        if usage is not None:
+            message_json["usage"] = attach_context_window(
+                usage, model_name
+            ).to_json_dict()
+        out.append(message_json)
     return json.dumps(out, separators=(",", ":"), ensure_ascii=False)
 
 
@@ -629,7 +652,9 @@ def get_conversation_for_workflow_surveyor(
         return None
     return {
         "system_prompt": conversation.system_prompt,
-        "messages_json": build_messages_json(session, conversation.id),
+        "messages_json": build_messages_json(
+            session, conversation.id, model_name=execution.model_name
+        ),
         "assistant_response": assistant_response_for_run_agent(session, execution),
     }
 
@@ -657,6 +682,8 @@ def get_conversation_for_run_agent(
         return None
     return {
         "system_prompt": conversation.system_prompt,
-        "messages_json": build_messages_json(session, conversation.id),
+        "messages_json": build_messages_json(
+            session, conversation.id, model_name=execution.model_name
+        ),
         "assistant_response": assistant_response_for_run_agent(session, execution),
     }

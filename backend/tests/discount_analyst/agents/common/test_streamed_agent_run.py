@@ -127,10 +127,14 @@ class _FakeLogfire:
     def __init__(self) -> None:
         self.with_tags_calls: list[tuple[str, ...]] = []
         self.entered_spans: list[tuple[tuple[str, ...], str, dict[str, Any]]] = []
+        self.info_calls: list[tuple[str, dict[str, Any]]] = []
 
     def with_tags(self, *tags: str) -> _FakeTaggedLogfire:
         self.with_tags_calls.append(tags)
         return _FakeTaggedLogfire(parent=self, tags=tags)
+
+    def info(self, message: str, **attrs: Any) -> None:
+        self.info_calls.append((message, attrs))
 
 
 @pytest.mark.anyio
@@ -453,3 +457,66 @@ async def test_run_streamed_agent_elapsed_excludes_terminal_probe(
 
     assert outcome.output == "done"
     assert outcome.elapsed_s < 0.2
+
+
+@pytest.mark.anyio
+async def test_run_streamed_agent_logs_per_turn_context_usage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pydantic_ai.messages import ModelResponse, TextPart
+    from pydantic_ai.usage import RequestUsage
+
+    def _no_wait(exc: BaseException, attempt: int) -> float:
+        del exc, attempt
+        return 0.0
+
+    class _UsageStreamedRunResult(_FakeStreamedRunResult):
+        def all_messages(
+            self, *, output_tool_return_content: str | None = None
+        ) -> list[Any]:
+            del output_tool_return_content
+            return [
+                ModelResponse(
+                    parts=[TextPart(content="hi")],
+                    usage=RequestUsage(input_tokens=105_000, output_tokens=10),
+                )
+            ]
+
+    class _NamedModel:
+        model_name = "gpt-5.6-luna"
+
+    monkeypatch.setattr(
+        streaming_retries,
+        "streaming_retry_sleep_seconds",
+        _no_wait,
+    )
+    fake_logfire = _FakeLogfire()
+    monkeypatch.setattr(streamed_agent_run_mod, "AI_LOGFIRE", fake_logfire)
+
+    agent = _FakeAgent(name="surveyor")
+    agent.streamed_result = _UsageStreamedRunResult()
+    setattr(agent, "model", _NamedModel())
+
+    await run_streamed_agent(
+        agent=cast(Any, agent),
+        user_prompt="hi",
+        usage_limits=UsageLimits(request_limit=2),
+    )
+
+    assert fake_logfire.info_calls == [
+        (
+            "Agent turn context usage",
+            {
+                "agent_name": "surveyor",
+                "model_name": "gpt-5.6-luna",
+                "turn": 1,
+                "input_tokens": 105_000,
+                "output_tokens": 10,
+                "cache_write_tokens": 0,
+                "cache_read_tokens": 0,
+                "total_tokens": 105_010,
+                "context_window_tokens": 1_050_000,
+                "context_window_used_pct": 10.0,
+            },
+        )
+    ]
