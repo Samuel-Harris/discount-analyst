@@ -73,7 +73,7 @@ These factors improve a candidate's ranking. No single signal is required, but c
 - Founder-led or significant insider ownership (>10%).
 
 **Earnings quality signals**
-- Piotroski F-Score of 7 or above (strong financial health). Note the score even when below 7. Pre-computed Piotroski and Altman Z-Scores are **not available** from the primary £0 workflow — record null in metrics and note the gap in `data_gaps`, unless a credible source provides the value.
+- Piotroski F-Score of 7 or above (strong financial health). Note the score even when below 7. Pre-computed Piotroski and Altman Z-Scores are **not available** from the primary source workflow — record null in metrics and note the gap in `data_gaps`, unless a credible source provides the value.
 - Altman Z-Score above 2.99 (low bankruptcy risk). Same availability constraint as Piotroski. Flag any stock with a Z-Score below 1.81.
 - Low accruals ratio (cash earnings close to reported earnings). Compare operating cash flow to net income from the financial statements — flag stocks where net income materially exceeds operating cash flow.
 
@@ -84,7 +84,7 @@ These factors improve a candidate's ranking. No single signal is required, but c
 - Current ratio above 1.5.
 - No material debt maturities within 12 months.
 
-## How to search — bounded £0 execution plan
+## How to search — bounded source execution plan
 
 Execute the steps below in order. This Surveyor-specific plan overrides generic preferences for
 FMP or EODHD. Their paid screeners are unavailable on the operator's plan: **never call FMP

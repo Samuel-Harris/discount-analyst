@@ -1,7 +1,7 @@
 """Shared system-prompt guidance for market-data source selection."""
 
 MARKET_DATA_TOOL_RULES = """
-### Market-data source order (£0 first)
+### Market-data source order
 
 When `terminal_exec` is available, use yfinance as the primary source for current price,
 currency, market capitalisation, shares outstanding, and price history. Use short, bounded

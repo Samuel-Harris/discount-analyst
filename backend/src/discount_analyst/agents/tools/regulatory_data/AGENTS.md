@@ -5,7 +5,7 @@
 
 ## Purpose
 
-£0 official-source tools for US/UK listed-equity universes and filing-derived fundamentals. NASDAQ Trader and the LSE issuers report confirm symbols; SEC companyfacts and Companies House iXBRL supply compact snapshots. Surveyor screens with yfinance and uses these tools for official listing and filing verification; FMP/EODHD is not the primary screening path.
+Official-source tools for US/UK listed-equity universes and filing-derived fundamentals. NASDAQ Trader and the LSE issuers report confirm symbols; SEC companyfacts and Companies House iXBRL supply compact snapshots. Surveyor screens with yfinance and uses these tools for official listing and filing verification; FMP/EODHD is not the primary screening path.
 
 ## Key Files
 

@@ -19,7 +19,7 @@ Contains AI agent packages used by the project workflows. This directory groups 
 | ------------- | --------------------------------------------------------------------------------------------------------------------- |
 | `tools/`          | Agent tool clients: web research, Frankfurter FX, MCP, terminal, official regulatory data (see `tools/AGENTS.md`) |
 | `runtime/`        | Shared agent factory, model construction, streaming (see `runtime/AGENTS.md`)                                     |
-| `common_prompts/` | Shared creed, £0-first market-data rules, and official filing/universe prompt snippets                          |
+| `common_prompts/` | Shared creed, market-data source rules, and official filing/universe prompt snippets                            |
 | `surveyor/`       | Surveyor agent implementation and prompts for candidate discovery (see `surveyor/AGENTS.md`)                      |
 | `profiler/`       | Profiler implementation and prompts for named-ticker screening                                                   |
 | `researcher/` | Researcher agent implementation and prompts for structured deep-research evidence output (see `researcher/AGENTS.md`) |

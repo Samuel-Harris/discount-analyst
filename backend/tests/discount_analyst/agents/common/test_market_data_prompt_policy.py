@@ -54,7 +54,7 @@ def test_official_tool_rules_match_agent_tool_surfaces() -> None:
         assert REGULATORY_FILINGS_TOOL_RULES in prompt
 
 
-def test_surveyor_uses_free_screening_path() -> None:
+def test_surveyor_uses_yfinance_screening_path() -> None:
     assert "yfinance.EquityQuery" in SURVEYOR_PROMPT
     assert "never call FMP" in SURVEYOR_PROMPT
     assert "EODHD `stock_screener`" in SURVEYOR_PROMPT

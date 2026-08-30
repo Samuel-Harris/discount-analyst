@@ -1,7 +1,7 @@
 """Shared system-prompt guidance for official exchange and filing tools."""
 
 REGULATORY_UNIVERSE_TOOL_RULES = """
-### Official universe tools (£0)
+### Official universe tools
 
 `list_us_listed_equities` and `list_uk_listed_equities` enumerate currently listed ordinary
 equities from NASDAQ Trader and the official LSE issuers report. Use them to confirm official
@@ -18,9 +18,9 @@ be confirmed and continue. Do not retry it or substitute a paid screener.
 """.strip()
 
 REGULATORY_FILINGS_TOOL_RULES = """
-### Official filing tools (£0)
+### Official filing tools
 
-Read-only tools against locally cached official sources (no paid keys):
+Read-only tools against locally cached official sources:
 
 - `get_sec_company_facts(ticker, period_kind="annual"|"quarterly", as_of=None)` — one US 10-K/10-Q snapshot plus up to five recent filing handles. Amended filings win for the same period. Missing tags stay null; do not invent them.
 - `resolve_uk_company(query)` — company number, exact registered name, or TIDM (TIDM only when an LSE issuers snapshot is already cached). If `selected` is absent, the match is missing or ambiguous; do not guess.
