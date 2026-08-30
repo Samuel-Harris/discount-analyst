@@ -24,6 +24,14 @@ from discount_analyst.agents.tools.terminal.client import (
     delete_terminal_session,
     ensure_terminal_ready,
 )
+from discount_analyst.agents.runtime.turn_usage import (
+    agent_model_name,
+    iter_model_response_token_usage,
+)
+from discount_analyst.domain.model_selection.context_windows import (
+    attach_context_window,
+)
+from discount_analyst.domain.model_selection.model_name import ModelName
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +42,29 @@ class StreamedAgentRunOutcome[T]:
     usage: RunUsage
     all_messages: list[ModelMessage]
     elapsed_s: float
+
+
+def _log_turn_context_usage(
+    *,
+    agent_name: str,
+    model_name: ModelName | None,
+    messages: list[ModelMessage],
+) -> None:
+    for turn, usage in enumerate(iter_model_response_token_usage(messages), start=1):
+        snapshot = attach_context_window(usage, model_name)
+        AI_LOGFIRE.info(
+            "Agent turn context usage",
+            agent_name=agent_name,
+            model_name=None if model_name is None else model_name.value,
+            turn=turn,
+            input_tokens=snapshot.input_tokens,
+            output_tokens=snapshot.output_tokens,
+            cache_write_tokens=snapshot.cache_write_tokens,
+            cache_read_tokens=snapshot.cache_read_tokens,
+            total_tokens=snapshot.total_tokens,
+            context_window_tokens=snapshot.context_window_tokens,
+            context_window_used_pct=snapshot.context_window_used_pct,
+        )
 
 
 async def run_streamed_agent[T](
@@ -87,6 +118,11 @@ async def run_streamed_agent[T](
                     output = await result.get_output()
                     usage = result.usage
                     all_messages = result.all_messages()
+                    _log_turn_context_usage(
+                        agent_name=agent_tag,
+                        model_name=agent_model_name(agent),
+                        messages=all_messages,
+                    )
             finally:
                 if terminal_opts.enabled:
                     await delete_terminal_session(

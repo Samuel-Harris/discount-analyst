@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+import logfire
+
 from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
 
 from discount_analyst.adapters.persistence.models import (
@@ -263,75 +265,82 @@ class DashboardPipelineRunner:
         )
 
     async def execute_workflow(self, workflow_run_id: str) -> None:
-        AI_LOGFIRE.info("Workflow execution started", workflow_run_id=workflow_run_id)
-        try:
-            inputs = await self.db(get_workflow_run_inputs, workflow_run_id)
-            if inputs is None:
-                AI_LOGFIRE.debug(
-                    "Workflow run inputs missing; skipping execution",
-                    workflow_run_id=workflow_run_id,
-                )
-                return
-            portfolio_tickers, is_mock = inputs
-            portfolio_fold = {t.casefold() for t in portfolio_tickers}
-            initial_runs = await self.db(list_ticker_runs_for_workflow, workflow_run_id)
+        with logfire.set_baggage(workflow_run_id=workflow_run_id):
             AI_LOGFIRE.info(
-                "Workflow branches prepared",
-                workflow_run_id=workflow_run_id,
-                portfolio_ticker_count=len(portfolio_tickers),
-                ticker_run_count=len(initial_runs),
-                is_mock=is_mock,
+                "Workflow execution started", workflow_run_id=workflow_run_id
             )
-            await self._surveyor_stage.run(
-                self,
-                workflow_run_id=workflow_run_id,
-                portfolio_fold=portfolio_fold,
-                is_mock=is_mock,
-            )
-            ticker_runs = await self.db(list_ticker_runs_for_workflow, workflow_run_id)
-            for run in ticker_runs:
-                if run["status"] != WorkflowRunStatusDb.RUNNING.value:
-                    continue
-                if run["entry_path"] == EntryPathDb.PROFILER.value:
-                    await self._profiler_entry_pipeline(
+            try:
+                inputs = await self.db(get_workflow_run_inputs, workflow_run_id)
+                if inputs is None:
+                    AI_LOGFIRE.debug(
+                        "Workflow run inputs missing; skipping execution",
                         workflow_run_id=workflow_run_id,
-                        run_id=run["id"],
-                        ticker=run["ticker"],
-                        is_mock=is_mock,
                     )
-                    continue
-                candidate = await self._load_candidate_for_run(run["id"])
-                if candidate is None:
-                    raise RuntimeError(
-                        f"Missing candidate snapshot for surveyor run {run['id']}"
-                    )
-                await self._surveyor_entry_pipeline(
+                    return
+                portfolio_tickers, is_mock = inputs
+                portfolio_fold = {t.casefold() for t in portfolio_tickers}
+                initial_runs = await self.db(
+                    list_ticker_runs_for_workflow, workflow_run_id
+                )
+                AI_LOGFIRE.info(
+                    "Workflow branches prepared",
                     workflow_run_id=workflow_run_id,
-                    run_id=run["id"],
-                    candidate=candidate,
+                    portfolio_ticker_count=len(portfolio_tickers),
+                    ticker_run_count=len(initial_runs),
                     is_mock=is_mock,
                 )
-            AI_LOGFIRE.info(
-                "Workflow execution finished",
-                workflow_run_id=workflow_run_id,
-            )
-        except asyncio.CancelledError:
-            AI_LOGFIRE.info(
-                "Workflow execution cancelled",
-                workflow_run_id=workflow_run_id,
-            )
-            raise
-        except Exception as exc:  # noqa: BLE001
-            error_msg = extract_agent_error_message(exc)
-            AI_LOGFIRE.exception(
-                "Workflow execution failed",
-                workflow_run_id=workflow_run_id,
-                error_message=error_msg,
-            )
-            await self.db(set_workflow_error, workflow_run_id, error_msg)
-            await self.db(cancel_unfinished_workflow_children, workflow_run_id)
-        finally:
-            await self.recompute(workflow_run_id)
+                await self._surveyor_stage.run(
+                    self,
+                    workflow_run_id=workflow_run_id,
+                    portfolio_fold=portfolio_fold,
+                    is_mock=is_mock,
+                )
+                ticker_runs = await self.db(
+                    list_ticker_runs_for_workflow, workflow_run_id
+                )
+                for run in ticker_runs:
+                    if run["status"] != WorkflowRunStatusDb.RUNNING.value:
+                        continue
+                    if run["entry_path"] == EntryPathDb.PROFILER.value:
+                        await self._profiler_entry_pipeline(
+                            workflow_run_id=workflow_run_id,
+                            run_id=run["id"],
+                            ticker=run["ticker"],
+                            is_mock=is_mock,
+                        )
+                        continue
+                    candidate = await self._load_candidate_for_run(run["id"])
+                    if candidate is None:
+                        raise RuntimeError(
+                            f"Missing candidate snapshot for surveyor run {run['id']}"
+                        )
+                    await self._surveyor_entry_pipeline(
+                        workflow_run_id=workflow_run_id,
+                        run_id=run["id"],
+                        candidate=candidate,
+                        is_mock=is_mock,
+                    )
+                AI_LOGFIRE.info(
+                    "Workflow execution finished",
+                    workflow_run_id=workflow_run_id,
+                )
+            except asyncio.CancelledError:
+                AI_LOGFIRE.info(
+                    "Workflow execution cancelled",
+                    workflow_run_id=workflow_run_id,
+                )
+                raise
+            except Exception as exc:  # noqa: BLE001
+                error_msg = extract_agent_error_message(exc)
+                AI_LOGFIRE.exception(
+                    "Workflow execution failed",
+                    workflow_run_id=workflow_run_id,
+                    error_message=error_msg,
+                )
+                await self.db(set_workflow_error, workflow_run_id, error_msg)
+                await self.db(cancel_unfinished_workflow_children, workflow_run_id)
+            finally:
+                await self.recompute(workflow_run_id)
 
     async def spawn_surveyor_discovered_run(
         self,
@@ -365,69 +374,72 @@ class DashboardPipelineRunner:
     async def _profiler_entry_pipeline(
         self, *, workflow_run_id: str, run_id: str, ticker: str, is_mock: bool
     ) -> None:
-        AI_LOGFIRE.info(
-            "Profiler entry pipeline started",
-            entry_path=AgentNameDb.PROFILER,
-            workflow_run_id=workflow_run_id,
-            run_id=run_id,
-            ticker=ticker,
-            is_mock=is_mock,
-        )
-        try:
-            candidate = await self._run_or_load_profiler_stage(
-                workflow_run_id=workflow_run_id,
-                run_id=run_id,
-                ticker=ticker,
-                is_mock=is_mock,
-            )
-            lane_context = await self._candidate_gate_stage.admit(
-                self,
-                workflow_run_id=workflow_run_id,
-                run_id=run_id,
-                candidate=candidate,
-                is_mock=is_mock,
-                is_existing_position=True,
-            )
-            if lane_context is None:
-                return
-            await self._ticker_lane_stage.run_downstream_from_researcher(
-                self,
-                workflow_run_id=workflow_run_id,
-                run_id=run_id,
-                lane_context=lane_context,
-                is_mock=is_mock,
-                is_existing_position=True,
-            )
+        with logfire.set_baggage(
+            workflow_run_id=workflow_run_id, run_id=run_id, ticker=ticker
+        ):
             AI_LOGFIRE.info(
-                "Profiler entry pipeline completed",
+                "Profiler entry pipeline started",
                 entry_path=AgentNameDb.PROFILER,
                 workflow_run_id=workflow_run_id,
                 run_id=run_id,
                 ticker=ticker,
+                is_mock=is_mock,
             )
-        except Exception as exc:  # noqa: BLE001
-            error_msg = extract_agent_error_message(exc)
-            AI_LOGFIRE.exception(
-                "Profiler entry pipeline failed",
-                entry_path=AgentNameDb.PROFILER,
-                workflow_run_id=workflow_run_id,
-                run_id=run_id,
-                ticker=ticker,
-                error_message=error_msg,
-            )
-            await self._mark_lane_abort(run_id=run_id, error_message=error_msg)
-            await self.db(
-                update_ticker_run_completion,
-                run_id=run_id,
-                status="failed",
-                final_rating=None,
-                decision_type=None,
-                recommended_action=None,
-                final_verdict_json=None,
-                error_message=error_msg,
-            )
-        finally:
-            await self.recompute(workflow_run_id)
+            try:
+                candidate = await self._run_or_load_profiler_stage(
+                    workflow_run_id=workflow_run_id,
+                    run_id=run_id,
+                    ticker=ticker,
+                    is_mock=is_mock,
+                )
+                lane_context = await self._candidate_gate_stage.admit(
+                    self,
+                    workflow_run_id=workflow_run_id,
+                    run_id=run_id,
+                    candidate=candidate,
+                    is_mock=is_mock,
+                    is_existing_position=True,
+                )
+                if lane_context is None:
+                    return
+                await self._ticker_lane_stage.run_downstream_from_researcher(
+                    self,
+                    workflow_run_id=workflow_run_id,
+                    run_id=run_id,
+                    lane_context=lane_context,
+                    is_mock=is_mock,
+                    is_existing_position=True,
+                )
+                AI_LOGFIRE.info(
+                    "Profiler entry pipeline completed",
+                    entry_path=AgentNameDb.PROFILER,
+                    workflow_run_id=workflow_run_id,
+                    run_id=run_id,
+                    ticker=ticker,
+                )
+            except Exception as exc:  # noqa: BLE001
+                error_msg = extract_agent_error_message(exc)
+                AI_LOGFIRE.exception(
+                    "Profiler entry pipeline failed",
+                    entry_path=AgentNameDb.PROFILER,
+                    workflow_run_id=workflow_run_id,
+                    run_id=run_id,
+                    ticker=ticker,
+                    error_message=error_msg,
+                )
+                await self._mark_lane_abort(run_id=run_id, error_message=error_msg)
+                await self.db(
+                    update_ticker_run_completion,
+                    run_id=run_id,
+                    status="failed",
+                    final_rating=None,
+                    decision_type=None,
+                    recommended_action=None,
+                    final_verdict_json=None,
+                    error_message=error_msg,
+                )
+            finally:
+                await self.recompute(workflow_run_id)
 
     async def update_ticker_run_company_name(
         self, run_id: str, company_name: str
@@ -480,60 +492,65 @@ class DashboardPipelineRunner:
         candidate: SurveyorCandidate,
         is_mock: bool,
     ) -> None:
-        AI_LOGFIRE.info(
-            "Surveyor entry pipeline started",
-            entry_path=AgentNameDb.SURVEYOR,
+        with logfire.set_baggage(
             workflow_run_id=workflow_run_id,
             run_id=run_id,
             ticker=candidate.ticker,
-            is_mock=is_mock,
-        )
-        try:
-            lane_context = await self._candidate_gate_stage.admit(
-                self,
-                workflow_run_id=workflow_run_id,
-                run_id=run_id,
-                candidate=candidate,
-                is_mock=is_mock,
-                is_existing_position=False,
-            )
-            if lane_context is None:
-                return
-            await self._ticker_lane_stage.run_downstream_from_researcher(
-                self,
-                workflow_run_id=workflow_run_id,
-                run_id=run_id,
-                lane_context=lane_context,
-                is_mock=is_mock,
-                is_existing_position=False,
-            )
+        ):
             AI_LOGFIRE.info(
-                "Surveyor entry pipeline completed",
+                "Surveyor entry pipeline started",
                 entry_path=AgentNameDb.SURVEYOR,
                 workflow_run_id=workflow_run_id,
                 run_id=run_id,
                 ticker=candidate.ticker,
+                is_mock=is_mock,
             )
-        except Exception as exc:  # noqa: BLE001
-            error_msg = extract_agent_error_message(exc)
-            AI_LOGFIRE.exception(
-                "Surveyor entry pipeline failed",
-                entry_path=AgentNameDb.SURVEYOR,
-                workflow_run_id=workflow_run_id,
-                run_id=run_id,
-                ticker=candidate.ticker,
-                error_message=error_msg,
-            )
-            await self._mark_lane_abort(run_id=run_id, error_message=error_msg)
-            await self.db(
-                update_ticker_run_completion,
-                run_id=run_id,
-                status="failed",
-                final_rating=None,
-                decision_type=None,
-                recommended_action=None,
-                final_verdict_json=None,
-                error_message=error_msg,
-            )
-        finally:
-            await self.recompute(workflow_run_id)
+            try:
+                lane_context = await self._candidate_gate_stage.admit(
+                    self,
+                    workflow_run_id=workflow_run_id,
+                    run_id=run_id,
+                    candidate=candidate,
+                    is_mock=is_mock,
+                    is_existing_position=False,
+                )
+                if lane_context is None:
+                    return
+                await self._ticker_lane_stage.run_downstream_from_researcher(
+                    self,
+                    workflow_run_id=workflow_run_id,
+                    run_id=run_id,
+                    lane_context=lane_context,
+                    is_mock=is_mock,
+                    is_existing_position=False,
+                )
+                AI_LOGFIRE.info(
+                    "Surveyor entry pipeline completed",
+                    entry_path=AgentNameDb.SURVEYOR,
+                    workflow_run_id=workflow_run_id,
+                    run_id=run_id,
+                    ticker=candidate.ticker,
+                )
+            except Exception as exc:  # noqa: BLE001
+                error_msg = extract_agent_error_message(exc)
+                AI_LOGFIRE.exception(
+                    "Surveyor entry pipeline failed",
+                    entry_path=AgentNameDb.SURVEYOR,
+                    workflow_run_id=workflow_run_id,
+                    run_id=run_id,
+                    ticker=candidate.ticker,
+                    error_message=error_msg,
+                )
+                await self._mark_lane_abort(run_id=run_id, error_message=error_msg)
+                await self.db(
+                    update_ticker_run_completion,
+                    run_id=run_id,
+                    status="failed",
+                    final_rating=None,
+                    decision_type=None,
+                    recommended_action=None,
+                    final_verdict_json=None,
+                    error_message=error_msg,
+                )
+            finally:
+                await self.recompute(workflow_run_id)
