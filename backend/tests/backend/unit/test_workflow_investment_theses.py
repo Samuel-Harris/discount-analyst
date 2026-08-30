@@ -232,7 +232,7 @@ def test_latest_falls_back_to_chosen_strategist_row(db_session: Session) -> None
 
 def test_persist_chosen_snapshots_only_positive_targets(db_session: Session) -> None:
     workflow_run_id = new_id()
-    _surveyor_id, curator_id = insert_workflow_run(
+    insert_workflow_run(
         db_session,
         workflow_run_id=workflow_run_id,
         portfolio_tickers=["TSM", "AMAT"],
