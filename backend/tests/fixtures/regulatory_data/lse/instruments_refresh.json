@@ -1,0 +1,27 @@
+[
+  {
+    "type": "reports-filter-toggle-result",
+    "content": [
+      {
+        "value": {
+          "ctaItems": [
+            {
+              "ctaTitle": "Instrument list",
+              "ctaButton": {
+                "label": "Download",
+                "link": "https://docs.londonstockexchange.com/sites/default/files/reports/instrument-list.xlsx"
+              }
+            },
+            {
+              "ctaTitle": "Instrument list archive 2026",
+              "ctaButton": {
+                "label": "Download",
+                "link": "https://docs.londonstockexchange.com/sites/default/files/reports/instrument-list-archive-2026.zip"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+]

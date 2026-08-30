@@ -1,6 +1,6 @@
-TIDM,Issuer Name,ISIN,Market,Instrument name,Sector
-AZN,AstraZeneca PLC,GB0009895292,MAIN MARKET,Ordinary Shares,Pharmaceuticals
-SBRY,J Sainsbury PLC,GB00B019KW72,MAIN MARKET,Ordinary Shares,Food & Drug Retailers
-GHH,Gooch & Housego PLC,GB0002259116,AIM,Ordinary Shares,Electronic & Electrical Equipment
-QQ.,QinetiQ Group PLC,GB00B0WMWD43,MAIN MARKET,Ordinary Shares,Aerospace & Defence
-BILB,Bilby PLC,GB00BYZJQT16,AIM,Ordinary Shares,Support Services
+TIDM,Issuer Name,Instrument Name,ISIN,LSE Market
+AZN,AstraZeneca PLC,ORD USD0.25,GB0009895292,MAIN MARKET
+SBRY,J Sainsbury PLC,ORD 28 4/7P,GB00B019KW72,MAIN MARKET
+GHH,Gooch & Housego PLC,ORD 20P,GB0002259116,AIM
+QQ.,QinetiQ Group PLC,ORD 1P,GB00B0WMWD43,MAIN MARKET
+BILB,Bilby PLC,ORD 10P,GB00BYZJQT16,AIM

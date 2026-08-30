@@ -5,7 +5,7 @@
 
 ## Purpose
 
-Official-source tools for US/UK listed-equity universes and filing-derived fundamentals. NASDAQ Trader and the LSE issuers report confirm symbols; SEC companyfacts and Companies House iXBRL supply compact snapshots. Surveyor screens with yfinance and uses these tools for official listing and filing verification; FMP/EODHD is not the primary screening path.
+Official-source tools for US/UK listed-equity universes and filing-derived fundamentals. NASDAQ Trader and the LSE instrument list confirm symbols; SEC companyfacts and Companies House iXBRL supply compact snapshots. Surveyor screens with yfinance and uses these tools for official listing and filing verification; FMP/EODHD is not the primary screening path.
 
 ## Key Files
 
@@ -18,13 +18,13 @@ Official-source tools for US/UK listed-equity universes and filing-derived funda
 | `errors.py`     | `ColdCacheError` names `discount-analyst admin refresh-regulatory-data`     |
 | `toolsets.py`   | `create_universe_toolset()` and `create_filings_toolset()`                  |
 | `refresh.py`    | Flag resolution and per-source refresh orchestration                        |
-| `json_maps.py`  | Typed JSON object/list casts for SEC payloads                               |
+| `json_maps.py`  | Typed JSON object/list casts for SEC and LSE CMS payloads                   |
 
 ## Subdirectories
 
 | Directory           | Purpose                                              |
 | ------------------- | ---------------------------------------------------- |
-| `exchanges/`        | NASDAQ Trader merge/filter and LSE issuers report    |
+| `exchanges/`        | NASDAQ Trader merge/filter and LSE instrument list   |
 | `sec_edgar/`        | Ticker→CIK, companyfacts selection, submissions TTL  |
 | `companies_house/`  | Company product ingest, iXBRL parse, SQLite store    |
 
@@ -34,7 +34,7 @@ Official-source tools for US/UK listed-equity universes and filing-derived funda
 
 - Preserve reported values as `Decimal`; never coerce binary floats into fundamentals.
 - Publish a new cache version only after validation. Failure must leave the previous manifest active.
-- The live LSE reports page is a JavaScript shell with no download markup. `refresh_lse_issuers` fails with `SchemaValidationError` until the official HTML includes a labelled Issuer list link. Do not substitute the FCA Official List or paid LSEG feeds.
+- Discover the LSE instrument list through the official CMS (`GET /api/v1/pages?path=reports`, then `POST /api/v1/components/refresh`). Select the unique current `Instrument list` CTA. Do not scrape the JavaScript reports HTML, and do not substitute the FCA Official List or paid LSEG feeds.
 - SEC requests need `SEC__USER_AGENT`. A missing value blocks SEC refresh/gap-fill, not listings or Companies House.
 - Stale SEC ticker and submissions files are served when a live refresh fails.
 - Companies House iXBRL facts are taken from the latest context period, not document order.

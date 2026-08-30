@@ -1,0 +1,39 @@
+{
+  "components": [
+    {
+      "content": [
+        {
+          "value": {
+            "reportsFilterToggleFilters": [
+              {
+                "label": "Issuers and Instruments",
+                "subFilters": [
+                  {
+                    "label": "Issuers",
+                    "tabId": "issuer-tab-id",
+                    "modules": [{ "moduleId": "block_content:issuer-mod" }]
+                  },
+                  {
+                    "label": "Instruments",
+                    "tabId": "instrument-tab-id",
+                    "modules": [{ "moduleId": "block_content:instrument-mod" }]
+                  }
+                ]
+              },
+              {
+                "label": "Primary markets",
+                "subFilters": [
+                  {
+                    "label": "Main Market",
+                    "tabId": "main-market-tab-id",
+                    "modules": [{ "moduleId": "block_content:main-market-mod" }]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
