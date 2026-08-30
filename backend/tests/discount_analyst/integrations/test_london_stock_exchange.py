@@ -209,6 +209,45 @@ def _wrong_header_handler(request: httpx.Request) -> httpx.Response:
     )
 
 
+def _lowercase_header_handler(request: httpx.Request) -> httpx.Response:
+    if request.method == "GET" and request.url.path == "/api/v1/pages":
+        return _fixture_handler(request)
+    if request.method == "POST" and request.url.path == "/api/v1/components/refresh":
+        return _fixture_handler(request)
+    if request.url.path == _INSTRUMENT_LIST_PATH:
+        return httpx.Response(
+            200,
+            content=_instrument_list_xlsx_bytes(
+                shares_header=[
+                    "tidm",
+                    "issuer name",
+                    "instrument name",
+                    "isin",
+                    "lse market",
+                ]
+            ),
+            headers={
+                "content-type": (
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+            },
+            request=request,
+        )
+    return httpx.Response(404, request=request)
+
+
+def _old_issuer_csv_handler(request: httpx.Request) -> httpx.Response:
+    if request.method == "GET" and request.url.path == "/api/v1/pages":
+        return _fixture_handler(request)
+    if request.method == "POST" and request.url.path == "/api/v1/components/refresh":
+        return _fixture_handler(request)
+    body = (
+        "TIDM,Issuer Name,ISIN,Market,Instrument name,Sector\n"
+        "AZN,AstraZeneca PLC,GB0009895292,MAIN MARKET,Ordinary Shares,Pharmaceuticals\n"
+    )
+    return httpx.Response(200, content=body.encode(), request=request)
+
+
 def _empty_cms_handler(request: httpx.Request) -> httpx.Response:
     if request.method == "GET" and request.url.path == "/api/v1/pages":
         return httpx.Response(200, json={}, request=request)
@@ -272,6 +311,7 @@ async def test_lse_main_and_aim_parsing(
         ],
     }
     assert any(request.url.path == _INSTRUMENT_LIST_PATH for request in requests)
+    assert not any("archive" in str(request.url) for request in requests)
     assert LSE_INSTRUMENT_LIST_CTA_TITLE not in "".join(
         str(request.url) for request in requests
     )
@@ -402,44 +442,28 @@ async def test_html_reports_page_is_not_used_for_discovery(
     assert not any(request.url.path == "/reports" for request in requests)
 
 
-def test_archive_cta_title_is_not_selected() -> None:
-    url = lse_module._instrument_list_url(_REFRESH_JSON)
-    assert url.endswith("/instrument-list.xlsx")
-    assert "archive" not in url
+async def test_normalised_instrument_headers_are_accepted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cache = RegulatoryDataCache(tmp_path)
+    _bind_cache(monkeypatch, cache)
+    _install_mock_client(monkeypatch, _lowercase_header_handler)
+
+    result = await refresh_lse_issuers()
+    page = await list_uk_listed_equities()
+
+    assert result.record_count == len(EXPECTED_MARKETS)
+    by_symbol = {item.symbol: item for item in page.items}
+    assert by_symbol["AZN"].market == UkMarket.MAIN
+    assert by_symbol["AZN"].isin == "GB0009895292"
 
 
-def test_normalised_instrument_headers_are_accepted() -> None:
-    rows = [
-        ["tidm", "issuer name", "instrument name", "isin", "lse market"],
-        ["AZN", "AstraZeneca PLC", "ORD USD0.25", "GB0009895292", "MAIN MARKET"],
-    ]
-    listings, skipped = lse_module._listings_from_rows(
-        rows, source_refreshed_at=lse_module.utc_now()
-    )
-    assert skipped == 0
-    assert [row.symbol for row in listings] == ["AZN"]
-    assert listings[0].market == UkMarket.MAIN
-    assert listings[0].isin == "GB0009895292"
+async def test_old_issuer_csv_headers_are_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cache = RegulatoryDataCache(tmp_path)
+    _bind_cache(monkeypatch, cache)
+    _install_mock_client(monkeypatch, _old_issuer_csv_handler)
 
-
-def test_old_issuer_csv_headers_are_rejected() -> None:
-    rows = [
-        [
-            "TIDM",
-            "Issuer Name",
-            "ISIN",
-            "Market",
-            "Instrument name",
-            "Sector",
-        ],
-        [
-            "AZN",
-            "AstraZeneca PLC",
-            "GB0009895292",
-            "MAIN MARKET",
-            "Ordinary Shares",
-            "Pharmaceuticals",
-        ],
-    ]
     with pytest.raises(SchemaValidationError, match="instrument-list header row"):
-        lse_module._listings_from_rows(rows, source_refreshed_at=lse_module.utc_now())
+        await refresh_lse_issuers()
