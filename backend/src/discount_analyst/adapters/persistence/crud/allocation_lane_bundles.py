@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pydantic import BaseModel
 from sqlmodel import Session, col, select
 
 from discount_analyst.adapters.persistence.crud.run_executions import (
@@ -139,7 +140,7 @@ def _rejection_reason(
     return row.rejection_reason
 
 
-def _load_model[T](
+def _load_model[T: BaseModel](
     session: Session,
     *,
     run_id: str,
