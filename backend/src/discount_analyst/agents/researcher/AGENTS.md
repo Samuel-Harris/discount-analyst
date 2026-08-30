@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-04-03 | Updated: 2026-04-03 -->
+<!-- Generated: 2026-04-03 | Updated: 2026-08-30 -->
 
 # researcher
 
@@ -12,7 +12,7 @@ The `researcher` directory contains the implementation of the "Researcher" AI ag
 | File               | Description                                                                                                                                |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `researcher.py`    | Factory for the Researcher agent (`create_researcher_agent`).                                                                              |
-| `system_prompt.py` | System prompt defining neutral-evidence behaviour, FMP/EODHD tool usage aligned with `FMP_BLACKLIST`, and schema-only output requirements. |
+| `system_prompt.py` | System prompt defining neutral-evidence behaviour, yfinance-first market data, official filing precedence, and schema-only output requirements. |
 | `user_prompt.py`   | `create_user_prompt`: injects one `SurveyorCandidate` JSON block and requires `DeepResearchReport` output.                                 |
 | `__init__.py`      | Package initialization for the researcher module.                                                                                          |
 
@@ -25,7 +25,7 @@ None.
 ### Working In This Directory
 
 - **Agent tools**: By default (`use_perplexity=False`), the agent uses pydantic-ai `WebSearch` and `WebFetch` capabilities, which use provider-native tools where supported and Pydantic AI local fallbacks otherwise. With `use_perplexity=True`, Perplexity-backed tools (`web_search`, `sec_filings_search`) are provided by `discount_analyst.integrations.perplexity` via `create_perplexity_toolset(AgentName.RESEARCHER)`. Official filing tools are always attached.
-- **MCP support**: When `use_mcp_financial_data=True` (default), EODHD and FMP MCP toolsets are added for Anthropic, OpenAI, and DeepSeek via `add_required_feature_to_builtin_tools` (`ProviderFeature.MCP`). Google does not support MCP - use `use_mcp_financial_data=False` or pass `--no-mcp` in scripts.
+- **MCP support**: When `use_mcp_financial_data=True` (default), EODHD and FMP MCP toolsets are added for Anthropic, OpenAI, and DeepSeek via `add_required_feature_to_builtin_tools` (`ProviderFeature.MCP`). They are optional, one-attempt gap-fill sources after yfinance, official filings, and issuer material. Google does not support MCP - use `use_mcp_financial_data=False` or pass `--no-mcp` in scripts.
 - **Output contract**: Keep output constrained to `DeepResearchReport` in `schema.py`; submit via pydantic-ai `final_result` (tool mode). Do not add recommendation or valuation semantics to this agent.
 
 ### Testing Requirements

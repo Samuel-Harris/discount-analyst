@@ -76,6 +76,8 @@ REGULATORY_TOOLSETS_BY_ROLE: dict[
     AgentName.APPRAISER: (create_filings_toolset,),
 }
 
+TERMINAL_REQUIRED_AGENT_NAMES = frozenset({AgentName.SURVEYOR})
+
 
 @dataclass(frozen=True, slots=True)
 class AgentSpec[OutT]:
@@ -151,6 +153,9 @@ def create_agent[OutT](
     terminal_opts = (
         terminal if terminal is not None else terminal_run_options(app_settings)
     )
+    if spec.name in TERMINAL_REQUIRED_AGENT_NAMES and not terminal_opts.enabled:
+        msg = f"{spec.name.value} requires terminal access for yfinance screening"
+        raise ValueError(msg)
     if terminal_opts.enabled:
         session_state = terminal_opts.session_state or TerminalSessionState()
         capabilities.append(

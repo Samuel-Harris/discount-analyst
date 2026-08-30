@@ -57,27 +57,24 @@ class KeyMetrics(BaseModel):
         ge=0,
         le=9,
         description=(
-            "Piotroski F-Score (0-9). Use FMP's Financial Score endpoint "
-            "which provides this pre-computed. Will typically be null for "
-            "UK-listed stocks as FMP coverage is US-centric."
+            "Piotroski F-Score (0-9), calculated only when comparable annual "
+            "statement inputs are available. Otherwise use null and explain the gap."
         ),
     )
     altman_z_score: float | None = Field(
         default=None,
         description=(
-            "Altman Z-Score. Use FMP's Financial Score endpoint which "
-            "bundles this with the Piotroski score. Above 2.99 suggests "
-            "safety; below 1.81 suggests distress. Will typically be null "
-            "for UK-listed stocks."
+            "Altman Z-Score calculated from comparable statement inputs. "
+            "Above 2.99 suggests safety; below 1.81 suggests distress. "
+            "Otherwise use null and explain the gap."
         ),
     )
     insider_buying_last_6m: bool | None = Field(
         default=None,
         description=(
-            "Whether insiders have made open-market purchases in the last "
-            "6 months. Use FMP insider trading tools or EODHD "
-            "get_insider_transactions for US stocks. For UK stocks, use "
-            "Perplexity web search for RNS announcements."
+            "Whether official issuer, exchange, or regulatory disclosures verify "
+            "open-market insider purchases in the last 6 months. Use null when "
+            "the available evidence is absent or ambiguous."
         ),
     )
 
@@ -120,10 +117,8 @@ class SurveyorCandidate(BaseModel):
     analyst_coverage_count: int | None = Field(
         default=None,
         description=(
-            "Number of sell-side analysts covering the stock. Infer by "
-            "counting distinct analysts from FMP's analyst estimates "
-            "endpoint, or from Perplexity web search. This is an estimate, "
-            "not an exact count."
+            "Verified number of sell-side analysts covering the stock. Use null "
+            "rather than estimating from an incomplete or ambiguous source."
         ),
     )
     key_metrics: KeyMetrics
@@ -142,9 +137,8 @@ class SurveyorCandidate(BaseModel):
     )
     data_gaps: str = Field(
         description=(
-            "List any metrics that could not be found or verified, and why. "
-            "e.g. 'Piotroski and Altman Z-Score unavailable - UK-listed stock "
-            "not covered by FMP Financial Score endpoint.'"
+            "List any metrics that could not be found or verified, the sources "
+            "attempted, and why the evidence was insufficient."
         ),
     )
 
@@ -173,10 +167,11 @@ class SurveyorOutput(BaseModel):
 
     candidates: list[SurveyorCandidate] = Field(
         min_length=15,
+        max_length=15,
         description=(
-            "Ranked list of candidates. Must contain at least 15. Aim for "
-            "20-30, but do not pad - a shorter list of strong candidates is "
-            "better than a diluted one."
+            "Ranked list of exactly 15 candidates that satisfy every hard filter. "
+            "Use screened reserve names to meet the minimum without weakening "
+            "eligibility requirements."
         ),
     )
 

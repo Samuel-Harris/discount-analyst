@@ -72,3 +72,20 @@ def test_terminal_run_options_respects_explicit_enabled() -> None:
     opts = terminal_run_options(settings, enabled=False, session_id="sid")
     assert opts.enabled is False
     assert opts.session_id == "sid"
+
+
+def test_surveyor_requires_terminal_for_yfinance_screening() -> None:
+    spec = AgentSpec(
+        name=AgentName.SURVEYOR,
+        output_type=_MinimalOutput,
+        system_prompt="test",
+    )
+
+    with pytest.raises(ValueError, match="requires terminal access"):
+        create_agent(
+            spec=spec,
+            ai_models_config=AIModelsConfig(model_name=ModelName.GPT_5_1),
+            enable_web_research_tools=False,
+            use_mcp_financial_data=False,
+            terminal=terminal_run_options(settings, enabled=False),
+        )

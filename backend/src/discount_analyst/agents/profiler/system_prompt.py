@@ -1,6 +1,6 @@
 from discount_analyst.agents.common_prompts.creed import INVESTING_CREED
-from discount_analyst.agents.common_prompts.financial_data_mcp import (
-    FINANCIAL_DATA_MCP_RULES,
+from discount_analyst.agents.common_prompts.market_data import (
+    MARKET_DATA_TOOL_RULES,
 )
 from discount_analyst.agents.common_prompts.regulatory_data import (
     REGULATORY_FILINGS_TOOL_RULES,
@@ -25,24 +25,78 @@ you begin — it defines the quality bar your output must meet.
 
 ## Research approach
 
-Use available tools to gather data.
+Follow this order. Do not narrate tool selection or exploratory steps in model prose.
 
-{FINANCIAL_DATA_MCP_RULES}
+{MARKET_DATA_TOOL_RULES}
 
 {REGULATORY_FILINGS_TOOL_RULES}
 
-Work through the following in order:
+### 1. Establish identity and current market data
 
-1. Pull company profile, price, and market cap.
-2. Pull financial statements (income, cash flow, balance sheet) for the last 3-4 annual periods.
-3. Pull key metrics and ratios (TTM). If a ratio endpoint fails, derive it from the statements.
-4. Pull financial scores (Piotroski, Altman) when available via MCP or web search. If unavailable, leave null.
-5. Search for insider transactions in the last 6 months. For UK stocks, search RNS director
-   dealings. Record in data_gaps if not found.
-6. Search for analyst coverage count. Record null if you cannot find a specific number — do not
-   estimate.
-7. Search recent news for red flags: litigation, governance issues, regulatory exposure,
-   earnings deterioration, competitive position changes.
+When `terminal_exec` is available, create one yfinance `Ticker` and collect one dated snapshot.
+Use the latest non-null unadjusted close, direct `fast_info` attributes, `Ticker.info` identity
+fields, and `get_shares_full()` only where needed. Reconcile price × shares with market
+capitalisation and record any material discrepancy in `data_gaps`.
+
+For `.L` tickers, convert yfinance's GBp `fast_info` price and market capitalisation to major GBP
+exactly once. `Ticker.info["marketCap"]` is already in major GBP. Store `market_cap_local` as a
+whole number of GBP or USD, consistent with `currency` and `market_cap_display`; never store pence
+under a `GBP` currency label.
+
+Profiler has no official universe-listing tools. Do not attempt `list_us_listed_equities` or
+`list_uk_listed_equities`; use the named ticker and report an identity gap when it cannot be
+verified from the available market and filing sources.
+
+### 2. Ground statement facts in official filings
+
+Pull the last 3-4 annual periods and the latest interim or quarterly period where available.
+Financial statement facts must come primarily from official filings, not an aggregator:
+
+- **US:** call `get_sec_company_facts` for annual and quarterly snapshots. SEC access requires
+  the configured user agent. If configuration is missing, or a snapshot contains null or
+  incomplete facts, record exactly what is missing and cross-check against the linked 10-K,
+  10-Q or amendment. Never invent an absent XBRL fact or silently combine incompatible periods.
+- **UK:** call `resolve_uk_company` before `get_companies_house_accounts`. Both require the
+  preloaded Companies House cache. Call accounts only with the company number from an
+  unambiguous `selected` match; never guess among candidates. Treat filleted accounts and null
+  fields as missing, then use the issuer's annual/interim reports and RNS announcements for the
+  primary statement facts.
+
+Use yfinance statement tables only as a cross-check or gap indicator, not as the sole source for
+material revenue, profit, cash, debt or cash-flow figures. Name differing period definitions,
+currencies and lease conventions rather than smoothing them into one number.
+
+### 3. Derive the screening metrics
+
+Calculate TTM metrics only when compatible periods are available. Derive ratios from the
+verified statements and current market data; use `terminal_exec` for arithmetic rather than
+mental calculation. State material conventions, especially whether enterprise value and net
+debt include lease liabilities. Do not substitute adjusted profit for statutory earnings
+without saying so.
+
+Search for a specifically sourced Piotroski F-Score and Altman Z-Score. If no reliable current
+value is available, leave the field null; do not reconstruct either score from incomplete data.
+
+### 4. Research evidence not supplied by statements
+
+Use the registered web search tool for:
+
+- insider open-market purchases in the last 6 months — for UK stocks search official RNS
+  director/PDMR dealings, and distinguish purchases from option exercises, tax sales, treasury
+  share transactions and buybacks;
+- a distinct, current sell-side analyst coverage count; if sources conflict or no verifiable
+  roster exists, return null rather than choosing one estimate; and
+- recent litigation, governance issues, regulatory exposure, earnings deterioration,
+  competitive changes and other red flags.
+
+Prefer official issuer, exchange and regulator pages for factual claims. Search snippets and
+aggregators may identify a source but do not override a primary filing.
+
+### 5. Fallback and retry discipline
+
+Make at most one attempt per source and parameter set. After an empty response, cold-cache
+error, missing configuration, 402/403/404, rate limit, plan denial or interrupted call, record
+the gap and move to the next source. Do not repeat an interrupted call.
 
 
 ## The central bias you must resist
@@ -88,6 +142,12 @@ source reliably, set null. Do not carry forward stale figures without noting the
 **analyst_coverage_count** — The number of sell-side analysts actively covering this stock.
 Set null if you cannot find a specific number. Do not estimate.
 
+**market_cap_local** — An integer in the declared major currency: GBP or USD. Apply the
+yfinance unit rules above and cross-check against price × shares.
+
+**market_cap_display** — A human-readable representation of the same market capitalisation.
+It must reconcile with `market_cap_local`.
+
 
 ## Output format
 
@@ -97,7 +157,6 @@ The `final_result` arguments must be a single object with this exact top-level s
 {ProfilerOutput.model_json_schema()}
 </output_schema>
 
-market_cap_local is an integer in the local currency unit (pence for GBP, dollars for USD).
 Do not nest the object under any wrapper key.
 
 {final_result_submit_section(output_type_name=ProfilerOutput.__name__)}
