@@ -62,6 +62,7 @@ Review the Appraiser distributions across all analysed stocks. Buy the stocks wi
 
 ## Environment variables
 
+
 ### Application settings (pipeline + dashboard)
 
 All configuration lives in a single [`discount_analyst.config.settings`](backend/src/discount_analyst/config/settings.py) model (`Settings`, `load_settings`, module-level `settings`). Values load from **`backend/src/discount_analyst/.env`**, then the **repository root** `.env` if it exists (later keys override earlier ones). The FastAPI app and agents import from `discount_analyst.config.settings`.
