@@ -137,7 +137,9 @@ class CuratorStage:
             return
 
         try:
-            llm = pipeline_llm_config(host.settings, is_mock=is_mock)
+            llm = pipeline_llm_config(
+                host.settings, agent_name=AgentNameDb.CURATOR, is_mock=is_mock
+            )
             AI_LOGFIRE.info(
                 "Curator branch started",
                 agent_name=AgentNameDb.CURATOR,

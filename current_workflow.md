@@ -14,7 +14,9 @@ Previous snapshot: 2026-08-30 (versioned live theses / CODE-87). This pass re-re
 
 **Curator snapshot load.** Mock and live dashboard Curator share `load_dashboard_portfolio_snapshot(session, workflow_run_id)`. It always converts the persisted ledger. Pre-ledger rows raise `RuntimeError` (“launched without a sterling ledger”). There is no equal-weight invention; `equal_weight_existing_snapshot` is gone. CLI Curator is unchanged (`--snapshot` percentage JSON).
 
-**Unchanged:** Candidate gate, Sentinel derivation + valuation gate, Appraiser weight-blend validator, Curator policy/invariants/15% cap, `is_existing_position` Sentinel wording (no extra “suggestion” prompt text), mock DEV-forced path, one dashboard model for every stage, Surveyor’s terminal-required construction, thesis snapshots (`0015`), no Arbiter agent.
+**Per-agent default models.** Dashboard stages resolve via `pipeline_llm_config(..., agent_name=…)`. CLI `workflow run` reads `Settings.agent_default_models` per stage (no `--model`). One-shot `agent * --model` still overrides that agent’s default. Baked-in defaults are `gpt-5.6-luna` for Surveyor through Appraiser and `gpt-5.6-terra` for Curator (`AGENT_DEFAULT_MODELS__*`). `DASHBOARD_DEFAULT_MODEL` is gone.
+
+**Unchanged:** Candidate gate, Sentinel derivation + valuation gate, Appraiser weight-blend validator, Curator policy/invariants/15% cap, `is_existing_position` Sentinel wording (no extra “suggestion” prompt text), mock DEV-forced path, Surveyor’s terminal-required construction, thesis snapshots (`0015`), no Arbiter agent.
 
 Skill-table path drift (for the next operator): dashboard runner is `adapters/orchestration/sqlmodel_runner.py`, HTTP is `entrypoints/api/routers/workflow_runs.py`, CLI is `entrypoints/cli/workflows/run_full_workflow.py` plus `cli_curator.py`, builders are `application/decisions/builders.py`, live-thesis resolve is `application/theses.py`, lane order is `application/workflows/agent_lane_order.py`, rating enum is `domain/decisions/investment_rating.py`.
 
@@ -199,19 +201,19 @@ Introspected 2026-08-30 via `model_json_schema()` / enum values. Nested models a
 
 ### Enums
 
-| Enum                     | Values                                                                                                                                                                                                                                        |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Exchange`               | `LSE`, `AIM`, `NYSE`, `NASDAQ`                                                                                                                                                                                                                |
-| `Currency`               | `GBP`, `USD`                                                                                                                                                                                                                                  |
-| `StockCategory`          | `value`, `growth` — **defined in `surveyor.schema` but unused** (no field on `SurveyorCandidate`)                                                                                                                                             |
-| `ThesisVerdict`          | `Thesis intact — proceed to valuation`, `Thesis intact with reservations — proceed with noted caveats`, `Thesis weakened — do not proceed`, `Thesis unproven — do not proceed`, `Thesis broken — do not proceed`                              |
-| `OverallRedFlagVerdict`  | `Clear`, `Monitor`, `Serious concern`                                                                                                                                                                                                         |
-| `ValuationMethod`        | `dcf`, `reverse_dcf`, `comparable_multiples`, `sum_of_parts`, `asset_value`, `unit_economics`, `scenario_weighting`, `monte_carlo`, `earnings_multiple`, `fcf_yield` (no `other`)                                                             |
-| `InvestmentRating`       | see [Rating system](#rating-system)                                                                                                                                                                                                           |
-| `RebalanceAction`        | `enter`, `increase`, `hold`, `reduce`, `exit`, `avoid` (`domain/allocations/actions.py`)                                                                                                                                                      |
-| `AgentName` (runtime)    | `CURATOR`, `APPRAISER`, `PROFILER`, `RESEARCHER`, `SENTINEL`, `STRATEGIST`, `SURVEYOR`                                                                                                                                                        |
-| `AgentNameDb` / API slug | lowercase: `surveyor`, `profiler`, `researcher`, `strategist`, `sentinel`, `appraiser`, `curator`                                                                                                                                             |
-| `ModelName`              | `claude-opus-4-5`, `claude-sonnet-4-5`, `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-6`, `gpt-5.1`, `gpt-5.2`, `gpt-5.4`, `gpt-5.6-luna`, `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `deepseek-v4-flash`, `deepseek-v4-pro` |
+| Enum                     | Values                                                                                                                                                                                                                                                         |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Exchange`               | `LSE`, `AIM`, `NYSE`, `NASDAQ`                                                                                                                                                                                                                                 |
+| `Currency`               | `GBP`, `USD`                                                                                                                                                                                                                                                   |
+| `StockCategory`          | `value`, `growth` — **defined in `surveyor.schema` but unused** (no field on `SurveyorCandidate`)                                                                                                                                                              |
+| `ThesisVerdict`          | `Thesis intact — proceed to valuation`, `Thesis intact with reservations — proceed with noted caveats`, `Thesis weakened — do not proceed`, `Thesis unproven — do not proceed`, `Thesis broken — do not proceed`                                               |
+| `OverallRedFlagVerdict`  | `Clear`, `Monitor`, `Serious concern`                                                                                                                                                                                                                          |
+| `ValuationMethod`        | `dcf`, `reverse_dcf`, `comparable_multiples`, `sum_of_parts`, `asset_value`, `unit_economics`, `scenario_weighting`, `monte_carlo`, `earnings_multiple`, `fcf_yield` (no `other`)                                                                              |
+| `InvestmentRating`       | see [Rating system](#rating-system)                                                                                                                                                                                                                            |
+| `RebalanceAction`        | `enter`, `increase`, `hold`, `reduce`, `exit`, `avoid` (`domain/allocations/actions.py`)                                                                                                                                                                       |
+| `AgentName` (runtime)    | `CURATOR`, `APPRAISER`, `PROFILER`, `RESEARCHER`, `SENTINEL`, `STRATEGIST`, `SURVEYOR`                                                                                                                                                                         |
+| `AgentNameDb` / API slug | lowercase: `surveyor`, `profiler`, `researcher`, `strategist`, `sentinel`, `appraiser`, `curator`                                                                                                                                                              |
+| `ModelName`              | `claude-opus-4-5`, `claude-sonnet-4-5`, `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-6`, `gpt-5.1`, `gpt-5.2`, `gpt-5.4`, `gpt-5.6-luna`, `gpt-5.6-terra`, `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `deepseek-v4-flash`, `deepseek-v4-pro` |
 
 ### `KeyMetrics`
 
@@ -474,7 +476,7 @@ Curator is **not** a graph node and is **not** in `agent_lane_order.py` / `agent
 
 ### Mock mode
 
-Triggered by workflow `is_mock` (dashboard DEV always). `pipeline_llm_config(..., is_mock=True)` yields `ai_models_config=None`, `model_name=None`. Each mock agent sleeps 5s and uses `adapters.simulation.mock_outputs`. Mock Strategist returns `keep_prior` when a prior thesis exists, otherwise `replace` with `mock_thesis`. Mock Sentinel proceed is **deterministic ticker char-sum parity** (`mock_sentinel_proceed_for_dashboard_lane`). Mock rating uses `mock_rating_table_decision` rather than live MoS from a distribution. Mock Curator uses `mock_curator_proposal` (forced-zero at 0; retain-or-reduce at `min(current, 15% company room)`; leftover to investable names then cash). Mock Strategist and Curator conversation JSON now store the real user prompt so prior-thesis / `live_thesis` blocks are visible in the dashboard conversation view.
+Triggered by workflow `is_mock` (dashboard DEV always). `pipeline_llm_config(..., agent_name=…, is_mock=True)` yields `ai_models_config=None`, `model_name=None`. Each mock agent sleeps 5s and uses `adapters.simulation.mock_outputs`. Mock Strategist returns `keep_prior` when a prior thesis exists, otherwise `replace` with `mock_thesis`. Mock Sentinel proceed is **deterministic ticker char-sum parity** (`mock_sentinel_proceed_for_dashboard_lane`). Mock rating uses `mock_rating_table_decision` rather than live MoS from a distribution. Mock Curator uses `mock_curator_proposal` (forced-zero at 0; retain-or-reduce at `min(current, 15% company room)`; leftover to investable names then cash). Mock Strategist and Curator conversation JSON now store the real user prompt so prior-thesis / `live_thesis` blocks are visible in the dashboard conversation view.
 
 A completed dashboard run with `is_mock=true` did **not** hit live LLM/MCP/FMP for those stages.
 
@@ -484,16 +486,22 @@ A completed dashboard run with `is_mock=true` did **not** hit live LLM/MCP/FMP f
 
 Configuration: `discount_analyst.config.settings.Settings` (root / package `.env`, nested `ENV__` keys).
 
-| Setting                                                       | Default (code)         | Role                                                                                                                  |
-| ------------------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `default_model` / `DASHBOARD_DEFAULT_MODEL`                   | `gpt-5.6-luna`         | All dashboard pipeline agents via `AIModelsConfig(model_name=settings.default_model)` — **one model for every stage** |
-| `use_perplexity` / `DASHBOARD_USE_PERPLEXITY`                 | `False`                | Perplexity `web_search` + `sec_filings_search` instead of pydantic-ai WebSearch/WebFetch                              |
-| `use_mcp_financial_data` / `DASHBOARD_USE_MCP_FINANCIAL_DATA` | `True`                 | EODHD + FMP MCP toolsets                                                                                              |
-| `use_terminal` / `DASHBOARD_USE_TERMINAL`                     | `True`                 | Docker-backed `terminal_exec` via `TERMINAL_SERVICE_URL`; Surveyor construction fails when disabled                   |
-| `eodhd.disabled` / `EODHD__DISABLED`                          | `False`                | Omits EODHD MCP (and EODHD listing fallback)                                                                          |
-| `risk_free_rate_pct`                                          | `3.7`                  | Injected into Appraiser user prompt                                                                                   |
-| `regulatory_data_cache_dir` / `REGULATORY_DATA_CACHE_DIR`     | `data/regulatory_data` | Official NASDAQ/LSE/SEC/Companies House cache (gitignored)                                                            |
-| `sec_user_agent` / `SEC__USER_AGENT`                          | `""`                   | Required for SEC bulk refresh and live companyfacts gap-fill; not required for listings or Companies House            |
+| Setting                                                                | Default (code)         | Role                                                                                                       |
+| ---------------------------------------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `agent_default_models.surveyor` / `AGENT_DEFAULT_MODELS__SURVEYOR`     | `gpt-5.6-luna`         | Surveyor via `pipeline_llm_config(..., agent_name=AgentNameDb.SURVEYOR)`                                   |
+| `agent_default_models.profiler` / `AGENT_DEFAULT_MODELS__PROFILER`     | `gpt-5.6-luna`         | Profiler via `pipeline_llm_config(..., agent_name=AgentNameDb.PROFILER)`                                   |
+| `agent_default_models.researcher` / `AGENT_DEFAULT_MODELS__RESEARCHER` | `gpt-5.6-luna`         | Researcher via `pipeline_llm_config(..., agent_name=AgentNameDb.RESEARCHER)`                               |
+| `agent_default_models.strategist` / `AGENT_DEFAULT_MODELS__STRATEGIST` | `gpt-5.6-luna`         | Strategist via `pipeline_llm_config(..., agent_name=AgentNameDb.STRATEGIST)`                               |
+| `agent_default_models.sentinel` / `AGENT_DEFAULT_MODELS__SENTINEL`     | `gpt-5.6-luna`         | Sentinel via `pipeline_llm_config(..., agent_name=AgentNameDb.SENTINEL)`                                   |
+| `agent_default_models.appraiser` / `AGENT_DEFAULT_MODELS__APPRAISER`   | `gpt-5.6-luna`         | Appraiser via `pipeline_llm_config(..., agent_name=AgentNameDb.APPRAISER)`                                 |
+| `agent_default_models.curator` / `AGENT_DEFAULT_MODELS__CURATOR`       | `gpt-5.6-terra`        | Curator via `pipeline_llm_config(..., agent_name=AgentNameDb.CURATOR)`                                     |
+| `use_perplexity` / `DASHBOARD_USE_PERPLEXITY`                          | `False`                | Perplexity `web_search` + `sec_filings_search` instead of pydantic-ai WebSearch/WebFetch                   |
+| `use_mcp_financial_data` / `DASHBOARD_USE_MCP_FINANCIAL_DATA`          | `True`                 | EODHD + FMP MCP toolsets                                                                                   |
+| `use_terminal` / `DASHBOARD_USE_TERMINAL`                              | `True`                 | Docker-backed `terminal_exec` via `TERMINAL_SERVICE_URL`; Surveyor construction fails when disabled        |
+| `eodhd.disabled` / `EODHD__DISABLED`                                   | `False`                | Omits EODHD MCP (and EODHD listing fallback)                                                               |
+| `risk_free_rate_pct`                                                   | `3.7`                  | Injected into Appraiser user prompt                                                                        |
+| `regulatory_data_cache_dir` / `REGULATORY_DATA_CACHE_DIR`              | `data/regulatory_data` | Official NASDAQ/LSE/SEC/Companies House cache (gitignored)                                                 |
+| `sec_user_agent` / `SEC__USER_AGENT`                                   | `""`                   | Required for SEC bulk refresh and live companyfacts gap-fill; not required for listings or Companies House |
 
 MCP (`agents/tools/market_data/financial_data_mcp.py`): `https://mcp.eodhd.dev/mcp`, `https://financialmodelingprep.com/mcp`. Providers that support MCP: Anthropic, OpenAI, DeepSeek (`provider_features.py`). Google is **not** in that set — enabling MCP with a Google model raises `NotImplementedError`.
 
@@ -544,7 +552,7 @@ Dashboard persists agent conversations (including Alembic 0012 token columns on 
 - **Separation of stances**: screen → profile/evidence → thesis → adversarial gate → valuation-only → deterministic rating → closed-book allocation. No single agent both values and rates, and Curator does not re-rate names.
 - **Lane context strips trusted screening numbers** so Researcher/Strategist/Sentinel/Appraiser must re-source quantities.
 - **Gates are code, not prompt**: listing/ticker (`validate_candidate`), Sentinel thesis verdict (`derive_thesis_verdict` / `finalise_sentinel_evaluation`), valuation proceed (`sentinel_proceeds_to_valuation`), Appraiser expected-value identity (weight-blend validator), rating (`rating_from_table_inputs`), allocation policy/invariants (`allocation_policy_for`, `finalise_curator_proposal`).
-- **One dashboard model** for all stages; CLI can pick `--model` per run.
+- **Per-agent defaults**: Surveyor–Appraiser `gpt-5.6-luna`, Curator `gpt-5.6-terra`. One-shot CLI `--model` overrides that agent only; `workflow run` has no `--model`.
 - **Mock is a first-class path** and, in DEV, the only dashboard path.
 
 ---

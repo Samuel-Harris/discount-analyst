@@ -456,6 +456,7 @@
           "gpt-5.2",
           "gpt-5.4",
           "gpt-5.6-luna",
+          "gpt-5.6-terra",
           "gemini-3-pro-preview",
           "gemini-3.1-pro-preview",
           "deepseek-v4-flash",

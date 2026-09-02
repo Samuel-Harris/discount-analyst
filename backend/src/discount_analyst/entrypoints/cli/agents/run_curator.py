@@ -14,6 +14,7 @@ from discount_analyst.agents.curator.user_prompt import create_user_prompt
 from discount_analyst.agents.runtime.agent_names import AgentName
 from discount_analyst.agents.runtime.streamed_agent_run import run_streamed_agent
 from discount_analyst.config.ai_models_config import AIModelsConfig
+from discount_analyst.config.settings import settings
 from discount_analyst.domain.model_selection.model_name import ModelName
 from discount_analyst.entrypoints.cli.shared.artefacts import write_agent_json
 from discount_analyst.entrypoints.cli.shared.cli import add_agent_cli_model_argument
@@ -35,7 +36,9 @@ def parse_args() -> CuratorArgs:
             "The snapshot is required inside that payload; it is not optional."
         )
     )
-    add_agent_cli_model_argument(parser)
+    add_agent_cli_model_argument(
+        parser, default=settings.agent_default_models.curator
+    )
     parser.add_argument(
         "curator_input",
         type=Path,

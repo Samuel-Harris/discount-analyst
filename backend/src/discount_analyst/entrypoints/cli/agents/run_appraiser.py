@@ -17,6 +17,7 @@ from discount_analyst.agents.appraiser.appraiser import create_appraiser_agent
 from discount_analyst.agents.appraiser.schema import AppraiserInput, AppraiserOutput
 from discount_analyst.agents.appraiser.user_prompt import create_user_prompt
 from discount_analyst.config.ai_models_config import AIModelsConfig
+from discount_analyst.config.settings import settings
 from discount_analyst.domain.model_selection.model_name import ModelName
 from discount_analyst.agents.runtime.agent_names import AgentName
 from discount_analyst.agents.runtime.streamed_agent_run import run_streamed_agent
@@ -115,7 +116,9 @@ def parse_args() -> AppraiserCliArgs:
         dest="risk_free_rate_pct",
         help="Risk-free rate as a percentage (e.g. 4.5 means 4.5%%).",
     )
-    add_agent_cli_model_argument(parser)
+    add_agent_cli_model_argument(
+        parser, default=settings.agent_default_models.appraiser
+    )
     add_agent_cli_web_search_arguments(parser)
     parser.add_argument(
         "--no-mcp",
