@@ -77,6 +77,22 @@ function formatWeightPct(value: number, total: number): string {
   return `${((100 * value) / total).toFixed(1)}%`;
 }
 
+function formatLaunchSummary(
+  holdingCount: number,
+  extraCount: number,
+  total: number,
+): string {
+  const holdingsLabel =
+    holdingCount === 1 ? "1 holding" : `${holdingCount} holdings`;
+  const extrasLabel =
+    extraCount === 0
+      ? ""
+      : extraCount === 1
+        ? " · 1 extra"
+        : ` · ${extraCount} extra`;
+  return `Launch · ${holdingsLabel} · ${formatPounds(total)}${extrasLabel}`;
+}
+
 function positionsForSubmit(rows: PositionDraft[]): PortfolioPositionInput[] {
   const submitted: PortfolioPositionInput[] = [];
   for (const row of rows) {
@@ -90,12 +106,17 @@ function positionsForSubmit(rows: PositionDraft[]): PortfolioPositionInput[] {
 
 export interface RunPipelineFormProps {
   onLaunched: (workflowRunId: string) => void;
+  hidden?: boolean;
 }
 
 const deployEnv = import.meta.env.VITE_DEPLOY_ENV;
 const mockModeLocked = deployEnv !== "PROD";
 
-export function RunPipelineForm({ onLaunched }: RunPipelineFormProps) {
+export function RunPipelineForm({
+  onLaunched,
+  hidden = false,
+}: RunPipelineFormProps) {
+  const [expanded, setExpanded] = useState(false);
   const [form, setForm] = useState<LaunchFormState>(INITIAL_FORM);
   const [isMock, setIsMock] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -161,6 +182,12 @@ export function RunPipelineForm({ onLaunched }: RunPipelineFormProps) {
     return { holdingValues, cash, total };
   }, [form.cashGbp, form.positions]);
 
+  const summary = useMemo(() => {
+    const holdingCount = positionsForSubmit(form.positions).length;
+    const extraCount = tickersForSubmit(form.suggestions, form.draft).length;
+    return formatLaunchSummary(holdingCount, extraCount, preview.total);
+  }, [form.draft, form.positions, form.suggestions, preview.total]);
+
   const submit = useCallback(async () => {
     setFormError(null);
     const positions = positionsForSubmit(form.positions);
@@ -184,15 +211,40 @@ export function RunPipelineForm({ onLaunched }: RunPipelineFormProps) {
   }, [form, isMock, onLaunched]);
 
   return (
-    <div className="launch-panel">
-      <h2>Launch workflow</h2>
-      <p className="meta">
-        Holdings start Profiler lanes and form the current book. Names under
-        Also analyse also get a Profiler lane but are not part of the book.
-        Surveyor still runs in the background.
-      </p>
-
-      <h3>Current positions</h3>
+    <aside
+      className={`launch-rail${expanded ? " is-expanded" : " is-collapsed"}`}
+      aria-label="Launch workflow"
+      hidden={hidden}
+    >
+      {expanded ? (
+        <div className="launch-rail-toolbar">
+          <h2>Launch workflow</h2>
+          <button
+            type="button"
+            className="toggle"
+            title="Collapse launch panel"
+            aria-label="Collapse launch panel"
+            aria-expanded="true"
+            onClick={() => setExpanded(false)}
+          >
+            »
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="launch-rail-expand"
+          title={summary}
+          aria-label={`Expand launch panel: ${summary}`}
+          aria-expanded="false"
+          onClick={() => setExpanded(true)}
+        >
+          {summary}
+        </button>
+      )}
+      {expanded ? (
+        <div className="launch-panel">
+          <h3>Current positions</h3>
       <div
         className={`positions-table-wrap${submitting ? " is-disabled" : ""}`}
       >
@@ -321,11 +373,6 @@ export function RunPipelineForm({ onLaunched }: RunPipelineFormProps) {
       </div>
 
       <h3>Also analyse</h3>
-      <p className="meta">
-        These names get a Profiler lane like holdings and are not part of the
-        current book. Press Enter after a ticker to add it as a pill (draft text
-        is still included when you start).
-      </p>
       <div className={`ticker-input-wrap${submitting ? " is-disabled" : ""}`}>
         {form.suggestions.map((ticker) => (
           <span key={ticker} className="ticker-pill">
@@ -396,11 +443,13 @@ export function RunPipelineForm({ onLaunched }: RunPipelineFormProps) {
           {submitting ? "Starting…" : "Start workflow"}
         </button>
       </div>
-      {formError ? (
-        <UiStateText tone="error" as="p" className="launch-panel-form-status">
-          {formError}
-        </UiStateText>
+          {formError ? (
+            <UiStateText tone="error" as="p" className="launch-panel-form-status">
+              {formError}
+            </UiStateText>
+          ) : null}
+        </div>
       ) : null}
-    </div>
+    </aside>
   );
 }

@@ -78,7 +78,7 @@ Stable handles:
 | --------------- | ------------------------------------------------------------------------------------------------------------------- |
 | App identity    | heading `Discount Analyst`                                                                                          |
 | Deploy env      | badge `DEV` (title `Dashboard deploy environment: DEV`)                                                             |
-| Launch          | heading `Launch workflow`, textbox `Position ticker 1`, textbox `Also analyse`, button `Start workflow`             |
+| Launch          | collapsed button `/Expand launch panel/`; expanded heading `Launch workflow`, textbox `Position ticker 1`, textbox `Also analyse`, button `Start workflow` |
 | Sidebar         | text `Workflow runs`; collapse control title `Collapse sidebar`                                                     |
 | Deep link       | `$UI_URL/?run=<workflow_run_id>` and `&view=recommendations`                                                        |
 | Recommendations | button `Recommendations`; table caption `Final ratings and lane status for workflow <id>`; search labelled `Filter` |

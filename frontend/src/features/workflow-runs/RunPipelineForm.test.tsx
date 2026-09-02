@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "@/api";
@@ -12,12 +12,57 @@ const emptyPortfolio = {
   suggestion_tickers: [],
 };
 
+async function expandLaunch(user: UserEvent) {
+  await user.click(
+    await screen.findByRole("button", { name: /expand launch panel/i }),
+  );
+}
+
 describe("RunPipelineForm", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
+  it("starts collapsed and expands to the form", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(api, "fetchPortfolio").mockResolvedValue(emptyPortfolio);
+    vi.spyOn(serverState, "invalidateWorkflowRunsList").mockResolvedValue();
+    render(<RunPipelineForm onLaunched={vi.fn()} />);
+    expect(
+      screen.getByRole("button", { name: /expand launch panel/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Position ticker 1"),
+    ).not.toBeInTheDocument();
+    await expandLaunch(user);
+    expect(
+      screen.getByRole("heading", { name: "Launch workflow" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Position ticker 1")).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Collapse launch panel" }),
+    );
+    expect(
+      screen.queryByLabelText("Position ticker 1"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the rail when hidden is set", () => {
+    vi.spyOn(api, "fetchPortfolio").mockResolvedValue(emptyPortfolio);
+    vi.spyOn(serverState, "invalidateWorkflowRunsList").mockResolvedValue();
+    const { container } = render(
+      <RunPipelineForm onLaunched={vi.fn()} hidden />,
+    );
+    expect(
+      screen.queryByRole("button", { name: /expand launch panel/i }),
+    ).not.toBeInTheDocument();
+    const rail = container.querySelector(".launch-rail");
+    expect(rail).toHaveAttribute("hidden");
+    expect(rail).not.toBeVisible();
+  });
+
   it("prefills holdings, cash, and also-analyse pills from GET /api/portfolio", async () => {
+    const user = userEvent.setup();
     vi.spyOn(api, "fetchPortfolio").mockResolvedValue({
       positions: [
         { ticker: "CBOX.L", value_gbp: 1500 },
@@ -34,20 +79,26 @@ describe("RunPipelineForm", () => {
     vi.spyOn(serverState, "invalidateWorkflowRunsList").mockResolvedValue();
     render(<RunPipelineForm onLaunched={vi.fn()} />);
     await waitFor(() => {
-      expect(screen.getByLabelText("Position ticker 1")).toHaveValue("CBOX.L");
-      expect(screen.getByLabelText("Position value in pounds 1")).toHaveValue(
-        1500,
-      );
-      expect(screen.getByLabelText("Position ticker 2")).toHaveValue("VTVI");
-      expect(screen.getByLabelText("Cash in pounds")).toHaveValue(200);
-      expect(screen.getByText("HINT.L")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /expand launch panel/i }),
+      ).toHaveAccessibleName(/2 holdings · £2,200\.00 · 1 extra/i);
     });
+    await expandLaunch(user);
+    expect(screen.getByLabelText("Position ticker 1")).toHaveValue("CBOX.L");
+    expect(screen.getByLabelText("Position value in pounds 1")).toHaveValue(
+      1500,
+    );
+    expect(screen.getByLabelText("Position ticker 2")).toHaveValue("VTVI");
+    expect(screen.getByLabelText("Cash in pounds")).toHaveValue(200);
+    expect(screen.getByText("HINT.L")).toBeInTheDocument();
   });
 
-  it("defaults to mock mode and labels the slower simulated path", () => {
+  it("defaults to mock mode and labels the slower simulated path", async () => {
+    const user = userEvent.setup();
     vi.spyOn(api, "fetchPortfolio").mockResolvedValue(emptyPortfolio);
     vi.spyOn(serverState, "invalidateWorkflowRunsList").mockResolvedValue();
     render(<RunPipelineForm onLaunched={vi.fn()} />);
+    await expandLaunch(user);
     const mockBox = screen.getByRole("checkbox", { name: /mock mode/i });
     expect(mockBox).toBeChecked();
     expect(mockBox).toBeDisabled();
@@ -63,6 +114,7 @@ describe("RunPipelineForm", () => {
     vi.spyOn(api, "fetchPortfolio").mockResolvedValue(emptyPortfolio);
     vi.spyOn(serverState, "invalidateWorkflowRunsList").mockResolvedValue();
     render(<RunPipelineForm onLaunched={vi.fn()} />);
+    await expandLaunch(user);
     const field = screen.getByLabelText("Also analyse");
     await user.type(field, "AAA.L{Enter}");
     expect(screen.getByText("AAA.L")).toBeInTheDocument();
@@ -82,6 +134,7 @@ describe("RunPipelineForm", () => {
       .spyOn(serverState, "invalidateWorkflowRunsList")
       .mockResolvedValue();
     render(<RunPipelineForm onLaunched={onLaunched} />);
+    await expandLaunch(user);
     await screen.findByLabelText("Also analyse");
     await user.type(screen.getByLabelText("Position ticker 1"), "AAA.L");
     await user.type(
@@ -121,6 +174,7 @@ describe("RunPipelineForm", () => {
     });
     vi.spyOn(serverState, "invalidateWorkflowRunsList").mockResolvedValue();
     render(<RunPipelineForm onLaunched={vi.fn()} />);
+    await expandLaunch(user);
     await screen.findByLabelText("Also analyse");
     await user.type(screen.getByLabelText("Also analyse"), "Z.L");
     const submit = screen.getByRole("button", { name: /start workflow/i });

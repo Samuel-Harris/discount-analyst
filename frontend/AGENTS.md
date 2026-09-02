@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-07-11 | Updated: 2026-08-30 (launch form sterling ledger) -->
+<!-- Generated: 2026-07-11 | Updated: 2026-09-02 (right-hand launch rail) -->
 
 # frontend
 
@@ -25,7 +25,7 @@ Vite + React SPA for the local Discount Analyst dashboard. This directory owns t
 | Directory                          | Purpose                                                                                                                                                         |
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/app/`                         | Shell composition: thin `DashboardShell` wiring, yfinance freshness banner, and `WorkflowRunMainPanel` (sorts ticker lanes once for graph and recommendations). |
-| `src/features/workflow-runs/`      | Run list/sidebar, launch form, detail header, recommendations view, run hooks (`useWorkflowRunActions`, navigation/detail/list).                                |
+| `src/features/workflow-runs/`      | Run list/sidebar, right-hand launch rail, detail header, recommendations view, run hooks (`useWorkflowRunActions`, navigation/detail/list).                    |
 | `src/features/pipeline-graph/`     | React Flow pipeline graph, lane order (`tickerRunOrder`), and layout builders.                                                                                  |
 | `src/features/agent-conversation/` | Agent conversation panel (`AgentPanel` + `agentPanel/**`), `useConversation`, and `useAgentConversationPanel`.                                                  |
 | `src/components/`                  | Shared presentational pieces only (`UiStateText`, `JsonPretty`, `DeployEnvBadge`, `YfinanceOutdatedBanner`).                                                    |
@@ -70,7 +70,7 @@ src/
 - Prefer co-located `*.test.ts(x)` next to the module under test.
 - British English applies to AGENTS.md prose; code identifiers stay as in the API/codebase.
 - When moving files, update ESLint zones and any backend sync paths (e.g. `agentLaneOrder.ts`) in the same change.
-- Launch form (`RunPipelineForm`) posts `{ positions, cash_gbp, suggestion_tickers, is_mock }` to `POST /api/workflow_runs`. Holdings are ticker + pounds; also-analyse names are pills that are not part of the current book.
+- Launch form (`RunPipelineForm`) is the right-hand rail: collapsed by default to a summary strip, expanded for the editor, and hidden while an agent conversation overlay is open. It posts `{ positions, cash_gbp, suggestion_tickers, is_mock }` to `POST /api/workflow_runs`. Holdings are ticker + pounds; also-analyse names are pills that are not part of the current book.
 
 ### Testing Requirements
 

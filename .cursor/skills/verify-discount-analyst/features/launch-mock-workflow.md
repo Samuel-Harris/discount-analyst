@@ -12,15 +12,15 @@ Launch workflow lets a user enter current positions in pounds, optional also-ana
 
 ## How to get to it (user POV)
 
-- Use the `Launch workflow` panel in the expanded sidebar.
-- If the sidebar is collapsed, the same form appears under the main panel.
+- Use the right-hand `Launch workflow` rail. It starts collapsed; choose `Expand launch panel` to edit holdings and also-analyse names.
 
 ## Driving it with verify-discount-analyst
 
 Preconditions:
 
 - `scripts/doctor` prints `OK` on an unseeded sqlite (or accept extra seed rows in the list).
-- Browser is on `$UI_URL` with the sidebar expanded.
+- Browser is on `$UI_URL` with the left sidebar expanded.
+- Expand the right launch rail with `Expand launch panel` so the current-positions table is visible.
 - Note the current `GET $API_URL/api/workflow_runs` array length.
 
 - **Confirm mock lock.** Snapshot. The mock checkbox is checked and disabled. Label text includes `required in DEV`.

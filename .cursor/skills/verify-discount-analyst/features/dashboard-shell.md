@@ -7,12 +7,13 @@ The dashboard identifies itself as Discount Analyst, shows that it is the DEV de
 - `shell-identity` shows the product heading and local-dashboard subtitle.
 - `shell-dev-badge` shows the `DEV` deploy badge in the header (a `<span>`, not an ARIA role).
 - `shell-empty-main` shows the select-or-launch placeholder when nothing is selected.
-- `shell-launch-form` shows `Launch workflow` in the sidebar footer while the sidebar is expanded.
+- `shell-launch-form` shows a collapsed `Launch workflow` rail on the right; expanding it reveals current positions and also-analyse.
 
 ## How to get to it (user POV)
 
 - Open the dashboard URL with no `?run=` query.
-- Collapse then expand the sidebar with the `«` / `»` toolbar buttons (titles `Collapse sidebar` / `Expand runs`).
+- Collapse then expand the left sidebar with the `«` / `»` toolbar buttons (titles `Collapse sidebar` / `Expand runs`).
+- Expand the right launch rail with `Expand launch panel` (collapsed summary strip).
 
 ## Driving it with verify-discount-analyst
 
@@ -23,9 +24,10 @@ Preconditions:
 - The browser tab URL is exactly `$UI_URL` from doctor, with no query string.
 
 - **Open the shell.** Navigate to `$UI_URL`. Snapshot. The heading is `Discount Analyst` and the subtitle is `Local pipeline dashboard · grouped workflow runs`.
-- **Confirm DEV.** The mock checkbox label includes `required in DEV` and is checked and disabled. The header may also show a `DEV` badge; that badge has no ARIA role, so assert it from the screenshot.
 - **Empty main panel.** The main region includes `Select a workflow run from the sidebar, or launch a new one from the launch panel.`
-- **Launch form visible.** The sidebar includes heading `Launch workflow`, headings `Current positions` and `Also analyse`, textbox `Position ticker 1`, textbox `Cash in pounds`, textbox `Also analyse`, and button `Start workflow`. Mock mode text includes `Mock mode (required in DEV; no live LLM; slower simulated steps)`.
+- **Launch rail collapsed.** The complementary `Launch workflow` region is a collapsed strip. A button named `Expand launch panel` is present. Headings `Current positions` and `Also analyse` are not shown.
+- **Launch form visible.** Choose `Expand launch panel`. The rail heading is `Launch workflow`, with headings `Current positions` and `Also analyse`, textbox `Position ticker 1`, textbox `Cash in pounds`, textbox `Also analyse`, and button `Start workflow`. Mock mode text includes `Mock mode (required in DEV; no live LLM; slower simulated steps)`. The mock checkbox is checked and disabled.
+- **Confirm DEV.** The mock checkbox label includes `required in DEV`. The header may also show a `DEV` badge; that badge has no ARIA role, so assert it from the screenshot.
 - **Proof.** Save an ARIA snapshot and a screenshot with the heading visible to `evidence/dashboard-shell/shell.aria.txt` and `evidence/dashboard-shell/shell.png`.
 
 ## Gotchas
