@@ -337,6 +337,148 @@ button {
   color: var(--text-dim);
 }
 
+.launch-panel h3 {
+  margin: 10px 0 6px;
+  font-size: 11px;
+  color: var(--text);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.launch-panel .positions-table-wrap {
+  max-height: 168px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 2px;
+}
+
+.launch-panel .positions-table-wrap.is-disabled {
+  opacity: 0.55;
+}
+
+.launch-panel .positions-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.launch-panel .positions-table th,
+.launch-panel .positions-table td {
+  padding: 4px 6px;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border-dim);
+}
+
+.launch-panel .positions-table th {
+  color: var(--text-dim);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.launch-panel .positions-table input {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 3px 4px;
+  border: 1px solid var(--border-dim);
+  border-radius: 2px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  font: inherit;
+}
+
+.launch-panel .positions-table input:focus {
+  outline: 1px solid var(--accent-dim);
+}
+
+.launch-panel .positions-weight,
+.launch-panel .positions-cash-weight,
+.launch-panel .positions-total {
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.launch-panel .positions-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text-dim);
+  background: transparent;
+  cursor: pointer;
+}
+
+.launch-panel .positions-remove:hover:not(:disabled) {
+  color: var(--err);
+  background: rgba(255, 80, 80, 0.12);
+}
+
+.launch-panel .positions-remove:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.launch-panel .positions-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin: 6px 0 4px;
+  font-size: 11px;
+}
+
+.launch-panel .positions-add {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  padding: 3px 8px;
+  border-radius: 2px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.launch-panel .positions-add:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
+
+.launch-panel .positions-add:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.launch-panel .cash-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dim);
+}
+
+.launch-panel .cash-field input {
+  width: 88px;
+  margin: 0;
+  padding: 3px 4px;
+  border: 1px solid var(--border-dim);
+  border-radius: 2px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.launch-panel .positions-total {
+  margin-left: auto;
+  color: var(--text);
+}
+
 .launch-panel .launch-panel-form-status {
   margin: 8px 0 0;
   font-size: 12px;

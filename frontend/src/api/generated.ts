@@ -122,9 +122,11 @@ export interface ConversationResponse {
 }
 
 export interface CreateWorkflowRunRequest {
+  /** @minimum 0 */
+  cash_gbp: number;
   is_mock?: boolean;
-  /** @minItems 0 */
-  portfolio_tickers: string[];
+  positions?: PortfolioPositionInput[];
+  suggestion_tickers?: string[];
 }
 
 export interface CreateWorkflowRunResponse {
@@ -222,8 +224,18 @@ export interface PortfolioAllocation {
   shared_risk_clusters: SharedRiskCluster[];
 }
 
+export interface PortfolioPositionInput {
+  /** @minLength 1 */
+  ticker: string;
+  /** @minimum 0 */
+  value_gbp: number;
+}
+
 export interface PortfolioResponse {
-  portfolio_tickers: string[];
+  /** @minimum 0 */
+  cash_gbp: number;
+  positions: PortfolioPositionInput[];
+  suggestion_tickers: string[];
 }
 
 export interface ProfilerRunCreated {

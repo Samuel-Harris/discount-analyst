@@ -25,7 +25,7 @@ Preconditions:
 - **Open the shell.** Navigate to `$UI_URL`. Snapshot. The heading is `Discount Analyst` and the subtitle is `Local pipeline dashboard · grouped workflow runs`.
 - **Confirm DEV.** The mock checkbox label includes `required in DEV` and is checked and disabled. The header may also show a `DEV` badge; that badge has no ARIA role, so assert it from the screenshot.
 - **Empty main panel.** The main region includes `Select a workflow run from the sidebar, or launch a new one from the launch panel.`
-- **Launch form visible.** The sidebar includes heading `Launch workflow`, textbox `Portfolio tickers`, and button `Start workflow`. Mock mode text includes `Mock mode (required in DEV; no live LLM; slower simulated steps)`.
+- **Launch form visible.** The sidebar includes heading `Launch workflow`, headings `Current positions` and `Also analyse`, textbox `Position ticker 1`, textbox `Cash in pounds`, textbox `Also analyse`, and button `Start workflow`. Mock mode text includes `Mock mode (required in DEV; no live LLM; slower simulated steps)`.
 - **Proof.** Save an ARIA snapshot and a screenshot with the heading visible to `evidence/dashboard-shell/shell.aria.txt` and `evidence/dashboard-shell/shell.png`.
 
 ## Gotchas

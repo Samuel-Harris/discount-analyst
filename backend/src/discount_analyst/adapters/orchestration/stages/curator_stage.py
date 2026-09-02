@@ -29,6 +29,7 @@ from discount_analyst.adapters.persistence.crud.workflow_investment_theses impor
 )
 from discount_analyst.adapters.persistence.crud.workflow_runs import (
     list_ticker_runs_for_workflow,
+    load_sterling_ledger_for_curator,
 )
 from discount_analyst.adapters.persistence.models import (
     AgentExecution,
@@ -39,9 +40,6 @@ from discount_analyst.adapters.persistence.models import (
 from discount_analyst.adapters.simulation import (
     mock_conversation_messages,
     mock_outputs,
-)
-from discount_analyst.adapters.simulation.equal_weight_snapshot import (
-    equal_weight_existing_snapshot,
 )
 from discount_analyst.agents.curator.curator import create_curator_agent
 from discount_analyst.agents.curator.schema import CuratorInput, CuratorProposal
@@ -68,7 +66,10 @@ from discount_analyst.application.workflows.agent_errors import (
 from discount_analyst.domain.allocations.allocation import (
     PortfolioAllocation as DomainPortfolioAllocation,
 )
-from discount_analyst.domain.allocations.snapshot import CurrentPortfolioSnapshot
+from discount_analyst.domain.allocations.snapshot import (
+    CurrentPortfolioSnapshot,
+    snapshot_from_sterling_ledger,
+)
 
 if TYPE_CHECKING:
     from discount_analyst.config.settings import Settings
@@ -155,10 +156,7 @@ class CuratorStage:
             snapshot = await host.db(
                 load_dashboard_portfolio_snapshot,
                 workflow_run_id,
-                is_mock,
             )
-            if snapshot is None:
-                raise RuntimeError("Current portfolio snapshot is missing.")
 
             bundles = await host.db(load_completed_lane_bundles, workflow_run_id)
             curator_input = assemble_curator_input(bundles, snapshot, date.today())
@@ -297,12 +295,7 @@ def _curator_execution_id_and_status(
 
 
 def load_dashboard_portfolio_snapshot(
-    session: Session, workflow_run_id: str, is_mock: bool
-) -> CurrentPortfolioSnapshot | None:
-    if not is_mock:
-        return None
-    ticker_runs = list_ticker_runs_for_workflow(session, workflow_run_id)
-    existing = tuple(
-        run["ticker"] for run in ticker_runs if run["is_existing_position"]
-    )
-    return equal_weight_existing_snapshot(existing, as_of=date.today())
+    session: Session, workflow_run_id: str
+) -> CurrentPortfolioSnapshot:
+    ledger, as_of = load_sterling_ledger_for_curator(session, workflow_run_id)
+    return snapshot_from_sterling_ledger(ledger, as_of=as_of)

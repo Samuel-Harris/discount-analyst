@@ -74,15 +74,15 @@ If doctor fails, stop driving. Read `run/api.log` / `run/ui.log`, then `scripts/
 
 Stable handles:
 
-| Surface | Handle |
-| --- | --- |
-| App identity | heading `Discount Analyst` |
-| Deploy env | badge `DEV` (title `Dashboard deploy environment: DEV`) |
-| Launch | heading `Launch workflow`, textbox `Portfolio tickers`, button `Start workflow` |
-| Sidebar | text `Workflow runs`; collapse control title `Collapse sidebar` |
-| Deep link | `$UI_URL/?run=<workflow_run_id>` and `&view=recommendations` |
+| Surface         | Handle                                                                                                              |
+| --------------- | ------------------------------------------------------------------------------------------------------------------- |
+| App identity    | heading `Discount Analyst`                                                                                          |
+| Deploy env      | badge `DEV` (title `Dashboard deploy environment: DEV`)                                                             |
+| Launch          | heading `Launch workflow`, textbox `Position ticker 1`, textbox `Also analyse`, button `Start workflow`             |
+| Sidebar         | text `Workflow runs`; collapse control title `Collapse sidebar`                                                     |
+| Deep link       | `$UI_URL/?run=<workflow_run_id>` and `&view=recommendations`                                                        |
 | Recommendations | button `Recommendations`; table caption `Final ratings and lane status for workflow <id>`; search labelled `Filter` |
-| Conversation | completed graph node (role `button`); complementary `Agent conversation`; close `×` or Escape |
+| Conversation    | completed graph node (role `button`); complementary `Agent conversation`; close `×` or Escape                       |
 
 ## Evidence
 
@@ -111,11 +111,11 @@ After cleanup, confirm the evidence directory still exists. If a launch or drive
 
 All paths are from the repository root. Scripts are executable.
 
-| Command | What it does |
-| --- | --- |
-| `.cursor/skills/verify-discount-analyst/scripts/launch` | Isolated DEV API + Vite. Prints `UI_URL`, `API_URL`, `DATABASE_PATH`. Optional `VERIFY_API_PORT` / `VERIFY_UI_PORT`. |
-| `.cursor/skills/verify-discount-analyst/scripts/doctor` | Health check. Exit 0 only when the instance is ours and answering. |
-| `.cursor/skills/verify-discount-analyst/scripts/seed` | Completed mock workflow into the verify sqlite. |
-| `.cursor/skills/verify-discount-analyst/scripts/cleanup` | Stop those PIDs; remove `run/`; keep `evidence/`. |
+| Command                                                  | What it does                                                                                                         |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `.cursor/skills/verify-discount-analyst/scripts/launch`  | Isolated DEV API + Vite. Prints `UI_URL`, `API_URL`, `DATABASE_PATH`. Optional `VERIFY_API_PORT` / `VERIFY_UI_PORT`. |
+| `.cursor/skills/verify-discount-analyst/scripts/doctor`  | Health check. Exit 0 only when the instance is ours and answering.                                                   |
+| `.cursor/skills/verify-discount-analyst/scripts/seed`    | Completed mock workflow into the verify sqlite.                                                                      |
+| `.cursor/skills/verify-discount-analyst/scripts/cleanup` | Stop those PIDs; remove `run/`; keep `evidence/`.                                                                    |
 
 `scripts/lib.sh` and `scripts/spawn.py` are sourced/used by the others; do not invoke them directly.

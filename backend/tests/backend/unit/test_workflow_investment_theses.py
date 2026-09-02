@@ -1,10 +1,13 @@
 """Workflow-scoped investment thesis snapshots and latest-ticker lookup."""
 
+from decimal import Decimal
+
 from datetime import UTC, datetime
 
 import pytest
 from sqlmodel import Session, col, select
 
+from backend.tests.factories.sterling import sterling_holdings
 from discount_analyst.adapters.persistence.crud.agent_output_persistence import (
     persist_mispricing_thesis,
     persist_strategist_decision,
@@ -80,10 +83,20 @@ def test_latest_prefers_newest_completed_snapshot(db_session: Session) -> None:
     older = new_id()
     newer = new_id()
     insert_workflow_run(
-        db_session, workflow_run_id=older, portfolio_tickers=["ABC.L"], is_mock=True
+        db_session,
+        workflow_run_id=older,
+        holdings=sterling_holdings("ABC.L"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
+        is_mock=True,
     )
     insert_workflow_run(
-        db_session, workflow_run_id=newer, portfolio_tickers=["ABC.L"], is_mock=True
+        db_session,
+        workflow_run_id=newer,
+        holdings=sterling_holdings("ABC.L"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
+        is_mock=True,
     )
     older_thesis = mock_thesis(mock_surveyor_candidate(ticker="ABC.L")).model_copy(
         update={"mispricing_argument": "Older snapshot."}
@@ -134,7 +147,12 @@ def test_latest_prefers_newest_completed_snapshot(db_session: Session) -> None:
 def test_latest_ignores_failed_workflow_snapshots(db_session: Session) -> None:
     failed = new_id()
     insert_workflow_run(
-        db_session, workflow_run_id=failed, portfolio_tickers=["ABC.L"], is_mock=True
+        db_session,
+        workflow_run_id=failed,
+        holdings=sterling_holdings("ABC.L"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
+        is_mock=True,
     )
     persist_workflow_investment_theses(
         db_session,
@@ -163,7 +181,9 @@ def test_latest_falls_back_to_chosen_strategist_row(db_session: Session) -> None
     _surveyor_id, curator_id = insert_workflow_run(
         db_session,
         workflow_run_id=workflow_run_id,
-        portfolio_tickers=["TSM"],
+        holdings=sterling_holdings("TSM"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
     )
     run_id = new_id()
@@ -235,7 +255,9 @@ def test_persist_chosen_snapshots_only_positive_targets(db_session: Session) -> 
     insert_workflow_run(
         db_session,
         workflow_run_id=workflow_run_id,
-        portfolio_tickers=["TSM", "AMAT"],
+        holdings=sterling_holdings("TSM", "AMAT"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
     )
     tsm_run = new_id()
@@ -342,7 +364,9 @@ def test_persist_chosen_origin_copied_prior_from_this_run_row(
     insert_workflow_run(
         db_session,
         workflow_run_id=prior_workflow,
-        portfolio_tickers=["TSM"],
+        holdings=sterling_holdings("TSM"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
     )
     thesis = mock_thesis(mock_surveyor_candidate(ticker="TSM", company_name="TSMC"))
@@ -364,7 +388,9 @@ def test_persist_chosen_origin_copied_prior_from_this_run_row(
     insert_workflow_run(
         db_session,
         workflow_run_id=workflow_run_id,
-        portfolio_tickers=["TSM"],
+        holdings=sterling_holdings("TSM"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
     )
     run_id = new_id()
@@ -408,7 +434,9 @@ def test_persist_chosen_origin_replaced_even_when_content_matches_prior(
     insert_workflow_run(
         db_session,
         workflow_run_id=prior_workflow,
-        portfolio_tickers=["TSM"],
+        holdings=sterling_holdings("TSM"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
     )
     thesis = mock_thesis(mock_surveyor_candidate(ticker="TSM", company_name="TSMC"))
@@ -430,7 +458,9 @@ def test_persist_chosen_origin_replaced_even_when_content_matches_prior(
     insert_workflow_run(
         db_session,
         workflow_run_id=workflow_run_id,
-        portfolio_tickers=["TSM"],
+        holdings=sterling_holdings("TSM"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
     )
     run_id = new_id()
@@ -471,7 +501,9 @@ def test_persist_chosen_requires_a_live_thesis(db_session: Session) -> None:
     insert_workflow_run(
         db_session,
         workflow_run_id=prior_workflow,
-        portfolio_tickers=["TSM"],
+        holdings=sterling_holdings("TSM"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
     )
     persist_workflow_investment_theses(
@@ -494,7 +526,9 @@ def test_persist_chosen_requires_a_live_thesis(db_session: Session) -> None:
     insert_workflow_run(
         db_session,
         workflow_run_id=workflow_run_id,
-        portfolio_tickers=["TSM"],
+        holdings=sterling_holdings("TSM"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
     )
     run_id = new_id()
@@ -524,7 +558,9 @@ def test_persist_strategist_keep_copies_prior_into_execution_tables(
     insert_workflow_run(
         db_session,
         workflow_run_id=prior_workflow,
-        portfolio_tickers=["ABC.L"],
+        holdings=sterling_holdings("ABC.L"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
     )
     prior = mock_thesis(mock_surveyor_candidate(ticker="ABC.L"))
@@ -546,7 +582,9 @@ def test_persist_strategist_keep_copies_prior_into_execution_tables(
     insert_workflow_run(
         db_session,
         workflow_run_id=workflow_run_id,
-        portfolio_tickers=["ABC.L"],
+        holdings=sterling_holdings("ABC.L"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
     )
     run_id = new_id()
@@ -584,7 +622,9 @@ def test_persist_strategist_keep_without_prior_fails(db_session: Session) -> Non
     insert_workflow_run(
         db_session,
         workflow_run_id=workflow_run_id,
-        portfolio_tickers=["ABC.L"],
+        holdings=sterling_holdings("ABC.L"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
     )
     run_id = new_id()

@@ -11,6 +11,7 @@ export type {
   DashboardStatusResponse,
   EntryPathApi,
   ExecutionStatusApi,
+  PortfolioPositionInput,
   PortfolioResponse,
   TickerRunDetail,
   WorkflowRunDetailResponse,

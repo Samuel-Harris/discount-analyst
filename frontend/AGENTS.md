@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-07-11 | Updated: 2026-08-29 (yfinance outdated banner) -->
+<!-- Generated: 2026-07-11 | Updated: 2026-08-30 (launch form sterling ledger) -->
 
 # frontend
 
@@ -70,6 +70,7 @@ src/
 - Prefer co-located `*.test.ts(x)` next to the module under test.
 - British English applies to AGENTS.md prose; code identifiers stay as in the API/codebase.
 - When moving files, update ESLint zones and any backend sync paths (e.g. `agentLaneOrder.ts`) in the same change.
+- Launch form (`RunPipelineForm`) posts `{ positions, cash_gbp, suggestion_tickers, is_mock }` to `POST /api/workflow_runs`. Holdings are ticker + pounds; also-analyse names are pills that are not part of the current book.
 
 ### Testing Requirements
 

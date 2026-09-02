@@ -1,8 +1,35 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { createWorkflowRun, fetchPortfolio } from "@/api";
+import {
+  createWorkflowRun,
+  fetchPortfolio,
+  type PortfolioPositionInput,
+} from "@/api";
 import { UiStateText } from "@/components/UiStateText";
 import { invalidateWorkflowRunsList } from "@/lib/server-state/invalidation";
+
+type PositionDraft = {
+  ticker: string;
+  valueGbp: string;
+};
+
+type LaunchFormState = {
+  positions: PositionDraft[];
+  cashGbp: string;
+  suggestions: string[];
+  draft: string;
+};
+
+function emptyPosition(): PositionDraft {
+  return { ticker: "", valueGbp: "" };
+}
+
+const INITIAL_FORM: LaunchFormState = {
+  positions: [emptyPosition()],
+  cashGbp: "0",
+  suggestions: [],
+  draft: "",
+};
 
 function parseTickers(raw: string): string[] {
   const parts = raw
@@ -17,6 +44,50 @@ function tickersForSubmit(tickers: string[], draft: string): string[] {
   return [...new Set([...tickers, ...fromDraft])];
 }
 
+function parsePounds(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+  const value = Number(trimmed);
+  if (!Number.isFinite(value) || value < 0) return null;
+  return value;
+}
+
+function isLaunchFormEmpty(form: LaunchFormState): boolean {
+  const positionsEmpty = form.positions.every(
+    (row) => row.ticker.trim() === "" && row.valueGbp.trim() === "",
+  );
+  const cashDefault = form.cashGbp.trim() === "" || form.cashGbp.trim() === "0";
+  return (
+    positionsEmpty &&
+    cashDefault &&
+    form.suggestions.length === 0 &&
+    form.draft.trim() === ""
+  );
+}
+
+function formatPounds(value: number): string {
+  return value.toLocaleString("en-GB", {
+    style: "currency",
+    currency: "GBP",
+  });
+}
+
+function formatWeightPct(value: number, total: number): string {
+  if (total <= 0) return "—";
+  return `${((100 * value) / total).toFixed(1)}%`;
+}
+
+function positionsForSubmit(rows: PositionDraft[]): PortfolioPositionInput[] {
+  const submitted: PortfolioPositionInput[] = [];
+  for (const row of rows) {
+    const ticker = row.ticker.trim();
+    const valueGbp = parsePounds(row.valueGbp);
+    if (!ticker || valueGbp === null) continue;
+    submitted.push({ ticker, value_gbp: valueGbp });
+  }
+  return submitted;
+}
+
 export interface RunPipelineFormProps {
   onLaunched: (workflowRunId: string) => void;
 }
@@ -25,8 +96,7 @@ const deployEnv = import.meta.env.VITE_DEPLOY_ENV;
 const mockModeLocked = deployEnv !== "PROD";
 
 export function RunPipelineForm({ onLaunched }: RunPipelineFormProps) {
-  const [tickers, setTickers] = useState<string[]>([]);
-  const [draft, setDraft] = useState("");
+  const [form, setForm] = useState<LaunchFormState>(INITIAL_FORM);
   const [isMock, setIsMock] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -35,13 +105,24 @@ export function RunPipelineForm({ onLaunched }: RunPipelineFormProps) {
     let cancelled = false;
     void (async () => {
       try {
-        const { portfolio_tickers } = await fetchPortfolio();
+        const ledger = await fetchPortfolio();
         if (cancelled) return;
-        if (portfolio_tickers.length > 0) {
-          setTickers((prev) =>
-            prev.length === 0 ? [...new Set(portfolio_tickers)] : prev,
-          );
-        }
+        setForm((prev) => {
+          if (!isLaunchFormEmpty(prev)) return prev;
+          const positions =
+            ledger.positions.length > 0
+              ? ledger.positions.map((row) => ({
+                  ticker: row.ticker,
+                  valueGbp: String(row.value_gbp),
+                }))
+              : [emptyPosition()];
+          return {
+            positions,
+            cashGbp: String(ledger.cash_gbp),
+            suggestions: [...new Set(ledger.suggestion_tickers)],
+            draft: "",
+          };
+        });
       } catch {
         /* latest portfolio optional */
       }
@@ -56,19 +137,41 @@ export function RunPipelineForm({ onLaunched }: RunPipelineFormProps) {
   }, [mockModeLocked]);
 
   const commitDraft = useCallback(() => {
-    const parsed = parseTickers(draft);
-    if (parsed.length === 0) return;
-    setTickers((prev) => [...new Set([...prev, ...parsed])]);
-    setDraft("");
-  }, [draft]);
+    setForm((prev) => {
+      const parsed = parseTickers(prev.draft);
+      if (parsed.length === 0) return prev;
+      return {
+        ...prev,
+        suggestions: [...new Set([...prev.suggestions, ...parsed])],
+        draft: "",
+      };
+    });
+  }, []);
+
+  const preview = useMemo(() => {
+    const holdingValues = form.positions.map((row) => {
+      const ticker = row.ticker.trim();
+      const value = parsePounds(row.valueGbp);
+      if (!ticker || value === null) return 0;
+      return value;
+    });
+    const holdingsTotal = holdingValues.reduce((sum, value) => sum + value, 0);
+    const cash = parsePounds(form.cashGbp) ?? 0;
+    const total = holdingsTotal + cash;
+    return { holdingValues, cash, total };
+  }, [form.cashGbp, form.positions]);
 
   const submit = useCallback(async () => {
     setFormError(null);
-    const list = tickersForSubmit(tickers, draft);
+    const positions = positionsForSubmit(form.positions);
+    const suggestionTickers = tickersForSubmit(form.suggestions, form.draft);
+    const cashGbp = parsePounds(form.cashGbp) ?? 0;
     setSubmitting(true);
     try {
       const res = await createWorkflowRun({
-        portfolio_tickers: list,
+        positions,
+        cash_gbp: cashGbp,
+        suggestion_tickers: suggestionTickers,
         is_mock: mockModeLocked || isMock,
       });
       onLaunched(res.workflow_run_id);
@@ -78,26 +181,168 @@ export function RunPipelineForm({ onLaunched }: RunPipelineFormProps) {
     } finally {
       setSubmitting(false);
     }
-  }, [tickers, draft, isMock, onLaunched]);
+  }, [form, isMock, onLaunched]);
 
   return (
     <div className="launch-panel">
       <h2>Launch workflow</h2>
       <p className="meta">
-        Surveyor discovery runs in the background; each portfolio ticker starts
-        an immediate Profiler pipeline. Press Enter after a ticker to add it as
-        a pill (draft text is still included when you start).
+        Holdings start Profiler lanes and form the current book. Names under
+        Also analyse also get a Profiler lane but are not part of the book.
+        Surveyor still runs in the background.
+      </p>
+
+      <h3>Current positions</h3>
+      <div
+        className={`positions-table-wrap${submitting ? " is-disabled" : ""}`}
+      >
+        <table className="positions-table">
+          <thead>
+            <tr>
+              <th scope="col">Ticker</th>
+              <th scope="col">Value (£)</th>
+              <th scope="col">Weight</th>
+              <th scope="col">
+                <span className="sr-only">Remove</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {form.positions.map((row, index) => (
+              <tr key={index}>
+                <td>
+                  <input
+                    type="text"
+                    value={row.ticker}
+                    onChange={(event) => {
+                      const ticker = event.target.value;
+                      setForm((prev) => ({
+                        ...prev,
+                        positions: prev.positions.map((current, rowIndex) =>
+                          rowIndex === index ? { ...current, ticker } : current,
+                        ),
+                      }));
+                    }}
+                    placeholder="CBOX.L"
+                    aria-label={`Position ticker ${index + 1}`}
+                    disabled={submitting}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={row.valueGbp}
+                    onChange={(event) => {
+                      const valueGbp = event.target.value;
+                      setForm((prev) => ({
+                        ...prev,
+                        positions: prev.positions.map((current, rowIndex) =>
+                          rowIndex === index
+                            ? { ...current, valueGbp }
+                            : current,
+                        ),
+                      }));
+                    }}
+                    placeholder="0.00"
+                    aria-label={`Position value in pounds ${index + 1}`}
+                    disabled={submitting}
+                  />
+                </td>
+                <td className="positions-weight">
+                  {formatWeightPct(
+                    preview.holdingValues[index] ?? 0,
+                    preview.total,
+                  )}
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    className="positions-remove"
+                    aria-label={`Remove position ${index + 1}`}
+                    disabled={submitting || form.positions.length === 1}
+                    onClick={() =>
+                      setForm((prev) => ({
+                        ...prev,
+                        positions:
+                          prev.positions.length === 1
+                            ? prev.positions
+                            : prev.positions.filter(
+                                (_row, rowIndex) => rowIndex !== index,
+                              ),
+                      }))
+                    }
+                  >
+                    ×
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="positions-footer">
+        <button
+          type="button"
+          className="positions-add"
+          onClick={() =>
+            setForm((prev) => ({
+              ...prev,
+              positions: [...prev.positions, emptyPosition()],
+            }))
+          }
+          disabled={submitting}
+        >
+          Add position
+        </button>
+        <label className="cash-field">
+          Cash (£)
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            value={form.cashGbp}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, cashGbp: event.target.value }))
+            }
+            aria-label="Cash in pounds"
+            disabled={submitting}
+          />
+        </label>
+        <span className="positions-cash-weight">
+          {preview.total <= 0
+            ? "100.0%"
+            : formatWeightPct(preview.cash, preview.total)}
+        </span>
+        <span className="positions-total">
+          Total {formatPounds(preview.total)}
+        </span>
+      </div>
+
+      <h3>Also analyse</h3>
+      <p className="meta">
+        These names get a Profiler lane like holdings and are not part of the
+        current book. Press Enter after a ticker to add it as a pill (draft text
+        is still included when you start).
       </p>
       <div className={`ticker-input-wrap${submitting ? " is-disabled" : ""}`}>
-        {tickers.map((t) => (
-          <span key={t} className="ticker-pill">
-            {t}
+        {form.suggestions.map((ticker) => (
+          <span key={ticker} className="ticker-pill">
+            {ticker}
             <button
               type="button"
               className="ticker-pill-remove"
-              aria-label={`Remove ${t}`}
+              aria-label={`Remove ${ticker}`}
               disabled={submitting}
-              onClick={() => setTickers((prev) => prev.filter((x) => x !== t))}
+              onClick={() =>
+                setForm((prev) => ({
+                  ...prev,
+                  suggestions: prev.suggestions.filter(
+                    (item) => item !== ticker,
+                  ),
+                }))
+              }
             >
               ×
             </button>
@@ -105,23 +350,28 @@ export function RunPipelineForm({ onLaunched }: RunPipelineFormProps) {
         ))}
         <input
           type="text"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
+          value={form.draft}
+          onChange={(event) =>
+            setForm((prev) => ({ ...prev, draft: event.target.value }))
+          }
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
               commitDraft();
             } else if (
-              e.key === "Backspace" &&
-              draft === "" &&
-              tickers.length > 0
+              event.key === "Backspace" &&
+              form.draft === "" &&
+              form.suggestions.length > 0
             ) {
-              e.preventDefault();
-              setTickers((prev) => prev.slice(0, -1));
+              event.preventDefault();
+              setForm((prev) => ({
+                ...prev,
+                suggestions: prev.suggestions.slice(0, -1),
+              }));
             }
           }}
           placeholder="CBOX.L — press Enter"
-          aria-label="Portfolio tickers"
+          aria-label="Also analyse"
           disabled={submitting}
         />
       </div>
@@ -130,7 +380,7 @@ export function RunPipelineForm({ onLaunched }: RunPipelineFormProps) {
           <input
             type="checkbox"
             checked={mockModeLocked || isMock}
-            onChange={(e) => setIsMock(e.target.checked)}
+            onChange={(event) => setIsMock(event.target.checked)}
             disabled={submitting || mockModeLocked}
           />
           {mockModeLocked

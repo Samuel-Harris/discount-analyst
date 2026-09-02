@@ -6,13 +6,15 @@ Implementation-accurate snapshot of the agentic pipeline. Ground truth is the co
 
 ## Changes since last sync
 
-Previous snapshot: 2026-08-30 (Curator / CODE-34). This pass re-read factories, runners, gates, Alembic head, and live `model_json_schema()` / enum values.
+Previous snapshot: 2026-08-30 (versioned live theses / CODE-87). This pass re-read dashboard create, Curator snapshot load, Alembic head, and domain ledger conversion.
 
-**Versioned live theses (CODE-87).** Strategist `output_type` is now `StrategistDecision` (`keep_prior` \| `replace` + nested `MispricingThesis`). Application `resolve_live_thesis` is the only keep resolver. Dashboard lanes load the latest chosen thesis by ticker (casefold) from `workflow_investment_theses` on completed workflows, else the newest completed Curator allocation with `target_weight_pct > 0` and that lane’s Strategist `mispricing_theses` row. Profiler and Researcher never see it. Sentinel/Appraiser receive the in-run live `MispricingThesis`. Curator packing adds field-identical `PackedMispricingThesis` as `live_thesis` (required on rating-table and sentinel-rejection lanes; optional prior on data-quality rejection). After `finalise_curator_proposal` succeeds, `persist_chosen_position_theses` copies this-run Strategist theses for every position with `target_weight_pct > 0` onto this workflow (`origin` copied from the keep/replace discriminator stored on the execution-scoped `mispricing_theses` row). Failed, cancelled, or skipped Curator writes **no** snapshots. CLI `workflow run` still passes `prior_thesis=None`. One-shot Strategist accepts `--prior-thesis PATH`.
+**Profiler `is_existing_position`.** `_profiler_entry_pipeline` threads the ticker run flag (holdings true, also-analyse false). A live candidate-gate ticker rewrite is remapped onto the Curator snapshot from the holding’s original `CandidateSnapshot.ticker` so assembly still matches. Zero-value holdings stay in the snapshot at 0% even when cash is also £0.
 
-**Unchanged:** Candidate gate (delist-only; skipped in mock and unused by CLI), Sentinel derivation + valuation gate, Appraiser weight-blend validator, Curator policy/invariants/15% cap, `is_existing_position` wording, mock DEV-forced path, one dashboard model for every stage, Surveyor’s terminal-required construction, no Arbiter agent.
+**Dashboard sterling ledger.** `POST /api/workflow_runs` now takes `positions` (ticker + `value_gbp`), `cash_gbp`, and `suggestion_tickers` instead of `portfolio_tickers`. Holdings persist `value_gbp` on `workflow_run_portfolio_tickers` and `cash_gbp` on `workflow_runs` (Alembic `0016_workflow_sterling_ledger`; `NULL` cash marks a pre-ledger row). Holdings spawn Profiler lanes with `is_existing_position=True` and enter the Curator snapshot. Suggestion names spawn Profiler lanes with `is_existing_position=False` and are omitted from the snapshot (overlap with a holding drops the pill). Empty book is valid: no holdings, £0 cash → 100% cash snapshot. `GET /api/portfolio` returns the latest run’s pound ledger (old `NULL` cash rows prefill as suggestions only). Conversion is `snapshot_from_sterling_ledger` in `domain/allocations/snapshot.py` (remainder on cash, or on the last holding when cash is £0).
 
-**Curator (still as of CODE-34, plus thesis packing):** Dashboard `execute_workflow` runs `CuratorStage` after the ticker loop. Skip if lanes are not all `completed` (`lanes_not_all_completed`). A missing live snapshot **fails** Curator and the workflow. Mock synthesises `equal_weight_existing_snapshot`. CLI requires `--snapshot` JSON. Persist still uses `0013`/`0014` allocation tables; thesis snapshots are `0015_workflow_investment_theses`.
+**Curator snapshot load.** Mock and live dashboard Curator share `load_dashboard_portfolio_snapshot(session, workflow_run_id)`. It always converts the persisted ledger. Pre-ledger rows raise `RuntimeError` (“launched without a sterling ledger”). There is no equal-weight invention; `equal_weight_existing_snapshot` is gone. CLI Curator is unchanged (`--snapshot` percentage JSON).
+
+**Unchanged:** Candidate gate, Sentinel derivation + valuation gate, Appraiser weight-blend validator, Curator policy/invariants/15% cap, `is_existing_position` Sentinel wording (no extra “suggestion” prompt text), mock DEV-forced path, one dashboard model for every stage, Surveyor’s terminal-required construction, thesis snapshots (`0015`), no Arbiter agent.
 
 Skill-table path drift (for the next operator): dashboard runner is `adapters/orchestration/sqlmodel_runner.py`, HTTP is `entrypoints/api/routers/workflow_runs.py`, CLI is `entrypoints/cli/workflows/run_full_workflow.py` plus `cli_curator.py`, builders are `application/decisions/builders.py`, live-thesis resolve is `application/theses.py`, lane order is `application/workflows/agent_lane_order.py`, rating enum is `domain/decisions/investment_rating.py`.
 
@@ -26,7 +28,7 @@ Discount Analyst runs a **gated, per-ticker lane** after a universe-level Survey
 
 Two entry paths (`EntryPathDb` / `EntryPathApi`):
 
-- **Profiler entry** — dashboard portfolio tickers, or CLI `--profiler-tickers`. Runs Profiler first. Dashboard sets `is_existing_position=True`.
+- **Profiler entry** — dashboard holdings and also-analyse names, or CLI `--profiler-tickers`. Runs Profiler first. Dashboard sets `is_existing_position=True` only for holdings (`value_gbp` set); also-analyse names are `False`.
 - **Surveyor entry** — names discovered by Surveyor that are not already in the portfolio. No Profiler execution. Dashboard sets `is_existing_position=False`.
 
 Shared downstream lane (both paths): **candidate gate → Researcher → Strategist → Sentinel → (optional) Appraiser → programmatic verdict**. After all lanes, **Curator** consumes those verdicts plus a `CurrentPortfolioSnapshot`.
@@ -57,7 +59,7 @@ flowchart TD
   profilerLoop --> path{"entry_path"}
   path -->|profiler| profilerAgent["Profiler agent<br/>ProfilerOutput.candidate"]
   path -->|surveyor already completed in spawn| skip["Skip — already finished"]
-  profilerAgent --> gateP["Candidate gate<br/>is_existing_position=true"]
+  profilerAgent --> gateP["Candidate gate<br/>is_existing_position from run"]
 
   gateS -->|RejectedCandidateGate| dqr["DataQualityRejection<br/>SELL; skip researcher…appraiser"]
   gateP -->|RejectedCandidateGate| dqr
@@ -75,8 +77,8 @@ flowchart TD
   verdict --> lanesDone{"Every ticker run completed?"}
   lanesDone -->|no| skipAlloc["Curator skipped<br/>lanes_not_all_completed"]
   lanesDone -->|yes| snap{"CurrentPortfolioSnapshot?"}
-  snap -->|missing live| failAlloc["Curator failed<br/>workflow failed"]
-  snap -->|mock equal-weight / CLI --snapshot| alloc["Curator<br/>CuratorProposal → finalise → PortfolioAllocation"]
+  snap -->|pre-ledger run| failAlloc["Curator failed<br/>workflow failed"]
+  snap -->|sterling ledger / CLI --snapshot| alloc["Curator<br/>CuratorProposal → finalise → PortfolioAllocation"]
 ```
 
 CLI omits the candidate-gate diamond: Surveyor or Profiler output goes straight to `SurveyorCandidate.to_lane_context()` and the same Researcher→… path (`run_full_workflow.py`). Curator runs after the candidate loop unless a lane failure was recorded (`cli_curator.py`).
@@ -85,17 +87,17 @@ CLI omits the candidate-gate diamond: Surveyor or Profiler output goes straight 
 
 ## Agent handoff table
 
-| Stage          | Stance (from that agent’s system prompt)                           | Input                                   | Output schema                                     | Tools                                                                                                                                                  |
-| -------------- | ------------------------------------------------------------------ | --------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Surveyor       | Disciplined **screener** in neglected small-caps                   | Open mandate (`USER_PROMPT`); no ticker | `SurveyorOutput` (exactly 15 candidates)          | Web research + financial MCP + required terminal + official universe lists + official filings                                                           |
-| Profiler       | Financial screener of a **named** stock; resist favourable framing | Ticker string                           | `ProfilerOutput` wrapping one `SurveyorCandidate` | Same as Surveyor except no universe listing tools (filings only)                                                                                       |
-| Candidate gate | Deterministic, not an LLM                                          | `SurveyorCandidate`                     | `PassedCandidateGate` / `RejectedCandidateGate`   | FMP (+ EODHD fallback for `.L`). Identity-unknown and listing-unconfirmed **admit**. DQR is **delist-only**. **Skipped in mock.** **Not used by CLI.** |
-| Researcher     | **Neutral evidence assembler**; no recommendation language         | `SurveyorLaneContext`                   | `DeepResearchReport`                              | Web research + financial MCP + optional terminal + official filings                                                                                    |
-| Strategist     | **Second-level thinker**; interpreter not researcher               | Lane context + `DeepResearchReport` + optional prior `MispricingThesis` | `StrategistDecision` (`keep_prior` \| `replace`); live thesis via `resolve_live_thesis` | Web research + financial MCP + optional terminal + official filings. Prompt forbids expanding research; tools may only confirm or falsify packed claims. |
-| Sentinel       | **Adversary, not a validator**                                     | Lane context + research + **live** thesis | `EvaluationReport`                                | FX (`convert_currency`) + official filings. No web, MCP, or terminal. `thesis_verdict` overwritten in Python after a live run.                         |
-| Appraiser      | Valuation specialist; **no Buy/Hold/Sell**                         | `AppraiserInput`                        | `AppraiserOutput`                                 | Web research + financial MCP + optional terminal + official filings                                                                                    |
-| Rating table   | Deterministic                                                      | Lane + thesis + evaluation + MoS        | `RatingTableDecision` inside `Verdict`            | None                                                                                                                                                   |
-| Curator      | Closed-book **portfolio constructor**; does not re-rate or edit theses | `CuratorInput` (snapshot + compact lanes + `live_thesis`) | `CuratorProposal` then `PortfolioAllocation` | FX attached by factory but **must not be called**. No web, MCP, terminal, or filings (`REGULATORY_TOOLSETS_BY_ROLE[CURATOR] = ()`).                  |
+| Stage          | Stance (from that agent’s system prompt)                               | Input                                                                   | Output schema                                                                           | Tools                                                                                                                                                    |
+| -------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Surveyor       | Disciplined **screener** in neglected small-caps                       | Open mandate (`USER_PROMPT`); no ticker                                 | `SurveyorOutput` (exactly 15 candidates)                                                | Web research + financial MCP + required terminal + official universe lists + official filings                                                            |
+| Profiler       | Financial screener of a **named** stock; resist favourable framing     | Ticker string                                                           | `ProfilerOutput` wrapping one `SurveyorCandidate`                                       | Same as Surveyor except no universe listing tools (filings only)                                                                                         |
+| Candidate gate | Deterministic, not an LLM                                              | `SurveyorCandidate`                                                     | `PassedCandidateGate` / `RejectedCandidateGate`                                         | FMP (+ EODHD fallback for `.L`). Identity-unknown and listing-unconfirmed **admit**. DQR is **delist-only**. **Skipped in mock.** **Not used by CLI.**   |
+| Researcher     | **Neutral evidence assembler**; no recommendation language             | `SurveyorLaneContext`                                                   | `DeepResearchReport`                                                                    | Web research + financial MCP + optional terminal + official filings                                                                                      |
+| Strategist     | **Second-level thinker**; interpreter not researcher                   | Lane context + `DeepResearchReport` + optional prior `MispricingThesis` | `StrategistDecision` (`keep_prior` \| `replace`); live thesis via `resolve_live_thesis` | Web research + financial MCP + optional terminal + official filings. Prompt forbids expanding research; tools may only confirm or falsify packed claims. |
+| Sentinel       | **Adversary, not a validator**                                         | Lane context + research + **live** thesis                               | `EvaluationReport`                                                                      | FX (`convert_currency`) + official filings. No web, MCP, or terminal. `thesis_verdict` overwritten in Python after a live run.                           |
+| Appraiser      | Valuation specialist; **no Buy/Hold/Sell**                             | `AppraiserInput`                                                        | `AppraiserOutput`                                                                       | Web research + financial MCP + optional terminal + official filings                                                                                      |
+| Rating table   | Deterministic                                                          | Lane + thesis + evaluation + MoS                                        | `RatingTableDecision` inside `Verdict`                                                  | None                                                                                                                                                     |
+| Curator        | Closed-book **portfolio constructor**; does not re-rate or edit theses | `CuratorInput` (snapshot + compact lanes + `live_thesis`)               | `CuratorProposal` then `PortfolioAllocation`                                            | FX attached by factory but **must not be called**. No web, MCP, terminal, or filings (`REGULATORY_TOOLSETS_BY_ROLE[CURATOR] = ()`).                      |
 
 Shared investing creed: `discount_analyst.agents.common_prompts.creed.INVESTING_CREED` (prepended or wrapped by every agent system prompt).
 
@@ -119,7 +121,7 @@ Persisted `decision_type` (`DecisionTypeDb` / `DecisionTypeApi`): `rating_table`
 
 ### `is_existing_position`
 
-Threaded from dashboard entry path (profiler = true, surveyor-discovered = false) or CLI `--is-existing-position`.
+Threaded from the ticker run: dashboard holdings (`value_gbp` set) are true; also-analyse Profiler names and Surveyor-discovered names are false. CLI uses `--is-existing-position`. `_profiler_entry_pipeline` must pass the run flag — not assume Profiler means existing.
 
 | Path                   | Rating                                                                        | Action text                                                                                                                                 |
 | ---------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -204,11 +206,11 @@ Introspected 2026-08-30 via `model_json_schema()` / enum values. Nested models a
 | `StockCategory`          | `value`, `growth` — **defined in `surveyor.schema` but unused** (no field on `SurveyorCandidate`)                                                                                                                                             |
 | `ThesisVerdict`          | `Thesis intact — proceed to valuation`, `Thesis intact with reservations — proceed with noted caveats`, `Thesis weakened — do not proceed`, `Thesis unproven — do not proceed`, `Thesis broken — do not proceed`                              |
 | `OverallRedFlagVerdict`  | `Clear`, `Monitor`, `Serious concern`                                                                                                                                                                                                         |
-| `ValuationMethod`        | `dcf`, `reverse_dcf`, `comparable_multiples`, `sum_of_parts`, `asset_value`, `unit_economics`, `scenario_weighting`, `monte_carlo`, `earnings_multiple`, `fcf_yield` (no `other`)                                                              |
+| `ValuationMethod`        | `dcf`, `reverse_dcf`, `comparable_multiples`, `sum_of_parts`, `asset_value`, `unit_economics`, `scenario_weighting`, `monte_carlo`, `earnings_multiple`, `fcf_yield` (no `other`)                                                             |
 | `InvestmentRating`       | see [Rating system](#rating-system)                                                                                                                                                                                                           |
 | `RebalanceAction`        | `enter`, `increase`, `hold`, `reduce`, `exit`, `avoid` (`domain/allocations/actions.py`)                                                                                                                                                      |
-| `AgentName` (runtime)    | `CURATOR`, `APPRAISER`, `PROFILER`, `RESEARCHER`, `SENTINEL`, `STRATEGIST`, `SURVEYOR`                                                                                                                                                       |
-| `AgentNameDb` / API slug | lowercase: `surveyor`, `profiler`, `researcher`, `strategist`, `sentinel`, `appraiser`, `curator`                                                                                                                                           |
+| `AgentName` (runtime)    | `CURATOR`, `APPRAISER`, `PROFILER`, `RESEARCHER`, `SENTINEL`, `STRATEGIST`, `SURVEYOR`                                                                                                                                                        |
+| `AgentNameDb` / API slug | lowercase: `surveyor`, `profiler`, `researcher`, `strategist`, `sentinel`, `appraiser`, `curator`                                                                                                                                             |
 | `ModelName`              | `claude-opus-4-5`, `claude-sonnet-4-5`, `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-6`, `gpt-5.1`, `gpt-5.2`, `gpt-5.4`, `gpt-5.6-luna`, `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `deepseek-v4-flash`, `deepseek-v4-pro` |
 
 ### `KeyMetrics`
@@ -261,10 +263,10 @@ No `minItems` on the lists.
 
 Factory `output_type` (`agents/strategist/schema.py`, `RootModel` `StrategistDecision` / `STRATEGIST_DECISION_ADAPTER`):
 
-| `decision`     | Model              | Extra fields                         |
-| -------------- | ------------------ | ------------------------------------ |
-| `keep_prior`   | `KeepPriorThesis`  | none (`additionalProperties: false`) |
-| `replace`      | `ReplaceThesis`    | required nested `thesis`             |
+| `decision`   | Model             | Extra fields                         |
+| ------------ | ----------------- | ------------------------------------ |
+| `keep_prior` | `KeepPriorThesis` | none (`additionalProperties: false`) |
+| `replace`    | `ReplaceThesis`   | required nested `thesis`             |
 
 Keep with no prior is a lane failure (`KeepPriorWithoutThesisError` from `application/theses.resolve_live_thesis`). Keep copies the prior object bit-for-bit; the model must not echo thesis fields. Conversation reconstruction still yields a `MispricingThesis` because keep copies the prior into this execution’s `mispricing_theses` tables.
 
@@ -332,15 +334,15 @@ Constants: `WEIGHT_SUM_TOLERANCE_PP = 0.05`, `COMPANY_WEIGHT_CAP_PCT = 15.0`.
 
 `CurrentPositionWeight`: `ticker`, `current_weight_pct` (0–100).
 
-`CurrentPortfolioSnapshot`: `as_of` (date), `positions`, `cash_weight_pct` (0–100). Validator: case-insensitive unique tickers; positions + cash total 100 ± 0.05 pp.
+`CurrentPortfolioSnapshot`: `as_of` (date), `positions`, `cash_weight_pct` (0–100). Validator: case-insensitive unique tickers; positions + cash total 100 ± 0.05 pp. Dashboard builds this from `SterlingPortfolioLedger` (`positions` of ticker + `value_gbp` ≥ 0, `cash_gbp` ≥ 0) via `snapshot_from_sterling_ledger`. Zero total → empty positions and 100% cash. Otherwise each holding is `round(100 * value / total, 2)` with remainder on cash (or on the last holding when cash is 0). CLI still ingests `CurrentPortfolioSnapshot` JSON.
 
 `AllocationPolicy` discriminated union on `kind`:
 
-| Kind               | Extra fields                                      |
-| ------------------ | ------------------------------------------------- |
-| `investable`       | none                                              |
-| `retain_or_reduce` | `current_weight_pct` (0–100)                      |
-| `forced_zero`      | `reason`: `new_hold` \| `sell` \| `strong_sell`   |
+| Kind               | Extra fields                                    |
+| ------------------ | ----------------------------------------------- |
+| `investable`       | none                                            |
+| `retain_or_reduce` | `current_weight_pct` (0–100)                    |
+| `forced_zero`      | `reason`: `new_hold` \| `sell` \| `strong_sell` |
 
 `CompactResearcherEvidence`: `customer_segments`, `risks` (string[]).
 
@@ -356,11 +358,11 @@ Constants: `WEIGHT_SUM_TOLERANCE_PP = 0.05`, `COMPANY_WEIGHT_CAP_PCT = 15.0`.
 
 `CuratorLaneEvidence` discriminated on `decision_kind`:
 
-| `decision_kind`            | Extra fields besides `identity`                                                                 |
-| -------------------------- | ----------------------------------------------------------------------------------------------- |
-| `rating_table`             | required `live_thesis`, `researcher`, `strategist`, `sentinel`, `appraiser`                     |
-| `sentinel_rejection`       | required `live_thesis`, `rejection_reason`, `researcher`, `strategist`, `sentinel`              |
-| `data_quality_rejection`   | `rejection_reason`, optional `live_thesis` (prior only; no research/sentinel/appraiser)         |
+| `decision_kind`          | Extra fields besides `identity`                                                         |
+| ------------------------ | --------------------------------------------------------------------------------------- |
+| `rating_table`           | required `live_thesis`, `researcher`, `strategist`, `sentinel`, `appraiser`             |
+| `sentinel_rejection`     | required `live_thesis`, `rejection_reason`, `researcher`, `strategist`, `sentinel`      |
+| `data_quality_rejection` | `rejection_reason`, optional `live_thesis` (prior only; no research/sentinel/appraiser) |
 
 `CuratorInput`: `allocation_date`, `snapshot`, `lanes`. Validator: case-insensitive unique lane tickers.
 
@@ -388,10 +390,10 @@ Constants: `WEIGHT_SUM_TOLERANCE_PP = 0.05`, `COMPANY_WEIGHT_CAP_PCT = 15.0`.
 
 `create_workflow_run` in `entrypoints/api/routers/workflow_runs.py`:
 
-- Inserts `workflow_runs` with `portfolio_tickers` and `is_mock`.
+- Inserts `workflow_runs` with `cash_gbp` (always set on new launches, including `0.00`) and `is_mock`. Holding rows store `value_gbp`; also-analyse rows store `value_gbp` NULL.
 - **If `settings.deploy_env == "DEV"`, `is_mock` is forced `True`**, ignoring the request body.
 - Always inserts a workflow-level Surveyor execution (`surveyor_started=True`) **and** a pending workflow-level Curator execution (`insert_workflow_run`).
-- Each non-empty portfolio ticker becomes a profiler-entry run with `PROFILER_ENTRY_AGENT_NAMES` and `is_existing_position=True`.
+- Each holding becomes a profiler-entry run with `PROFILER_ENTRY_AGENT_NAMES` and `is_existing_position=True`. Remaining suggestion tickers get the same agent list with `is_existing_position=False`. Blank tickers, negatives, and casefold duplicates 422 (overlap between a holding and a pill drops the pill).
 - Schedules `DashboardPipelineRunner.schedule_workflow_execution`.
 
 Also: cancel (covers workflow-scoped Surveyor and Curator plus unfinished lanes); `retry_failed_agents` (resets failed or cancelled lane executions from the first unfinished agent onward; resets Curator whenever Surveyor or a lane is reset, except a legacy skipped Curator; Curator-only retry when lanes stay completed and Curator is failed/cancelled; then re-enters `execute_workflow`; completed stages and completed lanes are skipped by status checks).
@@ -458,7 +460,7 @@ If Appraiser execution id is missing, `run_appraiser_final_rating` **returns wit
 
 Factory: `create_curator_agent` → `CuratorProposal`. Closed book like Sentinel: `enable_web_research_tools=False`, no Perplexity, no MCP, terminal disabled. `REGULATORY_TOOLSETS_BY_ROLE[CURATOR]` is empty. Frankfurter is still attached; the prompt forbids calling it.
 
-Dashboard: `CuratorStage.run` after the ticker loop in `execute_workflow`. Skip if already `completed` or `skipped`. If any ticker run is not `completed`, mark Curator `skipped` with `lanes_not_all_completed`. Live dashboard `load_dashboard_portfolio_snapshot(..., is_mock=False)` returns `None` and the stage raises `RuntimeError("Current portfolio snapshot is missing.")` — there is no 100% cash fallback. Mock uses `equal_weight_existing_snapshot` (20% cash and equal remaining weight across existing-position tickers; **100% cash** if that set is empty) then `mock_curator_proposal` after a 5s sleep.
+Dashboard: `CuratorStage.run` after the ticker loop in `execute_workflow`. Skip if already `completed` or `skipped`. If any ticker run is not `completed`, mark Curator `skipped` with `lanes_not_all_completed`. `load_dashboard_portfolio_snapshot` converts the run’s sterling ledger (`as_of` = UTC date of `workflow_runs.started_at`) for both mock and live. Pre-ledger rows (`cash_gbp IS NULL`) raise `RuntimeError`. Empty ledger is 100% cash. Mock then uses `mock_curator_proposal` after a 5s sleep. Snapshot `as_of` is launch date; `allocation_date` remains `date.today()`.
 
 Application packing (`assemble_curator_input`) maps Researcher/Strategist/Sentinel/Appraiser schemas into compact evidence so the Curator package does not import those stages. Every lane carries `live_thesis` (`PackedMispricingThesis`); compact Strategist evidence is derived from that object. Data-quality lanes may carry an optional prior only. The Curator prompt ranks using `live_thesis` (whether two names are independent ideas) and must not invent or edit theses. `finalise_curator_proposal` stamps current weights, company names, policy, `source_run_id`, and `action`; invalid numbers fail the workflow.
 
@@ -482,16 +484,16 @@ A completed dashboard run with `is_mock=true` did **not** hit live LLM/MCP/FMP f
 
 Configuration: `discount_analyst.config.settings.Settings` (root / package `.env`, nested `ENV__` keys).
 
-| Setting                                                       | Default (code) | Role                                                                                                                  |
-| ------------------------------------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `default_model` / `DASHBOARD_DEFAULT_MODEL`                   | `gpt-5.6-luna` | All dashboard pipeline agents via `AIModelsConfig(model_name=settings.default_model)` — **one model for every stage** |
-| `use_perplexity` / `DASHBOARD_USE_PERPLEXITY`                 | `False`        | Perplexity `web_search` + `sec_filings_search` instead of pydantic-ai WebSearch/WebFetch                              |
-| `use_mcp_financial_data` / `DASHBOARD_USE_MCP_FINANCIAL_DATA` | `True`         | EODHD + FMP MCP toolsets                                                                                              |
-| `use_terminal` / `DASHBOARD_USE_TERMINAL`                     | `True`         | Docker-backed `terminal_exec` via `TERMINAL_SERVICE_URL`; Surveyor construction fails when disabled                   |
-| `eodhd.disabled` / `EODHD__DISABLED`                          | `False`        | Omits EODHD MCP (and EODHD listing fallback)                                                                          |
-| `risk_free_rate_pct`                                          | `3.7`          | Injected into Appraiser user prompt                                                                                   |
+| Setting                                                       | Default (code)         | Role                                                                                                                  |
+| ------------------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `default_model` / `DASHBOARD_DEFAULT_MODEL`                   | `gpt-5.6-luna`         | All dashboard pipeline agents via `AIModelsConfig(model_name=settings.default_model)` — **one model for every stage** |
+| `use_perplexity` / `DASHBOARD_USE_PERPLEXITY`                 | `False`                | Perplexity `web_search` + `sec_filings_search` instead of pydantic-ai WebSearch/WebFetch                              |
+| `use_mcp_financial_data` / `DASHBOARD_USE_MCP_FINANCIAL_DATA` | `True`                 | EODHD + FMP MCP toolsets                                                                                              |
+| `use_terminal` / `DASHBOARD_USE_TERMINAL`                     | `True`                 | Docker-backed `terminal_exec` via `TERMINAL_SERVICE_URL`; Surveyor construction fails when disabled                   |
+| `eodhd.disabled` / `EODHD__DISABLED`                          | `False`                | Omits EODHD MCP (and EODHD listing fallback)                                                                          |
+| `risk_free_rate_pct`                                          | `3.7`                  | Injected into Appraiser user prompt                                                                                   |
 | `regulatory_data_cache_dir` / `REGULATORY_DATA_CACHE_DIR`     | `data/regulatory_data` | Official NASDAQ/LSE/SEC/Companies House cache (gitignored)                                                            |
-| `sec_user_agent` / `SEC__USER_AGENT`                          | `""`           | Required for SEC bulk refresh and live companyfacts gap-fill; not required for listings or Companies House            |
+| `sec_user_agent` / `SEC__USER_AGENT`                          | `""`                   | Required for SEC bulk refresh and live companyfacts gap-fill; not required for listings or Companies House            |
 
 MCP (`agents/tools/market_data/financial_data_mcp.py`): `https://mcp.eodhd.dev/mcp`, `https://financialmodelingprep.com/mcp`. Providers that support MCP: Anthropic, OpenAI, DeepSeek (`provider_features.py`). Google is **not** in that set — enabling MCP with a Google model raises `NotImplementedError`.
 
@@ -513,7 +515,7 @@ yfinance is available to agents only through `terminal_exec`; there is no dedica
 Create workflow
   ├─ Surveyor → SurveyorOutput.candidates
   │     └─ not in portfolio → snapshot + surveyor-entry Run
-  └─ portfolio tickers → profiler-entry Run
+  └─ holdings + also-analyse names → profiler-entry Run
                               └─ ProfilerOutput.candidate  (= SurveyorCandidate)
 
 SurveyorCandidate
@@ -533,7 +535,7 @@ SurveyorCandidate
                                                                           └─ snapshot chosen theses (target_weight_pct > 0)
 ```
 
-Dashboard persists agent conversations (including Alembic 0012 token columns on response messages), candidate-snapshot gate columns, `RunFinalDecision` (decomposed Verdict), Curator rows (`0013_portfolio_allocations`, renamed `allocator` → `curator` in `0014_rename_allocator_to_curator`), and chosen-position thesis snapshots (`0015_workflow_investment_theses`). `GET …/allocation` reconstructs `PortfolioAllocation` only when Curator completed. Next-run prior load is by ticker from those snapshots (then Strategist fallback), not a live FK.
+Dashboard persists agent conversations (including Alembic 0012 token columns on response messages), candidate-snapshot gate columns, `RunFinalDecision` (decomposed Verdict), Curator rows (`0013_portfolio_allocations`, renamed `allocator` → `curator` in `0014_rename_allocator_to_curator`), chosen-position thesis snapshots (`0015_workflow_investment_theses`), and the launch sterling ledger (`0016_workflow_sterling_ledger`: `workflow_runs.cash_gbp`, `workflow_run_portfolio_tickers.value_gbp`). `GET …/allocation` reconstructs `PortfolioAllocation` only when Curator completed. Next-run prior load is by ticker from those snapshots (then Strategist fallback), not a live FK.
 
 ---
 
@@ -549,37 +551,38 @@ Dashboard persists agent conversations (including Alembic 0012 token columns on 
 
 ## Where to look in the repo
 
-| What                                           | Where                                                                                                              |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Dashboard runner                               | `backend/src/discount_analyst/adapters/orchestration/sqlmodel_runner.py`                                           |
-| Stages                                         | `.../adapters/orchestration/stages/{surveyor,profiler,candidate_gate,ticker_lane,curator}_stage.py`              |
-| Lane order                                     | `application/workflows/agent_lane_order.py` (mirrored in `frontend/src/features/pipeline-graph/agentLaneOrder.ts`; **no Curator**) |
-| HTTP create/cancel/retry/allocation            | `entrypoints/api/routers/workflow_runs.py`                                                                         |
-| Workflow-agent conversation                    | `entrypoints/api/routers/agents.py` (`surveyor` \| `curator`)                                                    |
-| CLI workflow                                   | `entrypoints/cli/workflows/run_full_workflow.py` + `cli_curator.py`                                              |
-| Decision builders                              | `application/decisions/builders.py`                                                                                |
-| Allocation assemble / finalise                 | `application/allocations/`                                                                                         |
-| Allocation domain                              | `domain/allocations/`                                                                                              |
-| Rating table                                   | `domain/decisions/rating_decision_table.py`                                                                        |
-| Verdict schemas                                | `domain/decisions/schema.py`                                                                                       |
-| Live-thesis resolve                            | `application/theses.py` (`resolve_live_thesis`)                                                                    |
-| Thesis snapshot CRUD                           | `adapters/persistence/crud/workflow_investment_theses.py`                                                          |
-| Agent factories / prompts / schemas            | `agents/<name>/`                                                                                                   |
-| Sentinel thesis-verdict derivation             | `agents/sentinel/derive_thesis_verdict.py`                                                                         |
-| Shared agent runtime                           | `agents/runtime/` (`create_agent`, streaming, terminal bind)                                                       |
-| MCP + blacklist                                | `agents/tools/market_data/`                                                                                        |
-| Official listings + filings                    | `agents/tools/regulatory_data/` (`toolsets.py`, `exchanges/`, `sec_edgar/`, `companies_house/`)                    |
-| Regulatory cache refresh                       | `backend/tools/refresh_regulatory_data.py` (`discount-analyst admin refresh-regulatory-data`)                      |
-| Candidate gate                                 | `adapters/market_data/candidate_gates.py`                                                                          |
-| Mock payloads                                  | `adapters/simulation/mock_outputs.py`                                                                              |
-| Settings                                       | `config/settings.py`                                                                                               |
-| Alembic (gap_kind + Appraiser audit columns)   | `backend/migrations/versions/0011_sentinel_gap_kind_appraiser_audit.py`                                            |
-| Alembic (conversation token columns)           | `backend/migrations/versions/0012_conversation_message_usage.py`                                                   |
-| Alembic (portfolio allocations + Curator backfill) | `backend/migrations/versions/0013_portfolio_allocations.py`                                                  |
-| Alembic (rename `allocator` → `curator`)       | `backend/migrations/versions/0014_rename_allocator_to_curator.py`                                                  |
-| Alembic (workflow investment thesis snapshots) | `backend/migrations/versions/0015_workflow_investment_theses.py`                                                   |
-| Intrinsic value distribution (Appraiser I/O)   | `domain/valuation/intrinsic_value_distribution.py`                                                                 |
-| Valuation toolkit (optional Appraiser helpers) | `domain/valuation/toolkit/`                                                                                        |
+| What                                               | Where                                                                                                                              |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Dashboard runner                                   | `backend/src/discount_analyst/adapters/orchestration/sqlmodel_runner.py`                                                           |
+| Stages                                             | `.../adapters/orchestration/stages/{surveyor,profiler,candidate_gate,ticker_lane,curator}_stage.py`                                |
+| Lane order                                         | `application/workflows/agent_lane_order.py` (mirrored in `frontend/src/features/pipeline-graph/agentLaneOrder.ts`; **no Curator**) |
+| HTTP create/cancel/retry/allocation                | `entrypoints/api/routers/workflow_runs.py`                                                                                         |
+| Workflow-agent conversation                        | `entrypoints/api/routers/agents.py` (`surveyor` \| `curator`)                                                                      |
+| CLI workflow                                       | `entrypoints/cli/workflows/run_full_workflow.py` + `cli_curator.py`                                                                |
+| Decision builders                                  | `application/decisions/builders.py`                                                                                                |
+| Allocation assemble / finalise                     | `application/allocations/`                                                                                                         |
+| Allocation domain                                  | `domain/allocations/`                                                                                                              |
+| Rating table                                       | `domain/decisions/rating_decision_table.py`                                                                                        |
+| Verdict schemas                                    | `domain/decisions/schema.py`                                                                                                       |
+| Live-thesis resolve                                | `application/theses.py` (`resolve_live_thesis`)                                                                                    |
+| Thesis snapshot CRUD                               | `adapters/persistence/crud/workflow_investment_theses.py`                                                                          |
+| Agent factories / prompts / schemas                | `agents/<name>/`                                                                                                                   |
+| Sentinel thesis-verdict derivation                 | `agents/sentinel/derive_thesis_verdict.py`                                                                                         |
+| Shared agent runtime                               | `agents/runtime/` (`create_agent`, streaming, terminal bind)                                                                       |
+| MCP + blacklist                                    | `agents/tools/market_data/`                                                                                                        |
+| Official listings + filings                        | `agents/tools/regulatory_data/` (`toolsets.py`, `exchanges/`, `sec_edgar/`, `companies_house/`)                                    |
+| Regulatory cache refresh                           | `backend/tools/refresh_regulatory_data.py` (`discount-analyst admin refresh-regulatory-data`)                                      |
+| Candidate gate                                     | `adapters/market_data/candidate_gates.py`                                                                                          |
+| Mock payloads                                      | `adapters/simulation/mock_outputs.py`                                                                                              |
+| Settings                                           | `config/settings.py`                                                                                                               |
+| Alembic (gap_kind + Appraiser audit columns)       | `backend/migrations/versions/0011_sentinel_gap_kind_appraiser_audit.py`                                                            |
+| Alembic (conversation token columns)               | `backend/migrations/versions/0012_conversation_message_usage.py`                                                                   |
+| Alembic (portfolio allocations + Curator backfill) | `backend/migrations/versions/0013_portfolio_allocations.py`                                                                        |
+| Alembic (rename `allocator` → `curator`)           | `backend/migrations/versions/0014_rename_allocator_to_curator.py`                                                                  |
+| Alembic (workflow investment thesis snapshots)     | `backend/migrations/versions/0015_workflow_investment_theses.py`                                                                   |
+| Alembic (sterling ledger columns)                  | `backend/migrations/versions/0016_workflow_sterling_ledger.py`                                                                     |
+| Intrinsic value distribution (Appraiser I/O)       | `domain/valuation/intrinsic_value_distribution.py`                                                                                 |
+| Valuation toolkit (optional Appraiser helpers)     | `domain/valuation/toolkit/`                                                                                                        |
 
 CLI one-shots: `uv run discount-analyst agent {surveyor,profiler,researcher,strategist,sentinel,appraiser,curator}`. Strategist accepts optional `--prior-thesis PATH`. Admin: `uv run discount-analyst admin refresh-regulatory-data`.
 

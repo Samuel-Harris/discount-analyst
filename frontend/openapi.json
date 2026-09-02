@@ -293,22 +293,34 @@
       },
       "CreateWorkflowRunRequest": {
         "properties": {
+          "cash_gbp": {
+            "minimum": 0.0,
+            "multipleOf": 0.01,
+            "title": "Cash Gbp",
+            "type": "number"
+          },
           "is_mock": {
             "default": false,
             "title": "Is Mock",
             "type": "boolean"
           },
-          "portfolio_tickers": {
+          "positions": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioPositionInput"
+            },
+            "title": "Positions",
+            "type": "array"
+          },
+          "suggestion_tickers": {
             "items": {
               "type": "string"
             },
-            "minItems": 0,
-            "title": "Portfolio Tickers",
+            "title": "Suggestion Tickers",
             "type": "array"
           }
         },
         "required": [
-          "portfolio_tickers"
+          "cash_gbp"
         ],
         "title": "CreateWorkflowRunRequest",
         "type": "object"
@@ -491,18 +503,54 @@
         "title": "PortfolioAllocation",
         "type": "object"
       },
+      "PortfolioPositionInput": {
+        "properties": {
+          "ticker": {
+            "minLength": 1,
+            "title": "Ticker",
+            "type": "string"
+          },
+          "value_gbp": {
+            "minimum": 0.0,
+            "multipleOf": 0.01,
+            "title": "Value Gbp",
+            "type": "number"
+          }
+        },
+        "required": [
+          "ticker",
+          "value_gbp"
+        ],
+        "title": "PortfolioPositionInput",
+        "type": "object"
+      },
       "PortfolioResponse": {
         "properties": {
-          "portfolio_tickers": {
+          "cash_gbp": {
+            "minimum": 0.0,
+            "multipleOf": 0.01,
+            "title": "Cash Gbp",
+            "type": "number"
+          },
+          "positions": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioPositionInput"
+            },
+            "title": "Positions",
+            "type": "array"
+          },
+          "suggestion_tickers": {
             "items": {
               "type": "string"
             },
-            "title": "Portfolio Tickers",
+            "title": "Suggestion Tickers",
             "type": "array"
           }
         },
         "required": [
-          "portfolio_tickers"
+          "positions",
+          "cash_gbp",
+          "suggestion_tickers"
         ],
         "title": "PortfolioResponse",
         "type": "object"

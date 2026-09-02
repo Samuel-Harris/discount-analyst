@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal, ROUND_HALF_EVEN
+from typing import Annotated, Self
 
-from pydantic import BaseModel, Field
+from pydantic import AfterValidator, BaseModel, Field, PlainSerializer, model_validator
+from pydantic.json_schema import WithJsonSchema
 
 from discount_analyst.entrypoints.api.contracts.enums import (
     AgentNameSlug,
@@ -14,6 +17,21 @@ from discount_analyst.entrypoints.api.contracts.enums import (
     WorkflowRunStatusApi,
 )
 from discount_analyst.domain.model_selection.model_name import ModelName
+
+_STERLING_QUANTUM = Decimal("0.01")
+
+
+def _quantize_sterling(value: Decimal) -> Decimal:
+    return value.quantize(_STERLING_QUANTUM, rounding=ROUND_HALF_EVEN)
+
+
+SterlingPounds = Annotated[
+    Decimal,
+    Field(ge=0),
+    AfterValidator(_quantize_sterling),
+    PlainSerializer(lambda value: float(value), return_type=float, when_used="json"),
+    WithJsonSchema({"type": "number", "minimum": 0, "multipleOf": 0.01}),
+]
 
 
 class WorkflowRunListItem(BaseModel):
@@ -70,9 +88,57 @@ class WorkflowRunDetailResponse(BaseModel):
     runs: list[TickerRunDetail]
 
 
+class PortfolioPositionInput(BaseModel):
+    ticker: str = Field(min_length=1)
+    value_gbp: SterlingPounds
+
+    @model_validator(mode="after")
+    def strip_ticker(self) -> Self:
+        ticker = self.ticker.strip()
+        if not ticker:
+            raise ValueError("Holding tickers must not be blank")
+        self.ticker = ticker
+        return self
+
+
 class CreateWorkflowRunRequest(BaseModel):
-    portfolio_tickers: list[str] = Field(min_length=0)
+    positions: list[PortfolioPositionInput] = Field(default_factory=list)
+    cash_gbp: SterlingPounds
+    suggestion_tickers: list[str] = Field(default_factory=list)
     is_mock: bool = False
+
+    @model_validator(mode="after")
+    def normalise_ledger(self) -> Self:
+        holding_keys: dict[str, str] = {}
+        for position in self.positions:
+            key = position.ticker.casefold()
+            previous = holding_keys.get(key)
+            if previous is not None:
+                raise ValueError(
+                    "Holding tickers must be unique case-insensitively; "
+                    f"{previous!r} and {position.ticker!r} collide."
+                )
+            holding_keys[key] = position.ticker
+
+        suggestion_keys: dict[str, str] = {}
+        kept_suggestions: list[str] = []
+        for raw_ticker in self.suggestion_tickers:
+            ticker = raw_ticker.strip()
+            if not ticker:
+                raise ValueError("Suggestion tickers must not be blank")
+            key = ticker.casefold()
+            if key in holding_keys:
+                continue
+            previous = suggestion_keys.get(key)
+            if previous is not None:
+                raise ValueError(
+                    "Suggestion tickers must be unique case-insensitively; "
+                    f"{previous!r} and {ticker!r} collide."
+                )
+            suggestion_keys[key] = ticker
+            kept_suggestions.append(ticker)
+        self.suggestion_tickers = kept_suggestions
+        return self
 
 
 class ProfilerRunCreated(BaseModel):
@@ -93,7 +159,9 @@ class ConversationResponse(BaseModel):
 
 
 class PortfolioResponse(BaseModel):
-    portfolio_tickers: list[str]
+    positions: list[PortfolioPositionInput]
+    cash_gbp: SterlingPounds
+    suggestion_tickers: list[str]
 
 
 class YfinanceFreshnessResponse(BaseModel):

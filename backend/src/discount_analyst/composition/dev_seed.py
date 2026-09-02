@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 
 from sqlmodel import Session
 
@@ -37,6 +38,7 @@ from discount_analyst.application.decisions.builders import (
     build_sentinel_rejection,
     verdict_from_decision,
 )
+from discount_analyst.domain.allocations.snapshot import SterlingPosition
 from discount_analyst.domain.allocations.actions import RebalanceAction
 from discount_analyst.domain.allocations.allocation import (
     AllocationPosition,
@@ -59,7 +61,9 @@ def seed(session: Session) -> None:
     insert_workflow_run(
         session,
         workflow_run_id=workflow_id,
-        portfolio_tickers=portfolio,
+        holdings=(SterlingPosition(ticker="SEED1.L", value_gbp=Decimal("8000.00")),),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("2000.00"),
         is_mock=True,
         surveyor_execution_id=surveyor_exec_id,
     )
