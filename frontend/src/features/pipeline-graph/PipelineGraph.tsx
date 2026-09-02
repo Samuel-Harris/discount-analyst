@@ -45,21 +45,42 @@ function conversationClickable(node: LayoutNode): boolean {
 function emitConversationOpen(data: PipelineNodeData): void {
   const { node, onOpen } = data;
   if (!conversationClickable(node)) return;
-  const title =
-    node.kind === "workflow_surveyor"
-      ? "surveyor · workflow"
-      : `${node.agentName} · ${node.ticker ?? ""}`;
-  if (node.kind === "workflow_surveyor") {
-    onOpen({ kind: "surveyor", workflowRunId: node.workflowRunId }, title);
-  } else if (node.runId) {
-    onOpen(
-      {
-        kind: "run_agent",
-        runId: node.runId,
-        agentName: node.agentName,
-      },
-      title,
-    );
+  switch (node.kind) {
+    case "workflow_surveyor":
+      onOpen(
+        {
+          kind: "workflow_agent",
+          workflowRunId: node.workflowRunId,
+          agentName: "surveyor",
+        },
+        "surveyor · workflow",
+      );
+      return;
+    case "workflow_curator":
+      onOpen(
+        {
+          kind: "workflow_agent",
+          workflowRunId: node.workflowRunId,
+          agentName: "curator",
+        },
+        "curator · workflow",
+      );
+      return;
+    case "lane_agent":
+      if (!node.runId) return;
+      onOpen(
+        {
+          kind: "run_agent",
+          runId: node.runId,
+          agentName: node.agentName,
+        },
+        `${node.agentName} · ${node.ticker ?? ""}`,
+      );
+      return;
+    default: {
+      const unhandled: never = node.kind;
+      throw new Error(`Unhandled graph node kind: ${String(unhandled)}`);
+    }
   }
 }
 
@@ -130,7 +151,7 @@ function graphHeight(detail: WorkflowRunDetailResponse): number {
 }
 
 function graphWidth(): number {
-  return 32 + 150 * 6 + 140;
+  return 32 + 150 * 7 + 140;
 }
 
 export interface PipelineGraphProps {

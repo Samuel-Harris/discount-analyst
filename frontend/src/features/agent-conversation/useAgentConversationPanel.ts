@@ -19,9 +19,7 @@ export function useAgentConversationPanel() {
   const openConversation = useCallback(
     (target: ConversationTarget, panelTitle: string) => {
       setTitle(panelTitle);
-      setAgentName(
-        target.kind === "run_agent" ? target.agentName : AgentNameSlug.surveyor,
-      );
+      setAgentName(target.agentName);
       setOpen(true);
       void load(target);
     },

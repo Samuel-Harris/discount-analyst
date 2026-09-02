@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-07-11 | Updated: 2026-09-02 (right-hand launch rail) -->
+<!-- Generated: 2026-07-11 | Updated: 2026-09-02 (pipeline graph Curator node) -->
 
 # frontend
 
@@ -26,7 +26,7 @@ Vite + React SPA for the local Discount Analyst dashboard. This directory owns t
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/app/`                         | Shell composition: thin `DashboardShell` wiring, yfinance freshness banner, and `WorkflowRunMainPanel` (sorts ticker lanes once for graph and recommendations). |
 | `src/features/workflow-runs/`      | Run list/sidebar, right-hand launch rail, detail header, recommendations view, run hooks (`useWorkflowRunActions`, navigation/detail/list).                    |
-| `src/features/pipeline-graph/`     | React Flow pipeline graph, lane order (`tickerRunOrder`), and layout builders.                                                                                  |
+| `src/features/pipeline-graph/`     | React Flow pipeline graph (Surveyor hub, ticker lanes, Curator hub), lane order (`tickerRunOrder`), and layout builders. |
 | `src/features/agent-conversation/` | Agent conversation panel (`AgentPanel` + `agentPanel/**`), `useConversation`, and `useAgentConversationPanel`.                                                  |
 | `src/components/`                  | Shared presentational pieces only (`UiStateText`, `JsonPretty`, `DeployEnvBadge`, `YfinanceOutdatedBanner`).                                                    |
 | `src/api/`                         | Orval-generated client, `orval-mutator.ts`, and thin `index.ts` facade (allowed shared API surface — not a feature barrel).                                     |
@@ -59,7 +59,7 @@ src/
 - Compose features only in `app/`
 - No feature barrel files (`index.ts` re-exports per feature)
 - Prefer `@/` imports for anything outside the current folder (maps to `src/`); keep `./` for co-located siblings
-- Keep custom URL navigation (`useWorkflowRunNavigation`: `?run=` / `?view=recommendations`) and custom `lib/server-state` (not React Router / TanStack Query)
+- Keep custom URL navigation (`useWorkflowRunNavigation`: `?run=` / `?view=recommendations`) and custom `lib/server-state` (not React Router / TanStack Query). Conversation targets are `workflow_agent` (Surveyor or Curator on the workflow) or `run_agent` (ticker lane).
 
 ## For AI Agents
 
