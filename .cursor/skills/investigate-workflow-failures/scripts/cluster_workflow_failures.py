@@ -55,7 +55,12 @@ def classify_error(error_message: str | None) -> str:
         return "http_auth"
     if "timeout" in lowered or "readtimeout" in lowered or "readerror" in lowered:
         return "timeout"
-    if "rate limit" in lowered or "tokens per min" in lowered or "tpm" in lowered:
+    if (
+        "rate limit" in lowered
+        or "tokens per min" in lowered
+        or "tpm" in lowered
+        or "too many requests" in lowered
+    ):
         return "rate_limit"
     return "other"
 

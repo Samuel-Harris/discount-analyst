@@ -148,7 +148,7 @@ Starting pointers (verify; do not freeze August 2026 behaviour):
 | `EodhdRealTimeQuote` / `close='NA'`                                               | `adapters/market_data/eodhd_client.py`                                                                           |
 | `run_stream()` / `EvaluationReport` / `UnexpectedModelBehavior` output validation | `agents/runtime/streaming_retries.py`, `agents/sentinel/schema.py`                                               |
 | `web_fetch` max retries                                                           | pydantic-ai tool retries (default 1); HTTP status is in the same message or prior span                           |
-| `Rate limit reached` / TPM                                                        | Provider quota; may be the last overlay after earlier gate/persist errors                                        |
+| `Rate limit reached` / TPM / `too many requests`                                  | Provider quota or capacity overload; may be the last overlay after earlier gate/persist errors                   |
 | Failed-agent retry overlay                                                        | `entrypoints/api/routers/workflow_runs.py`, `prepare_retry_failed_agents`                                        |
 | Status rollup                                                                     | `adapters/persistence/crud/workflow_runs.py` `recompute_workflow_status`                                         |
 
