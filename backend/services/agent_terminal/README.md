@@ -13,17 +13,18 @@ The **backend** and CLI talk to the orchestrator over HTTP (`TERMINAL_SERVICE_UR
 
 1. **Docker** with API access from the orchestrator container.
 2. **gVisor** (optional, production): install [runsc](https://gvisor.dev/docs/user_guide/install/) and set `DOCKER_RUNTIME=runsc`. Compose defaults to `runc` for local Docker Desktop.
-3. **Sandbox image** (build once per machine or CI):
+3. **Sandbox image** (build once per machine; skipped when the tag already exists):
 
 ```bash
-docker build -f docker/agent-terminal/Dockerfile.sandbox \
-  -t discount-analyst-terminal-sandbox:local .
+make build-terminal-sandbox
+# always rebuild:
+make build-terminal-sandbox-force
 ```
 
 4. **Compose stack** (from repo root):
 
 ```bash
-docker compose up --build
+docker compose up
 ```
 
 The orchestrator is published on **host port 8001** when using root `docker-compose.yml`.
@@ -34,7 +35,7 @@ Set `TERMINAL_WORKSPACE_HOST_PATH` to the **absolute host path** of the repo bef
 
 ```bash
 export TERMINAL_WORKSPACE_HOST_PATH="$(pwd)"
-docker compose up --build
+docker compose up
 ```
 
 Sandboxes mount it at `/workspace/repo` (override with `TERMINAL_WORKSPACE_CONTAINER_PATH`).
@@ -42,15 +43,15 @@ Sandboxes mount it at `/workspace/repo` (override with `TERMINAL_WORKSPACE_CONTA
 ### Verify stack
 
 ```bash
-make verify-terminal   # builds sandbox image, runs scripts/verify_agent_terminal.py
+make verify-terminal   # rebuilds the sandbox image, then runs backend/tools/verify_agent_terminal.py
 ```
 
 Agent runs with terminal enabled probe session creation at startup (`ensure_terminal_ready` in `run_streamed_agent`). If the sandbox image is missing or Docker is misconfigured, the run fails immediately with `TerminalUnavailableError` including the orchestrator error detail — use `make verify-terminal` to diagnose locally.
 
-Or from a running Compose backend:
+Or with the orchestrator already on **:8001**:
 
 ```bash
-docker compose exec -T backend uv run python scripts/verify_agent_terminal.py --skip-live-agent
+uv run python backend/tools/verify_agent_terminal.py --skip-live-agent
 ```
 
 ## API
