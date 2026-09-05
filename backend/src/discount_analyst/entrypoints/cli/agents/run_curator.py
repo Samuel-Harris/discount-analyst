@@ -36,9 +36,7 @@ def parse_args() -> CuratorArgs:
             "The snapshot is required inside that payload; it is not optional."
         )
     )
-    add_agent_cli_model_argument(
-        parser, default=settings.agent_default_models.curator
-    )
+    add_agent_cli_model_argument(parser, default=settings.agent_default_models.curator)
     parser.add_argument(
         "curator_input",
         type=Path,

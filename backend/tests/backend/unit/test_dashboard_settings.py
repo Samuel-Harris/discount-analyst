@@ -61,7 +61,7 @@ def test_agent_default_models_curator_env_override(
         fmp=dummy.fmp,
         eodhd=dummy.eodhd,
         logging=dummy.logging,
-        _env_file=None,
+        _env_file=None,  # type: ignore[call-arg]
     )
     assert loaded.agent_default_models.curator is ModelName.GPT_5_1
     assert loaded.agent_default_models.surveyor is ModelName.GPT_5_6_LUNA

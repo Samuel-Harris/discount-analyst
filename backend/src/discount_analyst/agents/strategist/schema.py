@@ -4,9 +4,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    SerializerFunctionWrapHandler,
     TypeAdapter,
-    model_serializer,
     model_validator,
 )
 
@@ -98,7 +96,9 @@ class StrategistDecision(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     decision: Literal["keep_prior", "replace"]
-    thesis: MispricingThesis | None = None
+    thesis: MispricingThesis | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -112,13 +112,6 @@ class StrategistDecision(BaseModel):
         if self.decision == "replace" and self.thesis is None:
             raise ValueError("replace requires a nested thesis")
         return self
-
-    @model_serializer(mode="wrap")
-    def omit_null_thesis(self, serializer: SerializerFunctionWrapHandler) -> object:
-        data = serializer(self)
-        if self.decision == "keep_prior" and isinstance(data, dict):
-            data.pop("thesis", None)
-        return data
 
 
 STRATEGIST_DECISION_ADAPTER: TypeAdapter[StrategistDecision] = TypeAdapter(

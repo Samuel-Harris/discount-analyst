@@ -102,7 +102,9 @@ class PortfolioPositionInput(BaseModel):
 
 
 class CreateWorkflowRunRequest(BaseModel):
-    positions: list[PortfolioPositionInput] = Field(default_factory=list)
+    positions: list[PortfolioPositionInput] = Field(
+        default_factory=list[PortfolioPositionInput]
+    )
     cash_gbp: SterlingPounds
     suggestion_tickers: list[str] = Field(default_factory=list)
     is_mock: bool = False

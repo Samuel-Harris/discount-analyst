@@ -20,7 +20,7 @@ from discount_analyst.agents.sentinel.sentinel import SENTINEL_AGENT_SPEC
 from discount_analyst.agents.strategist.strategist import STRATEGIST_AGENT_SPEC
 from discount_analyst.agents.surveyor.surveyor import SURVEYOR_AGENT_SPEC
 
-PIPELINE_SPECS: tuple[AgentSpec[object], ...] = (
+PIPELINE_SPECS = (
     SURVEYOR_AGENT_SPEC,
     PROFILER_AGENT_SPEC,
     RESEARCHER_AGENT_SPEC,

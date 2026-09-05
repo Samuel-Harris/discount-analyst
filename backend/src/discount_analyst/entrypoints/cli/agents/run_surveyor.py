@@ -44,9 +44,7 @@ def parse_args() -> SurveyorArgs:
     parser = argparse.ArgumentParser(
         description="Run the Surveyor agent to discover cheap small-cap stock candidates."
     )
-    add_agent_cli_model_argument(
-        parser, default=settings.agent_default_models.surveyor
-    )
+    add_agent_cli_model_argument(parser, default=settings.agent_default_models.surveyor)
     add_agent_cli_web_search_arguments(parser)
     parser.add_argument(
         "--no-mcp",

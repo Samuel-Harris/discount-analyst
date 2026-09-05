@@ -52,5 +52,5 @@ def dashboard_settings_for_tests(
         use_mcp_financial_data=True,
         use_terminal=False,
         deploy_env=deploy_env,
-        _env_file=None,
+        _env_file=None,  # type: ignore[call-arg]
     )
