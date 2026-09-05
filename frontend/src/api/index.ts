@@ -1,6 +1,7 @@
 import {
   getWorkflowAgentConversationApiAgentsWorkflowRunsWorkflowRunIdAgentsWorkflowAgentNameConversationGet,
   type ConversationResponse,
+  type WorkflowScopedAgentNameSlug,
 } from "./generated";
 
 export type {
@@ -11,10 +12,12 @@ export type {
   DashboardStatusResponse,
   EntryPathApi,
   ExecutionStatusApi,
+  PortfolioPositionInput,
   PortfolioResponse,
   TickerRunDetail,
   WorkflowRunDetailResponse,
   WorkflowRunListItem,
+  WorkflowScopedAgentNameSlug,
   YfinanceFreshnessResponse,
 } from "./generated";
 
@@ -31,13 +34,14 @@ export {
   retryFailedAgentsApiWorkflowRunsWorkflowRunIdRetryFailedAgentsPost as retryFailedAgents,
 } from "./generated";
 
-export function fetchSurveyorConversation(
+export function fetchWorkflowAgentConversation(
   workflowRunId: string,
+  agentName: WorkflowScopedAgentNameSlug,
   options?: RequestInit,
 ): Promise<ConversationResponse> {
   return getWorkflowAgentConversationApiAgentsWorkflowRunsWorkflowRunIdAgentsWorkflowAgentNameConversationGet(
     workflowRunId,
-    "surveyor",
+    agentName,
     options,
   );
 }

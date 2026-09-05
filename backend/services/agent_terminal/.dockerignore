@@ -1,0 +1,5 @@
+*
+!requirements-sandbox.txt
+!requirements-service.txt
+!app/
+!app/**

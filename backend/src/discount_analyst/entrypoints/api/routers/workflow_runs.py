@@ -37,6 +37,7 @@ from discount_analyst.adapters.persistence.crud.workflow_runs import (
     list_workflow_runs as list_workflow_runs_from_db,
     workflow_run_exists,
 )
+from discount_analyst.domain.allocations.snapshot import SterlingPosition
 from discount_analyst.domain.allocations.allocation import PortfolioAllocation
 from discount_analyst.adapters.orchestration.sqlmodel_runner import (
     DashboardPipelineRunner,
@@ -114,21 +115,27 @@ async def create_workflow_run(
     AI_LOGFIRE.info(
         "Creating workflow run",
         workflow_run_id=workflow_run_id,
-        portfolio_ticker_count=len(body.portfolio_tickers),
+        holding_count=len(body.positions),
+        suggestion_count=len(body.suggestion_tickers),
         is_mock=is_mock,
     )
     insert_workflow_run(
         session,
         workflow_run_id=workflow_run_id,
-        portfolio_tickers=body.portfolio_tickers,
+        holdings=tuple(
+            SterlingPosition(ticker=position.ticker, value_gbp=position.value_gbp)
+            for position in body.positions
+        ),
+        suggestion_tickers=body.suggestion_tickers,
+        cash_gbp=body.cash_gbp,
         is_mock=is_mock,
         surveyor_execution_id=surveyor_exec_id,
     )
     profiler_created: list[ProfilerRunCreated] = []
-    for raw_ticker in body.portfolio_tickers:
-        ticker = raw_ticker.strip()
-        if not ticker:
-            continue
+    for ticker, is_existing_position in (
+        *((position.ticker, True) for position in body.positions),
+        *((ticker, False) for ticker in body.suggestion_tickers),
+    ):
         run_id = new_id()
         insert_ticker_run_with_agents(
             session,
@@ -137,7 +144,7 @@ async def create_workflow_run(
             ticker=ticker,
             company_name=ticker,
             entry_path="profiler",
-            is_existing_position=True,
+            is_existing_position=is_existing_position,
             is_mock=is_mock,
             agent_names=PROFILER_ENTRY_AGENT_NAMES,
         )

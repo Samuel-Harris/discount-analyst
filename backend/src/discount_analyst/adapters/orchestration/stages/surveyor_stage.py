@@ -102,7 +102,9 @@ class SurveyorStage:
             )
             return
         try:
-            llm = pipeline_llm_config(host.settings, is_mock=is_mock)
+            llm = pipeline_llm_config(
+                host.settings, agent_name=AgentNameDb.SURVEYOR, is_mock=is_mock
+            )
             AI_LOGFIRE.info(
                 "Surveyor branch started",
                 agent_name=AgentNameDb.SURVEYOR,

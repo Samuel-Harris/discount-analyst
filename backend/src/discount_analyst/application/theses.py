@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from discount_analyst.agents.strategist.schema import (
-    KeepPriorThesis,
     MispricingThesis,
-    ReplaceThesis,
     StrategistDecision,
 )
 
@@ -22,10 +20,10 @@ def resolve_live_thesis(
     Replace uses the nested thesis. Keep copies the prior object bit-for-bit.
     Keep with no prior is a lane failure.
     """
-    match decision.root:
-        case ReplaceThesis() as replace:
-            return replace.thesis
-        case KeepPriorThesis():
+    match decision.decision:
+        case "replace":
+            return decision.replaced_thesis()
+        case "keep_prior":
             if prior is None:
                 msg = "keep_prior is invalid when no prior mispricing thesis exists."
                 raise KeepPriorWithoutThesisError(msg)

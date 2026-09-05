@@ -54,11 +54,10 @@ def write_agent_json(
     return path.resolve()
 
 
-def write_verdicts_json(*, verdicts: list[Verdict], model_name: ModelName) -> Path:
+def write_verdicts_json(*, verdicts: list[Verdict]) -> Path:
     """Serialise ``list[Verdict]`` to ``scripts/outputs``; stem includes ``VERDICTS``."""
     ts = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    safe_model = model_name.value.replace(".", "-")
-    filename = f"{ts}-{safe_model}-VERDICTS.json"
+    filename = f"{ts}-VERDICTS.json"
     CLI_OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
     path = CLI_OUTPUTS_DIR / filename
     adapter = TypeAdapter(list[Verdict])

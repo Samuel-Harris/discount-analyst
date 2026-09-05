@@ -20,6 +20,21 @@ from discount_analyst.entrypoints.api.contracts.api import (
 from discount_analyst.composition.dev_seed import seed
 
 
+def _launch_json(
+    *tickers: str,
+    cash_gbp: float = 0,
+    suggestions: list[str] | None = None,
+    is_mock: bool = True,
+    value_gbp: float = 1000,
+) -> dict[str, object]:
+    return {
+        "positions": [{"ticker": ticker, "value_gbp": value_gbp} for ticker in tickers],
+        "cash_gbp": cash_gbp,
+        "suggestion_tickers": suggestions or [],
+        "is_mock": is_mock,
+    }
+
+
 def _assert_uuid(value: str) -> None:
     UUID(value)
 
@@ -29,7 +44,7 @@ def test_list_workflow_runs_items_match_workflow_run_list_item(
 ) -> None:
     client.post(
         "/api/workflow_runs",
-        json={"portfolio_tickers": ["T1.L", "T2.L"], "is_mock": True},
+        json=_launch_json("T1.L", "T2.L"),
     )
     rows = client.get("/api/workflow_runs").json()
     assert len(rows) == 1
@@ -44,7 +59,7 @@ def test_list_workflow_runs_items_match_workflow_run_list_item(
 def test_create_workflow_run_response_matches_contract(client: TestClient) -> None:
     r = client.post(
         "/api/workflow_runs",
-        json={"portfolio_tickers": ["A.L", "  B.L  ", ""], "is_mock": True},
+        json=_launch_json("A.L", "  B.L  "),
     )
     assert r.status_code == 201
     body = CreateWorkflowRunResponse.model_validate(r.json())
@@ -59,7 +74,7 @@ def test_create_workflow_run_response_matches_contract(client: TestClient) -> No
 def test_workflow_run_detail_matches_contract_after_post(client: TestClient) -> None:
     wf_id = client.post(
         "/api/workflow_runs",
-        json={"portfolio_tickers": ["X.L"], "is_mock": True},
+        json=_launch_json("X.L"),
     ).json()["workflow_run_id"]
     detail = client.get(f"/api/workflow_runs/{wf_id}").json()
     m = WorkflowRunDetailResponse.model_validate(detail)
@@ -111,12 +126,12 @@ def test_workflow_run_detail_seed_profiler_and_surveyor_lanes(
 def test_list_newest_workflow_first(client: TestClient) -> None:
     first = client.post(
         "/api/workflow_runs",
-        json={"portfolio_tickers": ["OLD"], "is_mock": True},
+        json=_launch_json("OLD"),
     ).json()["workflow_run_id"]
     time.sleep(0.02)
     second = client.post(
         "/api/workflow_runs",
-        json={"portfolio_tickers": ["NEW"], "is_mock": True},
+        json=_launch_json("NEW"),
     ).json()["workflow_run_id"]
     rows = client.get("/api/workflow_runs").json()
     assert [r["id"] for r in rows][:2] == [second, first]
@@ -214,7 +229,7 @@ def test_workflow_allocation_after_seed(client: TestClient) -> None:
 def test_workflow_allocation_not_found_when_pending(client: TestClient) -> None:
     wf_id = client.post(
         "/api/workflow_runs",
-        json={"portfolio_tickers": ["PEND.L"], "is_mock": True},
+        json=_launch_json("PEND.L"),
     ).json()["workflow_run_id"]
     assert client.get(f"/api/workflow_runs/{wf_id}/allocation").status_code == 404
 
@@ -232,10 +247,14 @@ def test_workflow_allocation_not_found_for_missing_workflow(
 
 def test_portfolio_response_contract(client: TestClient) -> None:
     empty = PortfolioResponse.model_validate(client.get("/api/portfolio").json())
-    assert empty.portfolio_tickers == []
+    assert empty.positions == []
+    assert empty.cash_gbp == 0
+    assert empty.suggestion_tickers == []
     client.post(
         "/api/workflow_runs",
-        json={"portfolio_tickers": ["P1", "P2"], "is_mock": True},
+        json=_launch_json("P1", "P2", cash_gbp=100, suggestions=["HINT"]),
     )
     loaded = PortfolioResponse.model_validate(client.get("/api/portfolio").json())
-    assert loaded.portfolio_tickers == ["P1", "P2"]
+    assert [position.ticker for position in loaded.positions] == ["P1", "P2"]
+    assert loaded.cash_gbp == 100
+    assert loaded.suggestion_tickers == ["HINT"]

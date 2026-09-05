@@ -61,9 +61,8 @@ from discount_analyst.agents.sentinel.schema import (
     EvaluationReport as EvaluationReportSchema,
 )
 from discount_analyst.agents.strategist.schema import (
-    STRATEGIST_DECISION_ADAPTER,
     MispricingThesis as MispricingThesisSchema,
-    ReplaceThesis,
+    StrategistDecision,
 )
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
 from discount_analyst.application.theses import resolve_live_thesis
@@ -367,12 +366,12 @@ def persist_strategist_decision(
     execution: AgentExecution,
     output_json: str,
 ) -> None:
-    decision = STRATEGIST_DECISION_ADAPTER.validate_json(output_json)
-    if isinstance(decision.root, ReplaceThesis):
+    decision = StrategistDecision.model_validate_json(output_json)
+    if decision.decision == "replace":
         persist_mispricing_thesis(
             session,
             execution,
-            decision.root.thesis,
+            decision.replaced_thesis(),
             origin=WorkflowInvestmentThesisOriginDb.REPLACED,
         )
         return

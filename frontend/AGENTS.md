@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-07-11 | Updated: 2026-08-29 (yfinance outdated banner) -->
+<!-- Generated: 2026-07-11 | Updated: 2026-09-02 (pipeline graph Curator node) -->
 
 # frontend
 
@@ -25,8 +25,8 @@ Vite + React SPA for the local Discount Analyst dashboard. This directory owns t
 | Directory                          | Purpose                                                                                                                                                         |
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/app/`                         | Shell composition: thin `DashboardShell` wiring, yfinance freshness banner, and `WorkflowRunMainPanel` (sorts ticker lanes once for graph and recommendations). |
-| `src/features/workflow-runs/`      | Run list/sidebar, launch form, detail header, recommendations view, run hooks (`useWorkflowRunActions`, navigation/detail/list).                                |
-| `src/features/pipeline-graph/`     | React Flow pipeline graph, lane order (`tickerRunOrder`), and layout builders.                                                                                  |
+| `src/features/workflow-runs/`      | Run list/sidebar, right-hand launch rail, detail header, recommendations view, run hooks (`useWorkflowRunActions`, navigation/detail/list).                    |
+| `src/features/pipeline-graph/`     | React Flow pipeline graph (Surveyor hub, ticker lanes, Curator hub), lane order (`tickerRunOrder`), and layout builders. |
 | `src/features/agent-conversation/` | Agent conversation panel (`AgentPanel` + `agentPanel/**`), `useConversation`, and `useAgentConversationPanel`.                                                  |
 | `src/components/`                  | Shared presentational pieces only (`UiStateText`, `JsonPretty`, `DeployEnvBadge`, `YfinanceOutdatedBanner`).                                                    |
 | `src/api/`                         | Orval-generated client, `orval-mutator.ts`, and thin `index.ts` facade (allowed shared API surface — not a feature barrel).                                     |
@@ -59,7 +59,7 @@ src/
 - Compose features only in `app/`
 - No feature barrel files (`index.ts` re-exports per feature)
 - Prefer `@/` imports for anything outside the current folder (maps to `src/`); keep `./` for co-located siblings
-- Keep custom URL navigation (`useWorkflowRunNavigation`: `?run=` / `?view=recommendations`) and custom `lib/server-state` (not React Router / TanStack Query)
+- Keep custom URL navigation (`useWorkflowRunNavigation`: `?run=` / `?view=recommendations`) and custom `lib/server-state` (not React Router / TanStack Query). Conversation targets are `workflow_agent` (Surveyor or Curator on the workflow) or `run_agent` (ticker lane).
 
 ## For AI Agents
 
@@ -70,6 +70,7 @@ src/
 - Prefer co-located `*.test.ts(x)` next to the module under test.
 - British English applies to AGENTS.md prose; code identifiers stay as in the API/codebase.
 - When moving files, update ESLint zones and any backend sync paths (e.g. `agentLaneOrder.ts`) in the same change.
+- Launch form (`RunPipelineForm`) is the right-hand rail: collapsed by default to a summary strip, expanded for the editor, and hidden while an agent conversation overlay is open. It posts `{ positions, cash_gbp, suggestion_tickers, is_mock }` to `POST /api/workflow_runs`. Holdings are ticker + pounds; also-analyse names are pills that are not part of the current book.
 
 ### Testing Requirements
 

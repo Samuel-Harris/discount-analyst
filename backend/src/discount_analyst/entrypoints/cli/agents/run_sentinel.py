@@ -100,7 +100,9 @@ def parse_args() -> SentinelArgs:
             "or '<strategist_run_output.json>:<TICKER>' to require a ticker match."
         ),
     )
-    add_agent_cli_model_argument(parser)
+    add_agent_cli_model_argument(
+        parser, default=app_settings.agent_default_models.sentinel
+    )
     raw = parser.parse_args()
     selectors = [
         parse_report_selector(

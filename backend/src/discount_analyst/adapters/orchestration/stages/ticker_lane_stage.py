@@ -12,7 +12,6 @@ from discount_analyst.adapters.simulation import (
     mock_outputs,
 )
 from discount_analyst.adapters.orchestration.llm_config import (
-    PipelineLlmConfig,
     pipeline_llm_config,
 )
 from discount_analyst.agents.appraiser.appraiser import create_appraiser_agent
@@ -190,14 +189,12 @@ class TickerLaneStage:
         is_mock: bool,
         is_existing_position: bool,
     ) -> tuple[Any, Any, Any]:
-        llm = pipeline_llm_config(host.settings, is_mock=is_mock)
         research_out = await self._run_researcher(
             host,
             workflow_run_id=workflow_run_id,
             run_id=run_id,
             lane_context=lane_context,
             is_mock=is_mock,
-            llm=llm,
         )
         thesis = await self._run_strategist(
             host,
@@ -206,7 +203,6 @@ class TickerLaneStage:
             lane_context=lane_context,
             research_out=research_out,
             is_mock=is_mock,
-            llm=llm,
         )
         evaluation = await self._run_sentinel(
             host,
@@ -217,7 +213,6 @@ class TickerLaneStage:
             thesis=thesis,
             is_mock=is_mock,
             is_existing_position=is_existing_position,
-            llm=llm,
         )
         return research_out, thesis, evaluation
 
@@ -229,7 +224,6 @@ class TickerLaneStage:
         run_id: str,
         lane_context: SurveyorLaneContext,
         is_mock: bool,
-        llm: PipelineLlmConfig,
     ) -> DeepResearchReport:
         research_exec_id = await host.get_exec_id(run_id, AgentNameDb.RESEARCHER.value)
         if research_exec_id is None:
@@ -252,6 +246,9 @@ class TickerLaneStage:
             )
             return DeepResearchReport.model_validate_json(research_json)
 
+        llm = pipeline_llm_config(
+            host.settings, agent_name=AgentNameDb.RESEARCHER, is_mock=is_mock
+        )
         await host.mark_exec(
             execution_id=research_exec_id,
             status="running",
@@ -320,7 +317,6 @@ class TickerLaneStage:
         lane_context: SurveyorLaneContext,
         research_out: DeepResearchReport,
         is_mock: bool,
-        llm: PipelineLlmConfig,
     ) -> MispricingThesis:
         strategist_exec_id = await host.get_exec_id(
             run_id, AgentNameDb.STRATEGIST.value
@@ -348,6 +344,9 @@ class TickerLaneStage:
             )
             return MispricingThesis.model_validate_json(thesis_json)
 
+        llm = pipeline_llm_config(
+            host.settings, agent_name=AgentNameDb.STRATEGIST, is_mock=is_mock
+        )
         await host.mark_exec(
             execution_id=strategist_exec_id,
             status="running",
@@ -430,7 +429,6 @@ class TickerLaneStage:
         thesis: MispricingThesis,
         is_mock: bool,
         is_existing_position: bool,
-        llm: PipelineLlmConfig,
     ) -> SentinelEvaluationReport:
         sentinel_exec_id = await host.get_exec_id(run_id, AgentNameDb.SENTINEL.value)
         if sentinel_exec_id is None:
@@ -453,6 +451,9 @@ class TickerLaneStage:
             )
             return SentinelEvaluationReport.model_validate_json(evaluation_json)
 
+        llm = pipeline_llm_config(
+            host.settings, agent_name=AgentNameDb.SENTINEL, is_mock=is_mock
+        )
         await host.mark_exec(
             execution_id=sentinel_exec_id,
             status="running",
@@ -570,7 +571,6 @@ class TickerLaneStage:
         is_mock: bool,
         is_existing_position: bool,
     ) -> None:
-        llm = pipeline_llm_config(host.settings, is_mock=is_mock)
         appraiser_exec_id = await host.get_exec_id(run_id, AgentNameDb.APPRAISER.value)
         if appraiser_exec_id is None:
             return
@@ -592,6 +592,9 @@ class TickerLaneStage:
                 ticker=lane_context.ticker,
             )
         else:
+            llm = pipeline_llm_config(
+                host.settings, agent_name=AgentNameDb.APPRAISER, is_mock=is_mock
+            )
             await host.mark_exec(
                 execution_id=appraiser_exec_id,
                 status="running",

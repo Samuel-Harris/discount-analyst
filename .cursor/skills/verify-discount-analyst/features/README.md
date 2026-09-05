@@ -42,7 +42,7 @@ Keep implementation details out of the map. Name only user paths, stable handles
 ## Features
 
 - [Dashboard shell](./dashboard-shell.md) covers identity, DEV badge, empty main panel, sidebar, and launch form visibility.
-- [Launch a mock workflow](./launch-mock-workflow.md) covers ticker pills, Start workflow, mock lock, and the new sidebar row.
-- [Pipeline graph](./pipeline-graph.md) covers selecting a seeded run and seeing Surveyor plus ticker lanes.
+- [Launch a mock workflow](./launch-mock-workflow.md) covers current positions, also-analyse pills, Start workflow, mock lock, and the new sidebar row.
+- [Pipeline graph](./pipeline-graph.md) covers selecting a seeded run and seeing Surveyor, ticker lanes, and Curator.
 - [Recommendations table](./recommendations.md) covers the Recommendations view, filter, sort reset, and the `?view=recommendations` deep link.
 - [Agent conversation](./agent-conversation.md) covers opening a completed node’s transcript panel and closing it.
