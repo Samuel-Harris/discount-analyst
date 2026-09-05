@@ -40,6 +40,14 @@ def _httpx_request() -> httpx.Request:
     return httpx.Request("POST", "https://example.test/v1/chat/completions")
 
 
+def _read_timeout(message: str = "") -> httpx.ReadTimeout:
+    return httpx.ReadTimeout(message, request=_httpx_request())
+
+
+def _read_error(message: str = "peer closed connection") -> httpx.ReadError:
+    return httpx.ReadError(message, request=_httpx_request())
+
+
 def _api_connection_error() -> APIConnectionError:
     return APIConnectionError(request=_httpx_request())
 
@@ -79,6 +87,25 @@ def test_should_retry_streaming_error_remote_protocol_error() -> None:
 def test_should_retry_streaming_error_timeout_error() -> None:
     exc = TimeoutError("MCP server connection timed out")
     assert should_retry_streaming_error(exc) is True
+
+
+def test_should_retry_streaming_error_read_timeout() -> None:
+    assert should_retry_streaming_error(_read_timeout()) is True
+
+
+def test_should_retry_streaming_error_read_error() -> None:
+    assert should_retry_streaming_error(_read_error()) is True
+
+
+def test_should_retry_streaming_error_timeout_exception() -> None:
+    exc = httpx.TimeoutException("The read operation timed out")
+    assert should_retry_streaming_error(exc) is True
+
+
+def test_should_retry_streaming_error_model_api_wrapped_read_timeout() -> None:
+    wrapped = ModelAPIError("gpt-5.6-luna", "The request timed out.")
+    wrapped.__cause__ = _read_timeout()
+    assert should_retry_streaming_error(wrapped) is True
 
 
 def test_should_retry_streaming_error_model_api_connection_error() -> None:
@@ -746,6 +773,115 @@ async def test_stream_with_retries_retries_tool_startup_timeout_before_checkpoin
     assert failed_open_cm.exit_calls == []
     assert len(final_cm.exit_calls) == 1
     assert final_cm.exit_calls[0] == (None, None)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "enter_error",
+    [
+        _read_timeout(),
+        _read_error(),
+        httpx.TimeoutException("The read operation timed out"),
+    ],
+    ids=["read-timeout", "read-error", "timeout-exception"],
+)
+async def test_stream_with_retries_retries_idle_read_before_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+    enter_error: BaseException,
+) -> None:
+    def _no_wait(exc: BaseException, attempt: int) -> float:
+        del exc, attempt
+        return 0.0
+
+    monkeypatch.setattr(
+        streaming_retries_mod,
+        "streaming_retry_sleep_seconds",
+        _no_wait,
+    )
+
+    failed_open_cm = _FakeRunStreamContextManager(enter_error=enter_error)
+    final_result = _FakeStreamedRunResult(
+        outputs=["started"],
+        final_output="done",
+        messages=[{"turn": {"text": "started"}}],
+        usage=RunUsage(input_tokens=8, output_tokens=3),
+    )
+    final_cm = _FakeRunStreamContextManager(result=final_result)
+    agent_impl = _FakeAgent([failed_open_cm, final_cm])
+
+    outputs: list[str] = []
+    async with stream_with_retries(
+        agent=cast(Any, agent_impl),
+        user_prompt="hello",
+        usage_limits=UsageLimits(request_limit=5),
+    ) as result:
+        async for chunk in result.stream_output(debounce_by=None):
+            outputs.append(chunk)
+
+    assert outputs == ["started"]
+    assert len(agent_impl.calls) == 2
+    first_call, second_call = agent_impl.calls
+    assert first_call["user_prompt"] == "hello"
+    assert first_call["message_history"] is None
+    assert second_call["user_prompt"] == "hello"
+    assert second_call["message_history"] is None
+    assert failed_open_cm.exit_calls == []
+    assert len(final_cm.exit_calls) == 1
+    assert final_cm.exit_calls[0] == (None, None)
+
+
+@pytest.mark.anyio
+async def test_stream_with_retries_resumes_after_mid_stream_read_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _no_wait(exc: BaseException, attempt: int) -> float:
+        del exc, attempt
+        return 0.0
+
+    monkeypatch.setattr(
+        streaming_retries_mod,
+        "streaming_retry_sleep_seconds",
+        _no_wait,
+    )
+
+    first_messages = [{"turn": {"text": "first-attempt"}}]
+    first_result = _FakeStreamedRunResult(
+        outputs=["partial"],
+        final_output="unused",
+        messages=first_messages,
+        usage=RunUsage(input_tokens=11, output_tokens=7),
+        stream_error=_read_timeout(),
+    )
+    first_cm = _FakeRunStreamContextManager(result=first_result)
+    second_result = _FakeStreamedRunResult(
+        outputs=["final"],
+        final_output="done",
+        messages=[{"turn": {"text": "second-attempt"}}],
+        usage=RunUsage(input_tokens=22, output_tokens=13),
+    )
+    second_cm = _FakeRunStreamContextManager(result=second_result)
+    agent_impl = _FakeAgent([first_cm, second_cm])
+
+    outputs: list[str] = []
+    async with stream_with_retries(
+        agent=cast(Any, agent_impl),
+        user_prompt="hello",
+        usage_limits=UsageLimits(request_limit=5),
+    ) as result:
+        async for chunk in result.stream_output(debounce_by=None):
+            outputs.append(chunk)
+
+    assert outputs == ["partial", "final"]
+    assert len(agent_impl.calls) == 2
+    first_call, second_call = agent_impl.calls
+    assert first_call["user_prompt"] == "hello"
+    assert first_call["message_history"] is None
+    assert second_call["user_prompt"] is None
+    retry_prompt = _user_prompt_text(second_call["message_history"][1])
+    assert "Your previous response was interrupted before it finished." in retry_prompt
+    assert "partial" in retry_prompt
+    assert first_cm.exit_calls[0][0] is httpx.ReadTimeout
+    assert second_cm.exit_calls[0] == (None, None)
 
 
 @pytest.mark.anyio

@@ -41,6 +41,8 @@ def classify_error(error_message: str | None) -> str:
     if not text.strip():
         return "empty"
     lowered = text.lower()
+    if "schema must be an object" in lowered:
+        return "tool_output_schema"
     if "dataqualityrejection" in lowered or "sentinelrejection" in lowered:
         return "persist_union"
     if "eodhdrealtimequote" in lowered:

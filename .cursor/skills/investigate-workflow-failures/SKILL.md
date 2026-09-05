@@ -141,16 +141,17 @@ For each cluster, grep the **models and adapters that raise that string**, then 
 
 Starting pointers (verify; do not freeze August 2026 behaviour):
 
-| Fingerprint                                                                       | Read                                                                                                             |
-| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `DataQualityRejection` vs `SentinelRejection` `model_type`                        | `adapters/persistence/crud/run_executions.py` (`persist_ticker_run_final_verdict`), `domain/decisions/schema.py` |
-| FMP 402 / no confident match / `resolution_notes`                                 | `adapters/market_data/candidate_gates.py`, `fmp_client.py`                                                       |
-| `EodhdRealTimeQuote` / `close='NA'`                                               | `adapters/market_data/eodhd_client.py`                                                                           |
-| `run_stream()` / `EvaluationReport` / `UnexpectedModelBehavior` output validation | `agents/runtime/streaming_retries.py`, `agents/sentinel/schema.py`                                               |
-| `web_fetch` max retries                                                           | pydantic-ai tool retries (default 1); HTTP status is in the same message or prior span                           |
-| `Rate limit reached` / TPM / `too many requests`                                  | Provider quota or capacity overload; may be the last overlay after earlier gate/persist errors                   |
-| Failed-agent retry overlay                                                        | `entrypoints/api/routers/workflow_runs.py`, `prepare_retry_failed_agents`                                        |
-| Status rollup                                                                     | `adapters/persistence/crud/workflow_runs.py` `recompute_workflow_status`                                         |
+| Fingerprint                                                                       | Read                                                                                                                                                     |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DataQualityRejection` vs `SentinelRejection` `model_type`                        | `adapters/persistence/crud/run_executions.py` (`persist_ticker_run_final_verdict`), `domain/decisions/schema.py`                                         |
+| FMP 402 / no confident match / `resolution_notes`                                 | `adapters/market_data/candidate_gates.py`, `fmp_client.py`                                                                                               |
+| `EodhdRealTimeQuote` / `close='NA'`                                               | `adapters/market_data/eodhd_client.py`                                                                                                                   |
+| `Schema must be an object` / `UserError` at `Agent()`                             | pydantic-ai `check_object_json_schema`; `agents/runtime/agent_factory.py` `ToolOutput`; stage `RootModel`/union schema (Strategist `StrategistDecision`) |
+| `run_stream()` / `EvaluationReport` / `UnexpectedModelBehavior` output validation | `agents/runtime/streaming_retries.py`, `agents/sentinel/schema.py`                                                                                       |
+| `web_fetch` max retries                                                           | pydantic-ai tool retries (default 1); HTTP status is in the same message or prior span                                                                   |
+| `Rate limit reached` / TPM / `too many requests`                                  | Provider quota or capacity overload; may be the last overlay after earlier gate/persist errors                                                           |
+| Failed-agent retry overlay                                                        | `entrypoints/api/routers/workflow_runs.py`, `prepare_retry_failed_agents`                                                                                |
+| Status rollup                                                                     | `adapters/persistence/crud/workflow_runs.py` `recompute_workflow_status`                                                                                 |
 
 Taxonomy: [failure-kinds.md](references/failure-kinds.md).
 
