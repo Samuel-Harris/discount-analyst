@@ -22,11 +22,7 @@ def resolve_live_thesis(
     """
     match decision.decision:
         case "replace":
-            thesis = decision.thesis
-            if thesis is None:
-                msg = "replace requires a nested thesis"
-                raise ValueError(msg)
-            return thesis
+            return decision.replaced_thesis()
         case "keep_prior":
             if prior is None:
                 msg = "keep_prior is invalid when no prior mispricing thesis exists."

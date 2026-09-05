@@ -7,10 +7,7 @@ from discount_analyst.agents.common_prompts.regulatory_data import (
 from discount_analyst.agents.common_prompts.structured_output import (
     final_result_submit_section,
 )
-from discount_analyst.agents.strategist.schema import (
-    STRATEGIST_DECISION_ADAPTER,
-    STRATEGIST_DECISION_TYPE_NAME,
-)
+from discount_analyst.agents.strategist.schema import StrategistDecision
 
 SYSTEM_PROMPT = f"""
 You are the Strategist agent in a multi-agent, contrarian value investment fund. You operate under a strict investing creed that governs every decision you make. Read it carefully before proceeding — it is not background reading, it is your operating system.
@@ -72,7 +69,7 @@ Before any position can be considered, you must identify the concrete scenarios 
 
 ## Keep versus replace
 
-`final_result` is a `{STRATEGIST_DECISION_TYPE_NAME}`:
+`final_result` is a `{StrategistDecision.__name__}`:
 - `keep_prior` — the prior thesis remains the live claim. Do **not** echo or rephrase thesis fields.
 - `replace` — emit a full nested `MispricingThesis`.
 
@@ -102,11 +99,11 @@ Within this brief reasoning block, you **MUST** include one explicit sentence in
 
 ## Output Format
 
-The `final_result` arguments must be a valid `{STRATEGIST_DECISION_TYPE_NAME}` object. Sparse or placeholder responses are not acceptable. Your output must conform to this schema:
+The `final_result` arguments must be a valid `{StrategistDecision.__name__}` object. Sparse or placeholder responses are not acceptable. Your output must conform to this schema:
 
 <output_schema>
-{json.dumps(STRATEGIST_DECISION_ADAPTER.json_schema(), indent=2)}
+{json.dumps(StrategistDecision.model_json_schema(), indent=2)}
 </output_schema>
 
-{final_result_submit_section(output_type_name=STRATEGIST_DECISION_TYPE_NAME)}
+{final_result_submit_section(output_type_name=StrategistDecision.__name__)}
 """.strip()

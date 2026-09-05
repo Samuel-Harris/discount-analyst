@@ -257,7 +257,7 @@ No `minItems` on the lists.
 
 ### `StrategistDecision` (single object, `decision` required)
 
-Factory `output_type` (`agents/strategist/schema.py`, `BaseModel` `StrategistDecision` / `STRATEGIST_DECISION_ADAPTER`). JSON schema `type` is `object` (`additionalProperties: false`).
+Factory `output_type` (`agents/strategist/schema.py`, `BaseModel` `StrategistDecision`). JSON schema `type` is `object` (`additionalProperties: false`).
 
 | Field      | Constraint                                                                                          |
 | ---------- | --------------------------------------------------------------------------------------------------- |

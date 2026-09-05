@@ -3,19 +3,18 @@ import json
 from pydantic import ValidationError
 import pytest
 
+from discount_analyst.adapters.simulation.mock_outputs import (
+    mock_strategist_decision,
+    mock_surveyor_candidate,
+    mock_thesis,
+)
 from discount_analyst.agents.strategist.schema import (
-    STRATEGIST_DECISION_ADAPTER,
     MispricingThesis,
     StrategistDecision,
 )
 from discount_analyst.application.theses import (
     KeepPriorWithoutThesisError,
     resolve_live_thesis,
-)
-from discount_analyst.adapters.simulation.mock_outputs import (
-    mock_strategist_decision,
-    mock_surveyor_candidate,
-    mock_thesis,
 )
 
 
@@ -52,30 +51,13 @@ def test_keep_dump_json_omits_thesis() -> None:
     assert dumped == {"decision": "keep_prior"}
 
 
-def test_adapter_unwraps_singleton_envelope_around_keep() -> None:
-    keep = STRATEGIST_DECISION_ADAPTER.validate_python(
-        {"response": {"decision": "keep_prior"}}
-    )
-    assert keep.decision == "keep_prior"
-    assert keep.thesis is None
-
-
-def test_adapter_unwraps_singleton_envelope_around_replace() -> None:
-    replaced = STRATEGIST_DECISION_ADAPTER.validate_python(
-        {"payload": {"decision": "replace", "thesis": _thesis().model_dump()}}
-    )
-    assert replaced.decision == "replace"
-    assert replaced.thesis is not None
-    assert replaced.thesis.ticker == "ABC.L"
-
-
-def test_adapter_round_trips_keep_and_replace() -> None:
-    keep = STRATEGIST_DECISION_ADAPTER.validate_json(
+def test_keep_and_replace_round_trip_json() -> None:
+    keep = StrategistDecision.model_validate_json(
         StrategistDecision(decision="keep_prior").model_dump_json()
     )
     assert keep.decision == "keep_prior"
     assert keep.thesis is None
-    replaced = STRATEGIST_DECISION_ADAPTER.validate_json(
+    replaced = StrategistDecision.model_validate_json(
         StrategistDecision(decision="replace", thesis=_thesis()).model_dump_json()
     )
     assert replaced.decision == "replace"

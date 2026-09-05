@@ -1,11 +1,10 @@
-from typing import Literal
+from typing import Any, Literal
 
 import pytest
 from pydantic import BaseModel, RootModel
 from pydantic_ai import Agent, ToolOutput
 from pydantic_ai.exceptions import UserError
 from pydantic_ai.models.test import TestModel
-from pydantic_ai._utils import check_object_json_schema
 
 from discount_analyst.agents.appraiser.appraiser import APPRAISER_AGENT_SPEC
 from discount_analyst.agents.curator.curator import CURATOR_AGENT_SPEC
@@ -32,7 +31,7 @@ PIPELINE_SPECS = (
 
 
 @pytest.mark.parametrize("spec", PIPELINE_SPECS, ids=lambda spec: spec.name.value)
-def test_tool_output_schema_is_a_json_object(spec: AgentSpec[object]) -> None:
+def test_tool_output_schema_is_a_json_object(spec: AgentSpec[Any]) -> None:
     Agent(
         name=spec.name,
         output_type=ToolOutput(unwrapping_output_type(spec.output_type)),
@@ -59,4 +58,8 @@ class _CanaryUnionRoot(RootModel[_CanaryKeep | _CanaryReplace]):
 
 def test_root_model_union_still_fails_object_schema_check() -> None:
     with pytest.raises(UserError, match="Schema must be an object"):
-        check_object_json_schema(_CanaryUnionRoot.model_json_schema())
+        Agent(
+            name="canary",
+            output_type=ToolOutput(_CanaryUnionRoot),
+            model=TestModel(),
+        )

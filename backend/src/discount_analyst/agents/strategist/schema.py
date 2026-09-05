@@ -4,12 +4,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    TypeAdapter,
     model_validator,
-)
-
-from discount_analyst.agents.runtime.structured_output_unwrap import (
-    unwrap_singleton_output_envelope,
 )
 
 
@@ -91,7 +86,7 @@ class MispricingThesis(BaseModel):
 
 
 class StrategistDecision(BaseModel):
-    """Keep or replace the live mispricing thesis; flattens singleton envelopes first."""
+    """Keep or replace the live mispricing thesis."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -99,11 +94,6 @@ class StrategistDecision(BaseModel):
     thesis: MispricingThesis | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
-
-    @model_validator(mode="before")
-    @classmethod
-    def unwrap_singleton_envelope(cls, value: object) -> object:
-        return unwrap_singleton_output_envelope(value)
 
     @model_validator(mode="after")
     def keep_forbids_thesis_replace_requires_it(self) -> "StrategistDecision":
@@ -113,8 +103,9 @@ class StrategistDecision(BaseModel):
             raise ValueError("replace requires a nested thesis")
         return self
 
-
-STRATEGIST_DECISION_ADAPTER: TypeAdapter[StrategistDecision] = TypeAdapter(
-    StrategistDecision
-)
-STRATEGIST_DECISION_TYPE_NAME = "StrategistDecision"
+    def replaced_thesis(self) -> MispricingThesis:
+        thesis = self.thesis
+        if self.decision != "replace" or thesis is None:
+            msg = "replace requires a nested thesis"
+            raise ValueError(msg)
+        return thesis

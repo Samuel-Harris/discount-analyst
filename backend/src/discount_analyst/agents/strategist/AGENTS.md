@@ -42,7 +42,6 @@ None.
 ### Internal
 
 - `discount_analyst.agents.strategist.schema`: Output contract (`StrategistDecision` / `MispricingThesis`).
-- `discount_analyst.agents.runtime.structured_output_unwrap`: Envelope flatten on `StrategistDecision`.
 - `discount_analyst.agents.researcher.schema`: `DeepResearchReport` input.
 - `discount_analyst.agents.surveyor.schema`: `SurveyorCandidate` input.
 
