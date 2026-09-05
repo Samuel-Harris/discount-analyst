@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-04-04 | Updated: 2026-08-30 -->
+<!-- Generated: 2026-04-04 | Updated: 2026-09-05 -->
 
 # strategist
 
@@ -12,7 +12,7 @@ The `strategist` directory contains the implementation of the "Strategist" AI ag
 | File               | Description                                                                                          |
 | ------------------ | ---------------------------------------------------------------------------------------------------- |
 | `strategist.py`    | Factory for the Strategist agent (`create_strategist_agent`, `output_type=StrategistDecision`).      |
-| `schema.py`        | `MispricingThesis`, `KeepPriorThesis`, `ReplaceThesis`, and `StrategistDecision` (`RootModel` over the keep/replace union). |
+| `schema.py`        | `MispricingThesis` and `StrategistDecision` (single object: `keep_prior` omits `thesis`; `replace` requires nested `MispricingThesis`). |
 | `system_prompt.py` | System prompt (investing creed + Strategist role + keep-versus-replace).                             |
 | `user_prompt.py`   | `create_user_prompt`: injects candidate, research, and optional `<prior_mispricing_thesis>`.         |
 | `__init__.py`      | Package initialization for the strategist module.                                                    |

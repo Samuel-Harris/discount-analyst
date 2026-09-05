@@ -39,9 +39,7 @@ from discount_analyst.agents.sentinel.schema import (
     ThesisVerdict,
 )
 from discount_analyst.agents.strategist.schema import (
-    KeepPriorThesis,
     MispricingThesis,
-    ReplaceThesis,
     StrategistDecision,
 )
 from discount_analyst.agents.surveyor.schema import (
@@ -248,8 +246,8 @@ def mock_strategist_decision(
     prior: MispricingThesis | None,
 ) -> StrategistDecision:
     if prior is not None:
-        return StrategistDecision(KeepPriorThesis())
-    return StrategistDecision(ReplaceThesis(thesis=mock_thesis(lane_context)))
+        return StrategistDecision(decision="keep_prior")
+    return StrategistDecision(decision="replace", thesis=mock_thesis(lane_context))
 
 
 def mock_sentinel_proceed_for_dashboard_lane(ticker: str) -> bool:

@@ -34,7 +34,7 @@ All pipeline agents register structured output via **tool mode** (`ToolOutput` �
 - Tool-return truncation is always-on via pydantic-ai-harness `ToolOutputLimits` with `Truncate` at 10,000 characters (not the harness Spill default). Do not add a flag. pydantic-ai excludes output tools (`final_result`).
 - Non-output tool exceptions are always-on via `InfallibleToolExecution` (`wrap_tool_execute` → `format_tool_error`). Do not add a flag. Do not raise `Agent(retries=…)` / `Tool(max_retries=…)` as the tool-error fix — retry budget is per tool name. Output tools (`final_result`) must still raise so structured-output repair/abort is unchanged.
 - Perplexity descriptions in `tool_descriptions.py` must include every `AgentName` (`create_perplexity_toolset` indexes the dict).
-- Singleton `final_result` envelopes are unwrapped in `create_agent` via `unwrapping_output_type` for `BaseModel` stages (including Strategist’s `RootModel`). Typing constructs with a `get_origin` (Annotated unions, generics) cannot be subclassed and are returned unchanged. Do not add a `payload` field to stage schemas or a Sentinel-only validator.
+- Singleton `final_result` envelopes are unwrapped in `create_agent` via `unwrapping_output_type` for `BaseModel` stages. Typing constructs with a `get_origin` (Annotated unions, generics) cannot be subclassed and are returned unchanged. Do not add a `payload` field to stage schemas or a Sentinel-only validator.
 
 ## Dependencies
 

@@ -43,7 +43,10 @@ from discount_analyst.adapters.simulation.mock_outputs import (
     mock_surveyor_candidate,
     mock_thesis,
 )
-from discount_analyst.agents.strategist.schema import KeepPriorThesis, MispricingThesis
+from discount_analyst.agents.strategist.schema import (
+    MispricingThesis,
+    StrategistDecision,
+)
 from discount_analyst.application.theses import KeepPriorWithoutThesisError
 from discount_analyst.domain.allocations.actions import RebalanceAction
 from discount_analyst.domain.allocations.allocation import (
@@ -601,7 +604,9 @@ def test_persist_strategist_keep_copies_prior_into_execution_tables(
     )
     execution = _strategist_execution(db_session, run_id)
     persist_strategist_decision(
-        db_session, execution, KeepPriorThesis().model_dump_json()
+        db_session,
+        execution,
+        StrategistDecision(decision="keep_prior").model_dump_json(),
     )
     db_session.commit()
 
@@ -642,7 +647,9 @@ def test_persist_strategist_keep_without_prior_fails(db_session: Session) -> Non
     execution = _strategist_execution(db_session, run_id)
     with pytest.raises(KeepPriorWithoutThesisError, match="keep_prior is invalid"):
         persist_strategist_decision(
-            db_session, execution, KeepPriorThesis().model_dump_json()
+            db_session,
+            execution,
+            StrategistDecision(decision="keep_prior").model_dump_json(),
         )
 
 

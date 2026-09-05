@@ -1,11 +1,11 @@
+import json
+
 from pydantic import ValidationError
 import pytest
 
 from discount_analyst.agents.strategist.schema import (
     STRATEGIST_DECISION_ADAPTER,
-    KeepPriorThesis,
     MispricingThesis,
-    ReplaceThesis,
     StrategistDecision,
 )
 from discount_analyst.application.theses import (
@@ -37,72 +37,83 @@ def _thesis(*, argument: str = "Original argument.") -> MispricingThesis:
 
 def test_keep_prior_rejects_echoed_thesis_fields() -> None:
     with pytest.raises(ValidationError):
-        KeepPriorThesis.model_validate(
+        StrategistDecision.model_validate(
             {"decision": "keep_prior", "thesis": _thesis().model_dump()}
         )
 
 
 def test_replace_requires_nested_thesis() -> None:
     with pytest.raises(ValidationError):
-        ReplaceThesis.model_validate({"decision": "replace"})
+        StrategistDecision.model_validate({"decision": "replace"})
+
+
+def test_keep_dump_json_omits_thesis() -> None:
+    dumped = json.loads(StrategistDecision(decision="keep_prior").model_dump_json())
+    assert dumped == {"decision": "keep_prior"}
 
 
 def test_adapter_unwraps_singleton_envelope_around_keep() -> None:
     keep = STRATEGIST_DECISION_ADAPTER.validate_python(
         {"response": {"decision": "keep_prior"}}
     )
-    assert isinstance(keep.root, KeepPriorThesis)
+    assert keep.decision == "keep_prior"
+    assert keep.thesis is None
 
 
 def test_adapter_unwraps_singleton_envelope_around_replace() -> None:
     replaced = STRATEGIST_DECISION_ADAPTER.validate_python(
         {"payload": {"decision": "replace", "thesis": _thesis().model_dump()}}
     )
-    assert isinstance(replaced.root, ReplaceThesis)
-    assert replaced.root.thesis.ticker == "ABC.L"
+    assert replaced.decision == "replace"
+    assert replaced.thesis is not None
+    assert replaced.thesis.ticker == "ABC.L"
 
 
 def test_adapter_round_trips_keep_and_replace() -> None:
     keep = STRATEGIST_DECISION_ADAPTER.validate_json(
-        KeepPriorThesis().model_dump_json()
+        StrategistDecision(decision="keep_prior").model_dump_json()
     )
-    assert isinstance(keep.root, KeepPriorThesis)
+    assert keep.decision == "keep_prior"
+    assert keep.thesis is None
     replaced = STRATEGIST_DECISION_ADAPTER.validate_json(
-        ReplaceThesis(thesis=_thesis()).model_dump_json()
+        StrategistDecision(decision="replace", thesis=_thesis()).model_dump_json()
     )
-    assert isinstance(replaced.root, ReplaceThesis)
-    assert replaced.root.thesis.ticker == "ABC.L"
+    assert replaced.decision == "replace"
+    assert replaced.thesis is not None
+    assert replaced.thesis.ticker == "ABC.L"
 
 
 def test_resolve_replace_returns_nested_thesis() -> None:
     thesis = _thesis(argument="New argument.")
     live = resolve_live_thesis(
-        StrategistDecision(ReplaceThesis(thesis=thesis)), prior=_thesis()
+        StrategistDecision(decision="replace", thesis=thesis), prior=_thesis()
     )
     assert live == thesis
 
 
 def test_resolve_keep_copies_prior_verbatim() -> None:
     prior = _thesis()
-    live = resolve_live_thesis(StrategistDecision(KeepPriorThesis()), prior)
+    live = resolve_live_thesis(StrategistDecision(decision="keep_prior"), prior)
     assert live == prior
     assert live is not prior
 
 
 def test_resolve_keep_without_prior_fails() -> None:
     with pytest.raises(KeepPriorWithoutThesisError, match="keep_prior is invalid"):
-        resolve_live_thesis(StrategistDecision(KeepPriorThesis()), None)
+        resolve_live_thesis(StrategistDecision(decision="keep_prior"), None)
 
 
 def test_mock_decision_keeps_when_prior_exists() -> None:
     candidate = mock_surveyor_candidate(ticker="M1.L")
     prior = mock_thesis(candidate)
     decision = mock_strategist_decision(candidate.to_lane_context(), prior)
-    assert isinstance(decision.root, KeepPriorThesis)
+    assert decision.decision == "keep_prior"
+    assert decision.thesis is None
 
 
 def test_mock_decision_replaces_without_prior() -> None:
     candidate = mock_surveyor_candidate(ticker="M1.L")
     decision = mock_strategist_decision(candidate.to_lane_context(), None)
-    assert isinstance(decision.root, ReplaceThesis)
-    assert decision.root.thesis.ticker == "M1.L"
+    assert decision.decision == "replace"
+    assert decision.thesis is not None
+    assert decision.thesis.ticker == "M1.L"

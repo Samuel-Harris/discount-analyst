@@ -1,11 +1,12 @@
-from typing import Annotated, Literal
+from typing import Literal
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    RootModel,
+    SerializerFunctionWrapHandler,
     TypeAdapter,
+    model_serializer,
     model_validator,
 )
 
@@ -91,30 +92,33 @@ class MispricingThesis(BaseModel):
     )
 
 
-class KeepPriorThesis(BaseModel):
-    """Keep the prior live thesis verbatim. Do not echo thesis fields."""
+class StrategistDecision(BaseModel):
+    """Keep or replace the live mispricing thesis; flattens singleton envelopes first."""
 
     model_config = ConfigDict(extra="forbid")
 
-    decision: Literal["keep_prior"] = "keep_prior"
-
-
-class ReplaceThesis(BaseModel):
-    """Replace the live thesis with a newly authored MispricingThesis."""
-
-    decision: Literal["replace"] = "replace"
-    thesis: MispricingThesis
-
-
-class StrategistDecision(RootModel[KeepPriorThesis | ReplaceThesis]):
-    """Discriminated keep/replace decision; flattens singleton envelopes first."""
-
-    root: Annotated[KeepPriorThesis | ReplaceThesis, Field(discriminator="decision")]
+    decision: Literal["keep_prior", "replace"]
+    thesis: MispricingThesis | None = None
 
     @model_validator(mode="before")
     @classmethod
     def unwrap_singleton_envelope(cls, value: object) -> object:
         return unwrap_singleton_output_envelope(value)
+
+    @model_validator(mode="after")
+    def keep_forbids_thesis_replace_requires_it(self) -> "StrategistDecision":
+        if self.decision == "keep_prior" and self.thesis is not None:
+            raise ValueError("keep_prior must not include a thesis")
+        if self.decision == "replace" and self.thesis is None:
+            raise ValueError("replace requires a nested thesis")
+        return self
+
+    @model_serializer(mode="wrap")
+    def omit_null_thesis(self, serializer: SerializerFunctionWrapHandler) -> object:
+        data = serializer(self)
+        if self.decision == "keep_prior" and isinstance(data, dict):
+            data.pop("thesis", None)
+        return data
 
 
 STRATEGIST_DECISION_ADAPTER: TypeAdapter[StrategistDecision] = TypeAdapter(

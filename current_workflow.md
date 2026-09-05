@@ -1,4 +1,4 @@
-<!-- Synced: 2026-08-30 from live code via `.cursor/skills/sync-workflow` -->
+<!-- Synced: 2026-09-05 from live code via `.cursor/skills/sync-workflow` -->
 
 # Discount Analyst — current workflow
 
@@ -6,17 +6,11 @@ Implementation-accurate snapshot of the agentic pipeline. Ground truth is the co
 
 ## Changes since last sync
 
-Previous snapshot: 2026-08-30 (versioned live theses / CODE-87). This pass re-read dashboard create, Curator snapshot load, Alembic head, and domain ledger conversion.
+Previous snapshot: 2026-08-30 (dashboard sterling ledger). This pass re-read Strategist `schema.py`, `STRATEGIST_AGENT_SPEC`, `resolve_live_thesis`, `persist_strategist_decision`, and `model_json_schema()` for `StrategistDecision`.
 
-**Profiler `is_existing_position`.** `_profiler_entry_pipeline` threads the ticker run flag (holdings true, also-analyse false). A live candidate-gate ticker rewrite is remapped onto the Curator snapshot from the holding’s original `CandidateSnapshot.ticker` so assembly still matches. Zero-value holdings stay in the snapshot at 0% even when cash is also £0.
+**StrategistDecision is a single object.** Factory `output_type` is no longer a `RootModel` over `KeepPriorThesis | ReplaceThesis`. Live construction was raising `pydantic_ai.exceptions.UserError: Schema must be an object` because pydantic emitted `oneOf` with no `type: object`, and `ToolOutput` rejected that at `Agent()`. `StrategistDecision` is now one `BaseModel` with `decision: keep_prior | replace` and optional nested `thesis`. After-validators still forbid a thesis on keep and require one on replace. Keep wire JSON is unchanged: `model_dump_json()` emits `{"decision":"keep_prior"}` with no `thesis` key. JSON schema is `"type": "object"` (`additionalProperties: false`; `decision` required; `thesis` optional `$ref` or null). `KeepPriorThesis` and `ReplaceThesis` are gone. Callers use `decision.decision` / `decision.thesis` (`application/theses.py`, persist, mock outputs). Pipeline specs are locked by `tests/discount_analyst/agents/common/test_tool_output_schema.py`.
 
-**Dashboard sterling ledger.** `POST /api/workflow_runs` now takes `positions` (ticker + `value_gbp`), `cash_gbp`, and `suggestion_tickers` instead of `portfolio_tickers`. Holdings persist `value_gbp` on `workflow_run_portfolio_tickers` and `cash_gbp` on `workflow_runs` (Alembic `0016_workflow_sterling_ledger`; `NULL` cash marks a pre-ledger row). Holdings spawn Profiler lanes with `is_existing_position=True` and enter the Curator snapshot. Suggestion names spawn Profiler lanes with `is_existing_position=False` and are omitted from the snapshot (overlap with a holding drops the pill). Empty book is valid: no holdings, £0 cash → 100% cash snapshot. `GET /api/portfolio` returns the latest run’s pound ledger (old `NULL` cash rows prefill as suggestions only). Conversion is `snapshot_from_sterling_ledger` in `domain/allocations/snapshot.py` (remainder on cash, or on the last holding when cash is £0).
-
-**Curator snapshot load.** Mock and live dashboard Curator share `load_dashboard_portfolio_snapshot(session, workflow_run_id)`. It always converts the persisted ledger. Pre-ledger rows raise `RuntimeError` (“launched without a sterling ledger”). There is no equal-weight invention; `equal_weight_existing_snapshot` is gone. CLI Curator is unchanged (`--snapshot` percentage JSON).
-
-**Per-agent default models.** Dashboard stages resolve via `pipeline_llm_config(..., agent_name=…)`. CLI `workflow run` reads `Settings.agent_default_models` per stage (no `--model`). One-shot `agent * --model` still overrides that agent’s default. Baked-in defaults are `gpt-5.6-luna` for Surveyor through Appraiser and `gpt-5.6-terra` for Curator (`AGENT_DEFAULT_MODELS__*`). `DASHBOARD_DEFAULT_MODEL` is gone.
-
-**Unchanged:** Candidate gate, Sentinel derivation + valuation gate, Appraiser weight-blend validator, Curator policy/invariants/15% cap, `is_existing_position` Sentinel wording (no extra “suggestion” prompt text), mock DEV-forced path, Surveyor’s terminal-required construction, thesis snapshots (`0015`), no Arbiter agent.
+**Unchanged:** Candidate gate, Sentinel derivation + valuation gate, Appraiser weight-blend validator, Curator policy/invariants/15% cap, dashboard sterling ledger, `is_existing_position` Sentinel wording, mock DEV-forced path, Surveyor’s terminal-required construction, thesis snapshots (`0015`), no Arbiter agent. Other agent output schemas were not edited in this pass.
 
 Skill-table path drift (for the next operator): dashboard runner is `adapters/orchestration/sqlmodel_runner.py`, HTTP is `entrypoints/api/routers/workflow_runs.py`, CLI is `entrypoints/cli/workflows/run_full_workflow.py` plus `cli_curator.py`, builders are `application/decisions/builders.py`, live-thesis resolve is `application/theses.py`, lane order is `application/workflows/agent_lane_order.py`, rating enum is `domain/decisions/investment_rating.py`.
 
@@ -261,14 +255,16 @@ No `minItems` on the lists.
 
 `evaluation_questions` description: each question must be answerable from the last reported period plus the last trading update; a future print (e.g. “what will FY26 report?”) must not be load-bearing. Descriptions say “minimum 3 / 5 / 2” for some lists; **JSON schema has no `minItems`** on those arrays.
 
-### `StrategistDecision` (discriminated on `decision`)
+### `StrategistDecision` (single object, `decision` required)
 
-Factory `output_type` (`agents/strategist/schema.py`, `RootModel` `StrategistDecision` / `STRATEGIST_DECISION_ADAPTER`):
+Factory `output_type` (`agents/strategist/schema.py`, `BaseModel` `StrategistDecision` / `STRATEGIST_DECISION_ADAPTER`). JSON schema `type` is `object` (`additionalProperties: false`).
 
-| `decision`   | Model             | Extra fields                         |
-| ------------ | ----------------- | ------------------------------------ |
-| `keep_prior` | `KeepPriorThesis` | none (`additionalProperties: false`) |
-| `replace`    | `ReplaceThesis`   | required nested `thesis`             |
+| Field      | Constraint                                                                                          |
+| ---------- | --------------------------------------------------------------------------------------------------- |
+| `decision` | required enum `keep_prior` \| `replace`                                                             |
+| `thesis`   | optional `MispricingThesis` or null. Keep forbids a nested thesis; replace requires one (validators). |
+
+Keep dump omits `thesis` (`{"decision":"keep_prior"}`). Replace dump includes the nested thesis. `KeepPriorThesis` / `ReplaceThesis` no longer exist.
 
 Keep with no prior is a lane failure (`KeepPriorWithoutThesisError` from `application/theses.resolve_live_thesis`). Keep copies the prior object bit-for-bit; the model must not echo thesis fields. Conversation reconstruction still yields a `MispricingThesis` because keep copies the prior into this execution’s `mispricing_theses` tables.
 
