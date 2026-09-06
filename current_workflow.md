@@ -259,9 +259,9 @@ No `minItems` on the lists.
 
 Factory `output_type` (`agents/strategist/schema.py`, `BaseModel` `StrategistDecision`). JSON schema `type` is `object` (`additionalProperties: false`).
 
-| Field      | Constraint                                                                                          |
-| ---------- | --------------------------------------------------------------------------------------------------- |
-| `decision` | required enum `keep_prior` \| `replace`                                                             |
+| Field      | Constraint                                                                                            |
+| ---------- | ----------------------------------------------------------------------------------------------------- |
+| `decision` | required enum `keep_prior` \| `replace`                                                               |
 | `thesis`   | optional `MispricingThesis` or null. Keep forbids a nested thesis; replace requires one (validators). |
 
 Keep dump omits `thesis` (`{"decision":"keep_prior"}`). Replace dump includes the nested thesis. `KeepPriorThesis` / `ReplaceThesis` no longer exist.
@@ -456,7 +456,7 @@ If Appraiser execution id is missing, `run_appraiser_final_rating` **returns wit
 
 ### Curator
 
-Factory: `create_curator_agent` → `CuratorProposal`. Closed book like Sentinel: `enable_web_research_tools=False`, no Perplexity, no MCP, terminal disabled. `REGULATORY_TOOLSETS_BY_ROLE[CURATOR]` is empty. Frankfurter is still attached; the prompt forbids calling it.
+Factory: `create_curator_agent` → `CuratorProposal`. Web search/fetch on (factory default); no Perplexity; no MCP; terminal follows `settings.use_terminal` via `run_agent_with_terminal`. `REGULATORY_TOOLSETS_BY_ROLE[CURATOR]` is empty. Frankfurter is still attached; the prompt forbids calling it. Packed `CuratorInput` remains the allocation contract (ratings/policy/theses are final); web and terminal are for live price, liquidity, news, and arithmetic checks.
 
 Dashboard: `CuratorStage.run` after the ticker loop in `execute_workflow`. Skip if already `completed` or `skipped`. If any ticker run is not `completed`, mark Curator `skipped` with `lanes_not_all_completed`. `load_dashboard_portfolio_snapshot` converts the run’s sterling ledger (`as_of` = UTC date of `workflow_runs.started_at`) for both mock and live. Pre-ledger rows (`cash_gbp IS NULL`) raise `RuntimeError`. Empty ledger is 100% cash. Mock then uses `mock_curator_proposal` after a 5s sleep. Snapshot `as_of` is launch date; `allocation_date` remains `date.today()`.
 
@@ -503,13 +503,13 @@ MCP (`agents/tools/market_data/financial_data_mcp.py`): `https://mcp.eodhd.dev/m
 
 FMP blacklist (`mcp_tool_blacklist.py`): blocked tools `analyst`, `news`, `insiderTrades`, `chart`, `calendar`; blocked `statements` endpoints include `financial-scores` / `financial-score`, full statements, key-metrics, TTM statements, segments, owner-earnings; also `company`/`batch-market-cap` and `quote`/`quote-short`. EODHD blacklist is empty. Calls are wrapped in `InfallibleToolset` so 402s become model-visible errors.
 
-When Perplexity is off: `WebSearch(native=True, local=bounded DuckDuckGo)` and `WebFetch` (DeepSeek uses text-only local fetch). When Perplexity is on: `create_perplexity_toolset(agent_name)` — descriptions in `agents/runtime/tool_descriptions.py`. That map is keyed by every `AgentName`, including unused Sentinel and Curator strings. Strategist *can* receive Perplexity when `use_perplexity=True` (dashboard setting / CLI `--perplexity`). Sentinel and Curator still do not: those factories never register those tools.
+When Perplexity is off: `WebSearch(native=True, local=bounded DuckDuckGo)` and `WebFetch` (DeepSeek uses text-only local fetch). When Perplexity is on: `create_perplexity_toolset(agent_name)` — descriptions in `agents/runtime/tool_descriptions.py`. That map is keyed by every `AgentName`. Strategist *can* receive Perplexity when `use_perplexity=True` (dashboard setting / CLI `--perplexity`). Sentinel and Curator still do not: those factories never register Perplexity tools.
 
-Web-research agents: Surveyor, Profiler, Researcher, Appraiser, and **Strategist** (factory default). Sentinel and Curator: no web, MCP, or terminal. Sentinel still has FX plus official filing tools. Curator has FX attached but an empty regulatory toolset and must not call FX.
+Web-research agents: Surveyor, Profiler, Researcher, Appraiser, Strategist, and **Curator** (factory default). Sentinel: no web, MCP, or terminal. Sentinel still has FX plus official filing tools. Curator has web search/fetch, optional terminal, and FX attached, but an empty regulatory toolset and must not call FX or MCP.
 
 Official regulatory-data tools (`agents/tools/regulatory_data/`): `list_us_listed_equities` / `list_uk_listed_equities` (Surveyor only) and `get_sec_company_facts` / `resolve_uk_company` / `get_companies_house_accounts` (pipeline agents except Curator). Responses paginate at 50 (cap 100). Operator refresh: `discount-analyst admin refresh-regulatory-data`. In prompt policy, listing tools verify yfinance candidates and filing tools anchor reported fundamentals; they replace paid screening/quote calls but do not change the deterministic dashboard candidate gate.
 
-yfinance is available to agents only through `terminal_exec`; there is no dedicated yfinance toolset. Surveyor, Profiler, Researcher, Strategist, and Appraiser can receive terminal access from settings. Sentinel and Curator disable it. Shared guidance lives in `agents/common_prompts/market_data.py`; Strategist intentionally does not embed that guidance.
+yfinance is available to agents only through `terminal_exec`; there is no dedicated yfinance toolset. Surveyor, Profiler, Researcher, Strategist, Appraiser, and Curator can receive terminal access from settings. Sentinel disables it. Shared guidance lives in `agents/common_prompts/market_data.py`; Strategist intentionally does not embed that guidance.
 
 ---
 
@@ -545,7 +545,7 @@ Dashboard persists agent conversations (including Alembic 0012 token columns on 
 
 ## Design principles (as implemented)
 
-- **Separation of stances**: screen → profile/evidence → thesis → adversarial gate → valuation-only → deterministic rating → closed-book allocation. No single agent both values and rates, and Curator does not re-rate names.
+- **Separation of stances**: screen → profile/evidence → thesis → adversarial gate → valuation-only → deterministic rating → portfolio construction. No single agent both values and rates, and Curator does not re-rate names.
 - **Lane context strips trusted screening numbers** so Researcher/Strategist/Sentinel/Appraiser must re-source quantities.
 - **Gates are code, not prompt**: listing/ticker (`validate_candidate`), Sentinel thesis verdict (`derive_thesis_verdict` / `finalise_sentinel_evaluation`), valuation proceed (`sentinel_proceeds_to_valuation`), Appraiser expected-value identity (weight-blend validator), rating (`rating_from_table_inputs`), allocation policy/invariants (`allocation_policy_for`, `finalise_curator_proposal`).
 - **Per-agent defaults**: Surveyor–Appraiser `gpt-5.6-luna`, Curator `gpt-5.6-terra`. One-shot CLI `--model` overrides that agent only; `workflow run` has no `--model`.

@@ -45,8 +45,6 @@ def classify_error(error_message: str | None) -> str:
         return "tool_output_schema"
     if "dataqualityrejection" in lowered or "sentinelrejection" in lowered:
         return "persist_union"
-    if "eodhdrealtimequote" in lowered:
-        return "eodhd_payload"
     if "evaluationreport" in lowered or "material_data_gaps" in lowered:
         return "structured_output"
     if "web_fetch" in lowered or "max retries" in lowered:
