@@ -47,7 +47,12 @@ async def test_post_workflow_run_then_poll_detail_until_completed(
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             created = await client.post(
                 "/api/workflow_runs",
-                json={"portfolio_tickers": ["M1.L"], "is_mock": True},
+                json={
+                    "positions": [{"ticker": "M1.L", "value_gbp": 1000}],
+                    "cash_gbp": 250,
+                    "suggestion_tickers": [],
+                    "is_mock": True,
+                },
             )
             assert created.status_code == 201
             wf_id = created.json()["workflow_run_id"]

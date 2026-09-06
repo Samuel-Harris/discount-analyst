@@ -370,7 +370,7 @@ def test_create_sentinel_agent_is_interpretation_only(
     assert getattr(terminal, "enabled") is False
 
 
-def test_create_curator_agent_is_closed_book(
+def test_create_curator_agent_enables_web_without_perplexity_or_mcp(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, object] = {}
@@ -382,11 +382,10 @@ def test_create_curator_agent_is_closed_book(
     monkeypatch.setattr(curator_module, "create_agent", fake_create_agent)
     create_curator_agent(AIModelsConfig(model_name=ModelName.DEEPSEEK_V4_PRO))
 
-    assert captured["enable_web_research_tools"] is False
+    assert captured.get("enable_web_research_tools", True) is True
     assert captured["use_perplexity"] is False
     assert captured["use_mcp_financial_data"] is False
-    terminal = captured["terminal"]
-    assert getattr(terminal, "enabled") is False
+    assert captured["terminal"] is None
 
 
 def test_perplexity_descriptions_cover_every_agent() -> None:

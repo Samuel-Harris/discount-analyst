@@ -1,5 +1,3 @@
-import type { ReactNode } from "react";
-
 import type { WorkflowRunListItem } from "@/api";
 import { formatWhen } from "@/utils/formatWhen";
 
@@ -14,7 +12,6 @@ export interface SidebarProps {
   onDelete: (id: string) => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
-  footer?: ReactNode;
 }
 
 export function Sidebar({
@@ -24,7 +21,6 @@ export function Sidebar({
   onDelete,
   collapsed,
   onToggleCollapse,
-  footer,
 }: SidebarProps) {
   if (collapsed) {
     return (
@@ -105,7 +101,6 @@ export function Sidebar({
           </div>
         ))}
       </div>
-      {footer}
     </aside>
   );
 }

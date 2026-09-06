@@ -6,7 +6,9 @@ import * as api from "@/api";
 import {
   invalidateWorkflowRunDetail,
   resetQueryInvalidationRegistryForTests,
+  subscribeQueryInvalidation,
 } from "@/lib/server-state/invalidation";
+import { workflowAllocationKey } from "@/lib/server-state/queryKeys";
 import { useWorkflowRunDetail } from "./useWorkflowRunDetail";
 
 function minimalDetail(id: string): WorkflowRunDetailResponse {
@@ -184,5 +186,18 @@ describe("useWorkflowRunDetail", () => {
     });
     expect(fetch.mock.calls.length).toBe(base + 1);
     unmount();
+  });
+
+  it("invalidates the allocation query for the same workflow id", async () => {
+    const allocationHandler = vi.fn();
+    const unsub = subscribeQueryInvalidation(
+      workflowAllocationKey("wf-inv"),
+      allocationHandler,
+    );
+    await act(async () => {
+      await invalidateWorkflowRunDetail("wf-inv");
+    });
+    expect(allocationHandler).toHaveBeenCalledTimes(1);
+    unsub();
   });
 });

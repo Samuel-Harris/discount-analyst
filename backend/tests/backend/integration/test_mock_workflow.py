@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+from decimal import Decimal
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlmodel import Session, col, select
 
+from backend.tests.factories.sterling import sterling_holdings
 from discount_analyst.adapters.persistence.crud.conversations import (
     get_conversation_for_run_agent,
     get_conversation_for_workflow_agent,
@@ -72,7 +74,9 @@ async def test_mock_workflow_completes_profiler_and_surveyor(
         workflow_crud.insert_workflow_run(
             session,
             workflow_run_id=workflow_run_id,
-            portfolio_tickers=portfolio,
+            holdings=sterling_holdings(*portfolio),
+            suggestion_tickers=(),
+            cash_gbp=Decimal("0"),
             is_mock=True,
             surveyor_execution_id=survey,
         )
@@ -127,12 +131,88 @@ async def test_mock_workflow_completes_profiler_and_surveyor(
         allocation = get_portfolio_allocation_for_workflow(session, workflow_run_id)
     assert surveyor_conv is not None
     assert allocation is not None
+    existing = next(
+        position for position in allocation.positions if position.is_existing_position
+    )
+    assert existing.ticker == "M1.L"
+    assert existing.current_weight_pct == 100.0
+    assert allocation.cash.current_weight_pct == 0.0
     equity = sum(position.target_weight_pct for position in allocation.positions)
     assert abs(equity + allocation.cash.target_weight_pct - 100.0) <= 0.05
     for position in allocation.positions:
         if position.policy.kind == "forced_zero":
             assert position.target_weight_pct == 0.0
             assert position.acceptable_weight_high_pct == 0.0
+
+
+@pytest.mark.asyncio
+async def test_mock_workflow_suggestion_ticker_is_omitted_from_snapshot(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "w.sqlite"
+    settings = dashboard_settings_for_tests(database_path=db_path)
+    configure_dashboard_observability(settings)
+    engine = create_dashboard_engine(settings)
+    migrate_to_head(str(engine.url))
+    session_factory = create_session_factory(engine)
+
+    workflow_run_id = new_id()
+    survey = new_id()
+    with session_factory() as session:
+        workflow_crud.insert_workflow_run(
+            session,
+            workflow_run_id=workflow_run_id,
+            holdings=sterling_holdings("HOLD.L"),
+            suggestion_tickers=("HINT.L",),
+            cash_gbp=Decimal("0"),
+            is_mock=True,
+            surveyor_execution_id=survey,
+        )
+    with session_factory() as session:
+        runs.insert_ticker_run_with_agents(
+            session,
+            run_id=new_id(),
+            workflow_run_id=workflow_run_id,
+            ticker="HOLD.L",
+            company_name="HOLD.L",
+            entry_path="profiler",
+            is_existing_position=True,
+            is_mock=True,
+            agent_names=PROFILER_ENTRY_AGENT_NAMES,
+        )
+        runs.insert_ticker_run_with_agents(
+            session,
+            run_id=new_id(),
+            workflow_run_id=workflow_run_id,
+            ticker="HINT.L",
+            company_name="HINT.L",
+            entry_path="profiler",
+            is_existing_position=False,
+            is_mock=True,
+            agent_names=PROFILER_ENTRY_AGENT_NAMES,
+        )
+        session.commit()
+
+    runner = DashboardPipelineRunner(session_factory, settings)
+    with patch("asyncio.sleep", new=AsyncMock()):
+        await runner.execute_workflow(workflow_run_id)
+
+    with session_factory() as session:
+        detail = workflow_crud.fetch_workflow_detail(session, workflow_run_id)
+        allocation = get_portfolio_allocation_for_workflow(session, workflow_run_id)
+    assert detail is not None
+    assert detail["status"] == "completed"
+    assert allocation is not None
+    existing = [
+        position for position in allocation.positions if position.is_existing_position
+    ]
+    assert [position.ticker for position in existing] == ["HOLD.L"]
+    assert existing[0].current_weight_pct == 100.0
+    hint = next(
+        position for position in allocation.positions if position.ticker == "HINT.L"
+    )
+    assert hint.is_existing_position is False
+    assert hint.current_weight_pct == 0.0
 
 
 @pytest.mark.asyncio
@@ -152,7 +232,9 @@ async def test_surveyor_failure_stops_workflow_before_profiler_branches(
         workflow_crud.insert_workflow_run(
             session,
             workflow_run_id=workflow_run_id,
-            portfolio_tickers=["M1.L"],
+            holdings=sterling_holdings("M1.L"),
+            suggestion_tickers=(),
+            cash_gbp=Decimal("0"),
             is_mock=True,
             surveyor_execution_id=surveyor_execution_id,
         )
@@ -224,7 +306,9 @@ async def test_manual_cancel_marks_workflow_and_children_cancelled(
         workflow_crud.insert_workflow_run(
             session,
             workflow_run_id=workflow_run_id,
-            portfolio_tickers=["M1.L"],
+            holdings=sterling_holdings("M1.L"),
+            suggestion_tickers=(),
+            cash_gbp=Decimal("0"),
             is_mock=True,
         )
         runs.insert_ticker_run_with_agents(
@@ -284,7 +368,9 @@ async def test_appraiser_conversation_failure_does_not_leave_appraiser_completed
         workflow_crud.insert_workflow_run(
             session,
             workflow_run_id=workflow_run_id,
-            portfolio_tickers=["M1.L"],
+            holdings=sterling_holdings("M1.L"),
+            suggestion_tickers=(),
+            cash_gbp=Decimal("0"),
             is_mock=True,
         )
         runs.insert_ticker_run_with_agents(
@@ -372,7 +458,9 @@ async def test_lane_abort_marks_unreached_downstream_agents_skipped(
         workflow_crud.insert_workflow_run(
             session,
             workflow_run_id=workflow_run_id,
-            portfolio_tickers=["M1.L"],
+            holdings=sterling_holdings("M1.L"),
+            suggestion_tickers=(),
+            cash_gbp=Decimal("0"),
             is_mock=True,
         )
         runs.insert_ticker_run_with_agents(
@@ -444,7 +532,9 @@ async def test_retry_resume_skips_completed_surveyor_without_duplicate_lanes(
         workflow_crud.insert_workflow_run(
             session,
             workflow_run_id=workflow_run_id,
-            portfolio_tickers=portfolio,
+            holdings=sterling_holdings(*portfolio),
+            suggestion_tickers=(),
+            cash_gbp=Decimal("0"),
             is_mock=True,
             surveyor_execution_id=surveyor_execution_id,
         )
@@ -536,7 +626,9 @@ def _bootstrap_mock_workflow(
         workflow_crud.insert_workflow_run(
             session,
             workflow_run_id=workflow_run_id,
-            portfolio_tickers=portfolio,
+            holdings=sterling_holdings(*portfolio),
+            suggestion_tickers=(),
+            cash_gbp=Decimal("0"),
             is_mock=True,
         )
         runs.insert_ticker_run_with_agents(

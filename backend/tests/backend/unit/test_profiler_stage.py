@@ -12,6 +12,7 @@ from discount_analyst.adapters.simulation import mock_outputs
 from discount_analyst.adapters.orchestration.stages.profiler_stage import ProfilerStage
 from discount_analyst.config.testing_settings import dashboard_settings_for_tests
 from discount_analyst.config.settings import Settings
+from discount_analyst.domain.model_selection.model_name import ModelName
 
 
 class FakeProfilerHost:
@@ -154,5 +155,5 @@ async def test_profiler_stage_non_mock_path_uses_run_agent_with_terminal() -> No
             is_mock=False,
         )
     assert candidate.ticker == "X.L"
-    assert host.calls[1][1]["model_name"] == settings.default_model
+    assert host.calls[1][1]["model_name"] is ModelName.GPT_5_6_LUNA
     assert host.calls[4][1]["messages"] == fake_outcome.all_messages

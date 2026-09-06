@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import CheckConstraint, Column, UniqueConstraint
+from sqlalchemy import CheckConstraint, Column, Numeric, UniqueConstraint
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, SQLModel  # pyright: ignore[reportUnknownVariableType]
 
@@ -94,6 +95,7 @@ class WorkflowRun(SQLModel, table=True):
     status: WorkflowRunStatusDb = Field(default=WorkflowRunStatusDb.RUNNING)
     is_mock: bool
     error_message: str | None = None
+    cash_gbp: Decimal | None = Field(default=None, sa_type=Numeric(18, 2))
 
 
 class WorkflowRunPortfolioTicker(SQLModel, table=True):
@@ -104,6 +106,7 @@ class WorkflowRunPortfolioTicker(SQLModel, table=True):
     workflow_run_id: str = Field(foreign_key="workflow_runs.id", index=True)
     sort_order: int
     ticker: str
+    value_gbp: Decimal | None = Field(default=None, sa_type=Numeric(18, 2))
 
 
 class Run(SQLModel, table=True):

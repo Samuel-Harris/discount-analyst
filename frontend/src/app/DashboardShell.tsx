@@ -54,8 +54,6 @@ export function DashboardShell() {
     [openLaunchedRun],
   );
 
-  const launchForm = <RunPipelineForm onLaunched={onLaunched} />;
-
   return (
     <div className="app-shell">
       <div className="app-top">
@@ -75,7 +73,6 @@ export function DashboardShell() {
         onDelete={(id) => void deleteRun(id)}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
-        footer={sidebarCollapsed ? undefined : launchForm}
       />
 
       <WorkflowRunMainPanel
@@ -83,11 +80,9 @@ export function DashboardShell() {
         detail={detail}
         detailLoading={detailLoading}
         detailError={detailError}
-        sidebarCollapsed={sidebarCollapsed}
         workflowActionError={actionError}
         cancelPending={cancelPending}
         retryFailedAgentsPending={retryFailedAgentsPending}
-        launchForm={launchForm}
         mainView={mainView}
         onOpenRecommendations={openRecommendations}
         onOpenPipeline={openPipeline}
@@ -95,6 +90,11 @@ export function DashboardShell() {
         onRequestDeleteRun={(id) => void deleteRun(id)}
         onRequestCancelRun={(id) => void cancelRun(id)}
         onRequestRetryFailedAgents={(id) => void retryFailed(id)}
+      />
+
+      <RunPipelineForm
+        onLaunched={onLaunched}
+        hidden={conversationPanel.open}
       />
 
       <AgentPanel

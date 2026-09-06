@@ -1,12 +1,14 @@
 """Tests for dashboard conversation persistence."""
 
 import json
+from decimal import Decimal
 from unittest.mock import patch
 
 from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
 from pydantic_ai.usage import RequestUsage
 from sqlmodel import Session, col, select
 
+from backend.tests.factories.sterling import sterling_holdings
 from discount_analyst.adapters.persistence.crud.agent_output_persistence import (
     replace_research_report,
 )
@@ -204,7 +206,9 @@ def test_research_report_without_candidate_persists_and_rehydrates(
     insert_workflow_run(
         db_session,
         workflow_run_id=workflow_run_id,
-        portfolio_tickers=["ABC.L"],
+        holdings=sterling_holdings("ABC.L"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
     )
     snapshot = candidate_to_snapshot(
@@ -262,7 +266,9 @@ def test_replace_conversation_messages_persists_response_usage(
     insert_workflow_run(
         db_session,
         workflow_run_id="workflow-usage",
-        portfolio_tickers=["ABC.L"],
+        holdings=sterling_holdings("ABC.L"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
         surveyor_execution_id="surveyor-exec-usage",
     )
@@ -335,7 +341,9 @@ def test_insert_conversation_persists_usage_from_model_messages(
     insert_workflow_run(
         db_session,
         workflow_run_id="workflow-live-usage",
-        portfolio_tickers=["ABC.L"],
+        holdings=sterling_holdings("ABC.L"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
         surveyor_execution_id="surveyor-exec-live-usage",
     )

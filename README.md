@@ -84,13 +84,19 @@ Nested groups use double underscores, for example `PERPLEXITY__API_KEY`, `LOGGIN
 | `DASHBOARD_DATABASE_PATH`           | SQLite path for workflow runs (default `data/dashboard.sqlite`; VS Code uses separate `data/dashboard.dev.sqlite` and `data/dashboard.prod.sqlite` files) |
 | `REGULATORY_DATA_CACHE_DIR`         | Local cache for official exchange lists, SEC companyfacts, and Companies House bulk products (default `data/regulatory_data`; gitignored)                 |
 | `SEC__USER_AGENT`                   | SEC EDGAR User-Agent (application name and contact details). Required for SEC refresh and live companyfacts gap-fill                                      |
-| `DASHBOARD_DEFAULT_MODEL`           | Default LLM for dashboard-driven runs                                                                                                                     |
+| `AGENT_DEFAULT_MODELS__SURVEYOR`    | Surveyor default LLM (`gpt-5.6-luna`)                                                                                                                     |
+| `AGENT_DEFAULT_MODELS__PROFILER`    | Profiler default LLM (`gpt-5.6-luna`)                                                                                                                     |
+| `AGENT_DEFAULT_MODELS__RESEARCHER`  | Researcher default LLM (`gpt-5.6-luna`)                                                                                                                   |
+| `AGENT_DEFAULT_MODELS__STRATEGIST`  | Strategist default LLM (`gpt-5.6-luna`)                                                                                                                   |
+| `AGENT_DEFAULT_MODELS__SENTINEL`    | Sentinel default LLM (`gpt-5.6-luna`)                                                                                                                     |
+| `AGENT_DEFAULT_MODELS__APPRAISER`   | Appraiser default LLM (`gpt-5.6-luna`)                                                                                                                    |
+| `AGENT_DEFAULT_MODELS__CURATOR`     | Curator default LLM (`gpt-5.6-terra`)                                                                                                                     |
 | `DASHBOARD_RISK_FREE_RATE`          | Risk-free rate as a percentage for valuation stages (e.g. `3.7` means 3.7%)                                                                               |
 | `DASHBOARD_USE_PERPLEXITY`          | Toggle Perplexity-backed behaviour where wired                                                                                                            |
 | `DASHBOARD_USE_MCP_FINANCIAL_DATA`  | Toggle MCP financial data in dashboard runs                                                                                                               |
 | `ENV` or `DASHBOARD_DEPLOY_ENV`     | `DEV` or `PROD` (mock vs live server behaviour)                                                                                                           |
 
-Optional provider blocks can be omitted when unused; consult the settings model for required combinations.
+`DASHBOARD_DEFAULT_MODEL` is gone and ignored. Optional provider blocks can be omitted when unused; consult the settings model for required combinations.
 
 ### Official regulatory data cache
 
@@ -181,7 +187,7 @@ For a **production-like** local stack (static UI, production uvicorn, terminal i
 
 The VS Code dashboard launches keep local data separate: DEV uses `data/dashboard.dev.sqlite`, while PROD uses `data/dashboard.prod.sqlite`. The historical Docker Compose production database lived in the `dashboard_sqlite_prod` volume at `/data/dashboard.sqlite`; copy it to `data/dashboard.prod.sqlite` before running the host PROD stack if you need those saved workflow runs.
 
-Stopping the PROD debug session ends Vite preview only; background API and terminal tasks keep running until you tear them down (`docker compose down`, and stop uvicorn on port **8000** if needed).
+Stopping the PROD debug session ends the host API and Vite preview (ports **8000** and **8080**). The `agent-terminal` container stays up so the next **Dashboard: PROD stack** launch can skip the Docker rebuild. Tear it down with the `dashboard:prod-stack-teardown` task or `docker compose down`.
 
 ### Tests and static checks
 
@@ -199,20 +205,20 @@ Continuous integration runs `uv run pre-commit run --all-files`, `uv run pytest`
 
 Compose runs only the **agent-terminal** orchestrator (sandbox containers via the Docker socket). The dashboard API and UI run on the **host** for day-to-day work; this does not change the product boundary of “no cloud deployment”.
 
-**Prerequisites:** Docker Engine or Docker Desktop with [Compose V2](https://docs.docker.com/compose/) (`docker compose`). Build the sandbox image once: `make build-terminal-sandbox`.
+**Prerequisites:** Docker Engine or Docker Desktop with [Compose V2](https://docs.docker.com/compose/) (`docker compose`). Build the sandbox image once: `make build-terminal-sandbox` (no-ops when `discount-analyst-terminal-sandbox:local` already exists; `make build-terminal-sandbox-force` always rebuilds).
 
 ### Terminal service
 
 From the repository root (foreground; pass `-d` for detached):
 
 ```bash
-docker compose up --build
+docker compose up
 ```
 
 Optional bind-mount of the repo into sandboxes:
 
 ```bash
-TERMINAL_WORKSPACE_HOST_PATH="$(pwd)" docker compose up --build
+TERMINAL_WORKSPACE_HOST_PATH="$(pwd)" docker compose up
 ```
 
 The terminal listens on **<http://127.0.0.1:8001>**.
@@ -225,8 +231,8 @@ The terminal listens on **<http://127.0.0.1:8001>**.
 | API (`ENV=PROD`, production uvicorn) | Host — background task `dashboard:api-prod`                 | **8000** |
 | Terminal                             | Docker — `agent-terminal`                                   | **8001** |
 
-Launch **Dashboard: PROD stack** from [`.vscode/launch.json`](.vscode/launch.json). The `preLaunchTask` `dashboard:prod-stack-prep` (see [`.vscode/tasks.json`](.vscode/tasks.json)) starts terminal + alembic + API + `pnpm build` with `ENV=PROD` and `DASHBOARD_DATABASE_PATH=data/dashboard.prod.sqlite`, then opens preview. The DEV debug compound uses `DASHBOARD_DATABASE_PATH=data/dashboard.dev.sqlite`; the application default remains **`data/dashboard.sqlite`** on the host ([`discount_analyst.config.settings`](backend/src/discount_analyst/config/settings.py)) for direct commands that do not override it. Add a repository root `.env` with at least **`LOGGING__LOGFIRE_API_KEY`** and other keys required by settings.
+Launch **Dashboard: PROD stack** from [`.vscode/launch.json`](.vscode/launch.json). The `preLaunchTask` `dashboard:prod-stack-prep` (see [`.vscode/tasks.json`](.vscode/tasks.json)) frees ports **8000**/**8080**, then in parallel ensures `agent-terminal` is healthy, runs alembic, and `pnpm build` with `ENV=PROD` and `DASHBOARD_DATABASE_PATH=data/dashboard.prod.sqlite`. If `http://127.0.0.1:8001/health` already succeeds, Docker is left untouched. Use **Dashboard: PROD stack (rebuild terminal)** after changing the terminal Dockerfiles or requirements. The DEV debug compound uses `DASHBOARD_DATABASE_PATH=data/dashboard.dev.sqlite`; the application default remains **`data/dashboard.sqlite`** on the host ([`discount_analyst.config.settings`](backend/src/discount_analyst/config/settings.py)) for direct commands that do not override it. Add a repository root `.env` with at least **`LOGGING__LOGFIRE_API_KEY`** and other keys required by settings.
 
 For **DEV** debugging (reload, debugpy, Vite dev server), use **Dashboard: API + Frontend** on **5173** / **8000** instead.
 
-**Teardown:** Stopping either service in **Dashboard: DEV stack** or **Dashboard: PROD stack** (`stopAll`) terminates the other launch session. PROD also runs `dashboard:prod-stack-teardown` on stop (agent-terminal container plus ports **8000** and **8080**). DEV runs `dashboard:dev-stack-teardown` on stop (ports **8000** and **5173**). Relaunching PROD stops existing services before prep. To tear down manually without relaunching, run `docker compose down` and stop uvicorn on port **8000** if needed (`lsof -i :8000` or Activity Monitor).
+**Teardown:** Stopping either service in **Dashboard: DEV stack** or **Dashboard: PROD stack** (`stopAll`) terminates the other launch session. DEV runs `dashboard:dev-stack-teardown` on stop (ports **8000** and **5173**). PROD runs `dashboard:prod-stack-free-ports` on stop (ports **8000** and **8080**) and leaves `agent-terminal` running. To stop the orchestrator as well, run the `dashboard:prod-stack-teardown` task or `docker compose down`.

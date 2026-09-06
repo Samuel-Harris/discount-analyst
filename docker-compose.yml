@@ -1,14 +1,14 @@
 # Terminal orchestrator only (backend + UI run on host — see .vscode/launch.json)
-# docker compose up --build
+# docker compose up
 # Optional repo bind for sandboxes:
-# TERMINAL_WORKSPACE_HOST_PATH="$(pwd)" docker compose up --build
+# TERMINAL_WORKSPACE_HOST_PATH="$(pwd)" docker compose up
 
 services:
   # Orchestrator: creates per-run gVisor sandboxes via Docker socket (not mounted on backend).
   agent-terminal:
     build:
-      context: .
-      dockerfile: backend/services/agent_terminal/Dockerfile.service
+      context: backend/services/agent_terminal
+      dockerfile: Dockerfile.service
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
@@ -22,3 +22,15 @@ services:
       TERMINAL_WORKSPACE_HOST_PATH: ${TERMINAL_WORKSPACE_HOST_PATH:-}
     ports:
       - "8001:8001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')",
+        ]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+      start_period: 5s

@@ -2,7 +2,7 @@
 
 import argparse
 
-from discount_analyst.config.settings import DEFAULT_MODEL, settings
+from discount_analyst.config.settings import settings
 from discount_analyst.agents.runtime.terminal_run import (
     TerminalRunOptions,
     terminal_run_options,
@@ -10,14 +10,16 @@ from discount_analyst.agents.runtime.terminal_run import (
 from discount_analyst.domain.model_selection.model_name import ModelName
 
 
-def add_agent_cli_model_argument(parser: argparse.ArgumentParser) -> None:
-    """Register ``--model`` using the shared product default."""
+def add_agent_cli_model_argument(
+    parser: argparse.ArgumentParser, *, default: ModelName
+) -> None:
+    """Register ``--model`` using the given agent-type default."""
     parser.add_argument(
         "--model",
         type=ModelName,
         choices=[e.value for e in ModelName],
-        default=DEFAULT_MODEL,
-        help=f"AI model to use (default: {DEFAULT_MODEL})",
+        default=default,
+        help=f"AI model to use (default: {default})",
     )
 
 

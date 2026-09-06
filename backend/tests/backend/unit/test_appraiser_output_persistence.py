@@ -1,7 +1,10 @@
 """Tests for Appraiser structured output persistence."""
 
+from decimal import Decimal
+
 from sqlmodel import Session, select
 
+from backend.tests.factories.sterling import sterling_holdings
 from discount_analyst.adapters.persistence.crud.db_utils import utc_now
 from discount_analyst.adapters.persistence.crud.run_executions import (
     complete_agent_execution_with_conversation,
@@ -35,7 +38,9 @@ def test_complete_appraiser_execution_persists_single_report(
     insert_workflow_run(
         db_session,
         workflow_run_id=workflow_run_id,
-        portfolio_tickers=["ABC.L"],
+        holdings=sterling_holdings("ABC.L"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
     )
     db_session.add(
@@ -121,7 +126,9 @@ def test_get_appraiser_report_for_run_joins_appraiser_execution(
     insert_workflow_run(
         db_session,
         workflow_run_id=workflow_run_id,
-        portfolio_tickers=["XYZ.L"],
+        holdings=sterling_holdings("XYZ.L"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
     )
     db_session.add(

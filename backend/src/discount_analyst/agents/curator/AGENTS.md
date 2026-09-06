@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-08-30 | Updated: 2026-08-30 -->
+<!-- Generated: 2026-08-30 | Updated: 2026-09-06 -->
 
 # curator
 
@@ -11,13 +11,13 @@ Curator is **not** a ticker-lane agent. It is a peer of Surveyor: one `AgentExec
 
 ## Key Files
 
-| File               | Description                                                                                          |
-| ------------------ | ---------------------------------------------------------------------------------------------------- |
-| `curator.py`     | Factory for the closed-book Curator (`create_curator_agent`).                                    |
+| File               | Description                                                                                                                                     |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `curator.py`       | Factory for the Curator (`create_curator_agent`).                                                                                               |
 | `schema.py`        | Self-contained `CuratorInput` / `CuratorProposal` plus field-identical `PackedMispricingThesis` (does not import Researcher–Appraiser schemas). |
-| `system_prompt.py` | Concentrated best-ideas stance, closed-book rule, and creed (no fixed holding period).               |
-| `user_prompt.py`   | `create_user_prompt(curator_input=...)`: tagged `CuratorInput` JSON; rank using `live_thesis`; `final_result` step.    |
-| `__init__.py`      | Package initialization for the curator module.                                                     |
+| `system_prompt.py` | Concentrated best-ideas stance, packed-input contract, live web/terminal checks, and creed (no fixed holding period).                           |
+| `user_prompt.py`   | `create_user_prompt(curator_input=...)`: tagged `CuratorInput` JSON; rank using `live_thesis`; `final_result` step.                             |
+| `__init__.py`      | Package initialization for the curator module.                                                                                                  |
 
 ## Subdirectories
 
@@ -27,7 +27,7 @@ None.
 
 ### Working In This Directory
 
-- **Agent tools**: Closed book. `create_curator_agent` always passes `enable_web_research_tools=False`, `use_perplexity=False`, `use_mcp_financial_data=False`, and disables the terminal session. `REGULATORY_TOOLSETS_BY_ROLE[CURATOR]` is empty. Dashboard Perplexity/MCP/terminal flags are not forwarded. Frankfurter `convert_currency` remains attached by the shared factory; the prompt forbids calling it.
+- **Agent tools**: `create_curator_agent` registers web search/fetch (factory default) and forwards `terminal`. It always passes `use_perplexity=False` and `use_mcp_financial_data=False`. `REGULATORY_TOOLSETS_BY_ROLE[CURATOR]` is empty. Dashboard Perplexity/MCP flags are not forwarded; terminal follows `settings.use_terminal` via `run_agent_with_terminal` on the dashboard and `--no-terminal` on the CLI. Frankfurter `convert_currency` remains attached by the shared factory; the prompt forbids calling it.
 - **Schemas**: Keep `schema.py` free of imports from `agents.researcher`, `strategist`, `sentinel`, and `appraiser`. Application packing owns the compact-evidence mapping, including `live_thesis` (`PackedMispricingThesis`) on every lane variant. Do not invent or edit theses.
 - **Output contract**: The LLM returns `CuratorProposal`. Persist `PortfolioAllocation` only after `finalise_curator_proposal` succeeds. Invalid weights fail the workflow; do not clip or normalise leftover weight into cash.
 
@@ -48,7 +48,7 @@ None.
 - `discount_analyst.agents.curator.schema`: `CuratorInput` and `CuratorProposal`.
 - `discount_analyst.domain.allocations`: snapshot, policy, invariants, and final `PortfolioAllocation`.
 - `discount_analyst.config.ai_models_config`: model configuration.
-- `discount_analyst.agents.runtime.agent_factory`: shared `create_agent` with closed-book flags.
+- `discount_analyst.agents.runtime.agent_factory`: shared `create_agent` with web search/fetch, optional terminal, and no Perplexity/MCP/filings.
 
 ### External
 

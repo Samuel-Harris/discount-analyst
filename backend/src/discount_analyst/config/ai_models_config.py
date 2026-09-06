@@ -208,6 +208,7 @@ _MODEL_CONFIG_KIND: Final[dict[ModelName, _ModelConfigKind]] = {
     ModelName.GPT_5_2: _ModelConfigKind.OPENAI,
     ModelName.GPT_5_4: _ModelConfigKind.OPENAI,
     ModelName.GPT_5_6_LUNA: _ModelConfigKind.OPENAI,
+    ModelName.GPT_5_6_TERRA: _ModelConfigKind.OPENAI,
     ModelName.GEMINI_3_PRO_PREVIEW: _ModelConfigKind.GOOGLE,
     ModelName.GEMINI_3_1_PRO_PREVIEW: _ModelConfigKind.GOOGLE,
     ModelName.DEEPSEEK_V4_FLASH: _ModelConfigKind.DEEPSEEK,

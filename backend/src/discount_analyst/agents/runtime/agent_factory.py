@@ -133,9 +133,10 @@ def create_agent[OutT](
     Official regulatory-data toolsets follow ``REGULATORY_TOOLSETS_BY_ROLE``:
     Surveyor receives universe listing tools plus filing tools; Curator
     receives none; every other pipeline agent receives filing tools only.
-    Sentinel and Curator still have no web, MCP, or terminal access.
+    Sentinel has no web, MCP, or terminal access. Curator has web search/fetch
+    and terminal; it still has no Perplexity, MCP, or filings.
     Set ``enable_web_research_tools=False`` to omit web search/fetch/Perplexity
-    (production Sentinel and Curator factories; otherwise test isolation). When ``terminal``
+    (production Sentinel factory; otherwise test isolation). When ``terminal``
     is omitted, terminal follows ``settings.use_terminal`` only (independent of
     web/MCP flags).
 

@@ -12,6 +12,7 @@ CONTEXT_WINDOW_TOKENS: dict[ModelName, int] = {
     ModelName.GPT_5_2: 400_000,
     ModelName.GPT_5_4: 1_000_000,
     ModelName.GPT_5_6_LUNA: 1_050_000,
+    ModelName.GPT_5_6_TERRA: 1_050_000,
     ModelName.GEMINI_3_PRO_PREVIEW: 1_000_000,
     ModelName.GEMINI_3_1_PRO_PREVIEW: 1_000_000,
     ModelName.DEEPSEEK_V4_FLASH: 1_048_576,

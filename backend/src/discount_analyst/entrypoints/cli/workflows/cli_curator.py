@@ -11,6 +11,7 @@ from discount_analyst.agents.curator.curator import create_curator_agent
 from discount_analyst.agents.curator.user_prompt import create_user_prompt
 from discount_analyst.agents.runtime.agent_names import AgentName
 from discount_analyst.agents.runtime.streamed_agent_run import run_streamed_agent
+from discount_analyst.agents.runtime.terminal_run import TerminalRunOptions
 from discount_analyst.application.allocations.assemble import (
     CompletedLaneBundle,
     assemble_curator_input,
@@ -35,16 +36,21 @@ async def run_cli_curator(
     model_name: ModelName,
     snapshot: CurrentPortfolioSnapshot,
     lane_bundles: tuple[CompletedLaneBundle, ...],
+    terminal: TerminalRunOptions,
 ) -> Path:
     curator_input = assemble_curator_input(lane_bundles, snapshot, date.today())
     ai_models_config = AIModelsConfig(model_name=model_name)
-    agent = create_curator_agent(ai_models_config=ai_models_config)
+    agent = create_curator_agent(
+        ai_models_config=ai_models_config,
+        terminal=terminal,
+    )
     console.log(f"Running Curator (model: {model_name})...")
     outcome = await run_streamed_agent(
         agent=agent,
         user_prompt=create_user_prompt(curator_input=curator_input),
         usage_limits=ai_models_config.model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
+        terminal=terminal,
     )
     allocation = finalise_curator_proposal(
         outcome.output,

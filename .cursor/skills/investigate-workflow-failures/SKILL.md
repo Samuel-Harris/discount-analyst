@@ -27,9 +27,9 @@ Intended COMPLETED outcomes (`data_quality_rejection`, `sentinel_rejection`, rat
 
 ## When not to use this skill
 
-User asked to **review / analyse / audit agent quality, conversations, or Appraiser valuations** → [analyse-workflow-run](../analyse-workflow-run/SKILL.md).
+User asked to **review / analyse / audit agent quality, conversations, Appraiser valuations, or Curator allocations** → [analyse-workflow-run](../analyse-workflow-run/SKILL.md).
 
-After this diagnosis, you may **point** at that skill. Do not run its six-subagent HTML path unless the user asks.
+After this diagnosis, you may **point** at that skill. Do not run its seven-subagent HTML path unless the user asks.
 
 ## Artefacts
 
@@ -141,16 +141,16 @@ For each cluster, grep the **models and adapters that raise that string**, then 
 
 Starting pointers (verify; do not freeze August 2026 behaviour):
 
-| Fingerprint                                                                       | Read                                                                                                             |
-| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `DataQualityRejection` vs `SentinelRejection` `model_type`                        | `adapters/persistence/crud/run_executions.py` (`persist_ticker_run_final_verdict`), `domain/decisions/schema.py` |
-| FMP 402 / no confident match / `resolution_notes`                                 | `adapters/market_data/candidate_gates.py`, `fmp_client.py`                                                       |
-| `EodhdRealTimeQuote` / `close='NA'`                                               | `adapters/market_data/eodhd_client.py`                                                                           |
-| `run_stream()` / `EvaluationReport` / `UnexpectedModelBehavior` output validation | `agents/runtime/streaming_retries.py`, `agents/sentinel/schema.py`                                               |
-| `web_fetch` max retries                                                           | pydantic-ai tool retries (default 1); HTTP status is in the same message or prior span                           |
-| `Rate limit reached` / TPM                                                        | Provider quota; may be the last overlay after earlier gate/persist errors                                        |
-| Failed-agent retry overlay                                                        | `entrypoints/api/routers/workflow_runs.py`, `prepare_retry_failed_agents`                                        |
-| Status rollup                                                                     | `adapters/persistence/crud/workflow_runs.py` `recompute_workflow_status`                                         |
+| Fingerprint                                                                       | Read                                                                                                                                                    |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DataQualityRejection` vs `SentinelRejection` `model_type`                        | `adapters/persistence/crud/run_executions.py` (`persist_ticker_run_final_verdict`), `domain/decisions/schema.py`                                        |
+| FMP 402 / no confident match / `resolution_notes`                                 | `adapters/market_data/candidate_gates.py`, `fmp_client.py`                                                                                              |
+| `Schema must be an object` / `UserError` at `Agent()`                             | pydantic-ai `check_object_json_schema`; `agents/runtime/agent_factory.py` `ToolOutput`; stage `RootModel`/union schema (`oneOf` with no `type: object`) |
+| `run_stream()` / `EvaluationReport` / `UnexpectedModelBehavior` output validation | `agents/runtime/streaming_retries.py`, `agents/sentinel/schema.py`                                                                                      |
+| `web_fetch` max retries                                                           | pydantic-ai tool retries (default 1); HTTP status is in the same message or prior span                                                                  |
+| `Rate limit reached` / TPM / `too many requests`                                  | Provider quota or capacity overload; may be the last overlay after earlier gate/persist errors                                                          |
+| Failed-agent retry overlay                                                        | `entrypoints/api/routers/workflow_runs.py`, `prepare_retry_failed_agents`                                                                               |
+| Status rollup                                                                     | `adapters/persistence/crud/workflow_runs.py` `recompute_workflow_status`                                                                                |
 
 Taxonomy: [failure-kinds.md](references/failure-kinds.md).
 
@@ -158,11 +158,11 @@ Taxonomy: [failure-kinds.md](references/failure-kinds.md).
 
 Allowed and encouraged when SQLite + Logfire do not explain an in-scope lane:
 
-- Conversation digest export (reuse analyse-workflow-run scripts; `--output-dir` = this numbered artefact folder). Point `--sqlite-path` at the artefact copy, not the live host DB — the exporter opens SQLite read-write. XOR-join Surveyor or you drop it.
+- Conversation digest export (reuse analyse-workflow-run scripts; `--output-dir` = this numbered artefact folder). Point `--sqlite-path` at the artefact copy, not the live host DB — the exporter opens SQLite read-write. XOR-join workflow-scoped Surveyor/Curator or you drop them.
 - `agent_conversation_message_parts`: `part_kind = 'tool_return'`, `tool_name` in (`web_fetch`, `terminal_exec`). Terminal bodies are text `exit_code: 0`, **not** JSON `"exit_code": 0`. `%timeout%` matches `timeout 600` in commands — prefer `exit_code: 124` or Logfire Timeout types.
 - Live FMP/EODHD **GET** probes when a vendor-plan or identity cause is suspected. Do not write vendor data into the dashboard DB.
 
-Do **not** spawn six qualitative subagents to answer a persist ValidationError.
+Do **not** spawn seven qualitative subagents to answer a persist ValidationError.
 
 ### 7. Answer
 
@@ -223,8 +223,9 @@ Surveyor (workflow-scoped) and/or Profiler (per portfolio ticker)
   → Researcher → Strategist → Sentinel
   → Appraiser if Sentinel proceeds
   → rating table → Verdict
+  → Curator (workflow-scoped, after every ticker lane is COMPLETED)
 ```
 
-`agent_executions` parent is XOR. Joining only through `runs` **drops Surveyor**.
+`agent_executions` parent is XOR. Joining only through `runs` **drops Surveyor and Curator**.
 
 `Profiler`/`Surveyor` can COMPLETE as conversations and the **lane** still FAILED if the candidate gate or persist after the agent throws.

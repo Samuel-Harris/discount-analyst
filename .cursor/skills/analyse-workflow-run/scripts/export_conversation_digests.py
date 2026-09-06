@@ -47,7 +47,7 @@ def digest_one(
     head = combined[:4000] if len(combined) > 12000 else ""
 
     lines = [
-        f"# {agent} | {ticker}",
+        f"# {agent.upper()} | {ticker}",
         f"conversation_id={conv_id}",
         f"parts={len(parts)} text_chars={len(combined)}",
         "",
@@ -62,7 +62,7 @@ def digest_one(
     lines.append(tail)
 
     safe_t = ticker.replace(".", "_")
-    fname = f"{agent}_{safe_t}.md"
+    fname = f"{agent.upper()}_{safe_t}.md"
     (out_dir / fname).write_text("\n".join(lines), encoding="utf-8")
 
 

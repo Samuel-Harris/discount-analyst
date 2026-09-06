@@ -1,9 +1,12 @@
 """Portfolio allocation persistence, reconstruction, and workflow creation."""
 
+from decimal import Decimal
+
 from datetime import date
 
 from sqlmodel import Session, col, select
 
+from backend.tests.factories.sterling import sterling_holdings
 from discount_analyst.adapters.persistence.crud.db_utils import new_id
 from discount_analyst.adapters.persistence.crud.portfolio_allocations import (
     delete_portfolio_allocation_for_execution,
@@ -39,7 +42,9 @@ def test_insert_workflow_run_creates_surveyor_and_curator(
     surveyor_id, curator_id = insert_workflow_run(
         db_session,
         workflow_run_id=workflow_run_id,
-        portfolio_tickers=["ABC.L"],
+        holdings=sterling_holdings("ABC.L"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
     )
 
@@ -63,7 +68,9 @@ def test_persist_and_reconstruct_allocation_round_trip(db_session: Session) -> N
     _surveyor_id, curator_id = insert_workflow_run(
         db_session,
         workflow_run_id=workflow_run_id,
-        portfolio_tickers=["TSM", "AMAT"],
+        holdings=sterling_holdings("TSM", "AMAT"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
     )
     tsm_run = new_id()

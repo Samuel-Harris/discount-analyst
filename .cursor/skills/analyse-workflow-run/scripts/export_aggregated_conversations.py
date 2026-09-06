@@ -1,15 +1,17 @@
 """Export agent conversations for one workflow run (stdlib only).
 
 Writes one markdown file per agent under ``<output-dir>/aggregated_conversations/``:
-workflow-scoped ``SURVEYOR``, then per-ticker agents ``PROFILER`` … ``APPRAISER``.
+workflow-scoped ``SURVEYOR`` and ``CURATOR``, then per-ticker agents
+``PROFILER`` … ``APPRAISER``.
 
 By default each file is **issue-focused**: transcripts are compressed (duplicate
 system prompts, thinned ``user_prompt`` payloads, Appraiser-specific upstream
-redaction when the prompt embeds ``ValuationResult``) and the aggregate is capped at **6,000 lines**, dropping the
+redaction when the prompt embeds ``ValuationResult``, Curator packed
+``CuratorInput`` redaction) and the aggregate is capped at **6,000 lines**, dropping the
 lowest-scoring ticker sections first when the budget is exceeded. Heuristic
 keyword scores approximate “which threads best illustrate recurring issues”
 called out in workflow-run reviews (tool orchestration, rate limits, valuation
-gates, post-DCF verdict / MoS themes, etc.).
+gates, post-DCF verdict / MoS themes, Curator policy / concentration, etc.).
 
 Use ``--full-transcripts`` to restore the previous behaviour (no cap, no
 compression).
@@ -24,6 +26,11 @@ from pathlib import Path
 from typing import cast
 
 ConversationSection = tuple[str, str, str, str]
+
+WORKFLOW_SCOPED_AGENTS = (
+    "SURVEYOR",
+    "CURATOR",
+)
 
 PER_TICKER_AGENTS = (
     "PROFILER",
@@ -128,6 +135,26 @@ _AGENT_ISSUE_KEYWORDS: dict[str, tuple[str, ...]] = {
         "data_quality",
         "terminal_exec",
     ),
+    "CURATOR": (
+        "final_result",
+        "CuratorProposal",
+        "CuratorInput",
+        "target_weight",
+        "shared_risk",
+        "forced_zero",
+        "retain_or_reduce",
+        "investable",
+        "portfolio_rationale",
+        "live_thesis",
+        "convert_currency",
+        "terminal_exec",
+        "15%",
+        "concentration",
+        "policy",
+        "cash",
+        "429",
+        "402",
+    ),
 }
 
 _DEFAULT_MAX_LINES = 6000
@@ -153,6 +180,16 @@ _UPSTREAM_BEFORE_VALUATION_REPL = (
     "[Redacted — SurveyorCandidate, DeepResearchReport, MispricingThesis, and "
     "EvaluationReport JSON inputs are redacted to save line budget. "
     "The Appraiser task description below is preserved.]\n\n"
+)
+_CURATOR_INPUT_BLOCK = re.compile(
+    r"<CuratorInput>\n[\s\S]*?</CuratorInput>",
+    re.MULTILINE,
+)
+_CURATOR_INPUT_REPL = (
+    "<CuratorInput>\n"
+    "[Redacted — packed CuratorInput JSON (snapshot + per-lane compact evidence). "
+    "See conversation_digests/ or `--full-transcripts` for the full payload.]\n"
+    "</CuratorInput>"
 )
 
 
@@ -232,6 +269,12 @@ def _redact_upstream_before_valuation(body: str) -> str:
     return _UPSTREAM_BEFORE_VALUATION.sub(_UPSTREAM_BEFORE_VALUATION_REPL, body)
 
 
+def _redact_curator_input(body: str) -> str:
+    if "<CuratorInput>" not in body:
+        return body
+    return _CURATOR_INPUT_BLOCK.sub(_CURATOR_INPUT_REPL, body)
+
+
 def _compress_conversation_body(agent: str, body: str, *, full: bool) -> str:
     if full:
         return body
@@ -240,6 +283,11 @@ def _compress_conversation_body(agent: str, body: str, *, full: bool) -> str:
     out = _stub_outer_system_prompt(out)
     if agent == "APPRAISER":
         out = _redact_upstream_before_valuation(out)
+        out = _thin_user_prompt(
+            out, head_lines=60, tail_lines=60, min_lines_before_thin=120
+        )
+    elif agent == "CURATOR":
+        out = _redact_curator_input(out)
         out = _thin_user_prompt(
             out, head_lines=60, tail_lines=60, min_lines_before_thin=120
         )
@@ -349,7 +397,8 @@ def _render_file_text(
             [
                 "> **Issue-focused aggregate:** duplicate system prompts are stubbed, "
                 "large `user_prompt` bodies are head/tail thinned (Appraiser additionally "
-                "redacts upstream JSON before `ValuationResult`). If the file would "
+                "redacts upstream JSON before `ValuationResult`; Curator additionally "
+                "redacts packed `<CuratorInput>` JSON). If the file would "
                 f"exceed {budget} lines, entire ticker sections with the "
                 "lowest heuristic keyword scores for this agent are dropped first. "
                 "Re-run with `--full-transcripts` for uncapped verbatim exports.",
@@ -532,41 +581,45 @@ def main() -> None:
     con = sqlite3.connect(db_path)
     con.row_factory = sqlite3.Row
 
-    surveyor = con.execute(
-        """
-        SELECT ac.id AS conversation_id, ae.id AS execution_id, ac.system_prompt
-        FROM agent_conversations ac
-        JOIN agent_executions ae ON ae.id = ac.agent_execution_id
-        WHERE ae.workflow_run_id = ? AND ae.agent_name = 'surveyor'
-        """,
-        (workflow_id,),
-    ).fetchone()
-    if surveyor:
-        body = _format_conversation(
-            con, surveyor["conversation_id"], surveyor["system_prompt"]
-        )
-        surveyor_sections: list[ConversationSection] = [
-            (
-                "__workflow__",
-                surveyor["conversation_id"],
-                surveyor["execution_id"],
-                body,
+    for agent in WORKFLOW_SCOPED_AGENTS:
+        scoped = con.execute(
+            """
+            SELECT ac.id AS conversation_id, ae.id AS execution_id, ac.system_prompt
+            FROM agent_conversations ac
+            JOIN agent_executions ae ON ae.id = ac.agent_execution_id
+            WHERE ae.workflow_run_id = ? AND ae.agent_name = ?
+            """,
+            (workflow_id, agent.lower()),
+        ).fetchone()
+        if scoped:
+            body = _format_conversation(
+                con, scoped["conversation_id"], scoped["system_prompt"]
             )
-        ]
-        n_conv, n_lines = _write_file(
-            agg_dir / "SURVEYOR.md",
-            agent="SURVEYOR",
-            workflow_id=workflow_id,
-            sqlite_path=db_path,
-            sections=surveyor_sections,
-            full_transcripts=full,
-            max_lines=max_lines,
-        )
-        print(
-            f"Wrote {agg_dir / 'SURVEYOR.md'} ({n_conv} conversations, {n_lines} lines)"
-        )
-    else:
-        print("No SURVEYOR conversation for this workflow_run_id; skipped SURVEYOR.md")
+            scoped_sections: list[ConversationSection] = [
+                (
+                    "__workflow__",
+                    scoped["conversation_id"],
+                    scoped["execution_id"],
+                    body,
+                )
+            ]
+            n_conv, n_lines = _write_file(
+                agg_dir / f"{agent}.md",
+                agent=agent,
+                workflow_id=workflow_id,
+                sqlite_path=db_path,
+                sections=scoped_sections,
+                full_transcripts=full,
+                max_lines=max_lines,
+            )
+            print(
+                f"Wrote {agg_dir / f'{agent}.md'} "
+                f"({n_conv} conversations, {n_lines} lines)"
+            )
+        else:
+            print(
+                f"No {agent} conversation for this workflow_run_id; skipped {agent}.md"
+            )
 
     for agent in PER_TICKER_AGENTS:
         rows = con.execute(
@@ -579,7 +632,7 @@ def main() -> None:
             WHERE r.workflow_run_id = ?
             ORDER BY r.ticker
             """,
-            (agent, workflow_id),
+            (agent.lower(), workflow_id),
         ).fetchall()
         per_ticker_sections: list[ConversationSection] = []
         for r in rows:

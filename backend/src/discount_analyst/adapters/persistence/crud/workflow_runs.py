@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Sequence
+from datetime import date
+from decimal import Decimal
+from typing import Any, NamedTuple
 
 from sqlalchemy import case, desc, func
 from sqlmodel import Session, col, select
@@ -39,6 +42,10 @@ from discount_analyst.adapters.persistence.models import (
     WorkflowRunPortfolioTicker,
     WorkflowRunStatusDb,
 )
+from discount_analyst.domain.allocations.snapshot import (
+    SterlingPortfolioLedger,
+    SterlingPosition,
+)
 
 TERMINAL_WORKFLOW_STATUSES = frozenset(
     {
@@ -47,6 +54,12 @@ TERMINAL_WORKFLOW_STATUSES = frozenset(
         WorkflowRunStatusDb.CANCELLED.value,
     }
 )
+
+
+class LatestPortfolioLedger(NamedTuple):
+    positions: tuple[SterlingPosition, ...]
+    cash_gbp: Decimal
+    suggestion_tickers: tuple[str, ...]
 
 
 def get_workflow_run_inputs(
@@ -142,7 +155,9 @@ def insert_workflow_run(
     session: Session,
     *,
     workflow_run_id: str,
-    portfolio_tickers: list[str],
+    holdings: Sequence[SterlingPosition],
+    suggestion_tickers: Sequence[str],
+    cash_gbp: Decimal,
     is_mock: bool,
     surveyor_execution_id: str | None = None,
     curator_execution_id: str | None = None,
@@ -157,17 +172,35 @@ def insert_workflow_run(
             status=WorkflowRunStatusDb.RUNNING,
             is_mock=is_mock,
             error_message=None,
+            cash_gbp=cash_gbp,
         )
     )
-    for idx, ticker in enumerate(portfolio_tickers):
+    holding_keys = {position.ticker.casefold() for position in holdings}
+    sort_order = 0
+    for position in holdings:
         session.add(
             WorkflowRunPortfolioTicker(
                 id=new_id(),
                 workflow_run_id=workflow_run_id,
-                sort_order=idx,
-                ticker=ticker,
+                sort_order=sort_order,
+                ticker=position.ticker,
+                value_gbp=position.value_gbp,
             )
         )
+        sort_order += 1
+    for ticker in suggestion_tickers:
+        if ticker.casefold() in holding_keys:
+            continue
+        session.add(
+            WorkflowRunPortfolioTicker(
+                id=new_id(),
+                workflow_run_id=workflow_run_id,
+                sort_order=sort_order,
+                ticker=ticker,
+                value_gbp=None,
+            )
+        )
+        sort_order += 1
     session.add(
         AgentExecution(
             id=surveyor_id,
@@ -388,12 +421,16 @@ def workflow_run_exists(session: Session, workflow_run_id: str) -> bool:
     return session.get(WorkflowRun, workflow_run_id) is not None
 
 
-def get_latest_portfolio_tickers(session: Session) -> list[str] | None:
+def get_latest_portfolio_ledger(session: Session) -> LatestPortfolioLedger:
     workflow = session.scalars(
         select(WorkflowRun).order_by(desc(col(WorkflowRun.started_at)))
     ).first()
     if workflow is None:
-        return None
+        return LatestPortfolioLedger(
+            positions=(),
+            cash_gbp=Decimal("0"),
+            suggestion_tickers=(),
+        )
     rows = list(
         session.scalars(
             select(WorkflowRunPortfolioTicker)
@@ -401,7 +438,92 @@ def get_latest_portfolio_tickers(session: Session) -> list[str] | None:
             .order_by(col(WorkflowRunPortfolioTicker.sort_order))
         )
     )
-    return [r.ticker for r in rows]
+    if workflow.cash_gbp is None:
+        return LatestPortfolioLedger(
+            positions=(),
+            cash_gbp=Decimal("0"),
+            suggestion_tickers=tuple(row.ticker for row in rows),
+        )
+    holdings = tuple(
+        SterlingPosition(ticker=row.ticker, value_gbp=row.value_gbp)
+        for row in rows
+        if row.value_gbp is not None
+    )
+    suggestions = tuple(row.ticker for row in rows if row.value_gbp is None)
+    return LatestPortfolioLedger(
+        positions=holdings,
+        cash_gbp=workflow.cash_gbp,
+        suggestion_tickers=suggestions,
+    )
+
+
+def load_sterling_ledger_for_workflow(
+    session: Session, workflow_run_id: str
+) -> tuple[SterlingPortfolioLedger, date]:
+    workflow = session.get(WorkflowRun, workflow_run_id)
+    if workflow is None:
+        raise RuntimeError(f"Workflow run {workflow_run_id} was not found.")
+    if workflow.cash_gbp is None:
+        raise RuntimeError("This workflow was launched without a sterling ledger.")
+    rows = list(
+        session.scalars(
+            select(WorkflowRunPortfolioTicker)
+            .where(col(WorkflowRunPortfolioTicker.workflow_run_id) == workflow_run_id)
+            .order_by(col(WorkflowRunPortfolioTicker.sort_order))
+        )
+    )
+    holdings = tuple(
+        SterlingPosition(ticker=row.ticker, value_gbp=row.value_gbp)
+        for row in rows
+        if row.value_gbp is not None
+    )
+    return (
+        SterlingPortfolioLedger(positions=holdings, cash_gbp=workflow.cash_gbp),
+        workflow.started_at.date(),
+    )
+
+
+def load_sterling_ledger_for_curator(
+    session: Session, workflow_run_id: str
+) -> tuple[SterlingPortfolioLedger, date]:
+    ledger, as_of = load_sterling_ledger_for_workflow(session, workflow_run_id)
+    return _holdings_with_resolved_run_tickers(session, workflow_run_id, ledger), as_of
+
+
+def _holdings_with_resolved_run_tickers(
+    session: Session,
+    workflow_run_id: str,
+    ledger: SterlingPortfolioLedger,
+) -> SterlingPortfolioLedger:
+    runs = list(
+        session.scalars(
+            select(Run).where(
+                col(Run.workflow_run_id) == workflow_run_id,
+                col(Run.is_existing_position).is_(True),
+            )
+        )
+    )
+    resolved_by_launch: dict[str, str] = {}
+    for run in runs:
+        launch_ticker = run.ticker
+        if run.candidate_snapshot_id is not None:
+            snapshot = session.get(CandidateSnapshot, run.candidate_snapshot_id)
+            if snapshot is not None:
+                launch_ticker = snapshot.ticker
+        resolved_by_launch[launch_ticker.casefold()] = run.ticker
+        resolved_by_launch[run.ticker.casefold()] = run.ticker
+    return SterlingPortfolioLedger(
+        positions=tuple(
+            SterlingPosition(
+                ticker=resolved_by_launch.get(
+                    position.ticker.casefold(), position.ticker
+                ),
+                value_gbp=position.value_gbp,
+            )
+            for position in ledger.positions
+        ),
+        cash_gbp=ledger.cash_gbp,
+    )
 
 
 def set_workflow_error(session: Session, workflow_run_id: str, message: str) -> None:

@@ -122,9 +122,11 @@ export interface ConversationResponse {
 }
 
 export interface CreateWorkflowRunRequest {
+  /** @minimum 0 */
+  cash_gbp: number;
   is_mock?: boolean;
-  /** @minItems 0 */
-  portfolio_tickers: string[];
+  positions?: PortfolioPositionInput[];
+  suggestion_tickers?: string[];
 }
 
 export interface CreateWorkflowRunResponse {
@@ -208,6 +210,7 @@ export const ModelName = {
   'gpt-52': 'gpt-5.2',
   'gpt-54': 'gpt-5.4',
   'gpt-56-luna': 'gpt-5.6-luna',
+  'gpt-56-terra': 'gpt-5.6-terra',
   'gemini-3-pro-preview': 'gemini-3-pro-preview',
   'gemini-31-pro-preview': 'gemini-3.1-pro-preview',
   'deepseek-v4-flash': 'deepseek-v4-flash',
@@ -222,8 +225,18 @@ export interface PortfolioAllocation {
   shared_risk_clusters: SharedRiskCluster[];
 }
 
+export interface PortfolioPositionInput {
+  /** @minLength 1 */
+  ticker: string;
+  /** @minimum 0 */
+  value_gbp: number;
+}
+
 export interface PortfolioResponse {
-  portfolio_tickers: string[];
+  /** @minimum 0 */
+  cash_gbp: number;
+  positions: PortfolioPositionInput[];
+  suggestion_tickers: string[];
 }
 
 export interface ProfilerRunCreated {

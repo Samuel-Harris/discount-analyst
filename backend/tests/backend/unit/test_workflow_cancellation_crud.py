@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
+
+
 from sqlmodel import Session, col, select
 
+from backend.tests.factories.sterling import sterling_holdings
 from discount_analyst.adapters.persistence.crud.run_executions import (
     get_agent_execution_id_by_run_and_agent,
     insert_ticker_run_with_agents,
@@ -28,7 +32,9 @@ def _insert_workflow_fixture(session: Session) -> tuple[str, str, str]:
     insert_workflow_run(
         session,
         workflow_run_id=workflow_run_id,
-        portfolio_tickers=["ABC.L"],
+        holdings=sterling_holdings("ABC.L"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
         surveyor_execution_id=surveyor_execution_id,
     )

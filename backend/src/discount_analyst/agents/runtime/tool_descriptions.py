@@ -228,19 +228,21 @@ Returns:
     A short check based on SEC filings.""",
     ),
     AgentName.CURATOR: SearchToolDescriptions(
-        web_search="""Do not use. Curator is closed-book portfolio construction.
+        web_search="""Search the general web for live checks that affect portfolio sizing.
 
-The packed CuratorInput is the only evidence. Do not search the web or
-revisit lane ratings.
+Use this to confirm prices, liquidity, news, or corporate actions that could
+change a target weight. The packed CuratorInput remains the allocation
+contract: do not re-rate names or start a new research programme.
 
 Args:
-    question: Unused. Do not call this tool.
+    question: Include ticker or company and the live fact to check.
 
 Returns:
-    Unused.""",
-        sec_filings_search="""Do not use. Curator is closed-book portfolio construction.
+    A short check based on web sources.""",
+        sec_filings_search="""Do not use. Curator does not register filing tools.
 
-Do not search filings or refresh financials. Size from the packed input only.
+Do not search filings or refresh financials. Size from the packed input and
+live web/terminal checks only.
 
 Args:
     question: Unused. Do not call this tool.

@@ -100,7 +100,9 @@ def parse_args() -> SentinelArgs:
             "or '<strategist_run_output.json>:<TICKER>' to require a ticker match."
         ),
     )
-    add_agent_cli_model_argument(parser)
+    add_agent_cli_model_argument(
+        parser, default=app_settings.agent_default_models.sentinel
+    )
     raw = parser.parse_args()
     selectors = [
         parse_report_selector(
@@ -250,7 +252,6 @@ async def run_agent(
         usage_limits=ai_models_config.model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
         terminal=terminal_run_options(app_settings, enabled=False),
-        run_settings=app_settings,
     )
     output = finalise_sentinel_evaluation(outcome.output, thesis)
     usage = outcome.usage

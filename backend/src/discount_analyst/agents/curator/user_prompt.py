@@ -33,5 +33,5 @@ Construct the target portfolio from this packed allocation evidence.
 6. Reduce weaker correlated names first. Unused capital goes to stronger independent ideas or cash — never to a weak diversifier.
 7. {final_result_user_step(output_type_name=CuratorProposal.__name__)}
 
-Do **not** call tools. Do **not** drop tickers. Do **not** clip or normalise leftover weight.
+Do **not** drop tickers. Do **not** clip or normalise leftover weight.
 """.strip()

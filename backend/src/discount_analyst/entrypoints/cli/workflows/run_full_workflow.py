@@ -64,7 +64,6 @@ from discount_analyst.agents.runtime.terminal_run import (
     terminal_run_options,
 )
 from discount_analyst.entrypoints.cli.shared.cli import (
-    add_agent_cli_model_argument,
     add_agent_cli_web_search_arguments,
     add_agent_terminal_argument,
     terminal_run_options_for_cli,
@@ -151,7 +150,6 @@ class SentinelAgentRunResult:
 
 
 class WorkflowArgs(BaseModel):
-    model: ModelName
     use_perplexity: bool
     use_mcp_financial_data: bool
     use_terminal: bool
@@ -172,7 +170,6 @@ def parse_args() -> WorkflowArgs:
             "writes Verdict rows, a verdicts JSON artefact, and a PortfolioAllocation artefact."
         )
     )
-    add_agent_cli_model_argument(parser)
     add_agent_cli_web_search_arguments(parser)
     parser.add_argument(
         "--risk-free-rate",
@@ -232,7 +229,6 @@ def parse_args() -> WorkflowArgs:
         else None
     )
     return WorkflowArgs(
-        model=raw.model,
         use_perplexity=raw.use_perplexity,
         use_mcp_financial_data=not raw.no_mcp,
         use_terminal=not raw.no_terminal,
@@ -470,7 +466,6 @@ async def run_sentinel_once(
         usage_limits=ai_models_config.model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
         terminal=terminal_run_options(app_settings, enabled=False),
-        run_settings=app_settings,
     )
     output = finalise_sentinel_evaluation(outcome.output, thesis)
     usage = outcome.usage
@@ -594,6 +589,7 @@ def save_sentinel_output(
 
 async def main() -> None:
     args = parse_args()
+    defaults = app_settings.agent_default_models
     snapshot = load_cli_portfolio_snapshot(args.snapshot)
     terminal = terminal_run_options_for_cli(
         no_terminal=not args.use_terminal
@@ -611,7 +607,7 @@ async def main() -> None:
         for req_index, raw_ticker in enumerate(args.profiler_tickers):
             try:
                 profiler_run, profiler_path = await run_profiler_once(
-                    model_name=args.model,
+                    model_name=defaults.profiler,
                     ticker=raw_ticker,
                     use_perplexity=args.use_perplexity,
                     use_mcp_financial_data=args.use_mcp_financial_data,
@@ -643,7 +639,7 @@ async def main() -> None:
         entry_mode = "Profiler"
     else:
         surveyor_run_output, surveyor_path = await run_surveyor_once(
-            model_name=args.model,
+            model_name=defaults.surveyor,
             use_perplexity=args.use_perplexity,
             use_mcp_financial_data=args.use_mcp_financial_data,
             terminal=terminal,
@@ -686,7 +682,7 @@ async def main() -> None:
         entry_path = entry_report_paths[index]
         try:
             run_result = await run_researcher_once(
-                model_name=args.model,
+                model_name=defaults.researcher,
                 surveyor_report_path=entry_path,
                 candidate_index=index,
                 candidate=candidate,
@@ -711,7 +707,7 @@ async def main() -> None:
 
         display_researcher_output(run_result.output, candidate=candidate)
         researcher_out_path = save_researcher_output(
-            model_name=args.model,
+            model_name=defaults.researcher,
             surveyor_report_path=entry_path,
             candidate_index=index,
             candidate=candidate,
@@ -723,7 +719,7 @@ async def main() -> None:
 
         try:
             strat_result = await run_strategist_once(
-                model_name=args.model,
+                model_name=defaults.strategist,
                 surveyor_candidate=candidate,
                 deep_research=run_result.output,
                 use_perplexity=args.use_perplexity,
@@ -747,7 +743,7 @@ async def main() -> None:
 
         display_strategist_output(strat_result.output)
         strat_path = save_strategist_output(
-            model_name=args.model,
+            model_name=defaults.strategist,
             source_surveyor_report=entry_path,
             source_candidate_index=index,
             source_researcher_report=researcher_out_path,
@@ -760,7 +756,7 @@ async def main() -> None:
 
         try:
             sent_result = await run_sentinel_once(
-                model_name=args.model,
+                model_name=defaults.sentinel,
                 surveyor_candidate=candidate,
                 deep_research=run_result.output,
                 thesis=strat_result.output,
@@ -783,7 +779,7 @@ async def main() -> None:
 
         display_sentinel_output(sent_result.output)
         sentinel_path = save_sentinel_output(
-            model_name=args.model,
+            model_name=defaults.sentinel,
             source_surveyor_report=entry_path,
             source_candidate_index=index,
             source_researcher_report=researcher_out_path,
@@ -833,7 +829,7 @@ async def main() -> None:
         try:
             verdict, appraiser_output = await run_cli_appraiser_lane(
                 console=console,
-                model=args.model,
+                model=defaults.appraiser,
                 risk_free_rate_pct=args.risk_free_rate_pct,
                 use_perplexity=args.use_perplexity,
                 use_mcp_financial_data=args.use_mcp_financial_data,
@@ -880,7 +876,7 @@ async def main() -> None:
             continue
 
     if verdicts:
-        verdicts_path = write_verdicts_json(verdicts=verdicts, model_name=args.model)
+        verdicts_path = write_verdicts_json(verdicts=verdicts)
         console.print(f"\nSaved verdicts JSON: [dim]{verdicts_path}[/dim]\n")
         display_verdicts_table(verdicts)
 
@@ -898,9 +894,10 @@ async def main() -> None:
         try:
             await run_cli_curator(
                 console=console,
-                model_name=args.model,
+                model_name=defaults.curator,
                 snapshot=snapshot,
                 lane_bundles=tuple(lane_bundles),
+                terminal=terminal,
             )
         except (AllocationAssemblyError, AllocationInvariantError) as exc:
             console.print(f"[red]Curator failed: {exc}[/red]")

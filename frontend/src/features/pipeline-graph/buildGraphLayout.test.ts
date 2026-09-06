@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { PROFILER_ENTRY_AGENT_NAMES } from "./agentLaneOrder";
 import { buildGraphLayout } from "./buildGraphLayout";
-import type { WorkflowRunDetailResponse } from "@/api";
+import type { AgentExecutionSummary, WorkflowRunDetailResponse } from "@/api";
 
 function baseDetail(
   overrides: Partial<WorkflowRunDetailResponse> = {},
@@ -26,6 +26,19 @@ function baseDetail(
     curator_execution: null,
     runs: [],
     ...overrides,
+  };
+}
+
+function curatorExecution(
+  status: AgentExecutionSummary["status"] = "completed",
+): AgentExecutionSummary {
+  return {
+    id: "wfe-curator",
+    agent_name: "curator",
+    status,
+    started_at: "2026-04-01T12:01:00Z",
+    completed_at: status === "completed" ? "2026-04-01T12:01:10Z" : null,
+    model_name: "gpt-5.1",
   };
 }
 
@@ -346,5 +359,132 @@ describe("buildGraphLayout", () => {
     expect(yForAaa).toBeDefined();
     expect(yForZzz).toBeDefined();
     expect(yForAaa).not.toBe(yForZzz);
+  });
+
+  it("adds a workflow-level Curator node to the right of the last lane agent", () => {
+    const detail = baseDetail({
+      curator_execution: curatorExecution(),
+      surveyor_execution: null,
+      runs: [
+        {
+          id: "run-p",
+          ticker: "ORD.L",
+          company_name: "ORD",
+          entry_path: "profiler",
+          status: "completed",
+          final_rating: "HOLD",
+          decision_type: "rating_table",
+          agent_executions: [
+            {
+              id: "a-prof",
+              agent_name: "profiler",
+              status: "completed",
+              started_at: null,
+              completed_at: null,
+            },
+            {
+              id: "a-res",
+              agent_name: "researcher",
+              status: "completed",
+              started_at: null,
+              completed_at: null,
+            },
+          ],
+        },
+      ],
+    });
+    const { nodes, edges, curatorNodeId } = buildGraphLayout(detail);
+    const curator = nodes.find((n) => n.id === curatorNodeId);
+    expect(curator?.kind).toBe("workflow_curator");
+    expect(curator?.label).toBe("CURATOR");
+    expect(curator?.status).toBe("completed");
+    const researcher = nodes.find(
+      (n) => n.kind === "lane_agent" && n.agentName === "researcher",
+    );
+    expect(curator?.position.x).toBeGreaterThan(researcher?.position.x ?? 0);
+    expect(curator?.position.y).toBe(researcher?.position.y);
+    expect(
+      edges.some(
+        (e) =>
+          e.source === researcher?.id &&
+          e.target === curatorNodeId &&
+          e.sourceHandle === "r" &&
+          e.targetHandle === "l",
+      ),
+    ).toBe(true);
+  });
+
+  it("fans every ticker lane into Curator when several lanes exist", () => {
+    const detail = baseDetail({
+      curator_execution: curatorExecution("skipped"),
+      runs: [
+        {
+          id: "run-a",
+          ticker: "AAA.L",
+          company_name: "A",
+          entry_path: "surveyor",
+          status: "completed",
+          final_rating: null,
+          decision_type: null,
+          agent_executions: [
+            {
+              id: "a1",
+              agent_name: "researcher",
+              status: "completed",
+              started_at: null,
+              completed_at: null,
+            },
+            {
+              id: "a2",
+              agent_name: "appraiser",
+              status: "skipped",
+              started_at: null,
+              completed_at: null,
+            },
+          ],
+        },
+        {
+          id: "run-b",
+          ticker: "BBB.L",
+          company_name: "B",
+          entry_path: "surveyor",
+          status: "completed",
+          final_rating: null,
+          decision_type: null,
+          agent_executions: [
+            {
+              id: "b1",
+              agent_name: "researcher",
+              status: "completed",
+              started_at: null,
+              completed_at: null,
+            },
+            {
+              id: "b2",
+              agent_name: "appraiser",
+              status: "skipped",
+              started_at: null,
+              completed_at: null,
+            },
+          ],
+        },
+      ],
+    });
+    const { nodes, edges, curatorNodeId } = buildGraphLayout(detail);
+    const curator = nodes.find((n) => n.id === curatorNodeId);
+    expect(curator?.status).toBe("skipped");
+    /* laneY(0)=112, laneY(1)=224, NODE_H=52 */
+    expect(curator?.position.y).toBe(142);
+    const fanIn = edges.filter((e) => e.target === curatorNodeId);
+    expect(fanIn).toHaveLength(2);
+    expect(fanIn.map((e) => e.source).sort()).toEqual([
+      "run-run-a--appraiser",
+      "run-run-b--appraiser",
+    ]);
+  });
+
+  it("omits Curator when curator_execution is absent", () => {
+    const { nodes } = buildGraphLayout(baseDetail());
+    expect(nodes.some((n) => n.kind === "workflow_curator")).toBe(false);
   });
 });

@@ -10,7 +10,7 @@ from discount_analyst.agents.runtime.terminal_run import TerminalRunOptions
 from discount_analyst.agents.strategist.schema import StrategistDecision
 from discount_analyst.config.ai_models_config import AIModelsConfig
 
-STRATEGIST_AGENT_SPEC = AgentSpec(  # pyright: ignore[reportUnknownVariableType]
+STRATEGIST_AGENT_SPEC = AgentSpec(
     name=AgentName.STRATEGIST,
     output_type=StrategistDecision,
     system_prompt=SYSTEM_PROMPT,
@@ -42,8 +42,8 @@ def create_strategist_agent(
     Returns:
         A configured Agent instance for producing `StrategistDecision` output.
     """
-    return create_agent(  # pyright: ignore[reportUnknownVariableType]
-        spec=STRATEGIST_AGENT_SPEC,  # pyright: ignore[reportUnknownArgumentType]
+    return create_agent(
+        spec=STRATEGIST_AGENT_SPEC,
         ai_models_config=ai_models_config,
         use_perplexity=use_perplexity,
         use_mcp_financial_data=use_mcp_financial_data,

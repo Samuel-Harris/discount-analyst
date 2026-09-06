@@ -57,8 +57,8 @@ export function WorkflowRunDetailHeader({
         ) : null}
         <div className="lane-hint">
           {detail.runs.length} ticker lane(s). Completed nodes with stored
-          transcripts open the conversation panel. Open Recommendations for a
-          sortable verdict table (suited to large runs).
+          transcripts open the conversation panel. Open Recommendations for the
+          Curator book and a sortable lane-ratings table.
         </div>
       </div>
       <div className="detail-header-actions">

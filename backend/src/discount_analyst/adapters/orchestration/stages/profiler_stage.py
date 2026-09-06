@@ -79,7 +79,9 @@ class ProfilerStage:
         profiler_exec_id = await host.get_exec_id(run_id, _PROFILER_AGENT)
         if profiler_exec_id is None:
             raise RuntimeError(f"Missing profiler execution for run {run_id}")
-        llm = pipeline_llm_config(settings, is_mock=is_mock)
+        llm = pipeline_llm_config(
+            settings, agent_name=AgentNameDb.PROFILER, is_mock=is_mock
+        )
         await host.mark_exec(
             execution_id=profiler_exec_id,
             status="running",

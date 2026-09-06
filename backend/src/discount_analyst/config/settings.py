@@ -1,13 +1,23 @@
 from pathlib import Path
 from typing import Literal
 
-from pydantic import AliasChoices, BaseModel, Field, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from discount_analyst.domain.model_selection.model_name import ModelName
 
 DashboardLogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-DEFAULT_MODEL = ModelName.GPT_5_6_LUNA
+
+
+class AgentDefaultModels(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    surveyor: ModelName = ModelName.GPT_5_6_LUNA
+    profiler: ModelName = ModelName.GPT_5_6_LUNA
+    researcher: ModelName = ModelName.GPT_5_6_LUNA
+    strategist: ModelName = ModelName.GPT_5_6_LUNA
+    sentinel: ModelName = ModelName.GPT_5_6_LUNA
+    appraiser: ModelName = ModelName.GPT_5_6_LUNA
+    curator: ModelName = ModelName.GPT_5_6_TERRA
 
 
 class Perplexity(BaseModel):
@@ -114,10 +124,7 @@ class Settings(BaseSettings):
             "listing and Companies House tools do not need it."
         ),
     )
-    default_model: ModelName = Field(
-        default=DEFAULT_MODEL,
-        validation_alias=AliasChoices("DASHBOARD_DEFAULT_MODEL"),
-    )
+    agent_default_models: AgentDefaultModels = Field(default_factory=AgentDefaultModels)
     risk_free_rate_pct: float = Field(
         default=3.7,
         ge=1.0,

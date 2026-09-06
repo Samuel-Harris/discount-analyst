@@ -158,9 +158,28 @@ def _is_connection_error(exc: BaseException) -> bool:
     return False
 
 
+def _is_idle_read_transport_error(exc: BaseException) -> bool:
+    """True for stalled or dropped HTTP bodies, including pydantic-ai wraps.
+
+    ``httpx.ReadTimeout`` is a ``TimeoutException``, not Python ``TimeoutError``.
+    Mid-stream ``ReadError`` is a network drop after headers, not a connect failure.
+    """
+    if isinstance(
+        exc,
+        (httpx.TimeoutException, httpx.ReadTimeout, httpx.ReadError, TimeoutError),
+    ):
+        return True
+    cause = exc.__cause__
+    return cause is not None and _is_idle_read_transport_error(cause)
+
+
 def _is_retryable_single_error(exc: BaseException) -> bool:
     """Check if a single exception (not a group) is retryable."""
-    if _is_connection_error(exc) or _is_rate_limit_error(exc):
+    if (
+        _is_connection_error(exc)
+        or _is_rate_limit_error(exc)
+        or _is_idle_read_transport_error(exc)
+    ):
         return True
     return isinstance(
         exc,
@@ -168,7 +187,6 @@ def _is_retryable_single_error(exc: BaseException) -> bool:
             InternalServerError,
             APITimeoutError,
             httpx.RemoteProtocolError,
-            TimeoutError,  # MCP and other transient timeouts
         ),
     )
 
@@ -220,9 +238,9 @@ def _can_retry_open_without_checkpoint(exc: BaseException) -> bool:
         group = cast(BaseExceptionGroup[BaseException], exc)
         return all(_can_retry_open_without_checkpoint(sub) for sub in group.exceptions)
     return (
-        type(exc) is TimeoutError
-        or _is_connection_error(exc)
+        _is_connection_error(exc)
         or _is_rate_limit_error(exc)
+        or _is_idle_read_transport_error(exc)
     )
 
 

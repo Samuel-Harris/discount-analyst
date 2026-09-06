@@ -311,6 +311,7 @@ class DashboardPipelineRunner:
                             run_id=run["id"],
                             ticker=run["ticker"],
                             is_mock=is_mock,
+                            is_existing_position=run["is_existing_position"],
                         )
                         continue
                     candidate = await self._load_candidate_for_run(run["id"])
@@ -381,7 +382,13 @@ class DashboardPipelineRunner:
         )
 
     async def _profiler_entry_pipeline(
-        self, *, workflow_run_id: str, run_id: str, ticker: str, is_mock: bool
+        self,
+        *,
+        workflow_run_id: str,
+        run_id: str,
+        ticker: str,
+        is_mock: bool,
+        is_existing_position: bool,
     ) -> None:
         with logfire.set_baggage(
             workflow_run_id=workflow_run_id, run_id=run_id, ticker=ticker
@@ -407,7 +414,7 @@ class DashboardPipelineRunner:
                     run_id=run_id,
                     candidate=candidate,
                     is_mock=is_mock,
-                    is_existing_position=True,
+                    is_existing_position=is_existing_position,
                 )
                 if lane_context is None:
                     return
@@ -417,7 +424,7 @@ class DashboardPipelineRunner:
                     run_id=run_id,
                     lane_context=lane_context,
                     is_mock=is_mock,
-                    is_existing_position=True,
+                    is_existing_position=is_existing_position,
                 )
                 AI_LOGFIRE.info(
                     "Profiler entry pipeline completed",

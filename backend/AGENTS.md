@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-07-11 | Updated: 2026-08-30 -->
+<!-- Generated: 2026-07-11 | Updated: 2026-09-03 -->
 
 # backend
 
@@ -86,6 +86,8 @@ uv run lint-imports
 uv run tach check-external
 
 # Terminal (Docker)
+make ensure-agent-terminal           # skip sandbox/orchestrator rebuild if :8001 is healthy
+make build-terminal-sandbox-force    # always rebuild the sandbox image
 make verify-terminal
 ```
 

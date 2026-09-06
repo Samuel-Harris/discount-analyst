@@ -5,9 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
-from discount_analyst.domain.model_selection.model_name import ModelName
-
 from discount_analyst.config.settings import (
+    AgentDefaultModels,
     DashboardLogLevel,
     EODHD,
     FMP,
@@ -47,10 +46,11 @@ def dashboard_settings_for_tests(
         regulatory_data_cache_dir=regulatory_data_cache_dir
         or Path("data/regulatory_data"),
         sec_user_agent=sec_user_agent,
-        default_model=ModelName.GPT_5_1,
+        agent_default_models=AgentDefaultModels(),
         risk_free_rate_pct=3.7,
         use_perplexity=False,
         use_mcp_financial_data=True,
         use_terminal=False,
         deploy_env=deploy_env,
+        _env_file=None,  # type: ignore[call-arg]
     )
