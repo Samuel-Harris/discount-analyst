@@ -27,9 +27,9 @@ Intended COMPLETED outcomes (`data_quality_rejection`, `sentinel_rejection`, rat
 
 ## When not to use this skill
 
-User asked to **review / analyse / audit agent quality, conversations, or Appraiser valuations** → [analyse-workflow-run](../analyse-workflow-run/SKILL.md).
+User asked to **review / analyse / audit agent quality, conversations, Appraiser valuations, or Curator allocations** → [analyse-workflow-run](../analyse-workflow-run/SKILL.md).
 
-After this diagnosis, you may **point** at that skill. Do not run its six-subagent HTML path unless the user asks.
+After this diagnosis, you may **point** at that skill. Do not run its seven-subagent HTML path unless the user asks.
 
 ## Artefacts
 
@@ -158,11 +158,11 @@ Taxonomy: [failure-kinds.md](references/failure-kinds.md).
 
 Allowed and encouraged when SQLite + Logfire do not explain an in-scope lane:
 
-- Conversation digest export (reuse analyse-workflow-run scripts; `--output-dir` = this numbered artefact folder). Point `--sqlite-path` at the artefact copy, not the live host DB — the exporter opens SQLite read-write. XOR-join Surveyor or you drop it.
+- Conversation digest export (reuse analyse-workflow-run scripts; `--output-dir` = this numbered artefact folder). Point `--sqlite-path` at the artefact copy, not the live host DB — the exporter opens SQLite read-write. XOR-join workflow-scoped Surveyor/Curator or you drop them.
 - `agent_conversation_message_parts`: `part_kind = 'tool_return'`, `tool_name` in (`web_fetch`, `terminal_exec`). Terminal bodies are text `exit_code: 0`, **not** JSON `"exit_code": 0`. `%timeout%` matches `timeout 600` in commands — prefer `exit_code: 124` or Logfire Timeout types.
 - Live FMP/EODHD **GET** probes when a vendor-plan or identity cause is suspected. Do not write vendor data into the dashboard DB.
 
-Do **not** spawn six qualitative subagents to answer a persist ValidationError.
+Do **not** spawn seven qualitative subagents to answer a persist ValidationError.
 
 ### 7. Answer
 
