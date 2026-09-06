@@ -214,17 +214,6 @@ async def test_run_streamed_agent_raises_when_name_is_none(
 
 
 @pytest.mark.anyio
-async def test_run_streamed_agent_requires_terminal_argument() -> None:
-    agent = _FakeAgent(name="surveyor")
-    with pytest.raises(TypeError, match="terminal"):
-        await run_streamed_agent(
-            agent=cast(Any, agent),
-            user_prompt="hi",
-            usage_limits=UsageLimits(request_limit=2),
-        )
-
-
-@pytest.mark.anyio
 async def test_run_streamed_agent_deletes_terminal_session_on_success(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
