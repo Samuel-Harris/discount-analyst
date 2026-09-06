@@ -4,7 +4,7 @@ description: >-
   Diagnose why a Discount Analyst dashboard workflow_run_id failed or was
   cancelled. Groups FAILED and CANCELLED ticker/agent errors from SQLite,
   Logfire, code, and optional conversations or vendor probes. Distinguishes
-  persist/tool/schema crashes from intended gate or Sentinel rejections.
+  persist/tool/schema crashes from intended data-quality completions.
   Use when the user runs /investigate-workflow-failures <uuid>, asks why a
   workflow failed, what broke a UUID, or to triage dashboard pipeline errors.
   Do not use for qualitative agent-conversation review (see analyse-workflow-run).
@@ -15,7 +15,7 @@ description: >-
 
 Diagnose **causes** of every currently **FAILED** and **CANCELLED** ticker lane (and a failed Surveyor) for one `workflow_runs.id`. Do **not** fix anything.
 
-Intended COMPLETED outcomes (`data_quality_rejection`, `sentinel_rejection`, rating-table SELL) are **not** errors. Mention their count so the batch is not mistaken for a total washout; do not investigate them as failures.
+Intended COMPLETED outcomes (`data_quality_rejection`, `appraised`) are **not** errors. Historical `sentinel_rejection` / `rating_table` rows are also not errors. Mention their count so the batch is not mistaken for a total washout; do not investigate them as failures.
 
 ## Hard rules
 

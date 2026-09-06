@@ -116,10 +116,11 @@ async def test_mock_workflow_completes_profiler_and_surveyor(
     assert len(surveyor_lanes) == 3
     assert len(detail["runs"]) == 4
     surveyor_decisions = {r["decision_type"] for r in surveyor_lanes}
-    assert "sentinel_rejection" in surveyor_decisions
-    assert "rating_table" in surveyor_decisions
+    assert surveyor_decisions == {"appraised"}
     profiler_run = profiler_lanes[0]
     assert profiler_run["status"] == "completed"
+    assert profiler_run["decision_type"] == "appraised"
+    assert profiler_run["final_rating"] is None
     for a in profiler_run["agent_executions"]:
         assert a["status"] in ("completed", "skipped")
         assert a["model_name"] is None
@@ -140,9 +141,8 @@ async def test_mock_workflow_completes_profiler_and_surveyor(
     equity = sum(position.target_weight_pct for position in allocation.positions)
     assert abs(equity + allocation.cash.target_weight_pct - 100.0) <= 0.05
     for position in allocation.positions:
-        if position.policy.kind == "forced_zero":
-            assert position.target_weight_pct == 0.0
-            assert position.acceptable_weight_high_pct == 0.0
+        assert position.target_weight_pct <= 15.0
+        assert position.acceptable_weight_high_pct <= 15.0
 
 
 @pytest.mark.asyncio

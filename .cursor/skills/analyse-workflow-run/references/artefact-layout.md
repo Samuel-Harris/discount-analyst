@@ -58,10 +58,10 @@ Script (stdlib only, no repo imports):
 - Section layout and HTML requirements: see step 7 and **Report format (HTML)** in [`../SKILL.md`](../SKILL.md).
 - **Required Report Sections:**
   1. **Data sources:** Copied SQLite (path, size, timestamp) and Logfire query parameters.
-  2. **Executive summary:** Tickers split holding vs prospect and Sentinel rejection vs rating table; sentinel pass count; Curator status / cash; Profiler coverage only vs Profiler-entry lanes. Lead with any user-specific concern.
+  2. **Executive summary:** Tickers split holding vs prospect and `appraised` vs DQR (historical ratings if present); Curator status / cash; Profiler coverage only vs Profiler-entry lanes. Lead with any user-specific concern.
   3. **Pipeline synthesis:** Causal chain, mechanical vs judgement, per-ticker decision table. See [`pipeline-synthesis.md`](pipeline-synthesis.md).
   4. **Terminal Tool Analytics:** `terminal_exec` counts, success, timeouts, toolkit vs ad-hoc (lane-scoped and workflow-scoped Surveyor/Curator).
   5. **Appraiser Valuation Audit:** EXPECTED, P10, P50, P90, price, methods/weights, data quality; recompute blends.
-  6. **Curator Allocation Audit:** Positions, cash, clusters; whether zeros/cash were packed-policy compelled.
+  6. **Curator Allocation Audit:** Positions, cash, clusters; DQR stamps vs discretionary zeros.
   7. **Qualitative conversation review:** One section per pipeline agent (`SURVEYOR` … `CURATOR`). Inputs to synthesis, not a substitute.
   8. **Appendix: telemetry:** Logfire tables; retry vs final SQLite.

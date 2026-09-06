@@ -79,7 +79,6 @@ function position(
     acceptable_weight_high_pct: 0,
     action: "avoid",
     rationale: `${overrides.ticker} rationale`,
-    policy: { kind: "investable" },
     ...overrides,
   };
 }
@@ -128,6 +127,38 @@ describe("WorkflowRecommendationsView", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     resetQueryInvalidationRegistryForTests();
+  });
+
+  it("shows an em dash and Appraised for valued lanes without a stored rating", () => {
+    render(
+      <WorkflowRecommendationsView
+        detail={detail({
+          curator_execution: null,
+          runs: [
+            lane({
+              final_rating: null,
+              decision_type: "appraised",
+            }),
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("Appraised")).toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.queryByText("Pending")).not.toBeInTheDocument();
+    expect(screen.queryByText("HOLD")).not.toBeInTheDocument();
+  });
+
+  it("keeps stored historical ratings on older decision types", () => {
+    render(
+      <WorkflowRecommendationsView
+        detail={detail({ curator_execution: null })}
+      />,
+    );
+    expect(screen.getByText("HOLD")).toBeInTheDocument();
+    expect(screen.getByText("SELL")).toBeInTheDocument();
+    expect(screen.getByText("Rating table")).toBeInTheDocument();
+    expect(screen.getByText("Sentinel")).toBeInTheDocument();
   });
 
   it("shows pending Curator copy and no book chrome", () => {

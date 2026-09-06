@@ -35,8 +35,7 @@ from discount_analyst.adapters.simulation import (
     mock_outputs,
 )
 from discount_analyst.application.decisions.builders import (
-    build_sentinel_rejection,
-    verdict_from_decision,
+    build_appraised_decision,
 )
 from discount_analyst.domain.allocations.snapshot import SterlingPosition
 from discount_analyst.domain.allocations.actions import RebalanceAction
@@ -44,11 +43,6 @@ from discount_analyst.domain.allocations.allocation import (
     AllocationPosition,
     CashAllocation,
     PortfolioAllocation as DomainPortfolioAllocation,
-)
-from discount_analyst.domain.allocations.policy import (
-    ForcedZeroPolicy,
-    ForcedZeroReason,
-    InvestablePolicy,
 )
 
 
@@ -86,7 +80,7 @@ def seed(session: Session) -> None:
         messages_json=mock_conversation_messages.surveyor_messages_json(),
     )
 
-    # Lane A: profiler entry with rating-table completion.
+    # Lane A: profiler entry with Appraiser completion.
     run_a_id = new_id()
     insert_ticker_run_with_agents(
         session,
@@ -140,22 +134,23 @@ def seed(session: Session) -> None:
     candidate_a = mock_outputs.mock_surveyor_candidate(
         ticker="SEED1.L", company_name="Seed One plc"
     )
-    rating_decision = mock_outputs.mock_rating_table_decision(
-        candidate_a, is_existing_position=True
+    appraised_a = build_appraised_decision(
+        candidate_a.to_lane_context(),
+        is_existing_position=True,
+        decision_date=date.today().isoformat(),
     )
-    rating_verdict = verdict_from_decision(rating_decision)
     update_ticker_run_completion(
         session,
         run_id=run_a_id,
         status="completed",
-        final_rating=rating_verdict.rating.value,
-        decision_type="rating_table",
-        recommended_action=rating_verdict.recommended_action,
-        final_verdict_json=rating_verdict.model_dump_json(),
+        final_rating=None,
+        decision_type="appraised",
+        recommended_action=None,
+        final_verdict_json=appraised_a.model_dump_json(),
         error_message=None,
     )
 
-    # Lane B: surveyor entry with sentinel rejection path.
+    # Lane B: surveyor entry with Appraiser completion.
     candidate_b = mock_outputs.mock_surveyor_candidate(
         ticker="SEED2.L", company_name="Seed Two plc"
     )
@@ -180,7 +175,7 @@ def seed(session: Session) -> None:
         ("researcher", "completed"),
         ("strategist", "completed"),
         ("sentinel", "completed"),
-        ("appraiser", "skipped"),
+        ("appraiser", "completed"),
     ):
         exec_id = get_agent_execution_id_by_run_and_agent(
             session, run_id=run_b_id, agent_name=agent_name
@@ -195,25 +190,19 @@ def seed(session: Session) -> None:
             completed_at=utc_now_iso(),
         )
 
-    thesis_b = mock_outputs.mock_thesis(candidate_b)
-    evaluation_b = mock_outputs.mock_sentinel_evaluation(
-        candidate=candidate_b, proceed=False
-    )
-    rejection_b = build_sentinel_rejection(
-        evaluation=evaluation_b,
-        thesis=thesis_b,
+    appraised_b = build_appraised_decision(
+        candidate_b.to_lane_context(),
         is_existing_position=False,
         decision_date=date.today().isoformat(),
     )
-    rejection_verdict = verdict_from_decision(rejection_b)
     update_ticker_run_completion(
         session,
         run_id=run_b_id,
         status="completed",
-        final_rating=rejection_verdict.rating.value,
-        decision_type="sentinel_rejection",
-        recommended_action=rejection_verdict.recommended_action,
-        final_verdict_json=rejection_verdict.model_dump_json(),
+        final_rating=None,
+        decision_type="appraised",
+        recommended_action=None,
+        final_verdict_json=appraised_b.model_dump_json(),
         error_message=None,
     )
 
@@ -232,7 +221,6 @@ def seed(session: Session) -> None:
                     source_run_id=run_a_id,
                     is_existing_position=True,
                     current_weight_pct=80.0,
-                    policy=InvestablePolicy(),
                     target_weight_pct=15.0,
                     acceptable_weight_low_pct=14.0,
                     acceptable_weight_high_pct=15.0,
@@ -245,12 +233,11 @@ def seed(session: Session) -> None:
                     source_run_id=run_b_id,
                     is_existing_position=False,
                     current_weight_pct=0.0,
-                    policy=ForcedZeroPolicy(reason=ForcedZeroReason.SELL),
                     target_weight_pct=0.0,
                     acceptable_weight_low_pct=0.0,
                     acceptable_weight_high_pct=0.0,
                     action=RebalanceAction.AVOID,
-                    rationale="Seed Sentinel rejection is forced zero.",
+                    rationale="Seed new name sized at zero.",
                 ),
             ),
             cash=CashAllocation(
@@ -261,7 +248,7 @@ def seed(session: Session) -> None:
                 rationale="Residual seed capital held in cash.",
             ),
             shared_risk_clusters=(),
-            portfolio_rationale="Seed book: reduce the existing name and avoid the rejection.",
+            portfolio_rationale="Seed book: reduce the existing name; cash holds residual.",
         ),
     )
     update_agent_execution(

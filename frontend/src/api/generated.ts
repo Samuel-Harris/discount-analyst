@@ -34,8 +34,6 @@ export const AgentNameSlug = {
   curator: 'curator',
 } as const;
 
-export type AllocationPositionPolicy = InvestablePolicy | RetainOrReducePolicy | ForcedZeroPolicy;
-
 export interface AllocationPosition {
   /**
    * @minimum 0
@@ -55,7 +53,6 @@ export interface AllocationPosition {
    */
   current_weight_pct: number;
   is_existing_position: boolean;
-  policy: AllocationPositionPolicy;
   rationale: string;
   source_run_id: string;
   /**
@@ -136,6 +133,8 @@ export interface CreateWorkflowRunResponse {
 }
 
 export interface DashboardStatusResponse {
+  companies_house_cache_present: boolean;
+  sec_user_agent_configured: boolean;
   yfinance: YfinanceFreshnessResponse;
 }
 
@@ -147,6 +146,7 @@ export const DecisionTypeApi = {
   rating_table: 'rating_table',
   sentinel_rejection: 'sentinel_rejection',
   data_quality_rejection: 'data_quality_rejection',
+  appraised: 'appraised',
 } as const;
 
 export type EntryPathApi = typeof EntryPathApi[keyof typeof EntryPathApi];
@@ -172,29 +172,9 @@ export const ExecutionStatusApi = {
   cancelled: 'cancelled',
 } as const;
 
-export interface ForcedZeroPolicy {
-  kind?: 'forced_zero';
-  reason: ForcedZeroReason;
-}
-
-export type ForcedZeroReason = typeof ForcedZeroReason[keyof typeof ForcedZeroReason];
-
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const ForcedZeroReason = {
-  new_hold: 'new_hold',
-  sell: 'sell',
-  strong_sell: 'strong_sell',
-} as const;
-
 export interface HTTPValidationError {
   detail?: ValidationError[];
 }
-
-export const InvestablePolicyValue = {
-  kind: 'investable',
-} as const;
-export type InvestablePolicy = typeof InvestablePolicyValue;
 
 export type ModelName = typeof ModelName[keyof typeof ModelName];
 
@@ -256,15 +236,6 @@ export const RebalanceAction = {
   exit: 'exit',
   avoid: 'avoid',
 } as const;
-
-export interface RetainOrReducePolicy {
-  /**
-   * @minimum 0
-   * @maximum 100
-   */
-  current_weight_pct: number;
-  kind?: 'retain_or_reduce';
-}
 
 export interface SharedRiskCluster {
   allocation_effect: string;

@@ -54,11 +54,6 @@ from discount_analyst.domain.allocations.allocation import (
     CashAllocation,
     PortfolioAllocation,
 )
-from discount_analyst.domain.allocations.policy import (
-    ForcedZeroPolicy,
-    ForcedZeroReason,
-    InvestablePolicy,
-)
 
 
 def _complete_workflow(session: Session, workflow_run_id: str) -> None:
@@ -220,7 +215,6 @@ def test_latest_falls_back_to_chosen_strategist_row(db_session: Session) -> None
                     source_run_id=run_id,
                     is_existing_position=False,
                     current_weight_pct=0.0,
-                    policy=InvestablePolicy(),
                     target_weight_pct=12.0,
                     acceptable_weight_low_pct=10.0,
                     acceptable_weight_high_pct=14.0,
@@ -314,7 +308,6 @@ def test_persist_chosen_snapshots_only_positive_targets(db_session: Session) -> 
                     source_run_id=tsm_run,
                     is_existing_position=False,
                     current_weight_pct=0.0,
-                    policy=InvestablePolicy(),
                     target_weight_pct=12.0,
                     acceptable_weight_low_pct=10.0,
                     acceptable_weight_high_pct=14.0,
@@ -327,7 +320,6 @@ def test_persist_chosen_snapshots_only_positive_targets(db_session: Session) -> 
                     source_run_id=amat_run,
                     is_existing_position=False,
                     current_weight_pct=0.0,
-                    policy=ForcedZeroPolicy(reason=ForcedZeroReason.SELL),
                     target_weight_pct=0.0,
                     acceptable_weight_low_pct=0.0,
                     acceptable_weight_high_pct=0.0,
@@ -663,7 +655,6 @@ def _single_chosen_allocation(run_id: str) -> PortfolioAllocation:
                 source_run_id=run_id,
                 is_existing_position=False,
                 current_weight_pct=0.0,
-                policy=InvestablePolicy(),
                 target_weight_pct=12.0,
                 acceptable_weight_low_pct=10.0,
                 acceptable_weight_high_pct=14.0,

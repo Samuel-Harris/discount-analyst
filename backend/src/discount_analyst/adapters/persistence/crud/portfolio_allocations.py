@@ -8,9 +8,7 @@ from discount_analyst.adapters.persistence.crud.db_utils import new_id
 from discount_analyst.adapters.persistence.models import (
     AgentExecution,
     AgentNameDb,
-    AllocationPolicyKindDb,
     ExecutionStatusDb,
-    ForcedZeroReasonDb,
     PortfolioAllocation,
     PortfolioAllocationPosition,
     PortfolioAllocationRiskCluster,
@@ -23,12 +21,6 @@ from discount_analyst.domain.allocations.allocation import (
     CashAllocation,
     PortfolioAllocation as DomainPortfolioAllocation,
     SharedRiskCluster,
-)
-from discount_analyst.domain.allocations.policy import (
-    ForcedZeroPolicy,
-    ForcedZeroReason,
-    InvestablePolicy,
-    RetainOrReducePolicy,
 )
 
 
@@ -54,7 +46,6 @@ def persist_portfolio_allocation(
     session.add(header)
     positions_by_ticker: dict[str, PortfolioAllocationPosition] = {}
     for sort_order, position in enumerate(allocation.positions):
-        policy_kind, forced_zero_reason = _policy_columns(position)
         row = PortfolioAllocationPosition(
             id=new_id(),
             allocation_id=header.id,
@@ -64,8 +55,8 @@ def persist_portfolio_allocation(
             company_name=position.company_name,
             is_existing_position=position.is_existing_position,
             current_weight_pct=position.current_weight_pct,
-            policy_kind=policy_kind,
-            forced_zero_reason=forced_zero_reason,
+            policy_kind=None,
+            forced_zero_reason=None,
             target_weight_pct=position.target_weight_pct,
             acceptable_weight_low_pct=position.acceptable_weight_low_pct,
             acceptable_weight_high_pct=position.acceptable_weight_high_pct,
@@ -161,19 +152,6 @@ def get_portfolio_allocation_for_workflow(
     return get_portfolio_allocation_for_execution(session, execution.id)
 
 
-def _policy_columns(
-    position: AllocationPosition,
-) -> tuple[AllocationPolicyKindDb, ForcedZeroReasonDb | None]:
-    if position.policy.kind == "investable":
-        return AllocationPolicyKindDb.INVESTABLE, None
-    if position.policy.kind == "retain_or_reduce":
-        return AllocationPolicyKindDb.RETAIN_OR_REDUCE, None
-    return (
-        AllocationPolicyKindDb.FORCED_ZERO,
-        ForcedZeroReasonDb(position.policy.reason.value),
-    )
-
-
 def _reconstruct(
     session: Session, header: PortfolioAllocation
 ) -> DomainPortfolioAllocation:
@@ -231,22 +209,12 @@ def _reconstruct(
 
 
 def _position_from_row(row: PortfolioAllocationPosition) -> AllocationPosition:
-    if row.policy_kind == AllocationPolicyKindDb.INVESTABLE:
-        policy = InvestablePolicy()
-    elif row.policy_kind == AllocationPolicyKindDb.RETAIN_OR_REDUCE:
-        policy = RetainOrReducePolicy(current_weight_pct=row.current_weight_pct)
-    else:
-        if row.forced_zero_reason is None:
-            msg = f"Forced-zero position {row.ticker!r} is missing a reason."
-            raise ValueError(msg)
-        policy = ForcedZeroPolicy(reason=ForcedZeroReason(row.forced_zero_reason.value))
     return AllocationPosition(
         ticker=row.ticker,
         company_name=row.company_name,
         source_run_id=row.source_run_id,
         is_existing_position=row.is_existing_position,
         current_weight_pct=row.current_weight_pct,
-        policy=policy,
         target_weight_pct=row.target_weight_pct,
         acceptable_weight_low_pct=row.acceptable_weight_low_pct,
         acceptable_weight_high_pct=row.acceptable_weight_high_pct,

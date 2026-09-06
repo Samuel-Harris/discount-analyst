@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 
 class ThesisVerdict(StrEnum):
-    """Canonical thesis verdict strings (single source for schema, prompts, and gate logic)."""
+    """Canonical thesis verdict strings (single source for schema, prompts, and labels)."""
 
     INTACT_PROCEED_TO_VALUATION = "Thesis intact — proceed to valuation"
     INTACT_WITH_RESERVATIONS = (
@@ -17,19 +17,11 @@ class ThesisVerdict(StrEnum):
 
 
 class OverallRedFlagVerdict(StrEnum):
-    """Canonical red-flag screen verdicts (schema, prompts, and valuation gate)."""
+    """Canonical red-flag screen verdicts (schema and prompts)."""
 
     CLEAR = "Clear"
     MONITOR = "Monitor"
     SERIOUS_CONCERN = "Serious concern"
-
-
-_THESIS_VERDICTS_PROCEED: frozenset[ThesisVerdict] = frozenset(
-    {
-        ThesisVerdict.INTACT_PROCEED_TO_VALUATION,
-        ThesisVerdict.INTACT_WITH_RESERVATIONS,
-    }
-)
 
 
 class QuestionAssessment(BaseModel):
@@ -66,7 +58,7 @@ class RedFlagScreen(BaseModel):
 
 
 class EvaluationReport(BaseModel):
-    """Sentinel output: thesis evaluation, red flags, and thesis verdict (gate is derived)."""
+    """Sentinel output: thesis evaluation, red flags, and thesis verdict (label only)."""
 
     ticker: str
     company_name: str
@@ -93,24 +85,7 @@ class EvaluationReport(BaseModel):
     caveats: list[str] = Field(
         description=(
             "Specific conditions or uncertainties Appraiser and Curator should "
-            "be aware of. Ratings and proceed/fail are derived in code, not by "
-            "another LLM."
+            "be aware of. thesis_verdict is derived in code and is an evidence "
+            "label, not a stop."
         )
     )
-
-
-def sentinel_proceeds_to_valuation(evaluation: EvaluationReport) -> bool:
-    """True if Sentinel output authorises the Appraiser stage.
-
-    Blocks valuation when the red-flag screen is ``Serious concern`` or when
-    ``thesis_verdict`` is outside the proceed set. DCF is optional inside
-    Appraiser; this gate does not require it.
-    """
-
-    if (
-        evaluation.red_flag_screen.overall_red_flag_verdict
-        == OverallRedFlagVerdict.SERIOUS_CONCERN
-    ):
-        return False
-
-    return evaluation.thesis_verdict in _THESIS_VERDICTS_PROCEED

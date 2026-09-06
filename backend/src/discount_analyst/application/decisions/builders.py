@@ -13,6 +13,7 @@ from discount_analyst.domain.decisions.rating_decision_table import (
     rating_from_table_inputs,
 )
 from discount_analyst.domain.decisions.schema import (
+    AppraisedDecision,
     DataQualityRejection,
     RatingTableDecision,
     RatingTableRationale,
@@ -115,9 +116,24 @@ def build_data_quality_rejection(
         company_name=lane_context.company_name,
         decision_date=decision_date,
         is_existing_position=is_existing_position,
-        rating=InvestmentRating.SELL,
         recommended_action=recommended_action,
         rejection_reason=gate_failure_reason,
+    )
+
+
+def build_appraised_decision(
+    lane_context: SurveyorLaneContext,
+    *,
+    is_existing_position: bool,
+    decision_date: str,
+) -> AppraisedDecision:
+    """Identity-only completion artefact after Appraiser valuation."""
+    return AppraisedDecision(
+        decision_kind="appraised",
+        ticker=lane_context.ticker,
+        company_name=lane_context.company_name,
+        decision_date=decision_date,
+        is_existing_position=is_existing_position,
     )
 
 
@@ -198,12 +214,13 @@ def verdict_from_decision(
     decision: RatingTableDecision | SentinelRejection | DataQualityRejection,
 ) -> Verdict:
     """Wrap a decision in ``Verdict`` with hoisted fields matching ``decision``."""
+    rating = getattr(decision, "rating", None)
     return Verdict(
         ticker=decision.ticker,
         company_name=decision.company_name,
         decision_date=decision.decision_date,
         is_existing_position=decision.is_existing_position,
-        rating=decision.rating,
+        rating=rating,
         recommended_action=decision.recommended_action,
         decision=decision,
     )

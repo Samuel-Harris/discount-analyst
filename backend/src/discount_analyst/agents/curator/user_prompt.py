@@ -9,9 +9,9 @@ def create_user_prompt(*, curator_input: CuratorInput) -> str:
     return f"""
 Construct the target portfolio from this packed allocation evidence.
 
-**Upstream contract:** You receive one `CuratorInput`: the current-position snapshot and one compact evidence row per completed lane. Each lane may carry a `live_thesis` (required except an optional prior on data-quality rejection). Lane ratings and `policy` are **final**. You do not re-rate names or edit theses.
+**Upstream contract:** You receive one `CuratorInput`: the current-position snapshot and one compact evidence row per valued lane. Each lane carries a `live_thesis` plus Researcher, Strategist, Sentinel, and Appraiser memos. You do not re-rate names or edit theses. Your weights are the recommendation.
 
-**Downstream contract:** Return `CuratorProposal` with one `positions` row per input lane, required `cash`, `shared_risk_clusters`, and `portfolio_rationale`. Application code stamps current weights, company names, policy, and `source_run_id` afterwards. It will not repair your numbers.
+**Downstream contract:** Return `CuratorProposal` with one `positions` row per input lane, required `cash`, `shared_risk_clusters`, and `portfolio_rationale`. Application code stamps current weights, company names, `source_run_id`, and derived actions afterwards. It will not repair your numbers.
 
 ---
 
@@ -25,10 +25,10 @@ Construct the target portfolio from this packed allocation evidence.
 
 ## Your task
 
-1. Apply each lane's `policy` before sizing.
-2. Form semantic shared-risk clusters from `live_thesis` mechanisms as well as sector labels, including supply-chain links that sector strings miss.
-3. Rank investable names on whether their live theses are independent ideas, then rating, conviction, margin of safety, downside, reservations, and data quality.
-4. Anchor on current weights; treat ranges as no-trade bands.
+1. Form semantic shared-risk clusters from `live_thesis` mechanisms as well as sector labels, including supply-chain links that sector strings miss.
+2. Rank names on whether their live theses are independent ideas, then conviction, margin of safety, downside, Sentinel labels, and data quality.
+3. Anchor on current weights; treat ranges as no-trade bands.
+4. You may size any weight on any packed lane, including adding to holdings and initiating new names, including 0%. Cash is valid.
 5. Keep any one company at or below 15% (targets and range uppers), grouping by casefolded company name.
 6. Reduce weaker correlated names first. Unused capital goes to stronger independent ideas or cash — never to a weak diversifier.
 7. {final_result_user_step(output_type_name=CuratorProposal.__name__)}

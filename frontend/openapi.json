@@ -102,28 +102,6 @@
             "title": "Is Existing Position",
             "type": "boolean"
           },
-          "policy": {
-            "discriminator": {
-              "mapping": {
-                "forced_zero": "#/components/schemas/ForcedZeroPolicy",
-                "investable": "#/components/schemas/InvestablePolicy",
-                "retain_or_reduce": "#/components/schemas/RetainOrReducePolicy"
-              },
-              "propertyName": "kind"
-            },
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/InvestablePolicy"
-              },
-              {
-                "$ref": "#/components/schemas/RetainOrReducePolicy"
-              },
-              {
-                "$ref": "#/components/schemas/ForcedZeroPolicy"
-              }
-            ],
-            "title": "Policy"
-          },
           "rationale": {
             "title": "Rationale",
             "type": "string"
@@ -149,7 +127,6 @@
           "source_run_id",
           "is_existing_position",
           "current_weight_pct",
-          "policy",
           "target_weight_pct",
           "acceptable_weight_low_pct",
           "acceptable_weight_high_pct",
@@ -353,12 +330,22 @@
       },
       "DashboardStatusResponse": {
         "properties": {
+          "companies_house_cache_present": {
+            "title": "Companies House Cache Present",
+            "type": "boolean"
+          },
+          "sec_user_agent_configured": {
+            "title": "Sec User Agent Configured",
+            "type": "boolean"
+          },
           "yfinance": {
             "$ref": "#/components/schemas/YfinanceFreshnessResponse"
           }
         },
         "required": [
-          "yfinance"
+          "yfinance",
+          "sec_user_agent_configured",
+          "companies_house_cache_present"
         ],
         "title": "DashboardStatusResponse",
         "type": "object"
@@ -367,7 +354,8 @@
         "enum": [
           "rating_table",
           "sentinel_rejection",
-          "data_quality_rejection"
+          "data_quality_rejection",
+          "appraised"
         ],
         "title": "DecisionTypeApi",
         "type": "string"
@@ -393,33 +381,6 @@
         "title": "ExecutionStatusApi",
         "type": "string"
       },
-      "ForcedZeroPolicy": {
-        "properties": {
-          "kind": {
-            "const": "forced_zero",
-            "default": "forced_zero",
-            "title": "Kind",
-            "type": "string"
-          },
-          "reason": {
-            "$ref": "#/components/schemas/ForcedZeroReason"
-          }
-        },
-        "required": [
-          "reason"
-        ],
-        "title": "ForcedZeroPolicy",
-        "type": "object"
-      },
-      "ForcedZeroReason": {
-        "enum": [
-          "new_hold",
-          "sell",
-          "strong_sell"
-        ],
-        "title": "ForcedZeroReason",
-        "type": "string"
-      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -431,18 +392,6 @@
           }
         },
         "title": "HTTPValidationError",
-        "type": "object"
-      },
-      "InvestablePolicy": {
-        "properties": {
-          "kind": {
-            "const": "investable",
-            "default": "investable",
-            "title": "Kind",
-            "type": "string"
-          }
-        },
-        "title": "InvestablePolicy",
         "type": "object"
       },
       "ModelName": {
@@ -585,27 +534,6 @@
         ],
         "title": "RebalanceAction",
         "type": "string"
-      },
-      "RetainOrReducePolicy": {
-        "properties": {
-          "current_weight_pct": {
-            "maximum": 100.0,
-            "minimum": 0.0,
-            "title": "Current Weight Pct",
-            "type": "number"
-          },
-          "kind": {
-            "const": "retain_or_reduce",
-            "default": "retain_or_reduce",
-            "title": "Kind",
-            "type": "string"
-          }
-        },
-        "required": [
-          "current_weight_pct"
-        ],
-        "title": "RetainOrReducePolicy",
-        "type": "object"
       },
       "SharedRiskCluster": {
         "properties": {

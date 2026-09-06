@@ -106,7 +106,7 @@ Pipeline agents can list official US/UK equities and read SEC / Companies House 
 uv run discount-analyst admin refresh-regulatory-data
 ```
 
-`--exchanges`, `--sec`, and `--companies-house` restrict the run; omitting them refreshes all three. SEC bulk refresh and live companyfacts gap-fill require `SEC__USER_AGENT` (application name and contact details). Listing and Companies House tools do not. NASDAQ Trader files refresh over HTTP. UK listings refresh from the official LSE reports CMS (handshake plus component refresh), then the current Instrument list workbook.
+`--exchanges`, `--sec`, and `--companies-house` restrict the run; omitting them refreshes all three. Set `SEC__USER_AGENT` on the **host that runs the API** (application name and contact details). Do not commit a User-Agent. SEC bulk refresh and live companyfacts gap-fill fail without it. Listing tools do not need it. Companies House has no live API — restore the bulk cache with `uv run discount-analyst admin refresh-regulatory-data --companies-house`. NASDAQ Trader files refresh over HTTP. UK listings refresh from the official LSE reports CMS (handshake plus component refresh), then the current Instrument list workbook.
 
 When `--perplexity` is not set, agents use Pydantic AI's `WebSearch` and `WebFetch` capabilities. Providers with native support use provider-native tools; providers without native support, such as DeepSeek, use Pydantic AI's local DuckDuckGo search and web-fetch fallbacks. For DeepSeek, the local fetch tool converts binary documents (PDF, Office, and similar) to markdown via markitdown; formats that cannot be converted return an unsupported-type message instead of binary content.
 

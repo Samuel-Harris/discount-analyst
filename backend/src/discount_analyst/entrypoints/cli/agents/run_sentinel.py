@@ -12,10 +12,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from discount_analyst.agents.sentinel.schema import (
-    EvaluationReport,
-    sentinel_proceeds_to_valuation,
-)
+from discount_analyst.agents.sentinel.schema import EvaluationReport
 from discount_analyst.agents.sentinel.sentinel import create_sentinel_agent
 from discount_analyst.agents.sentinel.derive_thesis_verdict import (
     finalise_sentinel_evaluation,
@@ -212,12 +209,8 @@ def display_output(output: EvaluationReport) -> None:
     table.add_row("Company", output.company_name)
     table.add_row("Thesis verdict", output.thesis_verdict)
     table.add_row(
-        "Valuation gate (derived)",
-        (
-            "Proceed to valuation"
-            if sentinel_proceeds_to_valuation(output)
-            else "Do not proceed"
-        ),
+        "Red-flag screen",
+        output.red_flag_screen.overall_red_flag_verdict.value,
     )
     console.print(
         Panel.fit(

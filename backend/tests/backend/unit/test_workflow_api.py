@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from decimal import Decimal
 from pathlib import Path
@@ -75,10 +76,41 @@ def test_list_workflow_runs_empty(client: TestClient) -> None:
 def test_dashboard_status_reports_current_yfinance(client: TestClient) -> None:
     response = client.get("/api/status")
     assert response.status_code == 200
-    payload = response.json()["yfinance"]
-    assert payload["is_outdated"] is False
-    assert payload["installed_version"]
-    assert payload["latest_version"] == payload["installed_version"]
+    payload = response.json()
+    yfinance = payload["yfinance"]
+    assert yfinance["is_outdated"] is False
+    assert yfinance["installed_version"]
+    assert yfinance["latest_version"] == yfinance["installed_version"]
+    assert isinstance(payload["sec_user_agent_configured"], bool)
+    assert isinstance(payload["companies_house_cache_present"], bool)
+
+
+def test_dashboard_status_reports_operator_flags_without_secrets(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ENV", "PROD")
+    configured = dashboard_settings_for_tests(
+        database_path=tmp_path / "status-ua.sqlite",
+        regulatory_data_cache_dir=tmp_path / "empty-reg",
+        sec_user_agent="DiscountAnalyst/0.1 (analyst@example.com)",
+    )
+    empty = dashboard_settings_for_tests(
+        database_path=tmp_path / "status-empty.sqlite",
+        regulatory_data_cache_dir=tmp_path / "empty-reg",
+        sec_user_agent="",
+    )
+    with TestClient(create_app(configured)) as configured_client:
+        configured_payload = configured_client.get("/api/status").json()
+    with TestClient(create_app(empty)) as empty_client:
+        empty_payload = empty_client.get("/api/status").json()
+
+    assert configured_payload["sec_user_agent_configured"] is True
+    assert empty_payload["sec_user_agent_configured"] is False
+    assert configured_payload["companies_house_cache_present"] is False
+    blob = json.dumps(configured_payload)
+    assert "DiscountAnalyst/0.1" not in blob
+    assert "analyst@example.com" not in blob
 
 
 def test_dashboard_status_reports_outdated_yfinance(

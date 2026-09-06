@@ -12,6 +12,7 @@ from discount_analyst.agents.sentinel.schema import (
 )
 from discount_analyst.agents.strategist.schema import MispricingThesis
 from discount_analyst.application.decisions.builders import (
+    build_appraised_decision,
     build_data_quality_rejection,
     build_sentinel_rejection,
     verdict_from_decision,
@@ -124,9 +125,9 @@ def test_build_data_quality_rejection_recommended_action() -> None:
         is_existing_position=False,
         decision_date="2026-06-21",
     )
-    assert rejection.rating == InvestmentRating.SELL
     assert rejection.recommended_action.startswith("Do not initiate")
     verdict = verdict_from_decision(rejection)
+    assert verdict.rating is None
     assert isinstance(verdict.decision, DataQualityRejection)
 
 
@@ -257,3 +258,20 @@ def test_verdict_json_round_trip_preserves_rating_table_decision() -> None:
     assert isinstance(restored.decision, RatingTableDecision)
     assert restored.decision.decision_kind == "rating_table"
     assert restored.decision.decision_rule_id == "rating_table_v1"
+
+
+def test_build_appraised_decision_has_identity_only() -> None:
+    lane_context = mock_surveyor_candidate(ticker="VAL.L").to_lane_context()
+    decision = build_appraised_decision(
+        lane_context,
+        is_existing_position=True,
+        decision_date="2026-09-06",
+    )
+    dumped = decision.model_dump()
+    assert dumped == {
+        "decision_kind": "appraised",
+        "ticker": "VAL.L",
+        "company_name": lane_context.company_name,
+        "decision_date": "2026-09-06",
+        "is_existing_position": True,
+    }

@@ -941,7 +941,7 @@ button {
   text-transform: uppercase;
 }
 
-.recommendations-rating--pending {
+.recommendations-rating--none {
   color: var(--muted);
   font-weight: 500;
 }

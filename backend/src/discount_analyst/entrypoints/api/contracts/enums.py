@@ -36,6 +36,7 @@ class DecisionTypeApi(StrEnum):
     RATING_TABLE = "rating_table"
     SENTINEL_REJECTION = "sentinel_rejection"
     DATA_QUALITY_REJECTION = "data_quality_rejection"
+    APPRAISED = "appraised"
 
 
 class CandidateGateStatusApi(StrEnum):

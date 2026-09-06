@@ -1,4 +1,4 @@
-"""Per-ticker lane stages: researcher through appraiser and final rating."""
+"""Per-ticker lane stages: researcher through appraiser."""
 
 from __future__ import annotations
 
@@ -40,7 +40,6 @@ from discount_analyst.agents.researcher.user_prompt import (
 from discount_analyst.agents.sentinel.derive_thesis_verdict import (
     finalise_sentinel_evaluation,
 )
-from discount_analyst.agents.sentinel.schema import sentinel_proceeds_to_valuation
 from discount_analyst.agents.sentinel.schema import (
     EvaluationReport as SentinelEvaluationReport,
 )
@@ -65,9 +64,7 @@ from discount_analyst.agents.strategist.user_prompt import (
 from discount_analyst.agents.surveyor.schema import SurveyorLaneContext
 from discount_analyst.agents.tools.terminal.client import TerminalRuntimeConfig
 from discount_analyst.application.decisions.builders import (
-    build_rating_table_decision,
-    build_sentinel_rejection,
-    verdict_from_decision,
+    build_appraised_decision,
 )
 from discount_analyst.adapters.persistence.crud.run_executions import (
     update_ticker_run_completion,
@@ -77,7 +74,6 @@ from discount_analyst.adapters.persistence.crud.workflow_investment_theses impor
 )
 from discount_analyst.application.theses import resolve_live_thesis
 from discount_analyst.domain.model_selection.model_name import ModelName
-from discount_analyst.domain.decisions.margin_of_safety import MarginOfSafetyAssessment
 
 if TYPE_CHECKING:
     from discount_analyst.config.settings import Settings
@@ -145,29 +141,13 @@ class TickerLaneStage:
             is_mock=is_mock,
             is_existing_position=is_existing_position,
         )
-        if not sentinel_proceeds_to_valuation(evaluation):
-            AI_LOGFIRE.info(
-                "Sentinel gate did not pass; skipping valuation stages",
-                workflow_run_id=workflow_run_id,
-                run_id=run_id,
-                ticker=lane_context.ticker,
-            )
-            await self.apply_sentinel_rejection(
-                host,
-                workflow_run_id=workflow_run_id,
-                run_id=run_id,
-                thesis=thesis,
-                evaluation=evaluation,
-                is_existing_position=is_existing_position,
-            )
-            return
         AI_LOGFIRE.info(
-            "Sentinel gate passed; continuing to appraiser",
+            "Sentinel completed; continuing to appraiser",
             workflow_run_id=workflow_run_id,
             run_id=run_id,
             ticker=lane_context.ticker,
         )
-        await self.run_appraiser_final_rating(
+        await self.run_appraiser(
             host,
             workflow_run_id=workflow_run_id,
             run_id=run_id,
@@ -517,47 +497,7 @@ class TickerLaneStage:
         )
         return evaluation
 
-    async def apply_sentinel_rejection(
-        self,
-        host: TickerLaneStageHost,
-        *,
-        workflow_run_id: str,
-        run_id: str,
-        thesis: Any,
-        evaluation: Any,
-        is_existing_position: bool,
-    ) -> None:
-        AI_LOGFIRE.info(
-            "Applying sentinel rejection verdict",
-            workflow_run_id=workflow_run_id,
-            run_id=run_id,
-        )
-        for agent_name in ("appraiser",):
-            execution_id = await host.get_exec_id(run_id, agent_name)
-            if execution_id is not None:
-                await host.mark_exec(
-                    execution_id=execution_id, status="skipped", completed=True
-                )
-        rejection = build_sentinel_rejection(
-            evaluation,
-            thesis,
-            is_existing_position=is_existing_position,
-            decision_date=date.today().isoformat(),
-        )
-        verdict = verdict_from_decision(rejection)
-        await host.db(
-            update_ticker_run_completion,
-            run_id=run_id,
-            status="completed",
-            final_rating=str(verdict.rating.value),
-            decision_type="sentinel_rejection",
-            recommended_action=verdict.recommended_action,
-            final_verdict_json=verdict.model_dump_json(),
-            error_message=None,
-        )
-        await host.recompute(workflow_run_id)
-
-    async def run_appraiser_final_rating(
+    async def run_appraiser(
         self,
         host: TickerLaneStageHost,
         *,
@@ -661,40 +601,24 @@ class TickerLaneStage:
                 ticker=lane_context.ticker,
             )
 
-        if is_mock:
-            await asyncio.sleep(5)
-            rating_decision = mock_outputs.mock_rating_table_decision(
-                lane_context,
-                is_existing_position=is_existing_position,
-                thesis=thesis,
-                evaluation=evaluation,
-            )
-        else:
-            mos = MarginOfSafetyAssessment.from_distribution(
-                appraiser_out.valuation_distribution
-            )
-            rating_decision = build_rating_table_decision(
-                lane_context=lane_context,
-                thesis=thesis,
-                evaluation=evaluation,
-                margin_of_safety=mos,
-                is_existing_position=is_existing_position,
-                decision_date=date.today().isoformat(),
-            )
-        verdict = verdict_from_decision(rating_decision)
+        appraised = build_appraised_decision(
+            lane_context,
+            is_existing_position=is_existing_position,
+            decision_date=date.today().isoformat(),
+        )
         await host.db(
             update_ticker_run_completion,
             run_id=run_id,
             status="completed",
-            final_rating=str(verdict.rating.value),
-            decision_type="rating_table",
-            recommended_action=verdict.recommended_action,
-            final_verdict_json=verdict.model_dump_json(),
+            final_rating=None,
+            decision_type="appraised",
+            recommended_action=None,
+            final_verdict_json=appraised.model_dump_json(),
             error_message=None,
         )
         await host.recompute(workflow_run_id)
         AI_LOGFIRE.info(
-            "Deterministic rating table applied; ticker run finished",
+            "Appraiser completion persisted; ticker run finished",
             agent_name=AgentNameDb.APPRAISER,
             workflow_run_id=workflow_run_id,
             run_id=run_id,

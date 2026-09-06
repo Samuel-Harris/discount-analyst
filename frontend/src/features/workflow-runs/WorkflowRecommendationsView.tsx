@@ -1,9 +1,6 @@
 import { useMemo, useState } from "react";
 
-import type {
-  TickerRunDetail,
-  WorkflowRunDetailResponse,
-} from "@/api";
+import type { TickerRunDetail, WorkflowRunDetailResponse } from "@/api";
 import { laneStatusDisplay } from "@/utils/laneStatusDisplay";
 import { curatorBookPane } from "./allocationDisplay";
 import { recommendationRatingClassNames } from "./recommendationRatingStyles";
@@ -24,10 +21,21 @@ type SortKey =
   | "entry_path";
 
 function formatDecisionType(dt: TickerRunDetail["decision_type"]): string {
-  if (dt === "rating_table") return "Rating table";
-  if (dt === "sentinel_rejection") return "Sentinel";
-  if (dt === "data_quality_rejection") return "Data quality";
-  return "—";
+  if (dt == null) return "—";
+  switch (dt) {
+    case "rating_table":
+      return "Rating table";
+    case "sentinel_rejection":
+      return "Sentinel";
+    case "data_quality_rejection":
+      return "Data quality";
+    case "appraised":
+      return "Appraised";
+    default: {
+      const unhandled: never = dt;
+      return unhandled;
+    }
+  }
 }
 
 function formatEntryPath(path: TickerRunDetail["entry_path"]): string {
@@ -212,7 +220,7 @@ export function WorkflowRecommendationsView({
                     className="recommendations-th-btn"
                     onClick={() => onSortHeader("decision_type")}
                   >
-                    Verdict source{sortIndicator("decision_type")}
+                    Decision{sortIndicator("decision_type")}
                   </button>
                 </th>
               </tr>
@@ -239,7 +247,7 @@ export function WorkflowRecommendationsView({
                           run.final_rating,
                         )}
                       >
-                        {run.final_rating ?? "Pending"}
+                        {run.final_rating ?? "—"}
                       </span>
                     </td>
                     <td>{formatDecisionType(run.decision_type)}</td>

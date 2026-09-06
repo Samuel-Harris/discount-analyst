@@ -272,7 +272,7 @@ def curator_messages_json(*, user_prompt: str | None = None) -> str:
                 "response",
                 [
                     _text(
-                        "(mock) Curator: applied lane policy, the 15% company cap, "
+                        "(mock) Curator: applied the 15% company cap, "
                         "and residual cash without calling tools."
                     ),
                     _text("`CuratorProposal` is finalised into `PortfolioAllocation`."),

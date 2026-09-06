@@ -13,12 +13,12 @@ from discount_analyst.agents.runtime.agent_names import AgentName
 from discount_analyst.agents.runtime.streamed_agent_run import run_streamed_agent
 from discount_analyst.agents.runtime.terminal_run import TerminalRunOptions
 from discount_analyst.application.allocations.assemble import (
-    CompletedLaneBundle,
-    assemble_curator_input,
-    source_run_ids_by_ticker,
+    ValuedLaneBundle,
+    assemble_curator_job,
 )
 from discount_analyst.application.allocations.finalise import (
     finalise_curator_proposal,
+    synthesise_cash_only_allocation,
 )
 from discount_analyst.config.ai_models_config import AIModelsConfig
 from discount_analyst.domain.allocations.snapshot import CurrentPortfolioSnapshot
@@ -35,10 +35,22 @@ async def run_cli_curator(
     console: Console,
     model_name: ModelName,
     snapshot: CurrentPortfolioSnapshot,
-    lane_bundles: tuple[CompletedLaneBundle, ...],
+    lane_bundles: tuple[ValuedLaneBundle, ...],
     terminal: TerminalRunOptions,
 ) -> Path:
-    curator_input = assemble_curator_input(lane_bundles, snapshot, date.today())
+    job = assemble_curator_job(lane_bundles, snapshot, date.today())
+    if not job.curator_input.lanes:
+        allocation = synthesise_cash_only_allocation(job)
+        out_path = write_agent_json(
+            payload=allocation,
+            model_name=model_name,
+            agent_name=AgentName.CURATOR,
+        )
+        console.print(
+            "Curator skipped the LLM because there were no valued lanes; "
+            f"saved cash-only allocation: [dim]{out_path}[/dim]"
+        )
+        return out_path
     ai_models_config = AIModelsConfig(model_name=model_name)
     agent = create_curator_agent(
         ai_models_config=ai_models_config,
@@ -47,16 +59,12 @@ async def run_cli_curator(
     console.log(f"Running Curator (model: {model_name})...")
     outcome = await run_streamed_agent(
         agent=agent,
-        user_prompt=create_user_prompt(curator_input=curator_input),
+        user_prompt=create_user_prompt(curator_input=job.curator_input),
         usage_limits=ai_models_config.model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
         terminal=terminal,
     )
-    allocation = finalise_curator_proposal(
-        outcome.output,
-        curator_input,
-        source_run_ids_by_ticker(lane_bundles),
-    )
+    allocation = finalise_curator_proposal(outcome.output, job)
     out_path = write_agent_json(
         payload=allocation,
         model_name=model_name,

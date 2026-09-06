@@ -13,7 +13,6 @@ from discount_analyst.agents.sentinel.schema import (
     QuestionAssessment,
     RedFlagScreen,
     ThesisVerdict,
-    sentinel_proceeds_to_valuation,
 )
 from discount_analyst.agents.strategist.schema import MispricingThesis
 
@@ -93,11 +92,20 @@ def test_all_calendar_weakens_is_intact_with_reservations_and_proceeds() -> None
     derived = derive_thesis_verdict(evaluation)
     assert derived is ThesisVerdict.INTACT_WITH_RESERVATIONS
     assert evaluation.thesis_verdict is ThesisVerdict.INTACT_PROCEED_TO_VALUATION
-    overwritten = evaluation.model_copy(update={"thesis_verdict": derived})
-    assert sentinel_proceeds_to_valuation(overwritten) is True
 
 
-def test_medium_material_weaken_blocks() -> None:
+def test_never_disclosed_weakens_is_intact_with_reservations() -> None:
+    evaluation = _evaluation(
+        _assessment(
+            verdict="Weakens thesis",
+            confidence="High",
+            gap_kind="never_disclosed",
+        )
+    )
+    assert derive_thesis_verdict(evaluation) is ThesisVerdict.INTACT_WITH_RESERVATIONS
+
+
+def test_printed_weakens_still_weakened() -> None:
     evaluation = _evaluation(
         _assessment(
             verdict="Weakens thesis",
@@ -107,20 +115,16 @@ def test_medium_material_weaken_blocks() -> None:
     )
     derived = derive_thesis_verdict(evaluation)
     assert derived is ThesisVerdict.WEAKENED_DO_NOT_PROCEED
-    overwritten = evaluation.model_copy(update={"thesis_verdict": derived})
-    assert sentinel_proceeds_to_valuation(overwritten) is False
 
 
-def test_majority_low_non_calendar_is_unproven_and_blocks() -> None:
+def test_majority_low_printed_without_adverse_is_not_unproven() -> None:
     evaluation = _evaluation(
         _assessment(verdict="Supports thesis", confidence="Low", gap_kind="none"),
         _assessment(verdict="Neutral", confidence="Low", gap_kind="never_disclosed"),
         _assessment(verdict="Supports thesis", confidence="High", gap_kind="none"),
     )
     derived = derive_thesis_verdict(evaluation)
-    assert derived is ThesisVerdict.UNPROVEN_DO_NOT_PROCEED
-    overwritten = evaluation.model_copy(update={"thesis_verdict": derived})
-    assert sentinel_proceeds_to_valuation(overwritten) is False
+    assert derived is ThesisVerdict.INTACT_WITH_RESERVATIONS
 
 
 def test_low_confidence_break_is_unproven_not_broken() -> None:

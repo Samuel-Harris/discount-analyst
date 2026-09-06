@@ -1,4 +1,4 @@
-<!-- Generated: 2026-02-23 | Updated: 2026-08-30 (dashboard sterling ledger) -->
+<!-- Generated: 2026-02-23 | Updated: 2026-09-06 (curator-only recommendation) -->
 
 # Discount Analyst
 
@@ -10,7 +10,7 @@ An AI-powered stock analysis tool ("Discount Analyst") for identifying and valui
 
 The live automated pipeline is documented in [`current_workflow.md`](current_workflow.md) (regenerate with the `sync-workflow` skill). Dashboard and CLI run:
 
-**Surveyor** (universe screen) and/or **Profiler** (dashboard sterling holdings and also-analyse names, or CLI named tickers) → deterministic candidate gate (dashboard only) → **Researcher** → **Strategist** → **Sentinel** (valuation gate) → **Appraiser** (if the gate passes) → deterministic rating table → `Verdict` → **Curator** (workflow-level portfolio construction, after every ticker lane is terminal-success).
+**Surveyor** (universe screen) and/or **Profiler** (dashboard sterling holdings and also-analyse names, or CLI named tickers) → deterministic candidate gate (dashboard only) → **Researcher** → **Strategist** → **Sentinel** (evidence memo) → **Appraiser** (valuation memo) → **Curator** (workflow-level portfolio construction; weights are the recommendation).
 
 Human decision sits after that allocation. One-shot agents remain available via `uv run discount-analyst agent {surveyor,profiler,researcher,strategist,sentinel,appraiser,curator}`.
 
