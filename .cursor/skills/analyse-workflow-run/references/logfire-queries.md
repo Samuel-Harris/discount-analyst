@@ -5,6 +5,7 @@
 - **Filter:** `attributes->>'workflow_run_id' = '<uuid>'`
 - **Agent name casing:** SQLite `agent_executions.agent_name` is lowercase (`curator`). Runtime `AgentName` and Logfire span `agent_name` on `Run AI agent {agent_name}` are uppercase (`CURATOR`). Curator-stage log events that pass `AgentNameDb.CURATOR` are lowercase. Prefer `lower(attributes->>'agent_name') = 'curator'` unless you are targeting one known producer.
 - **Always** `LIMIT` (e.g. 100) on exploratory selects.
+- **Retries vs final state:** span counts include failed attempts that later succeeded. Use SQLite `runs` / `run_final_decisions` / `portfolio_allocations` for the book the user sees. Logfire explains *how noisy* the run was.
 
 ## Examples
 
