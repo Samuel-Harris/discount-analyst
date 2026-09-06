@@ -40,7 +40,7 @@ async def test_curator_stage_non_mock_path_uses_run_agent_with_terminal() -> Non
         "discount_analyst.adapters.orchestration.stages.curator_stage.run_agent_with_terminal",
         new=AsyncMock(return_value=fake_outcome),
     ) as run_with_terminal:
-        result = await CuratorStage()._run_curator_agent(
+        result = await CuratorStage()._run_curator_agent(  # pyright: ignore[reportPrivateUsage]
             curator_input=curator_input,
             is_mock=False,
             llm=pipeline_llm_config(
@@ -52,6 +52,7 @@ async def test_curator_stage_non_mock_path_uses_run_agent_with_terminal() -> Non
 
     assert result.proposal is proposal
     assert result.messages == fake_outcome.all_messages
+    assert run_with_terminal.await_args is not None
     assert run_with_terminal.await_args.kwargs["settings"] is settings
     assert run_with_terminal.await_args.kwargs["session_id"] == "curator-exec-1"
     assert callable(run_with_terminal.await_args.kwargs["build_agent"])
