@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-02-23 | Updated: 2026-09-05 -->
+<!-- Generated: 2026-02-23 | Updated: 2026-09-06 -->
 
 # tests
 
@@ -17,7 +17,7 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | `tests/discount_analyst/valuation/test_toolkit.py`                                            | Tests for deterministic valuation toolkit helpers, including DCF real-world scenarios.                                                                                                                        |
 | `tests/discount_analyst/http/test_streaming_retries.py`                                       | Unit tests for agent streaming retry helpers (`stream_with_retries`, rate-limit exponential wait, structured-output repair, connection/rate-limit/idle-read errors at stream start).                          |
 | `tests/discount_analyst/agents/common/test_structured_output_unwrap.py`                       | Singleton `final_result` envelope unwrap, `EvaluationReport` round-trip of an unwrapped FLXS payload, and factory `final_result` schema staying flat (`ticker` top-level, no `payload`).                      |
-| `tests/discount_analyst/agents/common/test_tool_output_schema.py`                             | `Agent`/`ToolOutput` construction gate over every pipeline spec, `AgentName` coverage, and a RootModel-union canary that pydantic-ai still rejects.                                                          |
+| `tests/discount_analyst/agents/common/test_tool_output_schema.py`                             | `Agent`/`ToolOutput` construction gate over every pipeline spec, `AgentName` coverage, and a RootModel-union canary that pydantic-ai still rejects.                                                           |
 | `tests/discount_analyst/integrations/test_financial_data_mcp.py`                              | EODHD MCP optional registration (`EODHD__DISABLED`).                                                                                                                                                          |
 | `tests/discount_analyst/integrations/test_regulatory_data_*.py`                               | Canonical models, cache publication, pagination, HTTP policy, toolset wrapping, fixture presence.                                                                                                             |
 | `tests/discount_analyst/integrations/test_nasdaq_trader.py` / `test_london_stock_exchange.py` | NASDAQ merge/filter and LSE Main/AIM listing tools (mocked HTTP).                                                                                                                                             |
@@ -41,6 +41,7 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | `tests/discount_analyst/integrations/test_yfinance_freshness.py`                              | Installed vs PyPI `yfinance` PEP 440 comparison and mocked HTTP freshness check.                                                                                                                              |
 | `tests/backend/unit/test_agent_lane_order_sync.py`                                            | Keeps `discount_analyst.application.workflows.agent_lane_order` aligned with `frontend/src/features/pipeline-graph/agentLaneOrder.ts`.                                                                        |
 | `tests/backend/unit/test_profiler_stage.py`                                                   | Unit tests for the extracted dashboard `ProfilerStage` and its persistence port.                                                                                                                              |
+| `tests/backend/unit/test_curator_stage.py`                                                    | Unit tests for dashboard `CuratorStage` using `run_agent_with_terminal`.                                                                                                                                      |
 | `tests/backend/unit/test_mock_surveyor_discoveries.py`                                        | Mock Surveyor discovery helpers and deterministic mock Sentinel pass/fail parity for the dashboard.                                                                                                           |
 | `tests/backend/unit/test_mock_rating_table_dashboard.py`                                      | Deterministic mock `RatingTableDecision` helpers for dashboard payloads.                                                                                                                                      |
 | `tests/backend/unit/test_appraiser_output_persistence.py`                                     | Appraiser `AppraiserReport` persistence and `get_appraiser_report_for_run` join behaviour.                                                                                                                    |
@@ -54,19 +55,19 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 
 ## Subdirectories
 
-| Directory                            | Purpose                                                                                                |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------ |
-| `discount_analyst/http/`             | Tests for streaming retry behaviour (`discount_analyst.agents.common.streaming_retries`).              |
-| `discount_analyst/integrations/`     | Tests for MCP, Frankfurter FX, web-fetch, and terminal tool wiring.                                    |
+| Directory                            | Purpose                                                                                                      |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `discount_analyst/http/`             | Tests for streaming retry behaviour (`discount_analyst.agents.common.streaming_retries`).                    |
+| `discount_analyst/integrations/`     | Tests for MCP, Frankfurter FX, web-fetch, and terminal tool wiring.                                          |
 | `discount_analyst/agents/common/`    | Tests for streamed agent orchestration, structured-output unwrap, and ToolOutput object-schema construction. |
-| `discount_analyst/agents/appraiser/` | Tests for Appraiser schema contracts.                                                                  |
-| `discount_analyst/agents/sentinel/`  | Tests for Sentinel schema helpers.                                                                     |
-| `discount_analyst/model_selection/`  | Tests for the per-model context-window table used by conversation usage telemetry.                     |
-| `discount_analyst/pipeline/`         | Tests for programmatic verdict builders, tagged `Verdict` JSON, candidate gates, and the rating table. |
-| `discount_analyst/valuation/`        | Tests for deterministic valuation toolkit helpers (`discount_analyst.valuation.toolkit`).              |
-| `scripts/`                           | Tests for script helpers where present.                                                                |
-| `factories/`                         | Shared test builders (`sterling_holdings`).                                                            |
-| `backend/`                           | Tests for the FastAPI `backend` package (`unit/`, `integration/`); shared fixtures in `conftest.py`.   |
+| `discount_analyst/agents/appraiser/` | Tests for Appraiser schema contracts.                                                                        |
+| `discount_analyst/agents/sentinel/`  | Tests for Sentinel schema helpers.                                                                           |
+| `discount_analyst/model_selection/`  | Tests for the per-model context-window table used by conversation usage telemetry.                           |
+| `discount_analyst/pipeline/`         | Tests for programmatic verdict builders, tagged `Verdict` JSON, candidate gates, and the rating table.       |
+| `discount_analyst/valuation/`        | Tests for deterministic valuation toolkit helpers (`discount_analyst.valuation.toolkit`).                    |
+| `scripts/`                           | Tests for script helpers where present.                                                                      |
+| `factories/`                         | Shared test builders (`sterling_holdings`).                                                                  |
+| `backend/`                           | Tests for the FastAPI `backend` package (`unit/`, `integration/`); shared fixtures in `conftest.py`.         |
 
 ## For AI Agents
 

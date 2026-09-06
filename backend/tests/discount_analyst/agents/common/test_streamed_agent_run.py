@@ -137,6 +137,10 @@ class _FakeLogfire:
         self.info_calls.append((message, attrs))
 
 
+def _disabled_terminal() -> TerminalRunOptions:
+    return terminal_run_options(settings, enabled=False)
+
+
 @pytest.mark.anyio
 async def test_run_streamed_agent_callback_debounce_and_outcome(
     monkeypatch: pytest.MonkeyPatch,
@@ -161,6 +165,7 @@ async def test_run_streamed_agent_callback_debounce_and_outcome(
         usage_limits=UsageLimits(request_limit=2),
         stream_debounce_by=0.2,
         on_stream_chunk=seen.append,
+        terminal=_disabled_terminal(),
     )
 
     assert agent.streamed_result.last_debounce == 0.2
@@ -202,9 +207,21 @@ async def test_run_streamed_agent_raises_when_name_is_none(
             agent=cast(Any, agent),
             user_prompt="hi",
             usage_limits=UsageLimits(request_limit=2),
+            terminal=_disabled_terminal(),
         )
 
     assert fake_logfire.with_tags_calls == []
+
+
+@pytest.mark.anyio
+async def test_run_streamed_agent_requires_terminal_argument() -> None:
+    agent = _FakeAgent(name="surveyor")
+    with pytest.raises(TypeError, match="terminal"):
+        await run_streamed_agent(
+            agent=cast(Any, agent),
+            user_prompt="hi",
+            usage_limits=UsageLimits(request_limit=2),
+        )
 
 
 @pytest.mark.anyio
@@ -501,6 +518,7 @@ async def test_run_streamed_agent_logs_per_turn_context_usage(
         agent=cast(Any, agent),
         user_prompt="hi",
         usage_limits=UsageLimits(request_limit=2),
+        terminal=_disabled_terminal(),
     )
 
     assert fake_logfire.info_calls == [

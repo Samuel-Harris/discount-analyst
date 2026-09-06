@@ -49,7 +49,7 @@ from discount_analyst.agents.curator.system_prompt import (
 from discount_analyst.agents.curator.user_prompt import create_user_prompt
 from discount_analyst.agents.common_prompts.current_date import with_current_date
 from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
-from discount_analyst.agents.runtime.streamed_agent_run import run_streamed_agent
+from discount_analyst.agents.runtime.terminal_run import run_agent_with_terminal
 from discount_analyst.application.allocations.assemble import (
     assemble_curator_input,
     source_run_ids_by_ticker,
@@ -166,6 +166,8 @@ class CuratorStage:
                 curator_input=curator_input,
                 is_mock=is_mock,
                 llm=llm,
+                settings=host.settings,
+                session_id=execution_id,
             )
             allocation = finalise_curator_proposal(
                 agent_result.proposal,
@@ -212,6 +214,8 @@ class CuratorStage:
         curator_input: CuratorInput,
         is_mock: bool,
         llm: PipelineLlmConfig,
+        settings: Settings,
+        session_id: str,
     ) -> _CuratorRunResult:
         if is_mock:
             await asyncio.sleep(5)
@@ -226,9 +230,13 @@ class CuratorStage:
         ai_cfg = llm.ai_models_config
         if ai_cfg is None:
             raise RuntimeError("Curator LLM config missing for non-mock run")
-        agent = create_curator_agent(ai_models_config=ai_cfg)
-        outcome = await run_streamed_agent(
-            agent=agent,
+        outcome = await run_agent_with_terminal(
+            settings=settings,
+            session_id=session_id,
+            build_agent=lambda terminal: create_curator_agent(
+                ai_models_config=ai_cfg,
+                terminal=terminal,
+            ),
             user_prompt=create_user_prompt(curator_input=curator_input),
             usage_limits=ai_cfg.model.usage_limits,
         )

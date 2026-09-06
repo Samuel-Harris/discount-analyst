@@ -1,4 +1,4 @@
-"""Run the closed-book Curator from a complete CuratorInput JSON file."""
+"""Run the Curator from a complete CuratorInput JSON file."""
 
 import argparse
 import asyncio
@@ -17,7 +17,11 @@ from discount_analyst.config.ai_models_config import AIModelsConfig
 from discount_analyst.config.settings import settings
 from discount_analyst.domain.model_selection.model_name import ModelName
 from discount_analyst.entrypoints.cli.shared.artefacts import write_agent_json
-from discount_analyst.entrypoints.cli.shared.cli import add_agent_cli_model_argument
+from discount_analyst.entrypoints.cli.shared.cli import (
+    add_agent_cli_model_argument,
+    add_agent_terminal_argument,
+    terminal_run_options_for_cli,
+)
 
 setup_logfire()
 
@@ -27,6 +31,7 @@ console = Console()
 class CuratorArgs(BaseModel):
     model: ModelName
     curator_input: Path
+    use_terminal: bool
 
 
 def parse_args() -> CuratorArgs:
@@ -37,13 +42,18 @@ def parse_args() -> CuratorArgs:
         )
     )
     add_agent_cli_model_argument(parser, default=settings.agent_default_models.curator)
+    add_agent_terminal_argument(parser)
     parser.add_argument(
         "curator_input",
         type=Path,
         help="Path to a JSON file containing a complete CuratorInput.",
     )
     raw = parser.parse_args()
-    return CuratorArgs(model=raw.model, curator_input=raw.curator_input)
+    return CuratorArgs(
+        model=raw.model,
+        curator_input=raw.curator_input,
+        use_terminal=not raw.no_terminal,
+    )
 
 
 def _load_curator_input(path: Path) -> CuratorInput:
@@ -65,13 +75,20 @@ async def main() -> None:
     args = parse_args()
     curator_input = _load_curator_input(args.curator_input)
     ai_models_config = AIModelsConfig(model_name=args.model)
-    agent = create_curator_agent(ai_models_config=ai_models_config)
+    terminal = terminal_run_options_for_cli(
+        no_terminal=not args.use_terminal
+    ).bind_session_id()
+    agent = create_curator_agent(
+        ai_models_config=ai_models_config,
+        terminal=terminal,
+    )
     console.log(f"Running Curator agent (model: {args.model})...")
     outcome = await run_streamed_agent(
         agent=agent,
         user_prompt=create_user_prompt(curator_input=curator_input),
         usage_limits=ai_models_config.model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
+        terminal=terminal,
     )
     display_output(outcome.output)
     out_path = write_agent_json(

@@ -5,7 +5,7 @@ from discount_analyst.agents.curator.user_prompt import create_user_prompt
 from discount_analyst.domain.allocations.snapshot import CurrentPortfolioSnapshot
 
 
-def test_user_prompt_embeds_packed_input_and_forbids_tools() -> None:
+def test_user_prompt_embeds_packed_input_and_allows_live_tools() -> None:
     packed = CuratorInput(
         allocation_date=date(2026, 8, 30),
         snapshot=CurrentPortfolioSnapshot(
@@ -19,7 +19,8 @@ def test_user_prompt_embeds_packed_input_and_forbids_tools() -> None:
     prompt = create_user_prompt(curator_input=packed)
 
     assert "<CuratorInput>" in prompt
-    assert "Do **not** call tools" in prompt
+    assert "web search" in prompt
+    assert "terminal_exec" in prompt
     assert "CuratorProposal" in prompt
     assert "live_thesis" in prompt
     assert "independent ideas" in prompt

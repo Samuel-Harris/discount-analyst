@@ -497,7 +497,6 @@ class TickerLaneStage:
                 ),
                 usage_limits=ai_cfg.model.usage_limits,
                 terminal=terminal_run_options(host.settings, enabled=False),
-                run_settings=host.settings,
             )
             evaluation = finalise_sentinel_evaluation(outcome.output, thesis)
             n_messages = list(outcome.all_messages)

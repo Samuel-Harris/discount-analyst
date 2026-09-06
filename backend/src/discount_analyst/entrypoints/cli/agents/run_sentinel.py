@@ -252,7 +252,6 @@ async def run_agent(
         usage_limits=ai_models_config.model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
         terminal=terminal_run_options(app_settings, enabled=False),
-        run_settings=app_settings,
     )
     output = finalise_sentinel_evaluation(outcome.output, thesis)
     usage = outcome.usage
