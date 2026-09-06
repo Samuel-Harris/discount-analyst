@@ -1,8 +1,14 @@
 import { useMemo, useState } from "react";
 
-import type { TickerRunDetail, WorkflowRunDetailResponse } from "@/api";
+import type {
+  TickerRunDetail,
+  WorkflowRunDetailResponse,
+} from "@/api";
 import { laneStatusDisplay } from "@/utils/laneStatusDisplay";
+import { curatorBookPane } from "./allocationDisplay";
 import { recommendationRatingClassNames } from "./recommendationRatingStyles";
+import { useWorkflowAllocation } from "./useWorkflowAllocation";
+import { WorkflowRecommendationsBook } from "./WorkflowRecommendationsBook";
 
 export interface WorkflowRecommendationsViewProps {
   /** Caller should pass runs already in graph lane order (see `sortedWorkflowRuns`). */
@@ -62,8 +68,10 @@ function compareRows(
     }
     case "entry_path":
       return compareStrings(a.entry_path, b.entry_path, dir);
-    default:
-      return 0;
+    default: {
+      const unhandled: never = key;
+      return unhandled;
+    }
   }
 }
 
@@ -73,6 +81,10 @@ export function WorkflowRecommendationsView({
   const [filter, setFilter] = useState("");
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const curatorStatus = detail.curator_execution?.status ?? null;
+  const allocation = useWorkflowAllocation(detail.id, curatorStatus);
+  const bookPane = curatorBookPane(curatorStatus, allocation);
 
   const baseOrder = detail.runs;
 
@@ -107,125 +119,136 @@ export function WorkflowRecommendationsView({
 
   return (
     <div className="recommendations-view">
-      <div className="recommendations-toolbar">
-        <label className="recommendations-filter">
-          <span className="recommendations-filter-label">Filter</span>
-          <input
-            type="search"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="Ticker or company…"
-            autoComplete="off"
-            spellCheck={false}
-          />
-        </label>
-        <button
-          type="button"
-          className="btn-ghost recommendations-reset-sort"
-          onClick={() => setSortKey(null)}
-          disabled={sortKey === null}
-        >
-          Graph lane order
-        </button>
-        <span className="recommendations-count">
-          {rows.length} of {detail.runs.length} lane(s)
-        </span>
+      <div className="recommendations-book">
+        {bookPane.kind === "book" ? (
+          <WorkflowRecommendationsBook allocation={bookPane.allocation} />
+        ) : (
+          <p className="recommendations-book-status">{bookPane.message}</p>
+        )}
       </div>
 
-      <div className="recommendations-table-wrap">
-        <table className="recommendations-table">
-          <caption className="sr-only">
-            Final ratings and lane status for workflow {detail.id}
-          </caption>
-          <thead>
-            <tr>
-              <th scope="col">
-                <button
-                  type="button"
-                  className="recommendations-th-btn"
-                  onClick={() => onSortHeader("ticker")}
-                >
-                  Ticker{sortIndicator("ticker")}
-                </button>
-              </th>
-              <th scope="col">
-                <button
-                  type="button"
-                  className="recommendations-th-btn"
-                  onClick={() => onSortHeader("company_name")}
-                >
-                  Company{sortIndicator("company_name")}
-                </button>
-              </th>
-              <th scope="col">
-                <button
-                  type="button"
-                  className="recommendations-th-btn"
-                  onClick={() => onSortHeader("entry_path")}
-                >
-                  Entry{sortIndicator("entry_path")}
-                </button>
-              </th>
-              <th scope="col">
-                <button
-                  type="button"
-                  className="recommendations-th-btn"
-                  onClick={() => onSortHeader("status")}
-                >
-                  Lane status{sortIndicator("status")}
-                </button>
-              </th>
-              <th scope="col">
-                <button
-                  type="button"
-                  className="recommendations-th-btn"
-                  onClick={() => onSortHeader("final_rating")}
-                >
-                  Rating{sortIndicator("final_rating")}
-                </button>
-              </th>
-              <th scope="col">
-                <button
-                  type="button"
-                  className="recommendations-th-btn"
-                  onClick={() => onSortHeader("decision_type")}
-                >
-                  Verdict source{sortIndicator("decision_type")}
-                </button>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((run) => {
-              const laneSt = laneStatusDisplay(run);
-              return (
-                <tr key={run.id}>
-                  <td className="recommendations-mono">{run.ticker}</td>
-                  <td>{run.company_name}</td>
-                  <td>{formatEntryPath(run.entry_path)}</td>
-                  <td>
-                    <span
-                      className={`recommendations-status recommendations-status--${laneSt.tone}`}
-                      title={laneSt.title}
-                    >
-                      {laneSt.label}
-                    </span>
-                  </td>
-                  <td>
-                    <span
-                      className={recommendationRatingClassNames(
-                        run.final_rating,
-                      )}
-                    >
-                      {run.final_rating ?? "Pending"}
-                    </span>
-                  </td>
-                  <td>{formatDecisionType(run.decision_type)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className="recommendations-ratings">
+        <h2 className="recommendations-ratings-heading">Lane ratings</h2>
+        <div className="recommendations-toolbar">
+          <label className="recommendations-filter">
+            <span className="recommendations-filter-label">Filter</span>
+            <input
+              type="search"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Ticker or company…"
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </label>
+          <button
+            type="button"
+            className="btn-ghost recommendations-reset-sort"
+            onClick={() => setSortKey(null)}
+            disabled={sortKey === null}
+          >
+            Graph lane order
+          </button>
+          <span className="recommendations-count">
+            {rows.length} of {detail.runs.length} lane(s)
+          </span>
+        </div>
+
+        <div className="recommendations-table-wrap">
+          <table className="recommendations-table">
+            <caption className="sr-only">
+              Final ratings and lane status for workflow {detail.id}
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">
+                  <button
+                    type="button"
+                    className="recommendations-th-btn"
+                    onClick={() => onSortHeader("ticker")}
+                  >
+                    Ticker{sortIndicator("ticker")}
+                  </button>
+                </th>
+                <th scope="col">
+                  <button
+                    type="button"
+                    className="recommendations-th-btn"
+                    onClick={() => onSortHeader("company_name")}
+                  >
+                    Company{sortIndicator("company_name")}
+                  </button>
+                </th>
+                <th scope="col">
+                  <button
+                    type="button"
+                    className="recommendations-th-btn"
+                    onClick={() => onSortHeader("entry_path")}
+                  >
+                    Entry{sortIndicator("entry_path")}
+                  </button>
+                </th>
+                <th scope="col">
+                  <button
+                    type="button"
+                    className="recommendations-th-btn"
+                    onClick={() => onSortHeader("status")}
+                  >
+                    Lane status{sortIndicator("status")}
+                  </button>
+                </th>
+                <th scope="col">
+                  <button
+                    type="button"
+                    className="recommendations-th-btn"
+                    onClick={() => onSortHeader("final_rating")}
+                  >
+                    Rating{sortIndicator("final_rating")}
+                  </button>
+                </th>
+                <th scope="col">
+                  <button
+                    type="button"
+                    className="recommendations-th-btn"
+                    onClick={() => onSortHeader("decision_type")}
+                  >
+                    Verdict source{sortIndicator("decision_type")}
+                  </button>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((run) => {
+                const laneSt = laneStatusDisplay(run);
+                return (
+                  <tr key={run.id}>
+                    <td className="recommendations-mono">{run.ticker}</td>
+                    <td>{run.company_name}</td>
+                    <td>{formatEntryPath(run.entry_path)}</td>
+                    <td>
+                      <span
+                        className={`recommendations-status recommendations-status--${laneSt.tone}`}
+                        title={laneSt.title}
+                      >
+                        {laneSt.label}
+                      </span>
+                    </td>
+                    <td>
+                      <span
+                        className={recommendationRatingClassNames(
+                          run.final_rating,
+                        )}
+                      >
+                        {run.final_rating ?? "Pending"}
+                      </span>
+                    </td>
+                    <td>{formatDecisionType(run.decision_type)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

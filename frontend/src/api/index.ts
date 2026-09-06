@@ -1,19 +1,27 @@
 import {
   getWorkflowAgentConversationApiAgentsWorkflowRunsWorkflowRunIdAgentsWorkflowAgentNameConversationGet,
+  getWorkflowAllocationApiWorkflowRunsWorkflowRunIdAllocationGet,
   type ConversationResponse,
+  type PortfolioAllocation,
   type WorkflowScopedAgentNameSlug,
 } from "./generated";
+import { DashboardApiError } from "./orval-mutator";
 
 export type {
   AgentExecutionSummary,
+  AllocationPosition,
+  CashAllocation,
   ConversationResponse,
   CreateWorkflowRunRequest,
   CreateWorkflowRunResponse,
   DashboardStatusResponse,
   EntryPathApi,
   ExecutionStatusApi,
+  PortfolioAllocation,
   PortfolioPositionInput,
   PortfolioResponse,
+  RebalanceAction,
+  SharedRiskCluster,
   TickerRunDetail,
   WorkflowRunDetailResponse,
   WorkflowRunListItem,
@@ -44,4 +52,19 @@ export function fetchWorkflowAgentConversation(
     agentName,
     options,
   );
+}
+
+export async function fetchWorkflowAllocation(
+  workflowRunId: string,
+  options?: RequestInit,
+): Promise<PortfolioAllocation | null> {
+  try {
+    return await getWorkflowAllocationApiWorkflowRunsWorkflowRunIdAllocationGet(
+      workflowRunId,
+      options,
+    );
+  } catch (e) {
+    if (e instanceof DashboardApiError && e.status === 404) return null;
+    throw e;
+  }
 }
