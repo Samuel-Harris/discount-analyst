@@ -101,6 +101,16 @@ Further layout and script-flag detail: [`references/artefact-layout.md`](referen
   ORDER BY parc.sort_order, m.sort_order;
   ```
 
+  Decision mix (holdings vs prospects; Sentinel rejection vs rating table) — required for pipeline synthesis:
+
+  ```sql
+  SELECT is_existing_position, entry_path, decision_type, final_rating, recommended_action, COUNT(*) AS n
+  FROM runs
+  WHERE workflow_run_id = '<uuid>'
+  GROUP BY 1, 2, 3, 4, 5
+  ORDER BY n DESC;
+  ```
+
   And check for terminal tool execution returns (lane-scoped **and** workflow-scoped Surveyor/Curator). Terminal bodies are text `exit_code: 0`, not JSON `"exit_code": 0`:
 
   ```sql
@@ -140,7 +150,11 @@ Historical Docker Compose production data was migrated into `data/dashboard.prod
      ".cursor/artefacts/analyse-workflow-run/<uuid>/dashboard.sqlite"
    ```
 
-   Verify the workflow row (query above). If copy is impossible, stop and ask for a file path.
+   Verify the workflow row (query above). If copy is impossible, stop and ask for a file path. If the dashboard API is writing to the host DB, prefer a SQLite backup (consistent snapshot) over `cp`:
+
+   ```bash
+   uv run python -c "import sqlite3; from pathlib import Path; s=sqlite3.connect('file:data/dashboard.prod.sqlite?mode=ro', uri=True); t=sqlite3.connect(Path('.cursor/artefacts/analyse-workflow-run/<uuid>/dashboard.sqlite')); s.backup(t); t.close(); s.close()"
+   ```
 
 3. **Export digests** (conversation text + tool surface for subagents):
 
@@ -171,7 +185,9 @@ Historical Docker Compose production data was migrated into `data/dashboard.prod
 
    **Behaviour:** Each agent file is **at most 6,000 lines** (override with `--max-lines N`). Duplicate creed/system blocks are stubbed; large `user_prompt` bodies are head/tail thinned; **Appraiser** additionally redacts upstream JSON before `ValuationResult` when that pattern appears; **Curator** additionally redacts packed `<CuratorInput>` JSON. If still over budget, entire **ticker** sections with the lowest heuristic keyword scores (per agent) are dropped first; omitted tickers are listed in a header blockquote. For a legacy uncapped export: add **`--full-transcripts`**.
 
-5. **Logfire appendix:** Run focused `query_run` SQL (counts by `span_name`, `attributes->>'agent_name'`, failure messages) scoped by `attributes->>'workflow_run_id'` — see reference doc. Derive `start_timestamp` / `end_timestamp` from the run's `workflow_runs.started_at` when available, keeping the window ≤ 14 days.
+   Default aggregated files are **issue-focused and incomplete**. Use them for grepping themes. Use `conversation_digests/` plus SQLite for complete ticker/decision counts. Do not treat “3/38 conversations in `RESEARCHER.md`” as missing research.
+
+5. **Logfire appendix:** Run focused `query_run` SQL (counts by `span_name`, `attributes->>'agent_name'`, failure messages) scoped by `attributes->>'workflow_run_id'` — see reference doc. Derive `start_timestamp` / `end_timestamp` from the run's `workflow_runs.started_at` when available, keeping the window ≤ 14 days. Treat Logfire as retry-inclusive telemetry; **SQLite is the source of truth for final ratings and allocation**.
 
 6. **Qualitative pass:** Spawn **seven** parallel subagents (`generalPurpose`, `readonly: true`), one per merged digest that exists:
 
@@ -179,9 +195,11 @@ Historical Docker Compose production data was migrated into `data/dashboard.prod
 
    Agents: `SURVEYOR`, `PROFILER`, `RESEARCHER`, `STRATEGIST`, `SENTINEL`, `APPRAISER`, `CURATOR`. Skip any agent with no merged file for this run (Curator is often `skipped` when a lane did not complete, and legacy runs may have no Curator row).
 
-   Direct subagents to review **terminal usage (`terminal_exec`)**, checking for timeouts, shell errors, formatting, and whether they used the provided toolkits or relied on ad-hoc commands. For `APPRAISER`, have them evaluate the method-agnostic valuation distribution logic and data quality, verifying the weights and reasons for choosing primary vs cross-check methods. For `CURATOR`, have them evaluate portfolio construction against packed `CuratorInput` and the persisted `portfolio_allocations` rows: policy (`investable` / `retain_or_reduce` / `forced_zero`), every input ticker present (including explicit zeros), 15% company cap, shared-risk clusters, cash, concentration vs weak diversifiers, and whether the agent re-rated names or invented theses. Flag web/terminal/`convert_currency` use as off-book — Curator should size from the packed input; it has no filings/Perplexity/MCP, though the factory still attaches web search/fetch and optional terminal.
+   Briefs and untrusted-claim rules: [`references/agent-review-briefs.md`](references/agent-review-briefs.md). Direct subagents to review **terminal usage (`terminal_exec`)** (timeouts, shell errors, formatting, toolkit vs ad-hoc). For `APPRAISER`, evaluate method-agnostic distributions, primary vs cross-check weights, and whether the downstream SELL is robust to a less-conservative mix. For `CURATOR`, evaluate construction against packed `CuratorInput` and persisted `portfolio_allocations`: policy (`investable` / `retain_or_reduce` / `forced_zero`), every input ticker present (including explicit zeros), 15% company cap, shared-risk clusters, cash, and whether the agent re-rated names. Flag web/terminal/`convert_currency` as off-book. If every lane is `forced_zero`, 100% cash is mechanically compelled — do not attribute it to Curator caution.
 
-7. **Write report:** `<uuid>_agent_review.html` in the **same** `<uuid>/` folder. **Do not** write a markdown report — the deliverable is HTML only.
+7. **Pipeline synthesis (parent, required):** After subagents return, the parent independently reconstructs the **book-level** outcome. Per-agent reviews cannot see that a Sentinel “do not proceed” becomes SELL / “Exit the position.” and then Curator `forced_zero`. Follow [`references/pipeline-synthesis.md`](references/pipeline-synthesis.md): query SQLite facts, re-read live gate/policy code, split holdings vs prospects and Sentinel rejection vs rating-table SELL, separate repaired stop-errors from judgement, and verdict whether the allocation is mechanically compelled, economically defensible, or an over-escalation. If the user asked a specific concern (e.g. 100% cash, over-caution), answer it first in the executive summary. Do not concatenate subagent text.
+
+8. **Write report:** `<uuid>_agent_review.html` in the **same** `<uuid>/` folder. **Do not** write a markdown report — the deliverable is HTML only.
 
 ## Report format (HTML)
 
@@ -196,20 +214,23 @@ Write a **single self-contained HTML file** (no external CSS/JS/fonts). Requirem
 
 ## Report structure (suggested)
 
-1. **Data sources** — SQLite path + copy command; Logfire window; note whether `data/dashboard.prod.sqlite` was copied fresh or may be stale.
-2. **Executive summary** — tickers (`workflow_run_portfolio_tickers` / `runs`), profiler coverage if `< 25` conversations, sentinel pass count, runs with `run_final_decisions` / `final_rating` when present, Curator execution status (`completed` / `skipped` / `failed` / missing), cash target, and position count when an allocation exists.
-3. **Terminal Tool Analytics** — A structured summary of `terminal_exec` tool usage, detailing command execution counts, overall success rate, timeouts, errors, and an audit of toolkit commands versus ad-hoc actions across agents (include workflow-scoped Surveyor/Curator; do not join only via `runs`).
-4. **Appraiser Valuation Audit** — A structured table of valuation distributions extracted from `appraiser_reports` for all appraised tickers (including EXPECTED, P10, P50, and P90 intrinsic values, current share price, currency, primary vs cross-check valuation methods, assigned weights, and data quality ratings).
-5. **Curator Allocation Audit** — A structured table of persisted `portfolio_allocations` / `portfolio_allocation_positions` (ticker, current vs target weight, range, policy, forced-zero reason, action) plus cash and `portfolio_allocation_risk_clusters`. Note when Curator was skipped or absent. Compare conversation `CuratorProposal` with the finalised rows where both exist.
-6. **Qualitative conversation review** — one `<section>` per agent from subagents (highlighting agent reasoning, rate limit recoveries, edge cases, and tool usage), including Curator when `_MERGED_CURATOR.md` exists.
-7. **Appendix: telemetry** — Logfire tables + any pipeline-only notes.
+1. **Data sources** — SQLite path + copy/backup command; Logfire window; note whether `data/dashboard.prod.sqlite` was copied fresh or may be stale.
+2. **Executive summary** — If the user asked a specific concern, **lead with that answer**. Then: tickers (`workflow_run_portfolio_tickers` / `runs`) split by **holding vs prospect** and by `decision_type` (Sentinel rejection vs rating table); Sentinel pass count; Appraiser skip vs complete; Curator status, cash target, and position count. Profiler coverage: warn only if a **Profiler-entry** lane lacks a Profiler conversation — Surveyor-originated names have no Profiler conversation by design. A count below 25 is not automatically incomplete.
+3. **Pipeline synthesis** — Required. Causal chain from screening/research/thesis/gate/valuation/policy to the book (see [`references/pipeline-synthesis.md`](references/pipeline-synthesis.md)). Distinguish mechanical policy from model judgement, valid company caution from book liquidation, and repaired operational errors from remaining quality defects. Include a **per-ticker decision table** (ticker, holding?, path, thesis verdict, support/weaken/gap counts, action, independent reading).
+4. **Terminal Tool Analytics** — `terminal_exec` counts, success rate, timeouts, errors, toolkit vs ad-hoc (include workflow-scoped Surveyor/Curator; do not join only via `runs`). Bodies are text `exit_code: 0`, not JSON.
+5. **Appraiser Valuation Audit** — EXPECTED, P10, P50, P90, current price, currency, methods/weights, data quality. Recompute the blend; note whether SELL is table-correct and robust.
+6. **Curator Allocation Audit** — Persisted positions (current vs target, range, policy, action), cash, clusters. Note skipped/absent Curator. Compare `CuratorProposal` with finalised rows. State whether cash/zeros were compelled by packed policy.
+7. **Qualitative conversation review** — one `<section>` per agent from subagents (inputs to synthesis, not a substitute for it), including Curator when `_MERGED_CURATOR.md` exists.
+8. **Appendix: telemetry** — Logfire tables, retry vs final-state notes.
 
 ## Codebase pointers
 
 - Models: [`backend/src/discount_analyst/adapters/persistence/models.py`](../../../backend/src/discount_analyst/adapters/persistence/models.py) — `WorkflowRun` (`started_at`, `status`), `Run` (`ticker`, `final_rating`, `decision_type`), `AgentExecution` (XOR parent: `workflow_run_id` or `run_id`; Surveyor and Curator are workflow-scoped), `AgentConversation` (`agent_execution_id`), messages, parts, `AppraiserReport`, `PortfolioAllocation` / `PortfolioAllocationPosition` / `PortfolioAllocationRiskCluster`.
+- Gate and policy (re-read during synthesis): [`agents/sentinel/derive_thesis_verdict.py`](../../../backend/src/discount_analyst/agents/sentinel/derive_thesis_verdict.py), `sentinel_proceeds_to_valuation` in [`agents/sentinel/schema.py`](../../../backend/src/discount_analyst/agents/sentinel/schema.py), [`application/decisions/builders.py`](../../../backend/src/discount_analyst/application/decisions/builders.py) (`build_sentinel_rejection`), [`domain/allocations/eligibility.py`](../../../backend/src/discount_analyst/domain/allocations/eligibility.py), [`agents/curator/system_prompt.py`](../../../backend/src/discount_analyst/agents/curator/system_prompt.py).
 - Agent enum: `AgentNameDb` — seven pipeline agents (`surveyor`, `profiler`, `researcher`, `strategist`, `sentinel`, `appraiser`, `curator`; no `ARBITER`; legacy `arbiter` rows were migrated in alembic `0004`). SQLite stores **lowercase** values. Runtime `AgentName` / Logfire span `agent_name` is **uppercase**.
 - Config default DB: `common/config.py` → `Settings.database_path` defaults to `data/dashboard.sqlite`; production analysis uses **`data/dashboard.prod.sqlite`**.
 - Export scripts: stdlib-only, live under `.cursor/skills/analyse-workflow-run/scripts/` (no repo imports).
+- Review briefs: [`references/agent-review-briefs.md`](references/agent-review-briefs.md), [`references/pipeline-synthesis.md`](references/pipeline-synthesis.md).
 
 ## Optional deep interview
 
