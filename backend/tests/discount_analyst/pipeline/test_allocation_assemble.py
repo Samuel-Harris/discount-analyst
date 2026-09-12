@@ -142,9 +142,7 @@ def test_assemble_omits_dqr_from_llm_pack() -> None:
     packed_tickers = {lane.identity.ticker for lane in job.curator_input.lanes}
     assert packed_tickers == {"NVDA", "HELD"}
     assert {stamp.ticker for stamp in job.dqr_stamps} == {"JUNK"}
-    llm_tickers = {
-        position.ticker for position in job.curator_input.snapshot.positions
-    }
+    llm_tickers = {position.ticker for position in job.curator_input.snapshot.positions}
     assert llm_tickers == {"HELD"}
     assert job.curator_input.snapshot.cash_weight_pct == 90.0
     assert job.ledger_cash_weight_pct == 82.0
