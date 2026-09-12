@@ -58,6 +58,7 @@ from discount_analyst.adapters.persistence.models import (
 )
 from discount_analyst.agents.appraiser.schema import AppraiserOutput
 from discount_analyst.domain.decisions.schema import (
+    AppraisedDecision,
     DataQualityRejection,
     RatingTableDecision,
     SentinelRejection,
@@ -720,6 +721,38 @@ def persist_ticker_run_final_verdict(
     """Upsert structured final decision rows from the verdict JSON payload."""
     if not final_verdict_json or not decision_type:
         return
+    if decision_type == DecisionTypeDb.APPRAISED.value:
+        source_execution_id = get_agent_execution_id_by_run_and_agent(
+            session, run_id=run_id, agent_name=AgentNameDb.APPRAISER.value
+        )
+        if source_execution_id is None:
+            return
+        decision = AppraisedDecision.model_validate_json(final_verdict_json)
+        upsert_run_final_decision(
+            session,
+            run_id=run_id,
+            source_agent_execution_id=source_execution_id,
+            decision_type=DecisionTypeDb.APPRAISED,
+            decision_date=date.fromisoformat(decision.decision_date),
+            is_existing_position=decision.is_existing_position,
+            rating=None,
+            recommended_action=None,
+            conviction=None,
+            rejection_reason=None,
+            current_price=None,
+            bear_intrinsic_value=None,
+            base_intrinsic_value=None,
+            bull_intrinsic_value=None,
+            margin_of_safety_base_pct=None,
+            margin_of_safety_verdict=None,
+            primary_driver=None,
+            red_flag_disposition=None,
+            data_gap_disposition=None,
+            thesis_expiry_note=None,
+            supporting_factors=[],
+            mitigating_factors=[],
+        )
+        return
     verdict = Verdict.model_validate_json(final_verdict_json)
     if decision_type == DecisionTypeDb.RATING_TABLE.value:
         source_execution_id = get_agent_execution_id_by_run_and_agent(
@@ -797,7 +830,7 @@ def persist_ticker_run_final_verdict(
             decision_type=DecisionTypeDb.DATA_QUALITY_REJECTION,
             decision_date=date.fromisoformat(decision.decision_date),
             is_existing_position=decision.is_existing_position,
-            rating=decision.rating.value,
+            rating=None,
             recommended_action=decision.recommended_action,
             conviction=None,
             rejection_reason=decision.rejection_reason,

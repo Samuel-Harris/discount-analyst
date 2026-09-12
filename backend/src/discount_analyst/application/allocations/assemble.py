@@ -2,80 +2,93 @@
 
 from dataclasses import dataclass
 from datetime import date
-from typing import Literal
 
+from discount_analyst.agents.appraiser.schema import AppraiserOutput
 from discount_analyst.agents.curator.schema import (
-    CuratorInput,
-    CuratorLaneEvidence,
+    AppraisedLaneEvidence,
     CompactAppraiserEvidence,
     CompactResearcherEvidence,
     CompactSentinelEvidence,
     CompactStrategistEvidence,
-    DataQualityRejectionLaneEvidence,
-    PackedMispricingThesis,
-    RatingTableLaneEvidence,
-    SentinelRejectionLaneEvidence,
+    CuratorInput,
     CuratorLaneIdentity,
+    PackedMispricingThesis,
 )
-from discount_analyst.agents.appraiser.schema import AppraiserOutput
 from discount_analyst.agents.researcher.schema import DeepResearchReport
-from discount_analyst.agents.sentinel.schema import EvaluationReport, ThesisVerdict
+from discount_analyst.agents.sentinel.schema import EvaluationReport
 from discount_analyst.agents.strategist.schema import MispricingThesis
 from discount_analyst.application.allocations.errors import AllocationAssemblyError
-from discount_analyst.domain.allocations.eligibility import allocation_policy_for
 from discount_analyst.domain.allocations.snapshot import (
     CurrentPortfolioSnapshot,
+    CurrentPositionWeight,
     snapshot_weight_for_ticker,
 )
-from discount_analyst.domain.decisions.investment_rating import InvestmentRating
 from discount_analyst.domain.decisions.margin_of_safety import MarginOfSafetyAssessment
-from discount_analyst.domain.decisions.schema import Verdict
-
-LaneDecisionKind = Literal[
-    "rating_table", "sentinel_rejection", "data_quality_rejection"
-]
+from discount_analyst.domain.decisions.schema import (
+    AppraisedDecision,
+    DataQualityRejection,
+)
 
 
 @dataclass(frozen=True, slots=True)
-class CompletedLaneBundle:
+class ValuedLaneBundle:
     source_run_id: str
     ticker: str
     company_name: str
     is_existing_position: bool
-    rating: InvestmentRating
-    decision_kind: LaneDecisionKind
-    rejection_reason: str | None
     sector: str
     industry: str
-    deep_research: DeepResearchReport | None = None
-    thesis: MispricingThesis | None = None
-    evaluation: EvaluationReport | None = None
-    appraiser_output: AppraiserOutput | None = None
+    deep_research: DeepResearchReport
+    thesis: MispricingThesis
+    evaluation: EvaluationReport
+    appraiser_output: AppraiserOutput
 
 
-def completed_lane_bundle_from_verdict(
+@dataclass(frozen=True, slots=True)
+class DqrLaneBundle:
+    source_run_id: str
+    ticker: str
+    company_name: str
+    is_existing_position: bool
+    sector: str
+    industry: str
+    rationale: str
+
+
+@dataclass(frozen=True, slots=True)
+class DqrStampLane:
+    source_run_id: str
+    ticker: str
+    company_name: str
+    is_existing_position: bool
+    current_weight_pct: float
+    rationale: str
+
+
+@dataclass(frozen=True, slots=True)
+class AssembledCuratorJob:
+    curator_input: CuratorInput
+    dqr_stamps: tuple[DqrStampLane, ...]
+    source_run_ids: dict[str, str]
+    ledger_cash_weight_pct: float
+
+
+def valued_lane_bundle(
     *,
     source_run_id: str,
-    verdict: Verdict,
+    decision: AppraisedDecision,
     sector: str,
     industry: str,
-    deep_research: DeepResearchReport | None = None,
-    thesis: MispricingThesis | None = None,
-    evaluation: EvaluationReport | None = None,
-    appraiser_output: AppraiserOutput | None = None,
-) -> CompletedLaneBundle:
-    decision = verdict.decision
-    rejection_reason = (
-        None if decision.decision_kind == "rating_table" else decision.rejection_reason
-    )
-    return CompletedLaneBundle(
+    deep_research: DeepResearchReport,
+    thesis: MispricingThesis,
+    evaluation: EvaluationReport,
+    appraiser_output: AppraiserOutput,
+) -> ValuedLaneBundle:
+    return ValuedLaneBundle(
         source_run_id=source_run_id,
-        ticker=verdict.ticker,
-        company_name=verdict.company_name,
-        is_existing_position=verdict.is_existing_position,
-        rating=verdict.rating,
-        decision_kind=decision.decision_kind,
-        rejection_reason=rejection_reason,
+        ticker=decision.ticker,
+        company_name=decision.company_name,
+        is_existing_position=decision.is_existing_position,
         sector=sector,
         industry=industry,
         deep_research=deep_research,
@@ -85,11 +98,30 @@ def completed_lane_bundle_from_verdict(
     )
 
 
+def dqr_lane_bundle(
+    *,
+    source_run_id: str,
+    decision: DataQualityRejection,
+    sector: str,
+    industry: str,
+) -> DqrLaneBundle:
+    return DqrLaneBundle(
+        source_run_id=source_run_id,
+        ticker=decision.ticker,
+        company_name=decision.company_name,
+        is_existing_position=decision.is_existing_position,
+        sector=sector,
+        industry=industry,
+        rationale=f"Data-quality gate failed: {decision.rejection_reason}",
+    )
+
+
 def source_run_ids_by_ticker(
-    lane_bundles: tuple[CompletedLaneBundle, ...],
+    valued: tuple[ValuedLaneBundle, ...],
+    dqr: tuple[DqrLaneBundle, ...] = (),
 ) -> dict[str, str]:
     indexed: dict[str, str] = {}
-    for bundle in lane_bundles:
+    for bundle in (*valued, *dqr):
         key = bundle.ticker.casefold()
         if key in indexed:
             msg = f"Duplicate lane bundle ticker {bundle.ticker!r}."
@@ -98,26 +130,35 @@ def source_run_ids_by_ticker(
     return indexed
 
 
-def assemble_curator_input(
-    lanes: tuple[CompletedLaneBundle, ...],
+def assemble_curator_job(
+    valued: tuple[ValuedLaneBundle, ...],
     snapshot: CurrentPortfolioSnapshot,
     allocation_date: date,
-) -> CuratorInput:
-    """Apply canonical policy and pack discriminated compact evidence."""
-    _validate_snapshot_matches_lanes(lanes, snapshot)
-    packed = tuple(_pack_lane(bundle, snapshot) for bundle in lanes)
-    return CuratorInput(
-        allocation_date=allocation_date,
-        snapshot=snapshot,
-        lanes=packed,
+    *,
+    dqr: tuple[DqrLaneBundle, ...] = (),
+) -> AssembledCuratorJob:
+    """Pack valued lanes for the LLM; hold DQR names for application stamps."""
+    _validate_snapshot_matches_lanes(valued, dqr, snapshot)
+    packed = tuple(_pack_valued_lane(bundle, snapshot) for bundle in valued)
+    stamps = tuple(_dqr_stamp(bundle, snapshot) for bundle in dqr)
+    return AssembledCuratorJob(
+        curator_input=CuratorInput(
+            allocation_date=allocation_date,
+            snapshot=_llm_snapshot(snapshot, dqr),
+            lanes=packed,
+        ),
+        dqr_stamps=stamps,
+        source_run_ids=source_run_ids_by_ticker(valued, dqr),
+        ledger_cash_weight_pct=snapshot.cash_weight_pct,
     )
 
 
 def _validate_snapshot_matches_lanes(
-    lanes: tuple[CompletedLaneBundle, ...],
+    valued: tuple[ValuedLaneBundle, ...],
+    dqr: tuple[DqrLaneBundle, ...],
     snapshot: CurrentPortfolioSnapshot,
 ) -> None:
-    lane_keys = {bundle.ticker.casefold(): bundle for bundle in lanes}
+    lane_keys = {bundle.ticker.casefold(): bundle for bundle in (*valued, *dqr)}
     snapshot_keys = {
         position.ticker.casefold(): position.ticker for position in snapshot.positions
     }
@@ -137,97 +178,86 @@ def _validate_snapshot_matches_lanes(
             raise AllocationAssemblyError(msg)
 
 
-def _pack_lane(
-    bundle: CompletedLaneBundle,
+def _llm_snapshot(
     snapshot: CurrentPortfolioSnapshot,
-) -> CuratorLaneEvidence:
-    current_weight = snapshot_weight_for_ticker(snapshot, bundle.ticker)
-    if current_weight is None:
-        current_weight = 0.0
-    policy = allocation_policy_for(
-        rating=bundle.rating,
-        is_existing_position=bundle.is_existing_position,
-        current_weight_pct=current_weight,
+    dqr: tuple[DqrLaneBundle, ...],
+) -> CurrentPortfolioSnapshot:
+    """Hide unvalued holdings from the LLM; fold their current weight into cash."""
+    dqr_keys = {bundle.ticker.casefold() for bundle in dqr}
+    if not dqr_keys:
+        return snapshot
+    kept: list[CurrentPositionWeight] = []
+    folded = 0.0
+    for position in snapshot.positions:
+        if position.ticker.casefold() in dqr_keys:
+            folded += position.current_weight_pct
+            continue
+        kept.append(position)
+    if folded == 0.0:
+        return snapshot
+    return CurrentPortfolioSnapshot(
+        as_of=snapshot.as_of,
+        positions=tuple(kept),
+        cash_weight_pct=round(snapshot.cash_weight_pct + folded, 2),
     )
-    identity = CuratorLaneIdentity(
+
+
+def _current_weight(ticker: str, snapshot: CurrentPortfolioSnapshot) -> float:
+    current_weight = snapshot_weight_for_ticker(snapshot, ticker)
+    if current_weight is None:
+        return 0.0
+    return current_weight
+
+
+def _identity(
+    bundle: ValuedLaneBundle,
+    snapshot: CurrentPortfolioSnapshot,
+) -> CuratorLaneIdentity:
+    return CuratorLaneIdentity(
         ticker=bundle.ticker,
         company_name=bundle.company_name,
         is_existing_position=bundle.is_existing_position,
-        current_weight_pct=current_weight,
+        current_weight_pct=_current_weight(bundle.ticker, snapshot),
         sector=bundle.sector,
         industry=bundle.industry,
-        policy=policy,
-        rating=bundle.rating,
     )
-    if bundle.decision_kind == "rating_table":
-        live_thesis = _require_thesis(bundle)
-        return RatingTableLaneEvidence(
-            identity=identity,
-            live_thesis=_pack_live_thesis(live_thesis),
-            researcher=_require_researcher(bundle),
-            strategist=_compact_strategist(live_thesis),
-            sentinel=_require_sentinel(bundle),
-            appraiser=_require_appraiser(bundle),
-        )
-    if bundle.decision_kind == "sentinel_rejection":
-        if bundle.appraiser_output is not None:
-            msg = (
-                f"Sentinel-rejection lane {bundle.ticker!r} cannot "
-                "carry Appraiser valuation evidence."
-            )
-            raise AllocationAssemblyError(msg)
-        live_thesis = _require_thesis(bundle)
-        return SentinelRejectionLaneEvidence(
-            identity=identity,
-            live_thesis=_pack_live_thesis(live_thesis),
-            rejection_reason=_require_rejection_reason(bundle),
-            researcher=_require_researcher(bundle),
-            strategist=_compact_strategist(live_thesis),
-            sentinel=_require_sentinel(bundle),
-        )
-    if (
-        bundle.deep_research is not None
-        or bundle.evaluation is not None
-        or bundle.appraiser_output is not None
-    ):
-        msg = (
-            f"Data-quality rejection lane {bundle.ticker!r} cannot "
-            "carry research, Sentinel, or valuation evidence."
-        )
-        raise AllocationAssemblyError(msg)
-    return DataQualityRejectionLaneEvidence(
-        identity=identity,
-        rejection_reason=_require_rejection_reason(bundle),
-        live_thesis=(
-            _pack_live_thesis(bundle.thesis) if bundle.thesis is not None else None
+
+
+def _pack_valued_lane(
+    bundle: ValuedLaneBundle,
+    snapshot: CurrentPortfolioSnapshot,
+) -> AppraisedLaneEvidence:
+    return AppraisedLaneEvidence(
+        identity=_identity(bundle, snapshot),
+        live_thesis=_pack_live_thesis(bundle.thesis),
+        researcher=CompactResearcherEvidence(
+            customer_segments=bundle.deep_research.business_model.customer_segments,
+            risks=tuple(bundle.deep_research.risks),
         ),
+        strategist=_compact_strategist(bundle.thesis),
+        sentinel=CompactSentinelEvidence(
+            customer_or_supplier_concentration=(
+                bundle.evaluation.red_flag_screen.customer_or_supplier_concentration
+            ),
+            red_flag_verdict=bundle.evaluation.red_flag_screen.overall_red_flag_verdict.value,
+            thesis_verdict=bundle.evaluation.thesis_verdict.value,
+            material_data_gaps=bundle.evaluation.material_data_gaps,
+        ),
+        appraiser=_compact_appraiser(bundle.appraiser_output),
     )
 
 
-def _require_rejection_reason(bundle: CompletedLaneBundle) -> str:
-    if bundle.rejection_reason is None:
-        msg = f"Lane {bundle.ticker!r} is missing a rejection reason."
-        raise AllocationAssemblyError(msg)
-    return bundle.rejection_reason
-
-
-def _require_researcher(bundle: CompletedLaneBundle) -> CompactResearcherEvidence:
-    report = bundle.deep_research
-    if report is None:
-        msg = f"Lane {bundle.ticker!r} is missing Researcher evidence."
-        raise AllocationAssemblyError(msg)
-    return CompactResearcherEvidence(
-        customer_segments=report.business_model.customer_segments,
-        risks=tuple(report.risks),
+def _dqr_stamp(
+    bundle: DqrLaneBundle, snapshot: CurrentPortfolioSnapshot
+) -> DqrStampLane:
+    return DqrStampLane(
+        source_run_id=bundle.source_run_id,
+        ticker=bundle.ticker,
+        company_name=bundle.company_name,
+        is_existing_position=bundle.is_existing_position,
+        current_weight_pct=_current_weight(bundle.ticker, snapshot),
+        rationale=bundle.rationale,
     )
-
-
-def _require_thesis(bundle: CompletedLaneBundle) -> MispricingThesis:
-    thesis = bundle.thesis
-    if thesis is None:
-        msg = f"Lane {bundle.ticker!r} is missing Strategist evidence."
-        raise AllocationAssemblyError(msg)
-    return thesis
 
 
 def _pack_live_thesis(thesis: MispricingThesis) -> PackedMispricingThesis:
@@ -243,28 +273,7 @@ def _compact_strategist(thesis: MispricingThesis) -> CompactStrategistEvidence:
     )
 
 
-def _require_sentinel(bundle: CompletedLaneBundle) -> CompactSentinelEvidence:
-    evaluation = bundle.evaluation
-    if evaluation is None:
-        msg = f"Lane {bundle.ticker!r} is missing Sentinel evidence."
-        raise AllocationAssemblyError(msg)
-    return CompactSentinelEvidence(
-        customer_or_supplier_concentration=(
-            evaluation.red_flag_screen.customer_or_supplier_concentration
-        ),
-        red_flag_verdict=evaluation.red_flag_screen.overall_red_flag_verdict.value,
-        reservations=(
-            evaluation.thesis_verdict is ThesisVerdict.INTACT_WITH_RESERVATIONS
-        ),
-        material_data_gaps=evaluation.material_data_gaps,
-    )
-
-
-def _require_appraiser(bundle: CompletedLaneBundle) -> CompactAppraiserEvidence:
-    output = bundle.appraiser_output
-    if output is None:
-        msg = f"Lane {bundle.ticker!r} is missing Appraiser evidence."
-        raise AllocationAssemblyError(msg)
+def _compact_appraiser(output: AppraiserOutput) -> CompactAppraiserEvidence:
     margin = MarginOfSafetyAssessment.from_distribution(output.valuation_distribution)
     return CompactAppraiserEvidence(
         current_price=margin.current_price,

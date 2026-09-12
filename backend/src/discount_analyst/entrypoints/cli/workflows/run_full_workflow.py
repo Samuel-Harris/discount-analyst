@@ -1,10 +1,9 @@
-"""Run Surveyor or Profiler entry, then Researcher through Sentinel, gated Appraiser, deterministic rating, Verdicts."""
+"""Run Surveyor or Profiler entry, then Researcher through Appraiser and Curator."""
 
 import argparse
 import asyncio
 from collections import Counter
 from dataclasses import dataclass
-from datetime import date
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -13,7 +12,6 @@ from rich.panel import Panel
 
 from discount_analyst.agents.sentinel.schema import (
     EvaluationReport,
-    sentinel_proceeds_to_valuation,
 )
 from discount_analyst.agents.sentinel.sentinel import create_sentinel_agent
 from discount_analyst.agents.sentinel.derive_thesis_verdict import (
@@ -47,17 +45,13 @@ from discount_analyst.config.ai_models_config import AIModelsConfig
 from discount_analyst.config.settings import settings as app_settings
 from discount_analyst.domain.model_selection.model_name import ModelName
 from discount_analyst.application.allocations.assemble import (
-    CompletedLaneBundle,
-    completed_lane_bundle_from_verdict,
+    ValuedLaneBundle,
+    valued_lane_bundle,
 )
 from discount_analyst.application.allocations.errors import AllocationAssemblyError
-from discount_analyst.application.decisions.builders import (
-    build_sentinel_rejection,
-    verdict_from_decision,
-)
 from discount_analyst.domain.allocations.invariants import AllocationInvariantError
 from discount_analyst.domain.decisions.schema import (
-    Verdict,
+    AppraisedDecision,
 )
 from discount_analyst.agents.runtime.terminal_run import (
     TerminalRunOptions,
@@ -164,10 +158,10 @@ def parse_args() -> WorkflowArgs:
         description=(
             "Run Surveyor once (default) or Profiler per ticker (--profiler-tickers), "
             "then Researcher sequentially for each candidate, "
-            "then Strategist and Sentinel for each successful Researcher and Strategist run, "
-            "then Appraiser when the Sentinel valuation gate passes, "
-            "then deterministic rating and a workflow-level Curator; "
-            "writes Verdict rows, a verdicts JSON artefact, and a PortfolioAllocation artefact."
+            "then Strategist, Sentinel, and Appraiser for each successful upstream run, "
+            "then a workflow-level Curator; "
+            "writes AppraisedDecision rows, a decisions JSON artefact, and a "
+            "PortfolioAllocation artefact."
         )
     )
     add_agent_cli_web_search_arguments(parser)
@@ -662,13 +656,12 @@ async def main() -> None:
     strategist_failures: list[FailedStrategistRun] = []
     sentinel_failures: list[FailedSentinelRun] = []
     appraiser_failures: list[FailedAppraiserRun] = []
-    verdicts: list[Verdict] = []
-    lane_bundles: list[CompletedLaneBundle] = []
+    verdicts: list[AppraisedDecision] = []
+    lane_bundles: list[ValuedLaneBundle] = []
     researcher_successes = 0
     strategist_successes = 0
     sentinel_successes = 0
     appraiser_successes = 0
-    appraiser_skipped_sentinel = 0
 
     for index, candidate in enumerate(candidates):
         if index > 0:
@@ -791,43 +784,9 @@ async def main() -> None:
         sentinel_successes += 1
         console.print(f"Saved Sentinel output: [dim]{sentinel_path}[/dim]")
 
-        if not sentinel_proceeds_to_valuation(sent_result.output):
-            appraiser_skipped_sentinel += 1
-            decision_day = date.today().isoformat()
-            rejection = build_sentinel_rejection(
-                sent_result.output,
-                strat_result.output,
-                is_existing_position=args.is_existing_position,
-                decision_date=decision_day,
-            )
-            rejection_verdict = verdict_from_decision(rejection)
-            verdicts.append(rejection_verdict)
-            lane_bundles.append(
-                completed_lane_bundle_from_verdict(
-                    source_run_id=f"cli-{suffixes[index]}",
-                    verdict=rejection_verdict,
-                    sector=candidate.sector,
-                    industry=candidate.industry,
-                    deep_research=run_result.output,
-                    thesis=strat_result.output,
-                    evaluation=sent_result.output,
-                )
-            )
-            console.log(
-                f"Skipping Appraiser for {candidate.ticker}: "
-                "valuation gate is Do not proceed "
-                f"(thesis_verdict={sent_result.output.thesis_verdict!r}, "
-                "overall_red_flag_verdict="
-                f"{sent_result.output.red_flag_screen.overall_red_flag_verdict!r})."
-            )
-            continue
-
-        console.log(
-            f"Sentinel valuation gate passed; "
-            f"running Appraiser for {candidate.ticker}..."
-        )
+        console.log(f"Running Appraiser for {candidate.ticker}...")
         try:
-            verdict, appraiser_output = await run_cli_appraiser_lane(
+            appraised, appraiser_output = await run_cli_appraiser_lane(
                 console=console,
                 model=defaults.appraiser,
                 risk_free_rate_pct=args.risk_free_rate_pct,
@@ -846,11 +805,11 @@ async def main() -> None:
                 thesis=strat_result.output,
                 evaluation=sent_result.output,
             )
-            verdicts.append(verdict)
+            verdicts.append(appraised)
             lane_bundles.append(
-                completed_lane_bundle_from_verdict(
+                valued_lane_bundle(
                     source_run_id=f"cli-{suffixes[index]}",
-                    verdict=verdict,
+                    decision=appraised,
                     sector=candidate.sector,
                     industry=candidate.industry,
                     deep_research=run_result.output,
@@ -903,7 +862,7 @@ async def main() -> None:
             console.print(f"[red]Curator failed: {exc}[/red]")
 
     summary_lines = [
-        f"Workflow complete: {entry_mode} entry through deterministic rating (gated)",
+        f"Workflow complete: {entry_mode} entry through Appraiser and Curator",
         f"Candidates: {len(candidates)}",
     ]
     if args.profiler_tickers is not None:
@@ -918,8 +877,7 @@ async def main() -> None:
             f"Sentinel failures: {len(sentinel_failures)}",
             f"Appraiser successes: {appraiser_successes}",
             f"Appraiser failures: {len(appraiser_failures)}",
-            f"Appraiser skipped (valuation gate): {appraiser_skipped_sentinel}",
-            f"Verdicts recorded: {len(verdicts)}",
+            f"Appraised decisions recorded: {len(verdicts)}",
         ]
     )
     console.print(Panel.fit("\n".join(summary_lines), border_style="cyan"))

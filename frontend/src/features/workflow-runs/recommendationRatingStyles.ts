@@ -1,6 +1,6 @@
 /** CSS tone slug from `final_rating` (matches API `InvestmentRating` strings). */
 export function finalRatingToneSlug(finalRating: string | null): string {
-  if (!finalRating) return "pending";
+  if (!finalRating) return "none";
   switch (finalRating.toUpperCase()) {
     case "STRONG BUY":
       return "strong-buy";

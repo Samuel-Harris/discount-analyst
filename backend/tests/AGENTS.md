@@ -29,9 +29,8 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | `tests/fixtures/web_fetch/`                                                                   | Minimal PDF and DOCX fixtures with known extractable strings for markitdown integration tests.                                                                                                                |
 | `tests/discount_analyst/integrations/test_terminal.py`                                        | Terminal HTTP client mocks; optional `@pytest.mark.docker` orchestrator integration.                                                                                                                          |
 | `tests/discount_analyst/agents/common/test_streamed_agent_run.py`                             | Tests for `run_streamed_agent`.                                                                                                                                                                               |
-| `tests/discount_analyst/agents/sentinel/test_sentinel_gate.py`                                | Tests for `sentinel_proceeds_to_valuation` (thesis + red-flag gate).                                                                                                                                          |
-| `tests/discount_analyst/agents/sentinel/test_derive_thesis_verdict.py`                        | Tests for `derive_thesis_verdict` / `finalise_sentinel_evaluation` (gap_kind order, UNPROVEN, question-count mismatch).                                                                                       |
-| `tests/discount_analyst/pipeline/test_builders.py`                                            | Tests for `build_sentinel_rejection`, `verdict_from_decision`, and tagged `Verdict` JSON round-trip of all three decision kinds.                                                                              |
+| `tests/discount_analyst/agents/sentinel/test_derive_thesis_verdict.py`                        | Tests for `derive_thesis_verdict` / `finalise_sentinel_evaluation` (`never_disclosed` reservations, Unproven requires Weakens/Breaks, question-count mismatch).                                               |
+| `tests/discount_analyst/pipeline/test_builders.py`                                            | Historical `SentinelRejection` / `RatingTableDecision` JSON round-trip plus live `AppraisedDecision` / DQR (null rating).                                                                                     |
 | `tests/discount_analyst/pipeline/test_candidate_gates.py`                                     | Pre-Researcher FMP/EODHD gates: auto-correct only on exact or unique strong match; unknown/ambiguous identity keeps the source ticker; listing rejects only on FMP inactive (non-`.L`) or EODHD `IsDelisted`. |
 | `tests/discount_analyst/integrations/test_eodhd_client.py`                                    | EODHD REST client: real-time quote (including `"NA"` close → `None`), fundamentals `IsDelisted`.                                                                                                              |
 | `tests/discount_analyst/integrations/test_infallible_toolset.py`                              | `format_tool_error` plus `InfallibleToolExecution.wrap_tool_execute` (function-tool errors vs output-kind re-raise).                                                                                          |
@@ -46,28 +45,28 @@ The `tests/` directory contains the automated test suite for the Discount Analys
 | `tests/backend/unit/test_mock_rating_table_dashboard.py`                                      | Deterministic mock `RatingTableDecision` helpers for dashboard payloads.                                                                                                                                      |
 | `tests/backend/unit/test_appraiser_output_persistence.py`                                     | Appraiser `AppraiserReport` persistence and `get_appraiser_report_for_run` join behaviour.                                                                                                                    |
 | `tests/backend/unit/test_agent_output_persistence.py`                                         | Profiler `CandidateSnapshot` persistence (exactly one row at `sort_order=0`).                                                                                                                                 |
-| `tests/backend/unit/test_migration_startup.py`                                                | Alembic head on startup, metadata verify, 0009→head agent-execution unify remap, and 0012→0013 allocation backfill (head is `0016_workflow_sterling_ledger`).                                                 |
+| `tests/backend/unit/test_migration_startup.py`                                                | Alembic head on startup, metadata verify, 0009→head agent-execution unify remap, and 0012→0013 allocation backfill (head is `0017_appraised_decision_type`).                                                  |
 | `tests/backend/unit/test_dashboard_portfolio_snapshot.py`                                     | Dashboard Curator loads the persisted sterling ledger (unequal weights; pre-ledger rows fail; resolved-ticker remap).                                                                                         |
 | `tests/factories/sterling.py`                                                                 | Shared `sterling_holdings` builder for `insert_workflow_run` callers.                                                                                                                                         |
 | `tests/backend/unit/test_portfolio_allocation_persistence.py`                                 | Workflow-create Surveyor+Curator executions and allocation persist/reconstruct round-trip.                                                                                                                    |
-| `tests/backend/integration/test_mock_workflow.py`                                             | Mock pipeline persistence for `DashboardPipelineRunner` (no live LLM calls); mixed Sentinel lanes.                                                                                                            |
+| `tests/backend/integration/test_mock_workflow.py`                                             | Mock pipeline persistence for `DashboardPipelineRunner` (no live LLM calls); every non-DQR lane is `appraised`.                                                                                               |
 | `tests/backend/integration/test_dashboard_http_e2e.py`                                        | Async HTTP path: create mock workflow run, poll until completed, assert detail and conversations.                                                                                                             |
 
 ## Subdirectories
 
-| Directory                            | Purpose                                                                                                      |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `discount_analyst/http/`             | Tests for streaming retry behaviour (`discount_analyst.agents.common.streaming_retries`).                    |
-| `discount_analyst/integrations/`     | Tests for MCP, Frankfurter FX, web-fetch, and terminal tool wiring.                                          |
-| `discount_analyst/agents/common/`    | Tests for streamed agent orchestration, structured-output unwrap, and ToolOutput object-schema construction. |
-| `discount_analyst/agents/appraiser/` | Tests for Appraiser schema contracts.                                                                        |
-| `discount_analyst/agents/sentinel/`  | Tests for Sentinel schema helpers.                                                                           |
-| `discount_analyst/model_selection/`  | Tests for the per-model context-window table used by conversation usage telemetry.                           |
-| `discount_analyst/pipeline/`         | Tests for programmatic verdict builders, tagged `Verdict` JSON, candidate gates, and the rating table.       |
-| `discount_analyst/valuation/`        | Tests for deterministic valuation toolkit helpers (`discount_analyst.valuation.toolkit`).                    |
-| `scripts/`                           | Tests for script helpers where present.                                                                      |
-| `factories/`                         | Shared test builders (`sterling_holdings`).                                                                  |
-| `backend/`                           | Tests for the FastAPI `backend` package (`unit/`, `integration/`); shared fixtures in `conftest.py`.         |
+| Directory                            | Purpose                                                                                                                    |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `discount_analyst/http/`             | Tests for streaming retry behaviour (`discount_analyst.agents.common.streaming_retries`).                                  |
+| `discount_analyst/integrations/`     | Tests for MCP, Frankfurter FX, web-fetch, and terminal tool wiring.                                                        |
+| `discount_analyst/agents/common/`    | Tests for streamed agent orchestration, structured-output unwrap, and ToolOutput object-schema construction.               |
+| `discount_analyst/agents/appraiser/` | Tests for Appraiser schema contracts.                                                                                      |
+| `discount_analyst/agents/sentinel/`  | Tests for Sentinel schema helpers.                                                                                         |
+| `discount_analyst/model_selection/`  | Tests for the per-model context-window table used by conversation usage telemetry.                                         |
+| `discount_analyst/pipeline/`         | Tests for programmatic verdict builders, tagged historical `Verdict` JSON, candidate gates, and Curator assemble/finalise. |
+| `discount_analyst/valuation/`        | Tests for deterministic valuation toolkit helpers (`discount_analyst.valuation.toolkit`).                                  |
+| `scripts/`                           | Tests for script helpers where present.                                                                                    |
+| `factories/`                         | Shared test builders (`sterling_holdings`).                                                                                |
+| `backend/`                           | Tests for the FastAPI `backend` package (`unit/`, `integration/`); shared fixtures in `conftest.py`.                       |
 
 ## For AI Agents
 

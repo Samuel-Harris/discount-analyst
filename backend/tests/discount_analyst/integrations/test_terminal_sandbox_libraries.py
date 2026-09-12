@@ -5,9 +5,12 @@ from __future__ import annotations
 import base64
 import os
 import shutil
+from pathlib import Path
 
 import httpx
 import pytest
+
+WEB_FETCH_FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "web_fetch"
 
 LIBRARY_MATRIX_SCRIPT = """
 import sys
@@ -53,6 +56,17 @@ if hist.empty or "Close" not in hist.columns:
     raise RuntimeError("yfinance returned empty history")
 ok &= check("yfinance", lambda: f"closes={len(hist)}")
 
+from pathlib import Path
+from markitdown import MarkItDown
+
+converter = MarkItDown()
+pdf_path = Path("/tmp/minimal_text.pdf")
+docx_path = Path("/tmp/minimal_text.docx")
+pdf_path.write_bytes(__import__("base64").b64decode("__PDF_B64__"))
+docx_path.write_bytes(__import__("base64").b64decode("__DOCX_B64__"))
+ok &= check("markitdown_pdf", lambda: converter.convert(str(pdf_path)).text_content[:80])
+ok &= check("markitdown_docx", lambda: converter.convert(str(docx_path)).text_content[:80])
+
 if not ok:
     sys.exit(1)
 print("MATRIX_OK")
@@ -60,7 +74,16 @@ print("MATRIX_OK")
 
 
 def _matrix_command() -> str:
-    encoded = base64.b64encode(LIBRARY_MATRIX_SCRIPT.encode()).decode()
+    pdf_b64 = base64.b64encode(
+        (WEB_FETCH_FIXTURES / "minimal_text.pdf").read_bytes()
+    ).decode()
+    docx_b64 = base64.b64encode(
+        (WEB_FETCH_FIXTURES / "minimal_text.docx").read_bytes()
+    ).decode()
+    script = LIBRARY_MATRIX_SCRIPT.replace("__PDF_B64__", pdf_b64).replace(
+        "__DOCX_B64__", docx_b64
+    )
+    encoded = base64.b64encode(script.encode()).decode()
     return (
         f'python -c "import base64; '
         f"exec(base64.b64decode('{encoded}').decode(), {{'__name__': '__main__'}})\""

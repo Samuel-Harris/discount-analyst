@@ -1,4 +1,4 @@
-"""CLI Appraiser lane: valuation plus deterministic rating-table Verdict."""
+"""CLI Appraiser lane: valuation plus an identity-only AppraisedDecision."""
 
 from datetime import date
 
@@ -10,15 +10,11 @@ from discount_analyst.agents.runtime.terminal_run import TerminalRunOptions
 from discount_analyst.agents.sentinel.schema import EvaluationReport
 from discount_analyst.agents.strategist.schema import MispricingThesis
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
-from discount_analyst.application.decisions.builders import (
-    build_rating_table_decision,
-    verdict_from_decision,
-)
+from discount_analyst.application.decisions.builders import build_appraised_decision
 from discount_analyst.application.workflows.appraiser_run_context import (
     AppraiserRunContext,
 )
-from discount_analyst.domain.decisions.margin_of_safety import MarginOfSafetyAssessment
-from discount_analyst.domain.decisions.schema import Verdict
+from discount_analyst.domain.decisions.schema import AppraisedDecision
 from discount_analyst.domain.model_selection.model_name import ModelName
 from discount_analyst.entrypoints.cli.agents.run_appraiser import (
     display_agent_output,
@@ -46,7 +42,7 @@ async def run_cli_appraiser_lane(
     deep_research: DeepResearchReport,
     thesis: MispricingThesis,
     evaluation: EvaluationReport,
-) -> tuple[Verdict, AppraiserOutput]:
+) -> tuple[AppraisedDecision, AppraiserOutput]:
     appraiser_input = AppraiserInput(
         lane_context=candidate.to_lane_context(),
         deep_research=deep_research,
@@ -80,16 +76,9 @@ async def run_cli_appraiser_lane(
     )
     console.print(f"Saved Appraiser output: [dim]{appraiser_out_path}[/dim]")
 
-    margin_of_safety = MarginOfSafetyAssessment.from_distribution(
-        agent_result.output.valuation_distribution
-    )
-    rating_decision = build_rating_table_decision(
-        lane_context=candidate.to_lane_context(),
-        thesis=thesis,
-        evaluation=evaluation,
-        margin_of_safety=margin_of_safety,
+    appraised = build_appraised_decision(
+        candidate.to_lane_context(),
         is_existing_position=is_existing_position,
         decision_date=date.today().isoformat(),
     )
-    verdict = verdict_from_decision(rating_decision)
-    return verdict, agent_result.output
+    return appraised, agent_result.output

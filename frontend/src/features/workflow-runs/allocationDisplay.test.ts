@@ -35,11 +35,13 @@ const rebalanceActions: RebalanceAction[] = [
   "avoid",
 ];
 
-function emptyQuery(overrides: {
-  data?: PortfolioAllocation | null;
-  loading?: boolean;
-  error?: string | null;
-} = {}) {
+function emptyQuery(
+  overrides: {
+    data?: PortfolioAllocation | null;
+    loading?: boolean;
+    error?: string | null;
+  } = {},
+) {
   return {
     data: null,
     loading: false,
@@ -99,12 +101,12 @@ describe("curatorBookPane", () => {
   });
 
   it("returns completed loading, missing, and error copy", () => {
-    expect(
-      curatorBookPane("completed", emptyQuery({ loading: true })),
-    ).toEqual({
-      kind: "status",
-      message: "Loading allocation…",
-    });
+    expect(curatorBookPane("completed", emptyQuery({ loading: true }))).toEqual(
+      {
+        kind: "status",
+        message: "Loading allocation…",
+      },
+    );
     expect(curatorBookPane("completed", emptyQuery())).toEqual({
       kind: "status",
       message: "Curator completed, allocation not available yet.",
@@ -172,7 +174,6 @@ function bookPosition(
     acceptable_weight_high_pct: 0,
     action: "avoid",
     rationale: "rationale",
-    policy: { kind: "investable" },
     ...overrides,
   };
 }

@@ -98,9 +98,10 @@ that source for this run. Do not probe sibling endpoints or inspect subscription
 
 {REGULATORY_UNIVERSE_TOOL_RULES}
 
-`terminal_exec` has yfinance 1.7.0 and a persistent sandbox. Keep raw Yahoo responses and
-intermediate tables under `/tmp`; never print an entire universe, statement, or raw response into
-the conversation. Each terminal call should print only counts, exclusion reasons, warnings, and
+`terminal_exec` has yfinance 1.7.0, Python `markitdown` for documents/PDFs, and a persistent sandbox.
+Keep raw Yahoo responses and intermediate tables under `/tmp`; never print an entire universe,
+statement, or raw response into the conversation. Do not call `curl`, `wget`, or `pdftotext`.
+Each terminal call should print only counts, exclusion reasons, warnings, and
 at most 60 compact candidate rows. Use no more than three terminal calls for the whole screen:
 combined universe collection, shortlist enrichment, and final hard-filter metric calculation.
 
@@ -109,8 +110,11 @@ combined universe collection, shortlist enrichment, and final hard-filter metric
 Use one terminal script with `yfinance.EquityQuery` and `yf.screen`:
 
 1. **US:** filter `region='us'`, exchange code in `NMS`, `NYQ`, `NCM`, or `ASE`,
-   `intradaymarketcap` from $25M through $600M, plus a positive price and volume filter. Page with
-   `size=250`; stop when the result is exhausted or after 12 pages. `ASE` results are discovery
+   `intradaymarketcap` from $25M through $600M, plus a positive price and a valid EquityQuery
+   trading field such as `avgdailyvol3m` (or `dayvolume` / `intradayprice`). Page with
+   `size=250`; stop when the result is exhausted or after 12 pages. If the US `yf.screen` call
+   fails, retry **once** without the volume operand and rely on the Step 2 20-session traded-value
+   hard filter; do not abandon the US universe. `ASE` results are discovery
    only: exclude a candidate unless official confirmation identifies its exchange as NYSE or
    NASDAQ. Locally remove ETFs, funds, ADRs, preferred shares, warrants, rights, shells, acquisition
    companies/SPACs, and obvious pre-revenue names.
@@ -154,6 +158,11 @@ Apply these rules:
 - Calculate free cash flow as operating cash flow minus capital expenditure where comparable
   statement fields exist. Keep period bases consistent for EV/EBIT and net debt/EBITDA. Null is
   preferable to mixing periods or silently accepting a Yahoo anomaly.
+- Do **not** emit a candidate unless Step 2 **hard filters actually ran and passed**: reconciled
+  cap, 20-session liquidity floor, and at least three annual statement periods. Soft `KeyMetrics`
+  (Piotroski, Altman, CAGR) may stay null. Do not pad the 15 with names whose hard filters were
+  not computed. A Companies House cold cache is a helper limitation, not a reason to drop a
+  verified name; fetch issuer filings via web if needed.
 
 Retain exactly 15 provisional finalists, reasonably balanced across UK and US, plus
 at least two ranked reserve names in `/tmp`. If a later check removes a finalist, promote the next
@@ -221,7 +230,9 @@ JSON.
 
 Your output is constrained by a structured schema. Populate every field you can. A few notes on how to fill it well:
 
-- **Do not pad the list.** Return exactly 15 candidates. Use no more than two saved reserves to replace exclusions without weakening any hard filter.
+- **Do not pad the list.** Return exactly 15 candidates. If you cannot find 15 names whose Step 2
+  hard filters actually ran and passed, fail the schema rather than emitting an all-null slate.
+  Use no more than two saved reserves to replace exclusions without weakening any hard filter.
 - **Mix UK and US stocks.** The operator invests in both markets. Aim for a reasonable balance — do not screen only one geography unless there are genuinely no opportunities in the other.
 - **Mix value and growth.** Balance styles; do not over-index on one.
 - **Be honest about uncertainty.** Leave uncertain soft metrics null and explain why. Do not include a candidate whose market cap, listing, liquidity, reporting status, or operating history remains uncertain because those are hard filters.

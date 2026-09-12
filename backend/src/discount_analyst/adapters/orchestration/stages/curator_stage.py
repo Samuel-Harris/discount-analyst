@@ -51,11 +51,11 @@ from discount_analyst.agents.common_prompts.current_date import with_current_dat
 from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
 from discount_analyst.agents.runtime.terminal_run import run_agent_with_terminal
 from discount_analyst.application.allocations.assemble import (
-    assemble_curator_input,
-    source_run_ids_by_ticker,
+    assemble_curator_job,
 )
 from discount_analyst.application.allocations.finalise import (
     finalise_curator_proposal,
+    synthesise_cash_only_allocation,
 )
 from discount_analyst.application.allocations.skip_reasons import (
     LANES_NOT_ALL_COMPLETED,
@@ -161,29 +161,40 @@ class CuratorStage:
             )
 
             bundles = await host.db(load_completed_lane_bundles, workflow_run_id)
-            curator_input = assemble_curator_input(bundles, snapshot, date.today())
-            agent_result = await self._run_curator_agent(
-                curator_input=curator_input,
-                is_mock=is_mock,
-                llm=llm,
-                settings=host.settings,
-                session_id=execution_id,
-            )
-            allocation = finalise_curator_proposal(
-                agent_result.proposal,
-                curator_input,
-                source_run_ids_by_ticker(bundles),
-            )
+            valued, dqr = bundles
+            job = assemble_curator_job(valued, snapshot, date.today(), dqr=dqr)
+            if not job.curator_input.lanes:
+                allocation = synthesise_cash_only_allocation(job)
+                messages = None
+                messages_json = None
+                completed_message = (
+                    "Curator branch completed without LLM (no valued lanes)"
+                )
+            else:
+                agent_result = await self._run_curator_agent(
+                    curator_input=job.curator_input,
+                    is_mock=is_mock,
+                    llm=llm,
+                    settings=host.settings,
+                    session_id=execution_id,
+                )
+                allocation = finalise_curator_proposal(
+                    agent_result.proposal,
+                    job,
+                )
+                messages = agent_result.messages
+                messages_json = agent_result.messages_json
+                completed_message = "Curator branch completed"
             await host.db(
                 persist_completed_curator_execution,
                 execution_id=execution_id,
                 system_prompt=with_current_date(CURATOR_SYSTEM_PROMPT),
-                messages=agent_result.messages,
-                messages_json=agent_result.messages_json,
+                messages=messages,
+                messages_json=messages_json,
                 allocation=allocation,
             )
             AI_LOGFIRE.info(
-                "Curator branch completed",
+                completed_message,
                 agent_name=AgentNameDb.CURATOR,
                 workflow_run_id=workflow_run_id,
                 position_count=len(allocation.positions),

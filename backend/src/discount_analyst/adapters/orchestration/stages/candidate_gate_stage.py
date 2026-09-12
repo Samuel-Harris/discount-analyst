@@ -196,7 +196,7 @@ class CandidateGateStage:
             update_ticker_run_completion,
             run_id=run_id,
             status="completed",
-            final_rating=str(verdict.rating.value),
+            final_rating=None,
             decision_type="data_quality_rejection",
             recommended_action=verdict.recommended_action,
             final_verdict_json=verdict.model_dump_json(),

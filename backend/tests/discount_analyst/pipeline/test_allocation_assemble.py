@@ -8,7 +8,6 @@ from discount_analyst.adapters.simulation.mock_outputs import (
     mock_curator_proposal,
     mock_appraiser_output,
     mock_deep_research,
-    mock_rating_table_decision,
     mock_rating_table_gate_evaluation,
     mock_surveyor_candidate,
     mock_thesis,
@@ -19,34 +18,28 @@ from discount_analyst.agents.curator.schema import (
     ProposedPosition,
     ProposedSharedRiskCluster,
 )
-from discount_analyst.agents.sentinel.schema import OverallRedFlagVerdict, ThesisVerdict
 from discount_analyst.application.allocations.assemble import (
-    CompletedLaneBundle,
-    assemble_curator_input,
-    completed_lane_bundle_from_verdict,
+    DqrLaneBundle,
+    ValuedLaneBundle,
+    assemble_curator_job,
+    dqr_lane_bundle,
     source_run_ids_by_ticker,
+    valued_lane_bundle,
 )
 from discount_analyst.application.allocations.errors import AllocationAssemblyError
 from discount_analyst.application.allocations.finalise import (
     finalise_curator_proposal,
+    synthesise_cash_only_allocation,
 )
 from discount_analyst.application.decisions.builders import (
+    build_appraised_decision,
     build_data_quality_rejection,
-    build_sentinel_rejection,
-    verdict_from_decision,
 )
 from discount_analyst.domain.allocations.actions import RebalanceAction
 from discount_analyst.domain.allocations.invariants import AllocationInvariantError
-from discount_analyst.domain.allocations.policy import ForcedZeroReason
 from discount_analyst.domain.allocations.snapshot import (
     CurrentPortfolioSnapshot,
     CurrentPositionWeight,
-)
-from discount_analyst.domain.decisions.investment_rating import InvestmentRating
-from discount_analyst.domain.decisions.margin_of_safety import MarginOfSafetyAssessment
-from discount_analyst.domain.decisions.schema import (
-    RatingTableDecision,
-    RatingTableRationale,
 )
 
 
@@ -72,7 +65,7 @@ def _snapshot(
     )
 
 
-def _rating_table_bundle(
+def _appraised_bundle(
     ticker: str,
     *,
     company_name: str | None = None,
@@ -80,46 +73,19 @@ def _rating_table_bundle(
     source_run_id: str,
     sector: str = "Technology",
     industry: str = "Semiconductors",
-    rating: InvestmentRating | None = None,
-) -> CompletedLaneBundle:
+) -> ValuedLaneBundle:
     candidate = mock_surveyor_candidate(ticker=ticker, company_name=company_name)
     thesis = mock_thesis(candidate)
     evaluation = mock_rating_table_gate_evaluation(candidate)
     appraiser_output = mock_appraiser_output(candidate)
-    if rating is None:
-        decision = mock_rating_table_decision(
-            candidate,
-            is_existing_position=is_existing_position,
-            thesis=thesis,
-            evaluation=evaluation,
-        )
-    else:
-        mos = MarginOfSafetyAssessment.from_distribution(
-            appraiser_output.valuation_distribution
-        )
-        decision = RatingTableDecision(
-            decision_kind="rating_table",
-            decision_rule_id="rating_table_v1",
-            ticker=candidate.ticker,
-            company_name=candidate.company_name,
-            decision_date="2026-08-30",
-            is_existing_position=is_existing_position,
-            rating=rating,
-            recommended_action="test",
-            conviction=thesis.conviction_level,
-            margin_of_safety=mos,
-            rationale=RatingTableRationale(
-                primary_driver="test",
-                supporting_factors=[],
-                mitigating_factors=[],
-                red_flag_disposition="ok",
-                data_gap_disposition="ok",
-            ),
-            thesis_expiry_note="unused",
-        )
-    return completed_lane_bundle_from_verdict(
+    decision = build_appraised_decision(
+        candidate.to_lane_context(),
+        is_existing_position=is_existing_position,
+        decision_date="2026-08-30",
+    )
+    return valued_lane_bundle(
         source_run_id=source_run_id,
-        verdict=verdict_from_decision(decision),
+        decision=decision,
         sector=sector,
         industry=industry,
         deep_research=mock_deep_research(candidate),
@@ -129,43 +95,9 @@ def _rating_table_bundle(
     )
 
 
-def _sentinel_rejection_bundle(
-    ticker: str, *, is_existing_position: bool, source_run_id: str
-) -> CompletedLaneBundle:
-    candidate = mock_surveyor_candidate(ticker=ticker)
-    thesis = mock_thesis(candidate)
-    evaluation = mock_rating_table_gate_evaluation(candidate).model_copy(
-        update={
-            "thesis_verdict": ThesisVerdict.BROKEN_DO_NOT_PROCEED,
-            "red_flag_screen": mock_rating_table_gate_evaluation(
-                candidate
-            ).red_flag_screen.model_copy(
-                update={
-                    "overall_red_flag_verdict": OverallRedFlagVerdict.SERIOUS_CONCERN
-                }
-            ),
-        }
-    )
-    decision = build_sentinel_rejection(
-        evaluation,
-        thesis,
-        is_existing_position=is_existing_position,
-        decision_date="2026-08-30",
-    )
-    return completed_lane_bundle_from_verdict(
-        source_run_id=source_run_id,
-        verdict=verdict_from_decision(decision),
-        sector=candidate.sector,
-        industry=candidate.industry,
-        deep_research=mock_deep_research(candidate),
-        thesis=thesis,
-        evaluation=evaluation,
-    )
-
-
 def _data_quality_bundle(
     ticker: str, *, is_existing_position: bool, source_run_id: str
-) -> CompletedLaneBundle:
+) -> DqrLaneBundle:
     candidate = mock_surveyor_candidate(ticker=ticker)
     decision = build_data_quality_rejection(
         candidate.to_lane_context(),
@@ -173,172 +105,75 @@ def _data_quality_bundle(
         is_existing_position=is_existing_position,
         decision_date="2026-08-30",
     )
-    return completed_lane_bundle_from_verdict(
+    return dqr_lane_bundle(
         source_run_id=source_run_id,
-        verdict=verdict_from_decision(decision),
+        decision=decision,
         sector=candidate.sector,
         industry=candidate.industry,
     )
 
 
-def _zero_row(ticker: str, *, rationale: str = "Forced zero.") -> ProposedPosition:
-    return ProposedPosition(
-        ticker=ticker,
-        target_weight_pct=0.0,
-        acceptable_weight_low_pct=0.0,
-        acceptable_weight_high_pct=0.0,
-        rationale=rationale,
-    )
-
-
 def test_assemble_cash_only_universe() -> None:
-    packed = assemble_curator_input((), _cash_only(), ALLOCATION_DATE)
+    job = assemble_curator_job((), _cash_only(), ALLOCATION_DATE)
 
-    assert packed.lanes == ()
-    assert packed.snapshot.cash_weight_pct == 100.0
+    assert job.curator_input.lanes == ()
+    assert job.dqr_stamps == ()
+    assert job.curator_input.snapshot.cash_weight_pct == 100.0
 
 
-def test_assemble_maps_all_verdict_kinds() -> None:
-    buy = _rating_table_bundle(
+def test_assemble_omits_dqr_from_llm_pack() -> None:
+    buy = _appraised_bundle(
         "NVDA",
         is_existing_position=False,
         source_run_id="run-buy",
-        rating=InvestmentRating.BUY,
     )
-    existing_hold = _rating_table_bundle(
+    held = _appraised_bundle(
         "HELD",
         is_existing_position=True,
         source_run_id="run-hold",
-        rating=InvestmentRating.HOLD,
-    )
-    new_hold = _rating_table_bundle(
-        "WAIT",
-        is_existing_position=False,
-        source_run_id="run-new-hold",
-        rating=InvestmentRating.HOLD,
-    )
-    rejected = _sentinel_rejection_bundle(
-        "FAIL", is_existing_position=True, source_run_id="run-sent"
     )
     dqr = _data_quality_bundle(
         "JUNK", is_existing_position=False, source_run_id="run-dqr"
     )
-    snapshot = _snapshot(("HELD", 10.0), ("FAIL", 5.0), cash_weight_pct=85.0)
+    snapshot = _snapshot(("HELD", 10.0), ("JUNK", 8.0), cash_weight_pct=82.0)
 
-    packed = assemble_curator_input(
-        (buy, existing_hold, new_hold, rejected, dqr),
-        snapshot,
-        ALLOCATION_DATE,
-    )
+    job = assemble_curator_job((buy, held), snapshot, ALLOCATION_DATE, dqr=(dqr,))
 
-    kinds = {lane.identity.ticker: lane.decision_kind for lane in packed.lanes}
-    assert kinds == {
-        "NVDA": "rating_table",
-        "HELD": "rating_table",
-        "WAIT": "rating_table",
-        "FAIL": "sentinel_rejection",
-        "JUNK": "data_quality_rejection",
-    }
-    policies = {
-        lane.identity.ticker: lane.identity.policy.kind for lane in packed.lanes
-    }
-    assert policies["NVDA"] == "investable"
-    assert policies["HELD"] == "retain_or_reduce"
-    assert policies["WAIT"] == "forced_zero"
-    assert policies["FAIL"] == "forced_zero"
-    assert policies["JUNK"] == "forced_zero"
-    wait = next(lane for lane in packed.lanes if lane.identity.ticker == "WAIT")
-    assert wait.identity.policy.kind == "forced_zero"
-    assert wait.identity.policy.reason is ForcedZeroReason.NEW_HOLD
-    junk = next(lane for lane in packed.lanes if lane.identity.ticker == "JUNK")
-    assert not hasattr(junk, "appraiser")
-    fail = next(lane for lane in packed.lanes if lane.identity.ticker == "FAIL")
-    assert not hasattr(fail, "appraiser")
-    buy_lane = next(lane for lane in packed.lanes if lane.identity.ticker == "NVDA")
-    assert buy_lane.decision_kind == "rating_table"
-    assert buy_lane.appraiser.expected_value > 0
-    assert buy_lane.live_thesis.ticker == "NVDA"
-    assert (
-        buy_lane.strategist.thesis_summary == buy_lane.live_thesis.mispricing_argument
+    packed_tickers = {lane.identity.ticker for lane in job.curator_input.lanes}
+    assert packed_tickers == {"NVDA", "HELD"}
+    assert {stamp.ticker for stamp in job.dqr_stamps} == {"JUNK"}
+    llm_tickers = {position.ticker for position in job.curator_input.snapshot.positions}
+    assert llm_tickers == {"HELD"}
+    assert job.curator_input.snapshot.cash_weight_pct == 90.0
+    assert job.ledger_cash_weight_pct == 82.0
+    nvda = next(
+        lane for lane in job.curator_input.lanes if lane.identity.ticker == "NVDA"
     )
-    assert fail.live_thesis is not None
-    assert junk.live_thesis is None
+    assert nvda.appraiser.expected_value > 0
+    assert not hasattr(nvda.identity, "policy")
+    assert not hasattr(nvda.identity, "rating")
 
 
 def test_assemble_rejects_existing_position_missing_from_snapshot() -> None:
-    bundle = _rating_table_bundle(
+    bundle = _appraised_bundle(
         "HELD",
         is_existing_position=True,
         source_run_id="run-hold",
-        rating=InvestmentRating.HOLD,
     )
 
     with pytest.raises(AllocationAssemblyError, match="missing from the current"):
-        assemble_curator_input((bundle,), _cash_only(), ALLOCATION_DATE)
+        assemble_curator_job((bundle,), _cash_only(), ALLOCATION_DATE)
 
 
 def test_assemble_rejects_snapshot_position_without_lane() -> None:
     snapshot = _snapshot(("ORPHAN", 20.0), cash_weight_pct=80.0)
 
     with pytest.raises(AllocationAssemblyError, match="has no completed lane"):
-        assemble_curator_input((), snapshot, ALLOCATION_DATE)
-
-
-def test_assemble_rejects_valuation_on_data_quality_lane() -> None:
-    bundle = _data_quality_bundle(
-        "JUNK", is_existing_position=False, source_run_id="run-dqr"
-    )
-    valued = _rating_table_bundle(
-        "JUNK",
-        is_existing_position=False,
-        source_run_id="run-dqr",
-        rating=InvestmentRating.SELL,
-    )
-    mixed = CompletedLaneBundle(
-        source_run_id=bundle.source_run_id,
-        ticker=bundle.ticker,
-        company_name=bundle.company_name,
-        is_existing_position=bundle.is_existing_position,
-        rating=bundle.rating,
-        decision_kind=bundle.decision_kind,
-        rejection_reason=bundle.rejection_reason,
-        sector=bundle.sector,
-        industry=bundle.industry,
-        appraiser_output=valued.appraiser_output,
-    )
-
-    with pytest.raises(AllocationAssemblyError, match="cannot carry"):
-        assemble_curator_input((mixed,), _cash_only(), ALLOCATION_DATE)
-
-
-def test_assemble_packs_optional_prior_on_data_quality_lane() -> None:
-    candidate = mock_surveyor_candidate(ticker="JUNK")
-    prior = mock_thesis(candidate)
-    bundle = _data_quality_bundle(
-        "JUNK", is_existing_position=False, source_run_id="run-dqr"
-    )
-    with_prior = CompletedLaneBundle(
-        source_run_id=bundle.source_run_id,
-        ticker=bundle.ticker,
-        company_name=bundle.company_name,
-        is_existing_position=bundle.is_existing_position,
-        rating=bundle.rating,
-        decision_kind=bundle.decision_kind,
-        rejection_reason=bundle.rejection_reason,
-        sector=bundle.sector,
-        industry=bundle.industry,
-        thesis=prior,
-    )
-
-    packed = assemble_curator_input((with_prior,), _cash_only(), ALLOCATION_DATE)
-
-    assert packed.lanes[0].decision_kind == "data_quality_rejection"
-    assert packed.lanes[0].live_thesis is not None
-    assert packed.lanes[0].live_thesis.mispricing_argument == prior.mispricing_argument
+        assemble_curator_job((), snapshot, ALLOCATION_DATE)
 
 
 def test_finalise_cash_only_allocation() -> None:
-    packed = assemble_curator_input((), _cash_only(), ALLOCATION_DATE)
+    job = assemble_curator_job((), _cash_only(), ALLOCATION_DATE)
     proposal = CuratorProposal(
         allocation_date=ALLOCATION_DATE,
         positions=(),
@@ -352,33 +187,31 @@ def test_finalise_cash_only_allocation() -> None:
         portfolio_rationale="Cash only.",
     )
 
-    allocation = finalise_curator_proposal(proposal, packed, {})
+    allocation = finalise_curator_proposal(proposal, job)
 
     assert allocation.cash.target_weight_pct == 100.0
     assert allocation.positions == ()
 
 
-def test_finalise_preserves_proposal_numbers_and_derives_actions() -> None:
-    buy = _rating_table_bundle(
+def test_finalise_stamps_dqr_zeros_and_allows_holding_increase() -> None:
+    buy = _appraised_bundle(
         "NVDA",
         company_name="NVIDIA",
         is_existing_position=False,
         source_run_id="run-nvda",
-        rating=InvestmentRating.BUY,
     )
-    held = _rating_table_bundle(
+    held = _appraised_bundle(
         "HELD",
         company_name="Held Co",
         is_existing_position=True,
         source_run_id="run-held",
-        rating=InvestmentRating.HOLD,
     )
-    rejected = _sentinel_rejection_bundle(
-        "FAIL", is_existing_position=True, source_run_id="run-fail"
+    dqr = _data_quality_bundle(
+        "JUNK", is_existing_position=True, source_run_id="run-dqr"
     )
-    snapshot = _snapshot(("HELD", 10.0), ("FAIL", 8.0), cash_weight_pct=82.0)
-    bundles = (buy, held, rejected)
-    packed = assemble_curator_input(bundles, snapshot, ALLOCATION_DATE)
+    snapshot = _snapshot(("HELD", 10.0), ("JUNK", 8.0), cash_weight_pct=82.0)
+    bundles = (buy, held)
+    job = assemble_curator_job(bundles, snapshot, ALLOCATION_DATE, dqr=(dqr,))
     proposal = CuratorProposal(
         allocation_date=ALLOCATION_DATE,
         positions=(
@@ -391,120 +224,73 @@ def test_finalise_preserves_proposal_numbers_and_derives_actions() -> None:
             ),
             ProposedPosition(
                 ticker="HELD",
-                target_weight_pct=8.0,
-                acceptable_weight_low_pct=6.0,
-                acceptable_weight_high_pct=10.0,
-                rationale="Retain within band.",
+                target_weight_pct=12.0,
+                acceptable_weight_low_pct=11.0,
+                acceptable_weight_high_pct=13.0,
+                rationale="Increase an existing holding.",
             ),
-            _zero_row("FAIL", rationale="Forced exit."),
         ),
         cash=ProposedCash(
-            target_weight_pct=80.0,
-            acceptable_weight_low_pct=76.0,
-            acceptable_weight_high_pct=84.0,
+            target_weight_pct=76.0,
+            acceptable_weight_low_pct=72.0,
+            acceptable_weight_high_pct=80.0,
             rationale="Residual cash.",
         ),
         shared_risk_clusters=(),
-        portfolio_rationale="Concentrate in NVDA.",
+        portfolio_rationale="Concentrate in NVDA and add to HELD.",
     )
     before = proposal.model_dump()
 
-    allocation = finalise_curator_proposal(
-        proposal, packed, source_run_ids_by_ticker(bundles)
-    )
+    allocation = finalise_curator_proposal(proposal, job)
 
     assert proposal.model_dump() == before
     by_ticker = {row.ticker: row for row in allocation.positions}
     assert by_ticker["NVDA"].target_weight_pct == 12.0
     assert by_ticker["NVDA"].action is RebalanceAction.ENTER
     assert by_ticker["NVDA"].source_run_id == "run-nvda"
-    assert by_ticker["HELD"].action is RebalanceAction.HOLD
-    assert by_ticker["FAIL"].action is RebalanceAction.EXIT
-    assert by_ticker["FAIL"].target_weight_pct == 0.0
+    assert by_ticker["HELD"].action is RebalanceAction.INCREASE
+    assert by_ticker["HELD"].target_weight_pct == 12.0
+    assert by_ticker["JUNK"].action is RebalanceAction.EXIT
+    assert by_ticker["JUNK"].target_weight_pct == 0.0
+    assert by_ticker["JUNK"].rationale.startswith("Data-quality gate failed:")
+    assert allocation.cash.current_weight_pct == 82.0
+    assert "policy" not in by_ticker["NVDA"].model_dump()
 
 
-def test_finalise_rejects_existing_hold_increase() -> None:
-    held = _rating_table_bundle(
-        "HELD",
-        is_existing_position=True,
-        source_run_id="run-held",
-        rating=InvestmentRating.HOLD,
+def test_synthesise_all_dqr_skips_llm_pack() -> None:
+    dqr = _data_quality_bundle(
+        "JUNK", is_existing_position=True, source_run_id="run-dqr"
     )
-    snapshot = _snapshot(("HELD", 10.0), cash_weight_pct=90.0)
-    packed = assemble_curator_input((held,), snapshot, ALLOCATION_DATE)
-    proposal = CuratorProposal(
-        allocation_date=ALLOCATION_DATE,
-        positions=(
-            ProposedPosition(
-                ticker="HELD",
-                target_weight_pct=12.0,
-                acceptable_weight_low_pct=10.0,
-                acceptable_weight_high_pct=12.0,
-                rationale="Illegal increase.",
-            ),
-        ),
-        cash=ProposedCash(
-            target_weight_pct=88.0,
-            acceptable_weight_low_pct=80.0,
-            acceptable_weight_high_pct=90.0,
-            rationale="Cash.",
-        ),
-        shared_risk_clusters=(),
-        portfolio_rationale="Bad HOLD increase.",
-    )
+    snapshot = _snapshot(("JUNK", 8.0), cash_weight_pct=92.0)
+    job = assemble_curator_job((), snapshot, ALLOCATION_DATE, dqr=(dqr,))
 
-    with pytest.raises(AllocationInvariantError, match="Retain-or-reduce"):
-        finalise_curator_proposal(proposal, packed, source_run_ids_by_ticker((held,)))
+    assert job.curator_input.lanes == ()
+    assert job.curator_input.snapshot.positions == ()
+    assert job.curator_input.snapshot.cash_weight_pct == 100.0
+    assert job.ledger_cash_weight_pct == 92.0
+    allocation = synthesise_cash_only_allocation(job)
 
-
-def test_finalise_rejects_nonzero_forced_zero() -> None:
-    rejected = _data_quality_bundle(
-        "JUNK", is_existing_position=False, source_run_id="run-dqr"
-    )
-    packed = assemble_curator_input((rejected,), _cash_only(), ALLOCATION_DATE)
-    proposal = CuratorProposal(
-        allocation_date=ALLOCATION_DATE,
-        positions=(
-            ProposedPosition(
-                ticker="JUNK",
-                target_weight_pct=5.0,
-                acceptable_weight_low_pct=0.0,
-                acceptable_weight_high_pct=5.0,
-                rationale="Illegal residual.",
-            ),
-        ),
-        cash=ProposedCash(
-            target_weight_pct=95.0,
-            acceptable_weight_low_pct=90.0,
-            acceptable_weight_high_pct=100.0,
-            rationale="Cash.",
-        ),
-        shared_risk_clusters=(),
-        portfolio_rationale="Bad forced zero.",
-    )
-
-    with pytest.raises(AllocationInvariantError, match="Forced-zero"):
-        finalise_curator_proposal(
-            proposal, packed, source_run_ids_by_ticker((rejected,))
-        )
+    assert allocation.cash.target_weight_pct == 100.0
+    assert allocation.cash.current_weight_pct == 92.0
+    assert allocation.positions[0].ticker == "JUNK"
+    assert allocation.positions[0].target_weight_pct == 0.0
+    assert allocation.positions[0].action is RebalanceAction.EXIT
 
 
 def test_finalise_enforces_company_cap_across_duplicate_names() -> None:
-    arm_us = _rating_table_bundle(
+    arm_us = _appraised_bundle(
         "ARM",
         company_name="Arm Holdings",
         is_existing_position=False,
         source_run_id="run-arm-us",
-        rating=InvestmentRating.BUY,
     )
-    arm_uk = _rating_table_bundle(
+    arm_uk = _appraised_bundle(
         "ARM.L",
         company_name="ARM HOLDINGS",
         is_existing_position=False,
         source_run_id="run-arm-uk",
-        rating=InvestmentRating.BUY,
     )
-    packed = assemble_curator_input((arm_us, arm_uk), _cash_only(), ALLOCATION_DATE)
+    job = assemble_curator_job((arm_us, arm_uk), _cash_only(), ALLOCATION_DATE)
     proposal = CuratorProposal(
         allocation_date=ALLOCATION_DATE,
         positions=(
@@ -534,32 +320,28 @@ def test_finalise_enforces_company_cap_across_duplicate_names() -> None:
     )
 
     with pytest.raises(AllocationInvariantError, match="15.0% cap"):
-        finalise_curator_proposal(
-            proposal, packed, source_run_ids_by_ticker((arm_us, arm_uk))
-        )
+        finalise_curator_proposal(proposal, job)
 
 
 def test_semiconductor_cluster_reduces_weaker_name() -> None:
-    tsmc = _rating_table_bundle(
+    tsmc = _appraised_bundle(
         "TSM",
         company_name="TSMC",
         is_existing_position=False,
         source_run_id="run-tsm",
         sector="Technology",
         industry="Semiconductors",
-        rating=InvestmentRating.STRONG_BUY,
     )
-    amat = _rating_table_bundle(
+    amat = _appraised_bundle(
         "AMAT",
         company_name="Applied Materials",
         is_existing_position=False,
         source_run_id="run-amat",
         sector="Technology",
         industry="Semiconductor Equipment",
-        rating=InvestmentRating.BUY,
     )
     bundles = (tsmc, amat)
-    packed = assemble_curator_input(bundles, _cash_only(), ALLOCATION_DATE)
+    job = assemble_curator_job(bundles, _cash_only(), ALLOCATION_DATE)
     proposal = CuratorProposal(
         allocation_date=ALLOCATION_DATE,
         positions=(
@@ -601,9 +383,7 @@ def test_semiconductor_cluster_reduces_weaker_name() -> None:
         portfolio_rationale="Keep the stronger foundry idea; penalise the tool name.",
     )
 
-    allocation = finalise_curator_proposal(
-        proposal, packed, source_run_ids_by_ticker(bundles)
-    )
+    allocation = finalise_curator_proposal(proposal, job)
 
     by_ticker = {row.ticker: row for row in allocation.positions}
     assert by_ticker["AMAT"].target_weight_pct < by_ticker["TSM"].target_weight_pct
@@ -615,28 +395,25 @@ def test_semiconductor_cluster_reduces_weaker_name() -> None:
 
 
 def test_mock_proposal_caps_dual_listing_company_highs() -> None:
-    us = _rating_table_bundle(
+    us = _appraised_bundle(
         "ARM",
         company_name="Arm Holdings",
         is_existing_position=False,
         source_run_id="run-arm-us",
-        rating=InvestmentRating.BUY,
     )
-    uk = _rating_table_bundle(
+    uk = _appraised_bundle(
         "ARM.L",
         company_name="Arm Holdings",
         is_existing_position=False,
         source_run_id="run-arm-uk",
-        rating=InvestmentRating.BUY,
     )
     bundles = (us, uk)
-    packed = assemble_curator_input(bundles, _cash_only(), ALLOCATION_DATE)
-    proposal = mock_curator_proposal(packed)
-    allocation = finalise_curator_proposal(
-        proposal, packed, source_run_ids_by_ticker(bundles)
-    )
+    job = assemble_curator_job(bundles, _cash_only(), ALLOCATION_DATE)
+    proposal = mock_curator_proposal(job.curator_input)
+    allocation = finalise_curator_proposal(proposal, job)
 
     highs = sum(row.acceptable_weight_high_pct for row in allocation.positions)
     assert highs <= 15.0
     targets = sum(row.target_weight_pct for row in allocation.positions)
     assert targets <= 15.0
+    assert source_run_ids_by_ticker(bundles)["arm"] == "run-arm-us"

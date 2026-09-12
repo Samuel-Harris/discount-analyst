@@ -6,7 +6,7 @@ stages and retains ``source_run_id`` for the audit record.
 """
 
 from datetime import date
-from typing import Annotated, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -16,9 +16,7 @@ from discount_analyst.domain.allocations.invariants import (
     validate_portfolio_weight_totals,
     validate_shared_risk_clusters,
 )
-from discount_analyst.domain.allocations.policy import AllocationPolicy
 from discount_analyst.domain.allocations.snapshot import CurrentPortfolioSnapshot
-from discount_analyst.domain.decisions.investment_rating import InvestmentRating
 
 
 class CompactResearcherEvidence(BaseModel):
@@ -55,7 +53,7 @@ class CompactStrategistEvidence(BaseModel):
 class CompactSentinelEvidence(BaseModel):
     customer_or_supplier_concentration: str
     red_flag_verdict: Literal["Clear", "Monitor", "Serious concern"]
-    reservations: bool
+    thesis_verdict: str
     material_data_gaps: str
 
 
@@ -75,12 +73,9 @@ class CuratorLaneIdentity(BaseModel):
     current_weight_pct: float = Field(ge=0, le=100)
     sector: str
     industry: str
-    policy: AllocationPolicy
-    rating: InvestmentRating
 
 
-class RatingTableLaneEvidence(BaseModel):
-    decision_kind: Literal["rating_table"] = "rating_table"
+class AppraisedLaneEvidence(BaseModel):
     identity: CuratorLaneIdentity
     live_thesis: PackedMispricingThesis
     researcher: CompactResearcherEvidence
@@ -89,35 +84,10 @@ class RatingTableLaneEvidence(BaseModel):
     appraiser: CompactAppraiserEvidence
 
 
-class SentinelRejectionLaneEvidence(BaseModel):
-    decision_kind: Literal["sentinel_rejection"] = "sentinel_rejection"
-    identity: CuratorLaneIdentity
-    live_thesis: PackedMispricingThesis
-    rejection_reason: str
-    researcher: CompactResearcherEvidence
-    strategist: CompactStrategistEvidence
-    sentinel: CompactSentinelEvidence
-
-
-class DataQualityRejectionLaneEvidence(BaseModel):
-    decision_kind: Literal["data_quality_rejection"] = "data_quality_rejection"
-    identity: CuratorLaneIdentity
-    rejection_reason: str
-    live_thesis: PackedMispricingThesis | None = None
-
-
-CuratorLaneEvidence = Annotated[
-    RatingTableLaneEvidence
-    | SentinelRejectionLaneEvidence
-    | DataQualityRejectionLaneEvidence,
-    Field(discriminator="decision_kind"),
-]
-
-
 class CuratorInput(BaseModel):
     allocation_date: date
     snapshot: CurrentPortfolioSnapshot
-    lanes: tuple[CuratorLaneEvidence, ...]
+    lanes: tuple[AppraisedLaneEvidence, ...]
 
     @model_validator(mode="after")
     def validate_lane_tickers(self) -> CuratorInput:

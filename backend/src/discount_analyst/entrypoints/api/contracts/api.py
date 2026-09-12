@@ -174,3 +174,5 @@ class YfinanceFreshnessResponse(BaseModel):
 
 class DashboardStatusResponse(BaseModel):
     yfinance: YfinanceFreshnessResponse
+    sec_user_agent_configured: bool
+    companies_house_cache_present: bool

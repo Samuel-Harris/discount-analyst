@@ -17,7 +17,6 @@ function position(
     acceptable_weight_high_pct: 0,
     action: "avoid",
     rationale: `${overrides.ticker} rationale`,
-    policy: { kind: "investable" },
     ...overrides,
   };
 }
@@ -27,7 +26,8 @@ function allocation(
 ): PortfolioAllocation {
   return {
     allocation_date: "2026-09-06",
-    portfolio_rationale: "Seed book: reduce the existing name and avoid the rejection.",
+    portfolio_rationale:
+      "Seed book: reduce the existing name and avoid the rejection.",
     cash: {
       current_weight_pct: 20,
       target_weight_pct: 85,
@@ -102,7 +102,9 @@ describe("WorkflowRecommendationsBook", () => {
         })}
       />,
     );
-    expect(screen.getByRole("heading", { name: "Clusters" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Clusters" }),
+    ).toBeInTheDocument();
     expect(screen.getByText(/Energy pair/)).toBeInTheDocument();
     expect(screen.getByText("AAA.L")).toBeInTheDocument();
     expect(screen.getByText("BBB.L")).toBeInTheDocument();

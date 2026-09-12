@@ -28,11 +28,6 @@ from discount_analyst.domain.allocations.allocation import (
     PortfolioAllocation,
     SharedRiskCluster,
 )
-from discount_analyst.domain.allocations.policy import (
-    ForcedZeroPolicy,
-    ForcedZeroReason,
-    InvestablePolicy,
-)
 
 
 def test_insert_workflow_run_creates_surveyor_and_curator(
@@ -107,7 +102,6 @@ def test_persist_and_reconstruct_allocation_round_trip(db_session: Session) -> N
                 source_run_id=tsm_run,
                 is_existing_position=False,
                 current_weight_pct=0.0,
-                policy=InvestablePolicy(),
                 target_weight_pct=12.0,
                 acceptable_weight_low_pct=10.0,
                 acceptable_weight_high_pct=14.0,
@@ -120,7 +114,6 @@ def test_persist_and_reconstruct_allocation_round_trip(db_session: Session) -> N
                 source_run_id=amat_run,
                 is_existing_position=False,
                 current_weight_pct=0.0,
-                policy=ForcedZeroPolicy(reason=ForcedZeroReason.SELL),
                 target_weight_pct=0.0,
                 acceptable_weight_low_pct=0.0,
                 acceptable_weight_high_pct=0.0,
