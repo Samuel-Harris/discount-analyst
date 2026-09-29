@@ -11,13 +11,13 @@ DashboardLogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 class AgentDefaultModels(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    surveyor: ModelName = ModelName.GPT_5_6_LUNA
-    profiler: ModelName = ModelName.GPT_5_6_LUNA
-    researcher: ModelName = ModelName.GPT_5_6_LUNA
-    strategist: ModelName = ModelName.GPT_5_6_LUNA
-    sentinel: ModelName = ModelName.GPT_5_6_LUNA
-    appraiser: ModelName = ModelName.GPT_5_6_LUNA
-    curator: ModelName = ModelName.GPT_5_6_TERRA
+    surveyor: ModelName = ModelName.GPT_6_1_SOL
+    profiler: ModelName = ModelName.GPT_6_LUNA
+    researcher: ModelName = ModelName.GPT_6_LUNA
+    strategist: ModelName = ModelName.GPT_6_LUNA
+    sentinel: ModelName = ModelName.GPT_6_LUNA
+    appraiser: ModelName = ModelName.GPT_6_LUNA
+    curator: ModelName = ModelName.GPT_6_1_SOL
 
 
 class Perplexity(BaseModel):

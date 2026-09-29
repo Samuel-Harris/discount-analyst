@@ -12,6 +12,8 @@ class ModelName(StrEnum):
     GPT_5_4 = "gpt-5.4"
     GPT_5_6_LUNA = "gpt-5.6-luna"
     GPT_5_6_TERRA = "gpt-5.6-terra"
+    GPT_6_LUNA = "gpt-6-luna"
+    GPT_6_1_SOL = "gpt-6.1-sol"
     GEMINI_3_PRO_PREVIEW = "gemini-3-pro-preview"
     GEMINI_3_1_PRO_PREVIEW = "gemini-3.1-pro-preview"
     DEEPSEEK_V4_FLASH = "deepseek-v4-flash"
