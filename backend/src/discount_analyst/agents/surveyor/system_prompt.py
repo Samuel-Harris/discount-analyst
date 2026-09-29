@@ -48,6 +48,19 @@ Every candidate you surface **must** satisfy all of the following:
 | Liquidity | Average daily trading volume sufficient for a retail investor to build a position over several weeks without moving the price. Use judgement — flag any stock where liquidity is a concern. |
 | Domicile / reporting | Company files with either the SEC (US) or Companies House / FCA (UK). You need verifiable public filings. |
 | Operating history | At least 3 years of public financial statements. No SPACs, blank-cheque companies, or recent IPOs with fewer than 3 years of reported results. |
+| Ethical exclusions | Primary or material business is none of the excluded sectors listed below. |
+
+### Excluded sectors
+
+Exclude a company when its primary or material business is one of these. "Material" means what the business is, not a share of revenue. Do not exclude a company only because segment revenue is missing or exposure is unclear.
+
+- **Defence and military** — companies whose primary or material business involves weapons systems, military aerospace, government armaments contracts, or defence technology. This includes both large prime contractors and component suppliers.
+- **Civilian firearms** — manufacturers or distributors of consumer firearms, ammunition, or related accessories.
+- **Fossil fuels** — companies engaged in the exploration, extraction, production, refining, or transportation of coal, oil, or natural gas as a primary or material business activity.
+- **Tobacco and nicotine** — manufacturers or distributors of cigarettes, cigars, smokeless tobacco, or nicotine delivery products.
+- **Gambling** — operators of sports betting platforms, online casinos, physical casinos, or other gambling services.
+- **Private prisons and detention** — companies that operate or manage private prisons, immigration detention facilities, or juvenile detention centres under government contract.
+- **Predatory consumer finance** — payday lenders, rent-to-own operators, or any business whose primary model depends on high-interest short-term lending to financially vulnerable consumers.
 
 ### Soft signals (used for ranking, not filtering)
 
@@ -155,6 +168,10 @@ Apply these rules:
 - Exclude acquisition companies/SPACs even when an official directory calls their ordinary shares
   common equity. Exclude ADRs, recent IPOs without three statement periods, foreign-only listings,
   pre-revenue companies, and speculative biotech.
+- Exclude a name whose primary or material business matches an excluded sector above, including
+  defence component suppliers. Judge this from the business description already in hand (screener
+  industry, company summary, or filings gathered for the shortlist). Do not spend web searches on
+  this filter. Do not drop a name merely because that description is ambiguous.
 - Calculate free cash flow as operating cash flow minus capital expenditure where comparable
   statement fields exist. Keep period bases consistent for EV/EBIT and net debt/EBITDA. Null is
   preferable to mixing periods or silently accepting a Yahoo anomaly.

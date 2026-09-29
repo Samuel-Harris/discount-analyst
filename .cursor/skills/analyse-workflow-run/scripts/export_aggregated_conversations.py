@@ -587,7 +587,7 @@ def main() -> None:
             SELECT ac.id AS conversation_id, ae.id AS execution_id, ac.system_prompt
             FROM agent_conversations ac
             JOIN agent_executions ae ON ae.id = ac.agent_execution_id
-            WHERE ae.workflow_run_id = ? AND ae.agent_name = ?
+            WHERE ae.workflow_run_id = ? AND lower(ae.agent_name) = ?
             """,
             (workflow_id, agent.lower()),
         ).fetchone()
@@ -627,7 +627,7 @@ def main() -> None:
             SELECT r.ticker, ac.id AS conversation_id, ae.id AS agent_execution_id,
                    ac.system_prompt
             FROM runs r
-            JOIN agent_executions ae ON ae.run_id = r.id AND ae.agent_name = ?
+            JOIN agent_executions ae ON ae.run_id = r.id AND lower(ae.agent_name) = ?
             JOIN agent_conversations ac ON ac.agent_execution_id = ae.id
             WHERE r.workflow_run_id = ?
             ORDER BY r.ticker
