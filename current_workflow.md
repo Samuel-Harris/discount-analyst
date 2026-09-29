@@ -1,4 +1,4 @@
-<!-- Synced: 2026-09-06 from live code via `.cursor/skills/sync-workflow` -->
+<!-- Synced: 2026-09-06 from live code via `.cursor/skills/sync-workflow`. Ethical-filter sentences were added on 2026-09-30 on top of that snapshot. -->
 
 # Discount Analyst — current workflow
 
@@ -17,6 +17,8 @@ Previous snapshot: 2026-09-05 (StrategistDecision object schema). This pass re-r
 **`derive_thesis_verdict`:** `never_disclosed` is a soft gap like `calendar`. Unproven requires a printed (non-soft) set with Low share ≥ 50% **and** at least one Weakens/Breaks in the full list. Printed Weakens (`none`/`contradicted`) still WEAKENED. Labels do not skip Appraiser.
 
 **Upstream prompts:** Strategist forbids unpublished cohort/ARR-style questions. Researcher helper failures go to `remaining_open_gaps`. Surveyor US screen uses `avgdailyvol3m`; do not pad an all-null 15.
+
+**Surveyor ethical exclusions (2026-09-30, on top of the 2026-09-06 snapshot):** Surveyor hard filters again exclude the seven sectors when that activity is the company's primary or material business, including defence component suppliers; there is no revenue cutoff, no precautionary exclusion, and no `ethical_exclusions` field; Profiler, the candidate gate, and later agents do not apply it.
 
 **Operator status:** `GET /api/status` exposes `sec_user_agent_configured` and `companies_house_cache_present` (never the User-Agent string). Terminal sandbox includes `markitdown[pdf,docx]`.
 
@@ -370,7 +372,7 @@ Also: cancel (covers workflow-scoped Surveyor and Curator plus unfinished lanes)
 
 Factory: `create_surveyor_agent` → `SurveyorOutput`. Bound schema matches the prompt’s `<output_schema>` embed of `SurveyorOutput.model_json_schema()`.
 
-Hard filters in the prompt: market cap below £500M / $600M; LSE/AIM/NYSE/NASDAQ; liquidity; SEC or UK filings; ≥3 years history. Soft ranking signals for coverage gap, value, growth, earnings quality, balance sheet.
+Hard filters in the prompt: market cap below £500M / $600M; LSE/AIM/NYSE/NASDAQ; liquidity; SEC or UK filings; ≥3 years history; ethical exclusions when the primary or material business is defence and military (including component suppliers), civilian firearms, fossil fuels (exploration, extraction, production, refining, or transportation of coal, oil, or natural gas), tobacco and nicotine, gambling, private prisons and detention, or predatory consumer finance (payday lending, rent-to-own, or high-interest short-term lending to financially vulnerable consumers). "Material" means what the business is, not a share of revenue. Do not exclude a company only because segment revenue is missing or exposure is unclear. Judge the filter from the business description already in hand and do not spend web searches on it. Profiler, the candidate gate, and later agents do not apply it. Soft ranking signals for coverage gap, value, growth, earnings quality, balance sheet.
 
 Prompt execution path: no more than three bounded `terminal_exec` calls use yfinance `EquityQuery` / `screen` for US and UK discovery and enrichment. US filters market cap server-side and a valid trading field such as `avgdailyvol3m`; if the US screen fails, retry once without the volume operand. UK pages the LSE result and filters `marketCap` locally because the Yahoo UK server-side cap filter is unreliable. The agent enriches at most 30 names per market, reconciles price × shares, applies explicit traded-value and operating-history filters, then uses official listing and filing tools on exactly 15 provisional finalists and no more than two replacements. Do not emit a candidate unless Step 2 hard filters actually ran. UK `.L` suffixes are stripped before exact TIDM lookups. Web gap-fill is capped at four searches so the complete path remains within the 60-tool-call limit. FMP/EODHD screeners are forbidden. Documents/PDFs via Python `markitdown`; do not call `curl`/`wget`/`pdftotext`.
 
