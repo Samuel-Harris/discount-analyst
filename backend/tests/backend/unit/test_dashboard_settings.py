@@ -42,13 +42,13 @@ def test_regulatory_data_settings_read_canonical_env_names(
 
 def test_agent_default_models_baked_in_defaults() -> None:
     defaults = AgentDefaultModels()
-    assert defaults.surveyor is ModelName.GPT_5_6_LUNA
-    assert defaults.profiler is ModelName.GPT_5_6_LUNA
-    assert defaults.researcher is ModelName.GPT_5_6_LUNA
-    assert defaults.strategist is ModelName.GPT_5_6_LUNA
-    assert defaults.sentinel is ModelName.GPT_5_6_LUNA
-    assert defaults.appraiser is ModelName.GPT_5_6_LUNA
-    assert defaults.curator is ModelName.GPT_5_6_TERRA
+    assert defaults.surveyor is ModelName.GPT_6_1_SOL
+    assert defaults.profiler is ModelName.GPT_6_LUNA
+    assert defaults.researcher is ModelName.GPT_6_LUNA
+    assert defaults.strategist is ModelName.GPT_6_LUNA
+    assert defaults.sentinel is ModelName.GPT_6_LUNA
+    assert defaults.appraiser is ModelName.GPT_6_LUNA
+    assert defaults.curator is ModelName.GPT_6_1_SOL
 
 
 def test_agent_default_models_curator_env_override(
@@ -64,4 +64,4 @@ def test_agent_default_models_curator_env_override(
         _env_file=None,  # type: ignore[call-arg]
     )
     assert loaded.agent_default_models.curator is ModelName.GPT_5_1
-    assert loaded.agent_default_models.surveyor is ModelName.GPT_5_6_LUNA
+    assert loaded.agent_default_models.surveyor is ModelName.GPT_6_1_SOL

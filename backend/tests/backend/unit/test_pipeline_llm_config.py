@@ -25,13 +25,13 @@ def test_pipeline_llm_config_mock_is_none() -> None:
 @pytest.mark.parametrize(
     ("agent_name", "expected"),
     [
-        (AgentNameDb.SURVEYOR, ModelName.GPT_5_6_LUNA),
-        (AgentNameDb.PROFILER, ModelName.GPT_5_6_LUNA),
-        (AgentNameDb.RESEARCHER, ModelName.GPT_5_6_LUNA),
-        (AgentNameDb.STRATEGIST, ModelName.GPT_5_6_LUNA),
-        (AgentNameDb.SENTINEL, ModelName.GPT_5_6_LUNA),
-        (AgentNameDb.APPRAISER, ModelName.GPT_5_6_LUNA),
-        (AgentNameDb.CURATOR, ModelName.GPT_5_6_TERRA),
+        (AgentNameDb.SURVEYOR, ModelName.GPT_6_1_SOL),
+        (AgentNameDb.PROFILER, ModelName.GPT_6_LUNA),
+        (AgentNameDb.RESEARCHER, ModelName.GPT_6_LUNA),
+        (AgentNameDb.STRATEGIST, ModelName.GPT_6_LUNA),
+        (AgentNameDb.SENTINEL, ModelName.GPT_6_LUNA),
+        (AgentNameDb.APPRAISER, ModelName.GPT_6_LUNA),
+        (AgentNameDb.CURATOR, ModelName.GPT_6_1_SOL),
     ],
 )
 def test_pipeline_llm_config_uses_baked_in_agent_default(

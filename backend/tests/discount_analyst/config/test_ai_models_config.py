@@ -45,6 +45,30 @@ def test_gpt_5_6_luna_model_config() -> None:
     assert model.model_settings.get("openai_reasoning_effort") == "high"
 
 
+def test_gpt_6_luna_model_config() -> None:
+    config = AIModelsConfig(model_name=ModelName.GPT_6_LUNA)
+
+    model = config.model
+
+    assert isinstance(model, OpenAIAIModelConfig)
+    assert model.provider is Provider.OPENAI
+    assert model.model_name == "gpt-6-luna"
+    assert model.supports_feature(ProviderFeature.MCP)
+    assert model.model_settings.get("openai_reasoning_effort") == "high"
+
+
+def test_gpt_6_1_sol_model_config() -> None:
+    config = AIModelsConfig(model_name=ModelName.GPT_6_1_SOL)
+
+    model = config.model
+
+    assert isinstance(model, OpenAIAIModelConfig)
+    assert model.provider is Provider.OPENAI
+    assert model.model_name == "gpt-6.1-sol"
+    assert model.supports_feature(ProviderFeature.MCP)
+    assert model.model_settings.get("openai_reasoning_effort") == "high"
+
+
 def test_gpt_5_6_terra_model_config() -> None:
     config = AIModelsConfig(model_name=ModelName.GPT_5_6_TERRA)
 

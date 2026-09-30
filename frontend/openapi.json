@@ -406,6 +406,8 @@
           "gpt-5.4",
           "gpt-5.6-luna",
           "gpt-5.6-terra",
+          "gpt-6-luna",
+          "gpt-6.1-sol",
           "gemini-3-pro-preview",
           "gemini-3.1-pro-preview",
           "deepseek-v4-flash",

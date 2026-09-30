@@ -193,7 +193,7 @@ Introspected 2026-08-30 via `model_json_schema()` / enum values. Nested models a
 | `RebalanceAction`        | `enter`, `increase`, `hold`, `reduce`, `exit`, `avoid` (`domain/allocations/actions.py`)                                                                                                                                                                       |
 | `AgentName` (runtime)    | `CURATOR`, `APPRAISER`, `PROFILER`, `RESEARCHER`, `SENTINEL`, `STRATEGIST`, `SURVEYOR`                                                                                                                                                                         |
 | `AgentNameDb` / API slug | lowercase: `surveyor`, `profiler`, `researcher`, `strategist`, `sentinel`, `appraiser`, `curator`                                                                                                                                                              |
-| `ModelName`              | `claude-opus-4-5`, `claude-sonnet-4-5`, `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-6`, `gpt-5.1`, `gpt-5.2`, `gpt-5.4`, `gpt-5.6-luna`, `gpt-5.6-terra`, `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `deepseek-v4-flash`, `deepseek-v4-pro` |
+| `ModelName`              | `claude-opus-4-5`, `claude-sonnet-4-5`, `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-6`, `gpt-5.1`, `gpt-5.2`, `gpt-5.4`, `gpt-5.6-luna`, `gpt-5.6-terra`, `gpt-6-luna`, `gpt-6.1-sol`, `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `deepseek-v4-flash`, `deepseek-v4-pro` |
 
 ### `KeyMetrics`
 
@@ -456,13 +456,13 @@ Configuration: `discount_analyst.config.settings.Settings` (root / package `.env
 
 | Setting                                                                | Default (code)         | Role                                                                                                       |
 | ---------------------------------------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `agent_default_models.surveyor` / `AGENT_DEFAULT_MODELS__SURVEYOR`     | `gpt-5.6-luna`         | Surveyor via `pipeline_llm_config(..., agent_name=AgentNameDb.SURVEYOR)`                                   |
-| `agent_default_models.profiler` / `AGENT_DEFAULT_MODELS__PROFILER`     | `gpt-5.6-luna`         | Profiler via `pipeline_llm_config(..., agent_name=AgentNameDb.PROFILER)`                                   |
-| `agent_default_models.researcher` / `AGENT_DEFAULT_MODELS__RESEARCHER` | `gpt-5.6-luna`         | Researcher via `pipeline_llm_config(..., agent_name=AgentNameDb.RESEARCHER)`                               |
-| `agent_default_models.strategist` / `AGENT_DEFAULT_MODELS__STRATEGIST` | `gpt-5.6-luna`         | Strategist via `pipeline_llm_config(..., agent_name=AgentNameDb.STRATEGIST)`                               |
-| `agent_default_models.sentinel` / `AGENT_DEFAULT_MODELS__SENTINEL`     | `gpt-5.6-luna`         | Sentinel via `pipeline_llm_config(..., agent_name=AgentNameDb.SENTINEL)`                                   |
-| `agent_default_models.appraiser` / `AGENT_DEFAULT_MODELS__APPRAISER`   | `gpt-5.6-luna`         | Appraiser via `pipeline_llm_config(..., agent_name=AgentNameDb.APPRAISER)`                                 |
-| `agent_default_models.curator` / `AGENT_DEFAULT_MODELS__CURATOR`       | `gpt-5.6-terra`        | Curator via `pipeline_llm_config(..., agent_name=AgentNameDb.CURATOR)`                                     |
+| `agent_default_models.surveyor` / `AGENT_DEFAULT_MODELS__SURVEYOR`     | `gpt-6.1-sol`          | Surveyor via `pipeline_llm_config(..., agent_name=AgentNameDb.SURVEYOR)`                                   |
+| `agent_default_models.profiler` / `AGENT_DEFAULT_MODELS__PROFILER`     | `gpt-6-luna`           | Profiler via `pipeline_llm_config(..., agent_name=AgentNameDb.PROFILER)`                                   |
+| `agent_default_models.researcher` / `AGENT_DEFAULT_MODELS__RESEARCHER` | `gpt-6-luna`           | Researcher via `pipeline_llm_config(..., agent_name=AgentNameDb.RESEARCHER)`                               |
+| `agent_default_models.strategist` / `AGENT_DEFAULT_MODELS__STRATEGIST` | `gpt-6-luna`           | Strategist via `pipeline_llm_config(..., agent_name=AgentNameDb.STRATEGIST)`                               |
+| `agent_default_models.sentinel` / `AGENT_DEFAULT_MODELS__SENTINEL`     | `gpt-6-luna`           | Sentinel via `pipeline_llm_config(..., agent_name=AgentNameDb.SENTINEL)`                                   |
+| `agent_default_models.appraiser` / `AGENT_DEFAULT_MODELS__APPRAISER`   | `gpt-6-luna`           | Appraiser via `pipeline_llm_config(..., agent_name=AgentNameDb.APPRAISER)`                                 |
+| `agent_default_models.curator` / `AGENT_DEFAULT_MODELS__CURATOR`       | `gpt-6.1-sol`          | Curator via `pipeline_llm_config(..., agent_name=AgentNameDb.CURATOR)`                                     |
 | `use_perplexity` / `DASHBOARD_USE_PERPLEXITY`                          | `False`                | Perplexity `web_search` + `sec_filings_search` instead of pydantic-ai WebSearch/WebFetch                   |
 | `use_mcp_financial_data` / `DASHBOARD_USE_MCP_FINANCIAL_DATA`          | `True`                 | EODHD + FMP MCP toolsets                                                                                   |
 | `use_terminal` / `DASHBOARD_USE_TERMINAL`                              | `True`                 | Docker-backed `terminal_exec` via `TERMINAL_SERVICE_URL`; Surveyor construction fails when disabled        |
@@ -518,7 +518,7 @@ Dashboard persists agent conversations (including Alembic 0012 token columns on 
 - **Separation of stances**: screen → profile/evidence → thesis → adversarial memo → valuation memo → **Curator weights**. No live rating table. Curator does not re-rate names.
 - **Lane context strips trusted screening numbers** so Researcher/Strategist/Sentinel/Appraiser must re-source quantities.
 - **Gates are code, not prompt**: listing/ticker (`validate_candidate`), Sentinel thesis **labels** (`derive_thesis_verdict` / `finalise_sentinel_evaluation`), Appraiser expected-value identity (weight-blend validator), allocation invariants (`finalise_curator_proposal`, 15% cap). There is no valuation-proceed skip and no `allocation_policy_for`.
-- **Per-agent defaults**: Surveyor–Appraiser `gpt-5.6-luna`, Curator `gpt-5.6-terra`. One-shot CLI `--model` overrides that agent only; `workflow run` has no `--model`.
+- **Per-agent defaults**: Surveyor and Curator `gpt-6.1-sol`; Profiler, Researcher, Strategist, Sentinel, and Appraiser `gpt-6-luna`. One-shot CLI `--model` overrides that agent only; `workflow run` has no `--model`.
 - **Mock is a first-class path** and, in DEV, the only dashboard path.
 
 ---
