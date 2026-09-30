@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Any
 
+from pydantic_ai.messages import ModelMessage
 from sqlalchemy import select
 from sqlmodel import Session, col
 
@@ -594,7 +594,7 @@ def complete_agent_execution_with_conversation(
     system_prompt: str,
     output_json: str | None,
     completed_at: str,
-    messages: list[Any] | None = None,
+    messages: list[ModelMessage] | None = None,
     messages_json: str | None = None,
 ) -> None:
     insert_conversation_for_agent_execution(

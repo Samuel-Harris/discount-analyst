@@ -167,13 +167,11 @@ def _normalise_message_part(
 
 def parse_messages_payload(
     *,
-    messages: list[object] | None,
+    messages: list[ModelMessage] | None,
     messages_json: str | None,
 ) -> list[dict[str, Any]]:
     if messages is not None:
-        return ModelMessagesTypeAdapter.dump_python(
-            cast(list[ModelMessage], messages), mode="json"
-        )
+        return ModelMessagesTypeAdapter.dump_python(messages, mode="json")
     if messages_json:
         loaded = json.loads(messages_json)
         if isinstance(loaded, list):
@@ -319,7 +317,7 @@ def insert_conversation_for_agent_execution(
     system_prompt: str,
     messages_json: str | None = None,
     assistant_response: str | None = None,
-    messages: list[object] | None = None,
+    messages: list[ModelMessage] | None = None,
 ) -> None:
     del assistant_response
     existing = session.scalars(

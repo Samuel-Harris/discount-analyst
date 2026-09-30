@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, Any, Protocol
 
+from pydantic_ai.messages import ModelMessage
+
 from discount_analyst.adapters.persistence.crud.db_utils import utc_now_iso
 from discount_analyst.adapters.persistence.crud.run_executions import (
     get_workflow_candidate_snapshot_id,
@@ -60,7 +62,7 @@ class SurveyorStageHost(Protocol):
         execution_id: str,
         system_prompt: str,
         output_json: str | None,
-        messages: list[Any] | None = None,
+        messages: list[ModelMessage] | None = None,
         messages_json: str | None = None,
     ) -> None: ...
 
@@ -233,7 +235,7 @@ class _SurveyorRunResult:
         *,
         candidates: list[SurveyorCandidate],
         output_json: str,
-        messages: list[Any] | None,
+        messages: list[ModelMessage] | None,
         messages_json: str | None,
     ) -> None:
         self.candidates = candidates

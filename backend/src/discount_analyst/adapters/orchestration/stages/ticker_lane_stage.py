@@ -6,6 +6,8 @@ import asyncio
 from datetime import date
 from typing import TYPE_CHECKING, Any, Protocol
 
+from pydantic_ai.messages import ModelMessage
+
 from discount_analyst.adapters.persistence.models import AgentNameDb, ExecutionStatusDb
 from discount_analyst.adapters.simulation import (
     mock_conversation_messages,
@@ -115,7 +117,7 @@ class TickerLaneStageHost(Protocol):
         execution_id: str,
         system_prompt: str,
         output_json: str | None,
-        messages: list[Any] | None = None,
+        messages: list[ModelMessage] | None = None,
         messages_json: str | None = None,
     ) -> None: ...
 

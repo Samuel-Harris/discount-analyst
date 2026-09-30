@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 from typing import Any
+
+from pydantic_ai.messages import ModelMessage
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -65,7 +67,7 @@ class FakeProfilerHost:
         run_id: str,
         agent_name: str,
         system_prompt: str,
-        messages: list[Any] | None = None,
+        messages: list[ModelMessage] | None = None,
         messages_json: str | None = None,
     ) -> None:
         self._log(
