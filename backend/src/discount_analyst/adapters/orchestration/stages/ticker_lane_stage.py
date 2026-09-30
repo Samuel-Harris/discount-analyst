@@ -170,7 +170,7 @@ class TickerLaneStage:
         lane_context: SurveyorLaneContext,
         is_mock: bool,
         is_existing_position: bool,
-    ) -> tuple[Any, Any, Any]:
+    ) -> tuple[DeepResearchReport, MispricingThesis, SentinelEvaluationReport]:
         research_out = await self._run_researcher(
             host,
             workflow_run_id=workflow_run_id,
@@ -506,9 +506,9 @@ class TickerLaneStage:
         workflow_run_id: str,
         run_id: str,
         lane_context: SurveyorLaneContext,
-        research_out: Any,
-        thesis: Any,
-        evaluation: Any,
+        research_out: DeepResearchReport,
+        thesis: MispricingThesis,
+        evaluation: SentinelEvaluationReport,
         is_mock: bool,
         is_existing_position: bool,
     ) -> None:
