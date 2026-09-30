@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-08-30 | Updated: 2026-09-06 -->
+<!-- Generated: 2026-08-30 | Updated: 2026-09-30 -->
 
 # curator
 
@@ -39,7 +39,7 @@ None.
 ### Common Patterns
 
 - **Structured I/O**: Callers build `CuratorInput` (dashboard assemble + CLI) and call `user_prompt.create_user_prompt`. One-shot CLI is `uv run discount-analyst agent curator <CuratorInput JSON>`.
-- **Policy**: There is no packed rating or policy. Curator may size any weight on any valued lane, including adding to holdings and initiating new names, including 0%. Data-quality rejects are omitted from the LLM pack and stamped `[0,0,0]` afterwards. Keep the 15% company cap.
+- **Policy**: There is no packed rating or policy. Exits, reductions, and holds are always allowed. New money (`target_weight_pct > current_weight_pct + 0.05`) requires expected upside of at least 20% and a pessimistic case `(p10 / current_price) - 1` of at least -40%. `finalise_curator_proposal` raises `AllocationInvariantError` and does not clip weights. An `overvalued` `thesis_direction` means a supporting Sentinel answer supports selling; weights follow the hurdle, not the label. `market_cap_local` and `market_cap_currency` (GBP or USD) are packed from the candidate snapshot and are not a weight constraint. A lane with no snapshot fails assembly. Data-quality rejects are omitted from the LLM pack and stamped `[0,0,0]` afterwards. Keep the 15% company cap. There is no numeric cash ceiling.
 
 ## Dependencies
 

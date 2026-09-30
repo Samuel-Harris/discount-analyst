@@ -6,6 +6,7 @@ import asyncio
 from typing import Any
 
 import logfire
+from pydantic_ai.messages import ModelMessage
 
 from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
 
@@ -207,7 +208,7 @@ class DashboardPipelineRunner:
         execution_id: str,
         system_prompt: str,
         output_json: str | None,
-        messages: list[Any] | None = None,
+        messages: list[ModelMessage] | None = None,
         messages_json: str | None = None,
     ) -> None:
         await self.db(
@@ -227,7 +228,7 @@ class DashboardPipelineRunner:
         execution_id: str,
         system_prompt: str,
         output_json: str | None,
-        messages: list[Any] | None = None,
+        messages: list[ModelMessage] | None = None,
         messages_json: str | None = None,
     ) -> None:
         await self.db(
@@ -253,7 +254,7 @@ class DashboardPipelineRunner:
         run_id: str,
         agent_name: str,
         system_prompt: str,
-        messages: list[Any] | None = None,
+        messages: list[ModelMessage] | None = None,
         messages_json: str | None = None,
     ) -> None:
         execution_id = await self.get_exec_id(run_id, agent_name)

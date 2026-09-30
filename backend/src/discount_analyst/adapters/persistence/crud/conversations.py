@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Literal, cast
+import re
+from typing import Any, cast
 
 from pydantic_ai import ModelMessagesTypeAdapter
 from pydantic_ai.messages import ModelMessage
@@ -62,14 +63,13 @@ from discount_analyst.agents.researcher.schema import (
     MarketNarrative,
 )
 from discount_analyst.agents.sentinel.schema import (
-    EvaluationReport as EvaluationReportSchema,
     OverallRedFlagVerdict,
-    QuestionAssessment,
     RedFlagScreen,
     ThesisVerdict,
+    stored_evaluation_report,
 )
 from discount_analyst.agents.strategist.schema import (
-    MispricingThesis as MispricingThesisSchema,
+    stored_mispricing_thesis,
 )
 from discount_analyst.agents.surveyor.schema import KeyMetrics, SurveyorOutput
 from discount_analyst.domain.model_selection.context_windows import (
@@ -86,6 +86,14 @@ def _optional_json_str(value: object | None) -> str | None:
     if isinstance(value, str):
         return value
     return str(value)
+
+
+_SECRET_QUERY_PARAM = re.compile(r"(?i)\b((?:api_token|apikey|api_key))=([^&\s\"']+)")
+
+
+def redact_persisted_secrets(text: str) -> str:
+    """Replace api_token, apikey, and api_key values before a part is stored."""
+    return _SECRET_QUERY_PARAM.sub(lambda match: f"{match.group(1)}=REDACTED", text)
 
 
 def message_part_kind_from_raw(raw: str) -> MessagePartKindDb:
@@ -152,18 +160,18 @@ def _normalise_message_part(
     elif "content" in part_dict:
         content_text = dump_json_string(part_dict.get("content"))
 
+    if content_text is not None:
+        content_text = redact_persisted_secrets(content_text)
     return kind, content_text, tool_name, tool_call_id
 
 
 def parse_messages_payload(
     *,
-    messages: list[object] | None,
+    messages: list[ModelMessage] | None,
     messages_json: str | None,
 ) -> list[dict[str, Any]]:
     if messages is not None:
-        return ModelMessagesTypeAdapter.dump_python(
-            cast(list[ModelMessage], messages), mode="json"
-        )
+        return ModelMessagesTypeAdapter.dump_python(messages, mode="json")
     if messages_json:
         loaded = json.loads(messages_json)
         if isinstance(loaded, list):
@@ -309,7 +317,7 @@ def insert_conversation_for_agent_execution(
     system_prompt: str,
     messages_json: str | None = None,
     assistant_response: str | None = None,
-    messages: list[object] | None = None,
+    messages: list[ModelMessage] | None = None,
 ) -> None:
     del assistant_response
     existing = session.scalars(
@@ -539,21 +547,21 @@ def assistant_response_for_run_agent(
                 .order_by(col(MispricingThesisPermanentLossScenario.sort_order))
             )
         ]
-        conv_level: Literal["Low", "Medium", "High"] = cast(
-            Literal["Low", "Medium", "High"], row.conviction_level
-        )
-        payload = MispricingThesisSchema(
-            ticker=run.ticker,
-            company_name=run.company_name,
-            mispricing_type=row.mispricing_type,
-            market_belief=row.market_belief,
-            mispricing_argument=row.mispricing_argument,
-            resolution_mechanism=row.resolution_mechanism,
-            falsification_conditions=conditions,
-            thesis_risks=risks,
-            evaluation_questions=questions,
-            permanent_loss_scenarios=scenarios,
-            conviction_level=conv_level,
+        payload = stored_mispricing_thesis(
+            {
+                "ticker": run.ticker,
+                "company_name": run.company_name,
+                "mispricing_type": row.mispricing_type,
+                "market_belief": row.market_belief,
+                "mispricing_argument": row.mispricing_argument,
+                "resolution_mechanism": row.resolution_mechanism,
+                "falsification_conditions": conditions,
+                "thesis_risks": risks,
+                "evaluation_questions": questions,
+                "permanent_loss_scenarios": scenarios,
+                "conviction_level": row.conviction_level,
+                "thesis_direction": row.thesis_direction,
+            }
         )
         return payload.model_dump_json()
 
@@ -566,31 +574,6 @@ def assistant_response_for_run_agent(
         run = session.get(Run, execution.run_id)
         if row is None or run is None:
             return "{}"
-        qas = [
-            QuestionAssessment(
-                question=r.question,
-                evidence=r.evidence,
-                verdict=cast(
-                    Literal[
-                        "Supports thesis",
-                        "Neutral",
-                        "Weakens thesis",
-                        "Breaks thesis",
-                    ],
-                    r.verdict,
-                ),
-                confidence=cast(Literal["Low", "Medium", "High"], r.confidence),
-                gap_kind=cast(
-                    Literal["none", "calendar", "never_disclosed", "contradicted"],
-                    r.gap_kind,
-                ),
-            )
-            for r in session.scalars(
-                select(EvaluationQuestionAssessment)
-                .where(col(EvaluationQuestionAssessment.evaluation_report_id) == row.id)
-                .order_by(col(EvaluationQuestionAssessment.sort_order))
-            )
-        ]
         caveats = [
             c.caveat
             for c in session.scalars(
@@ -599,25 +582,43 @@ def assistant_response_for_run_agent(
                 .order_by(col(EvaluationCaveat.sort_order))
             )
         ]
-        payload = EvaluationReportSchema(
-            ticker=run.ticker,
-            company_name=run.company_name,
-            question_assessments=qas,
-            red_flag_screen=RedFlagScreen(
-                governance_concerns=row.governance_concerns,
-                balance_sheet_stress=row.balance_sheet_stress,
-                customer_or_supplier_concentration=row.customer_or_supplier_concentration,
-                accounting_quality=row.accounting_quality,
-                related_party_transactions=row.related_party_transactions,
-                litigation_or_regulatory_risk=row.litigation_or_regulatory_risk,
-                overall_red_flag_verdict=OverallRedFlagVerdict(
-                    row.overall_red_flag_verdict
+        payload = stored_evaluation_report(
+            {
+                "ticker": run.ticker,
+                "company_name": run.company_name,
+                "question_assessments": [
+                    {
+                        "question": assessment.question,
+                        "evidence": assessment.evidence,
+                        "verdict": assessment.verdict,
+                        "confidence": assessment.confidence,
+                        "gap_kind": assessment.gap_kind,
+                    }
+                    for assessment in session.scalars(
+                        select(EvaluationQuestionAssessment)
+                        .where(
+                            col(EvaluationQuestionAssessment.evaluation_report_id)
+                            == row.id
+                        )
+                        .order_by(col(EvaluationQuestionAssessment.sort_order))
+                    )
+                ],
+                "red_flag_screen": RedFlagScreen(
+                    governance_concerns=row.governance_concerns,
+                    balance_sheet_stress=row.balance_sheet_stress,
+                    customer_or_supplier_concentration=row.customer_or_supplier_concentration,
+                    accounting_quality=row.accounting_quality,
+                    related_party_transactions=row.related_party_transactions,
+                    litigation_or_regulatory_risk=row.litigation_or_regulatory_risk,
+                    overall_red_flag_verdict=OverallRedFlagVerdict(
+                        row.overall_red_flag_verdict
+                    ),
                 ),
-            ),
-            thesis_verdict=ThesisVerdict(row.thesis_verdict),
-            verdict_rationale=row.verdict_rationale,
-            material_data_gaps=row.material_data_gaps,
-            caveats=caveats,
+                "thesis_verdict": ThesisVerdict(row.thesis_verdict),
+                "verdict_rationale": row.verdict_rationale,
+                "material_data_gaps": row.material_data_gaps,
+                "caveats": caveats,
+            }
         )
         return payload.model_dump_json()
 

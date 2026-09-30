@@ -5,6 +5,9 @@ from decimal import Decimal
 from sqlmodel import Session, select
 
 from backend.tests.factories.sterling import sterling_holdings
+from discount_analyst.adapters.persistence.crud.agent_output_persistence import (
+    appraiser_output_from_report,
+)
 from discount_analyst.adapters.persistence.crud.db_utils import utc_now
 from discount_analyst.adapters.persistence.crud.run_executions import (
     complete_agent_execution_with_conversation,
@@ -24,6 +27,40 @@ from discount_analyst.adapters.persistence.models import (
     Run,
     WorkflowRunStatusDb,
 )
+
+
+def test_historical_report_without_scenarios_still_loads() -> None:
+    row = AppraiserReport(
+        id="report-old",
+        agent_execution_id="exec-old",
+        ticker="OPRX",
+        company_name="OptimizeRx",
+        valuation_date="2026-09-07",
+        summary="Stored before scenarios were required.",
+        currency="USD",
+        current_share_price=10.0,
+        expected_intrinsic_value=12.0,
+        p10_intrinsic_value=8.0,
+        p25_intrinsic_value=9.0,
+        p50_intrinsic_value=11.0,
+        p75_intrinsic_value=13.0,
+        p90_intrinsic_value=15.0,
+        distribution_method="scenario_weighting",
+        distribution_reasoning="Hand-set percentiles.",
+        scenarios_json=None,
+        methods_json="[]",
+        key_value_drivers_json="[]",
+        downside_risks_to_value_json="[]",
+        upside_drivers_to_value_json="[]",
+        data_quality="Medium",
+        caveats_json="[]",
+        shares_outstanding=260.92,
+        share_count_source="filing",
+        quoted_price_unit="major",
+    )
+    loaded = appraiser_output_from_report(row)
+    assert loaded.shares_outstanding == 260.92
+    assert loaded.valuation_distribution.scenarios == []
 
 
 def test_complete_appraiser_execution_persists_single_report(
@@ -87,6 +124,7 @@ def test_complete_appraiser_execution_persists_single_report(
 
     report = db_session.scalars(select(AppraiserReport)).one()
     assert report.agent_execution_id == execution_id
+    assert report.scenarios_json is not None
     assert (
         report.expected_intrinsic_value
         == output.valuation_distribution.expected_intrinsic_value

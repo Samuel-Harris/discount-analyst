@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import date
+from typing import Literal
 
 from discount_analyst.agents.appraiser.schema import AppraiserOutput
 from discount_analyst.agents.curator.schema import (
@@ -38,6 +39,8 @@ class ValuedLaneBundle:
     is_existing_position: bool
     sector: str
     industry: str
+    market_cap_local: int
+    market_cap_currency: Literal["GBP", "USD"]
     deep_research: DeepResearchReport
     thesis: MispricingThesis
     evaluation: EvaluationReport
@@ -79,6 +82,8 @@ def valued_lane_bundle(
     decision: AppraisedDecision,
     sector: str,
     industry: str,
+    market_cap_local: int,
+    market_cap_currency: Literal["GBP", "USD"],
     deep_research: DeepResearchReport,
     thesis: MispricingThesis,
     evaluation: EvaluationReport,
@@ -91,6 +96,8 @@ def valued_lane_bundle(
         is_existing_position=decision.is_existing_position,
         sector=sector,
         industry=industry,
+        market_cap_local=market_cap_local,
+        market_cap_currency=market_cap_currency,
         deep_research=deep_research,
         thesis=thesis,
         evaluation=evaluation,
@@ -220,6 +227,8 @@ def _identity(
         current_weight_pct=_current_weight(bundle.ticker, snapshot),
         sector=bundle.sector,
         industry=bundle.industry,
+        market_cap_local=bundle.market_cap_local,
+        market_cap_currency=bundle.market_cap_currency,
     )
 
 
@@ -268,6 +277,7 @@ def _compact_strategist(thesis: MispricingThesis) -> CompactStrategistEvidence:
     return CompactStrategistEvidence(
         thesis_summary=thesis.mispricing_argument,
         conviction=thesis.conviction_level,
+        thesis_direction=thesis.thesis_direction,
         thesis_risks=tuple(thesis.thesis_risks),
         permanent_loss_scenarios=tuple(thesis.permanent_loss_scenarios),
     )

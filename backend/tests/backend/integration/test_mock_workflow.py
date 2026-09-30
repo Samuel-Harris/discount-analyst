@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from pydantic_ai.messages import ModelMessage
 from sqlmodel import Session, col, select
 
 from backend.tests.factories.sterling import sterling_holdings
@@ -396,7 +397,7 @@ async def test_appraiser_conversation_failure_does_not_leave_appraiser_completed
         system_prompt: str,
         messages_json: str | None = None,
         assistant_response: str | None = None,
-        messages: list[object] | None = None,
+        messages: list[ModelMessage] | None = None,
     ) -> None:
         if system_prompt == with_current_date(APPRAISER_SYSTEM_PROMPT):
             raise KeyError("builtin-tool-call")

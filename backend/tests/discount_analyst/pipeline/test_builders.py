@@ -74,6 +74,7 @@ def _thesis() -> MispricingThesis:
         evaluation_questions=["q1", "q2", "q3", "q4", "q5"],
         permanent_loss_scenarios=["p1", "p2"],
         conviction_level="Medium",
+        thesis_direction="undervalued",
     )
 
 

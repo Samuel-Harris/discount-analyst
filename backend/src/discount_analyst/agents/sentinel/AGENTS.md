@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-04-05 | Updated: 2026-09-06 -->
+<!-- Generated: 2026-04-05 | Updated: 2026-09-30 -->
 
 # sentinel
 
@@ -27,7 +27,7 @@ None.
 ### Working In This Directory
 
 - **Agent tools**: No web search, MCP financial data, or live terminal session. `create_sentinel_agent` always passes `enable_web_research_tools=False` and `use_mcp_financial_data=False`, and disables the terminal session. Dashboard Perplexity/MCP/terminal flags are not forwarded. Frankfurter `convert_currency` and official filing tools (`get_sec_company_facts`, `resolve_uk_company`, `get_companies_house_accounts`) remain attached. After a successful run, `finalise_sentinel_evaluation` overwrites `thesis_verdict` from `gap_kind` assessments and rejects a question-count mismatch before persist.
-- **Output contract**: Keep output constrained to `EvaluationReport` in `schema.py`. `derive_thesis_verdict` overwrites `thesis_verdict` as a label (`never_disclosed` is a reservation like `calendar`; Unproven needs a Weakens/Breaks). Do not add a persisted recommendation or a skip gate.
+- **Output contract**: Keep output constrained to `EvaluationReport` in `schema.py`. `Weakens thesis` or `Breaks thesis` cannot use `gap_kind=never_disclosed`; `calendar` stays valid with those verdicts. `stored_evaluation_report` still loads rows stored before that rule. `derive_thesis_verdict` is unchanged and still overwrites `thesis_verdict` as a label (`never_disclosed` is a reservation like `calendar`; Unproven needs a Weakens/Breaks). Do not add a persisted recommendation or a skip gate.
 
 ### Testing Requirements
 

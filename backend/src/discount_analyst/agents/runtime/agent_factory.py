@@ -32,6 +32,7 @@ from discount_analyst.config.provider_features import (
 from discount_analyst.agents.tools.market_data.frankfurter import (
     create_frankfurter_toolset,
 )
+from discount_analyst.agents.tools.screening import create_screening_metrics_toolset
 from discount_analyst.agents.tools.regulatory_data.toolsets import (
     create_filings_toolset,
     create_universe_toolset,
@@ -189,6 +190,8 @@ def create_agent[OutT](
         )
 
     toolsets.append(create_frankfurter_toolset())
+    if spec.name is AgentName.SURVEYOR:
+        toolsets.append(create_screening_metrics_toolset())
     for factory in REGULATORY_TOOLSETS_BY_ROLE[spec.name]:
         toolsets.append(getattr(modules[__name__], factory.__name__)())
 

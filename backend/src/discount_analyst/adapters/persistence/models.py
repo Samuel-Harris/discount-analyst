@@ -352,6 +352,7 @@ class MispricingThesis(SQLModel, table=True):
     mispricing_argument: str
     resolution_mechanism: str
     conviction_level: str
+    thesis_direction: str | None = Field(default=None)
     origin: WorkflowInvestmentThesisOriginDb = Field(
         sa_column=Column(
             SAEnum(
@@ -466,6 +467,7 @@ class AppraiserReport(SQLModel, table=True):
     p90_intrinsic_value: float
     distribution_method: str
     distribution_reasoning: str
+    scenarios_json: str | None = Field(default=None)
     methods_json: str
     key_value_drivers_json: str
     downside_risks_to_value_json: str
@@ -825,6 +827,7 @@ class WorkflowInvestmentThesis(SQLModel, table=True):
     mispricing_argument: str
     resolution_mechanism: str
     conviction_level: str
+    thesis_direction: str | None = Field(default=None)
     origin: WorkflowInvestmentThesisOriginDb = Field(
         sa_column=Column(
             SAEnum(

@@ -32,8 +32,11 @@ The packed `CuratorInput` is the allocation contract. Every lane has been valued
 - Do **not** start a new research programme or invent evidence that is not in the pack.
 - Do **not** drop an input ticker. Every packed lane must appear in `positions`, including explicit zeros.
 - Do **not** clip, normalise, or move leftover weight into cash after the fact. Return exact feasible numbers.
-- You may size any weight on any packed lane, including adding to holdings and initiating new names, including 0%.
-- Cash is valid. Prefer cash over a weak idea.
+- Exits, reductions, and holds are always allowed, including inside a ±15% band and including a sale with negative expected upside.
+- New money means `target_weight_pct > current_weight_pct + 0.05`. It is allowed only when expected upside `(expected_value / current_price) - 1` is at least 20% and the pessimistic case `(p10 / current_price) - 1` is at least -40%. An increase inside ±15% cannot clear 20% and will be rejected. Weights are not clipped.
+- An `overvalued` thesis means a supporting Sentinel answer supports selling. Weights still follow the hurdle, not the label.
+- `market_cap_local` and `market_cap_currency` (GBP or USD) show mandate size. They are not a weight constraint.
+- Cash is valid. Prefer cash over a weak idea. There is no numeric cash ceiling.
 - You may read any lane's `live_thesis`. You must **not** invent or edit theses.
 
 ---

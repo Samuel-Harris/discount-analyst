@@ -1,4 +1,5 @@
-from typing import Literal
+from collections.abc import Mapping
+from typing import Any, Literal, cast
 
 from pydantic import (
     BaseModel,
@@ -59,13 +60,21 @@ class MispricingThesis(BaseModel):
         )
     )
     evaluation_questions: list[str] = Field(
+        min_length=3,
+        max_length=5,
         description=(
             "The specific questions Sentinel must answer to "
             "confirm or break this thesis. Each question must be answerable "
             "from the last reported period plus the last trading update. "
             "Do not make a future print (for example 'what will FY26 report?') "
             "a load-bearing question. Bespoke to this thesis — not a generic "
-            "checklist. Minimum 5 questions."
+            "checklist. Between 3 and 5 questions."
+        ),
+    )
+    thesis_direction: Literal["undervalued", "overvalued"] = Field(
+        description=(
+            "Whether the live claim is that the shares are undervalued or "
+            "overvalued. There is no undecided direction."
         )
     )
     permanent_loss_scenarios: list[str] = Field(
@@ -109,3 +118,21 @@ class StrategistDecision(BaseModel):
             msg = "replace requires a nested thesis"
             raise ValueError(msg)
         return thesis
+
+
+def stored_mispricing_thesis(data: Mapping[str, Any]) -> MispricingThesis:
+    """Load a persisted thesis. Rows from before direction was stored still load."""
+    payload = {
+        key: data[key]
+        for key in MispricingThesis.model_fields
+        if key != "thesis_direction"
+    }
+    payload["thesis_direction"] = data.get("thesis_direction")
+    questions = payload["evaluation_questions"]
+    question_count = (
+        len(cast(list[object], questions)) if isinstance(questions, list) else 0
+    )
+    historical = payload["thesis_direction"] is None or not 3 <= question_count <= 5
+    if historical:
+        return MispricingThesis.model_construct(**payload)
+    return MispricingThesis.model_validate(payload)

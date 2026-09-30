@@ -168,6 +168,7 @@ def test_create_agent_attaches_always_on_tooling(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fx_toolset = object()
+    screening_toolset = object()
     universe_toolset = object()
     filings_toolset = object()
     captured: dict[str, object] = {}
@@ -181,6 +182,11 @@ def test_create_agent_attaches_always_on_tooling(
         return SimpleNamespace(name=kwargs.get("name"))
 
     monkeypatch.setattr(agent_factory, "create_frankfurter_toolset", lambda: fx_toolset)
+    monkeypatch.setattr(
+        agent_factory,
+        "create_screening_metrics_toolset",
+        lambda: screening_toolset,
+    )
     monkeypatch.setattr(
         agent_factory, "create_universe_toolset", lambda: universe_toolset
     )
@@ -206,7 +212,12 @@ def test_create_agent_attaches_always_on_tooling(
         ),
     )
 
-    assert captured["toolsets"] == [fx_toolset, universe_toolset, filings_toolset]
+    assert captured["toolsets"] == [
+        fx_toolset,
+        screening_toolset,
+        universe_toolset,
+        filings_toolset,
+    ]
     capabilities = captured["capabilities"]
     assert isinstance(capabilities, list)
     assert capabilities[:2] == [

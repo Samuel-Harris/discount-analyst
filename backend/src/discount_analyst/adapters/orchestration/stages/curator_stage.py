@@ -6,6 +6,8 @@ import asyncio
 from datetime import date
 from typing import TYPE_CHECKING, Any, Protocol
 
+from pydantic_ai.messages import ModelMessage
+
 from sqlmodel import Session
 
 from discount_analyst.adapters.orchestration.llm_config import (
@@ -265,7 +267,7 @@ class _CuratorRunResult:
         self,
         *,
         proposal: CuratorProposal,
-        messages: list[Any] | None,
+        messages: list[ModelMessage] | None,
         messages_json: str | None,
     ) -> None:
         self.proposal = proposal
@@ -278,7 +280,7 @@ def persist_completed_curator_execution(
     *,
     execution_id: str,
     system_prompt: str,
-    messages: list[Any] | None,
+    messages: list[ModelMessage] | None,
     messages_json: str | None,
     allocation: DomainPortfolioAllocation,
 ) -> None:

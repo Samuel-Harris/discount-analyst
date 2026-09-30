@@ -52,6 +52,7 @@ from discount_analyst.agents.appraiser.schema import (
 )
 from discount_analyst.domain.valuation.intrinsic_value_distribution import (
     IntrinsicValueDistribution,
+    ValueScenario,
 )
 from discount_analyst.agents.profiler.schema import ProfilerOutput
 from discount_analyst.agents.researcher.schema import (
@@ -320,6 +321,7 @@ def persist_mispricing_thesis(
         mispricing_argument=thesis.mispricing_argument,
         resolution_mechanism=thesis.resolution_mechanism,
         conviction_level=thesis.conviction_level,
+        thesis_direction=thesis.thesis_direction,
         origin=origin,
     )
     session.add(row)
@@ -453,6 +455,43 @@ def replace_evaluation_report(
         )
 
 
+def _stored_before_quality_gates(row: AppraiserReport) -> bool:
+    """A null scenarios column marks a report stored before the quality gates.
+
+    Those rows also predate the 100,000-share floor, so the whole output is
+    constructed rather than validated.
+    """
+    return row.scenarios_json is None
+
+
+def _distribution_from_report(
+    row: AppraiserReport, *, historical: bool
+) -> IntrinsicValueDistribution:
+    fields: dict[str, Any] = {
+        "currency": row.currency,
+        "current_share_price": row.current_share_price,
+        "expected_intrinsic_value": row.expected_intrinsic_value,
+        "p10_intrinsic_value": row.p10_intrinsic_value,
+        "p25_intrinsic_value": row.p25_intrinsic_value,
+        "p50_intrinsic_value": row.p50_intrinsic_value,
+        "p75_intrinsic_value": row.p75_intrinsic_value,
+        "p90_intrinsic_value": row.p90_intrinsic_value,
+        "distribution_method": row.distribution_method,
+        "distribution_reasoning": row.distribution_reasoning,
+    }
+    if historical:
+        return IntrinsicValueDistribution.model_construct(**fields, scenarios=[])
+    scenarios_json = row.scenarios_json
+    if scenarios_json is None:
+        msg = "Appraiser report is missing scenarios."
+        raise ValueError(msg)
+    scenarios = [
+        ValueScenario.model_validate(scenario)
+        for scenario in json.loads(scenarios_json)
+    ]
+    return IntrinsicValueDistribution(**fields, scenarios=scenarios)
+
+
 def appraiser_output_from_report(row: AppraiserReport) -> AppraiserOutput:
     shares_outstanding = row.shares_outstanding
     share_count_source = row.share_count_source
@@ -467,23 +506,13 @@ def appraiser_output_from_report(row: AppraiserReport) -> AppraiserOutput:
             "historical rows without audit data fail closed."
         )
         raise ValueError(msg)
-    return AppraiserOutput(
+    historical = _stored_before_quality_gates(row)
+    payload: dict[str, Any] = dict(
         ticker=row.ticker,
         company_name=row.company_name,
         valuation_date=row.valuation_date,
         summary=row.summary,
-        valuation_distribution=IntrinsicValueDistribution(
-            currency=row.currency,
-            current_share_price=row.current_share_price,
-            expected_intrinsic_value=row.expected_intrinsic_value,
-            p10_intrinsic_value=row.p10_intrinsic_value,
-            p25_intrinsic_value=row.p25_intrinsic_value,
-            p50_intrinsic_value=row.p50_intrinsic_value,
-            p75_intrinsic_value=row.p75_intrinsic_value,
-            p90_intrinsic_value=row.p90_intrinsic_value,
-            distribution_method=row.distribution_method,
-            distribution_reasoning=row.distribution_reasoning,
-        ),
+        valuation_distribution=_distribution_from_report(row, historical=historical),
         methods=[
             ValuationMethodResult.model_validate(method)
             for method in json.loads(row.methods_json)
@@ -500,6 +529,9 @@ def appraiser_output_from_report(row: AppraiserReport) -> AppraiserOutput:
         ),
         quoted_price_unit=cast(Literal["major", "subunit"], quoted_price_unit),
     )
+    if historical:
+        return AppraiserOutput.model_construct(**payload)
+    return AppraiserOutput(**payload)
 
 
 def replace_appraiser_output(
@@ -534,6 +566,10 @@ def replace_appraiser_output(
         p90_intrinsic_value=distribution.p90_intrinsic_value,
         distribution_method=distribution.distribution_method,
         distribution_reasoning=distribution.distribution_reasoning,
+        scenarios_json=json.dumps(
+            [scenario.model_dump(mode="json") for scenario in distribution.scenarios],
+            separators=(",", ":"),
+        ),
         methods_json=json.dumps(
             [method.model_dump(mode="json") for method in output.methods],
             separators=(",", ":"),

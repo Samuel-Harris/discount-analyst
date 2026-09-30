@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, Any, Protocol
 
+from pydantic_ai.messages import ModelMessage
+
 from discount_analyst.adapters.persistence.crud.db_utils import utc_now_iso
 from discount_analyst.adapters.persistence.crud.run_executions import (
     get_workflow_candidate_snapshot_id,
@@ -28,6 +30,9 @@ from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
 from discount_analyst.agents.runtime.terminal_run import run_agent_with_terminal
 from discount_analyst.agents.common_prompts.current_date import with_current_date
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
+from discount_analyst.agents.surveyor.screening_check import (
+    assert_screening_metrics_match_tool_results,
+)
 from discount_analyst.agents.surveyor.surveyor import create_surveyor_agent
 from discount_analyst.agents.surveyor.system_prompt import (
     SYSTEM_PROMPT as SURVEYOR_SYSTEM_PROMPT,
@@ -57,7 +62,7 @@ class SurveyorStageHost(Protocol):
         execution_id: str,
         system_prompt: str,
         output_json: str | None,
-        messages: list[Any] | None = None,
+        messages: list[ModelMessage] | None = None,
         messages_json: str | None = None,
     ) -> None: ...
 
@@ -125,6 +130,10 @@ class SurveyorStage:
                 portfolio_fold=portfolio_fold,
                 is_mock=is_mock,
                 llm=llm,
+            )
+            assert_screening_metrics_match_tool_results(
+                surveyor_output.candidates,
+                surveyor_output.messages,
             )
             await host.complete_workflow_exec_with_conversation(
                 execution_id=surveyor_exec_id,
@@ -226,7 +235,7 @@ class _SurveyorRunResult:
         *,
         candidates: list[SurveyorCandidate],
         output_json: str,
-        messages: list[Any] | None,
+        messages: list[ModelMessage] | None,
         messages_json: str | None,
     ) -> None:
         self.candidates = candidates

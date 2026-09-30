@@ -1,5 +1,6 @@
 """Tests for assembling and finalising Curator contracts."""
 
+from dataclasses import replace
 from datetime import date
 
 import pytest
@@ -25,6 +26,9 @@ from discount_analyst.application.allocations.assemble import (
     dqr_lane_bundle,
     source_run_ids_by_ticker,
     valued_lane_bundle,
+)
+from discount_analyst.adapters.persistence.crud.allocation_lane_bundles import (
+    lane_market_cap,
 )
 from discount_analyst.application.allocations.errors import AllocationAssemblyError
 from discount_analyst.application.allocations.finalise import (
@@ -88,6 +92,8 @@ def _appraised_bundle(
         decision=decision,
         sector=sector,
         industry=industry,
+        market_cap_local=candidate.market_cap_local,
+        market_cap_currency=candidate.currency.value,
         deep_research=mock_deep_research(candidate),
         thesis=thesis,
         evaluation=evaluation,
@@ -417,3 +423,143 @@ def test_mock_proposal_caps_dual_listing_company_highs() -> None:
     targets = sum(row.target_weight_pct for row in allocation.positions)
     assert targets <= 15.0
     assert source_run_ids_by_ticker(bundles)["arm"] == "run-arm-us"
+
+
+def _priced(
+    bundle: ValuedLaneBundle, *, price: float, expected: float, pessimistic: float
+) -> ValuedLaneBundle:
+    output = bundle.appraiser_output
+    distribution = output.valuation_distribution.model_copy(
+        update={
+            "current_share_price": price,
+            "expected_intrinsic_value": expected,
+            "p10_intrinsic_value": pessimistic,
+        }
+    )
+    return replace(
+        bundle,
+        appraiser_output=output.model_copy(
+            update={"valuation_distribution": distribution}
+        ),
+    )
+
+
+def _single_position_proposal(ticker: str, target: float) -> CuratorProposal:
+    cash = round(100.0 - target, 2)
+    return CuratorProposal(
+        allocation_date=ALLOCATION_DATE,
+        positions=(
+            ProposedPosition(
+                ticker=ticker,
+                target_weight_pct=target,
+                acceptable_weight_low_pct=target,
+                acceptable_weight_high_pct=target,
+                rationale="Hurdle case.",
+            ),
+        ),
+        cash=ProposedCash(
+            target_weight_pct=cash,
+            acceptable_weight_low_pct=cash,
+            acceptable_weight_high_pct=cash,
+            rationale="Residual cash.",
+        ),
+        shared_risk_clusters=(),
+        portfolio_rationale="Hurdle case.",
+    )
+
+
+def test_new_money_below_20_percent_upside_fails() -> None:
+    bundle = _priced(
+        _appraised_bundle(
+            "THX.L",
+            is_existing_position=False,
+            source_run_id="run-thx",
+        ),
+        price=100.0,
+        expected=104.0,
+        pessimistic=16.0,
+    )
+    job = assemble_curator_job((bundle,), _cash_only(), ALLOCATION_DATE)
+    with pytest.raises(AllocationInvariantError, match="THX.L"):
+        finalise_curator_proposal(_single_position_proposal("THX.L", 4.0), job)
+
+
+def test_increase_with_pessimistic_case_below_minus_40_fails() -> None:
+    bundle = _priced(
+        _appraised_bundle(
+            "LBG.L",
+            is_existing_position=True,
+            source_run_id="run-lbg",
+        ),
+        price=100.0,
+        expected=158.0,
+        pessimistic=48.0,
+    )
+    job = assemble_curator_job(
+        (bundle,), _snapshot(("LBG.L", 5.0), cash_weight_pct=95.0), ALLOCATION_DATE
+    )
+    with pytest.raises(AllocationInvariantError, match="LBG.L"):
+        finalise_curator_proposal(_single_position_proposal("LBG.L", 10.0), job)
+
+
+def test_negative_upside_exit_passes() -> None:
+    bundle = _priced(
+        _appraised_bundle(
+            "GAMA.L",
+            is_existing_position=True,
+            source_run_id="run-gama",
+        ),
+        price=100.0,
+        expected=92.0,
+        pessimistic=40.0,
+    )
+    job = assemble_curator_job(
+        (bundle,), _snapshot(("GAMA.L", 10.0), cash_weight_pct=90.0), ALLOCATION_DATE
+    )
+    allocation = finalise_curator_proposal(
+        _single_position_proposal("GAMA.L", 0.0), job
+    )
+    assert allocation.positions[0].target_weight_pct == 0.0
+
+
+def test_small_positive_upside_exit_passes() -> None:
+    bundle = _priced(
+        _appraised_bundle(
+            "REL.L",
+            is_existing_position=True,
+            source_run_id="run-rel",
+        ),
+        price=100.0,
+        expected=101.8,
+        pessimistic=80.0,
+    )
+    job = assemble_curator_job(
+        (bundle,), _snapshot(("REL.L", 8.0), cash_weight_pct=92.0), ALLOCATION_DATE
+    )
+    allocation = finalise_curator_proposal(_single_position_proposal("REL.L", 0.0), job)
+    assert allocation.positions[0].target_weight_pct == 0.0
+
+
+def test_increase_clears_upside_and_pessimistic_hurdle() -> None:
+    bundle = _priced(
+        _appraised_bundle(
+            "GOOD.L",
+            is_existing_position=True,
+            source_run_id="run-good",
+        ),
+        price=100.0,
+        expected=122.0,
+        pessimistic=70.0,
+    )
+    job = assemble_curator_job(
+        (bundle,), _snapshot(("GOOD.L", 2.0), cash_weight_pct=98.0), ALLOCATION_DATE
+    )
+    allocation = finalise_curator_proposal(
+        _single_position_proposal("GOOD.L", 8.0), job
+    )
+    assert allocation.positions[0].target_weight_pct == 8.0
+
+
+def test_missing_candidate_snapshot_fails_assembly() -> None:
+    with pytest.raises(AllocationAssemblyError, match="THX.L"):
+        lane_market_cap(None, ticker="THX.L")

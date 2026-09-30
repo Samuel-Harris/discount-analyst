@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from typing import Any, Literal, cast
+
 from pydantic import BaseModel
 from sqlmodel import Session, col, select
 
@@ -18,8 +21,14 @@ from discount_analyst.adapters.persistence.models import (
     WorkflowRunStatusDb,
 )
 from discount_analyst.agents.researcher.schema import DeepResearchReport
-from discount_analyst.agents.sentinel.schema import EvaluationReport
-from discount_analyst.agents.strategist.schema import MispricingThesis
+from discount_analyst.agents.sentinel.schema import (
+    EvaluationReport,
+    stored_evaluation_report,
+)
+from discount_analyst.agents.strategist.schema import (
+    MispricingThesis,
+    stored_mispricing_thesis,
+)
 from discount_analyst.application.allocations.assemble import (
     DqrLaneBundle,
     ValuedLaneBundle,
@@ -57,8 +66,14 @@ def load_completed_lane_bundles(
             if run.candidate_snapshot_id is not None
             else None
         )
-        sector = snapshot.sector if snapshot is not None else "Unknown"
-        industry = snapshot.industry if snapshot is not None else "Unknown"
+        if snapshot is None:
+            msg = f"Lane {run.ticker!r} has no candidate snapshot."
+            raise AllocationAssemblyError(msg)
+        sector = snapshot.sector
+        industry = snapshot.industry
+        market_cap_local, market_cap_currency = lane_market_cap(
+            snapshot, ticker=run.ticker
+        )
         if decision_row.decision_type in {
             DecisionTypeDb.DATA_QUALITY_REJECTION,
             DecisionTypeDb.SENTINEL_REJECTION,
@@ -103,20 +118,8 @@ def load_completed_lane_bundles(
             agent_name=AgentNameDb.RESEARCHER.value,
             model_type=DeepResearchReport,
         )
-        thesis = _require_model(
-            session,
-            run_id=run.id,
-            ticker=run.ticker,
-            agent_name=AgentNameDb.STRATEGIST.value,
-            model_type=MispricingThesis,
-        )
-        evaluation = _require_model(
-            session,
-            run_id=run.id,
-            ticker=run.ticker,
-            agent_name=AgentNameDb.SENTINEL.value,
-            model_type=EvaluationReport,
-        )
+        thesis = _load_thesis(session, run_id=run.id, ticker=run.ticker)
+        evaluation = _load_evaluation(session, run_id=run.id, ticker=run.ticker)
         appraiser = get_appraiser_output_for_run(session, run_id=run.id)
         if appraiser is None:
             msg = f"Lane {run.ticker!r} is missing Appraiser evidence."
@@ -129,6 +132,8 @@ def load_completed_lane_bundles(
                 is_existing_position=decision_row.is_existing_position,
                 sector=sector,
                 industry=industry,
+                market_cap_local=market_cap_local,
+                market_cap_currency=market_cap_currency,
                 deep_research=research,
                 thesis=thesis,
                 evaluation=evaluation,
@@ -136,6 +141,48 @@ def load_completed_lane_bundles(
             )
         )
     return tuple(valued), tuple(dqr)
+
+
+def lane_market_cap(
+    snapshot: CandidateSnapshot | None, *, ticker: str
+) -> tuple[int, Literal["GBP", "USD"]]:
+    """Market cap copied from the lane snapshot. Missing snapshots fail assembly."""
+    if snapshot is None:
+        msg = f"Lane {ticker!r} has no candidate snapshot."
+        raise AllocationAssemblyError(msg)
+    currency = snapshot.currency
+    if currency not in {"GBP", "USD"}:
+        msg = f"Lane {ticker!r} market-cap currency {currency!r} is not GBP or USD."
+        raise AllocationAssemblyError(msg)
+    return snapshot.market_cap_local, cast(Literal["GBP", "USD"], currency)
+
+
+def _load_evaluation(session: Session, *, run_id: str, ticker: str) -> EvaluationReport:
+    payload = get_completed_agent_output_json(
+        session, run_id=run_id, agent_name=AgentNameDb.SENTINEL.value
+    )
+    if payload is None:
+        msg = f"Lane {ticker!r} is missing sentinel evidence."
+        raise AllocationAssemblyError(msg)
+    data = json.loads(payload)
+    if not isinstance(data, dict):
+        msg = f"Lane {ticker!r} sentinel evidence is not an object."
+        raise AllocationAssemblyError(msg)
+    return stored_evaluation_report(cast(dict[str, Any], data))
+
+
+def _load_thesis(session: Session, *, run_id: str, ticker: str) -> MispricingThesis:
+    payload = get_completed_agent_output_json(
+        session, run_id=run_id, agent_name=AgentNameDb.STRATEGIST.value
+    )
+    if payload is None:
+        msg = f"Lane {ticker!r} is missing strategist evidence."
+        raise AllocationAssemblyError(msg)
+    data = json.loads(payload)
+    if not isinstance(data, dict):
+        msg = f"Lane {ticker!r} strategist evidence is not an object."
+        raise AllocationAssemblyError(msg)
+    return stored_mispricing_thesis(cast(dict[str, Any], data))
 
 
 def _require_model[T: BaseModel](

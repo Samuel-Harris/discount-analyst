@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Protocol
+
+from pydantic_ai.messages import ModelMessage
 
 from discount_analyst.adapters.persistence.models import AgentNameDb
 from discount_analyst.adapters.simulation import (
@@ -54,7 +56,7 @@ class ProfilerStageHost(Protocol):
         run_id: str,
         agent_name: str,
         system_prompt: str,
-        messages: list[Any] | None = None,
+        messages: list[ModelMessage] | None = None,
         messages_json: str | None = None,
     ) -> None: ...
 

@@ -28,7 +28,7 @@ Construct the target portfolio from this packed allocation evidence.
 1. Form semantic shared-risk clusters from `live_thesis` mechanisms as well as sector labels, including supply-chain links that sector strings miss.
 2. Rank names on whether their live theses are independent ideas, then conviction, margin of safety, downside, Sentinel labels, and data quality.
 3. Anchor on current weights; treat ranges as no-trade bands.
-4. You may size any weight on any packed lane, including adding to holdings and initiating new names, including 0%. Cash is valid.
+4. Exits, reductions, and holds are always allowed. New money (`target_weight_pct > current_weight_pct + 0.05`) requires expected upside of at least 20% and a pessimistic case of at least -40%. An `overvalued` `thesis_direction` means a supporting Sentinel answer supports selling; weights follow that hurdle, not the label. Cash is valid and uncapped. `market_cap_local` is context, not a cap.
 5. Keep any one company at or below 15% (targets and range uppers), grouping by casefolded company name.
 6. Reduce weaker correlated names first. Unused capital goes to stronger independent ideas or cash — never to a weak diversifier.
 7. {final_result_user_step(output_type_name=CuratorProposal.__name__)}

@@ -25,9 +25,10 @@ class CompactResearcherEvidence(BaseModel):
 
 
 class PackedMispricingThesis(BaseModel):
-    """Field-identical copy of Strategist ``MispricingThesis`` for Curator input.
+    """Copy of Strategist ``MispricingThesis`` for Curator input.
 
     Kept here so ``schema.py`` does not import the Strategist package.
+    ``thesis_direction`` is null only for rows stored before the column existed.
     """
 
     ticker: str
@@ -41,11 +42,13 @@ class PackedMispricingThesis(BaseModel):
     evaluation_questions: list[str]
     permanent_loss_scenarios: list[str]
     conviction_level: Literal["Low", "Medium", "High"]
+    thesis_direction: Literal["undervalued", "overvalued"] | None = None
 
 
 class CompactStrategistEvidence(BaseModel):
     thesis_summary: str
     conviction: Literal["Low", "Medium", "High"]
+    thesis_direction: Literal["undervalued", "overvalued"] | None = None
     thesis_risks: tuple[str, ...]
     permanent_loss_scenarios: tuple[str, ...]
 
@@ -73,6 +76,8 @@ class CuratorLaneIdentity(BaseModel):
     current_weight_pct: float = Field(ge=0, le=100)
     sector: str
     industry: str
+    market_cap_local: int = Field(gt=0)
+    market_cap_currency: Literal["GBP", "USD"]
 
 
 class AppraisedLaneEvidence(BaseModel):
