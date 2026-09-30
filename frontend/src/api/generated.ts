@@ -191,6 +191,8 @@ export const ModelName = {
   'gpt-54': 'gpt-5.4',
   'gpt-56-luna': 'gpt-5.6-luna',
   'gpt-56-terra': 'gpt-5.6-terra',
+  'gpt-6-luna': 'gpt-6-luna',
+  'gpt-61-sol': 'gpt-6.1-sol',
   'gemini-3-pro-preview': 'gemini-3-pro-preview',
   'gemini-31-pro-preview': 'gemini-3.1-pro-preview',
   'deepseek-v4-flash': 'deepseek-v4-flash',

@@ -155,5 +155,5 @@ async def test_profiler_stage_non_mock_path_uses_run_agent_with_terminal() -> No
             is_mock=False,
         )
     assert candidate.ticker == "X.L"
-    assert host.calls[1][1]["model_name"] is ModelName.GPT_5_6_LUNA
+    assert host.calls[1][1]["model_name"] is ModelName.GPT_6_LUNA
     assert host.calls[4][1]["messages"] == fake_outcome.all_messages
