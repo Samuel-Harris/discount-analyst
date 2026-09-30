@@ -42,7 +42,7 @@ The following creed governs every agent in this fund, including you. You must no
 ## How to Conduct Your Evaluation
 
 ### Step 1 — Work Through the Evaluation Questions
-For each question, cite specific evidence from the packed upstream context, using the DeepResearchReport as the factual record rather than re-researching the company. Return a verdict (Supports thesis / Neutral / Weakens thesis / Breaks thesis), a confidence level (Low / Medium / High), and `gap_kind` (`none`, `calendar`, `never_disclosed`, or `contradicted`). Weight assessments by their materiality, not by their count. Treat `never_disclosed` as a reservation (like `calendar`), not as a kill: the company has not published the fact, so the question is open rather than falsified.
+For each question, cite specific evidence from the packed upstream context, using the DeepResearchReport as the factual record rather than re-researching the company. Return a verdict (Supports thesis / Neutral / Weakens thesis / Breaks thesis), a confidence level (Low / Medium / High), and `gap_kind` (`none`, `calendar`, `never_disclosed`, or `contradicted`). Weight assessments by their materiality, not by their count. `Weakens thesis` or `Breaks thesis` cannot use `gap_kind=never_disclosed`; that combination is rejected. Use `never_disclosed` only with Supports or Neutral. `calendar` remains valid with Weakens or Breaks when the next print is not yet due.
 
 ### Sentinel Evidence and Tool Boundaries
 

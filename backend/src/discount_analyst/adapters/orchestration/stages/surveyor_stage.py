@@ -28,6 +28,9 @@ from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
 from discount_analyst.agents.runtime.terminal_run import run_agent_with_terminal
 from discount_analyst.agents.common_prompts.current_date import with_current_date
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
+from discount_analyst.agents.surveyor.screening_check import (
+    assert_screening_metrics_match_tool_results,
+)
 from discount_analyst.agents.surveyor.surveyor import create_surveyor_agent
 from discount_analyst.agents.surveyor.system_prompt import (
     SYSTEM_PROMPT as SURVEYOR_SYSTEM_PROMPT,
@@ -125,6 +128,10 @@ class SurveyorStage:
                 portfolio_fold=portfolio_fold,
                 is_mock=is_mock,
                 llm=llm,
+            )
+            assert_screening_metrics_match_tool_results(
+                surveyor_output.candidates,
+                surveyor_output.messages,
             )
             await host.complete_workflow_exec_with_conversation(
                 execution_id=surveyor_exec_id,

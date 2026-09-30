@@ -1,7 +1,8 @@
+from collections.abc import Mapping
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal, cast
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 
 class ThesisVerdict(StrEnum):
@@ -43,6 +44,30 @@ class QuestionAssessment(BaseModel):
             "contradicted (printed evidence conflicts with the thesis)."
         )
     )
+
+    @model_validator(mode="after")
+    def reject_adverse_never_disclosed(self) -> "QuestionAssessment":
+        if self.verdict in {"Weakens thesis", "Breaks thesis"} and (
+            self.gap_kind == "never_disclosed"
+        ):
+            msg = "Weakens thesis or Breaks thesis cannot use gap_kind never_disclosed."
+            raise ValueError(msg)
+        return self
+
+
+def stored_question_assessment(data: Mapping[str, Any]) -> QuestionAssessment:
+    """Load a stored assessment. Rows from before the gap rule still load."""
+    payload: dict[str, Any] = {
+        "question": data["question"],
+        "evidence": data["evidence"],
+        "verdict": data["verdict"],
+        "confidence": data["confidence"],
+        "gap_kind": data["gap_kind"],
+    }
+    try:
+        return QuestionAssessment.model_validate(payload)
+    except ValidationError:
+        return QuestionAssessment.model_construct(**payload)
 
 
 class RedFlagScreen(BaseModel):
@@ -89,3 +114,41 @@ class EvaluationReport(BaseModel):
             "label, not a stop."
         )
     )
+
+
+def stored_evaluation_report(data: Mapping[str, Any]) -> EvaluationReport:
+    """Load a stored Sentinel report, including pre-gap-rule assessments."""
+    try:
+        return EvaluationReport.model_validate(dict(data))
+    except ValidationError:
+        assessments: list[QuestionAssessment] = []
+        for item in cast(list[object], data["question_assessments"]):
+            if isinstance(item, QuestionAssessment):
+                assessments.append(item)
+            elif isinstance(item, dict):
+                assessments.append(
+                    stored_question_assessment(cast(dict[str, Any], item))
+                )
+            else:
+                msg = "A stored question assessment must be an object."
+                raise TypeError(msg)
+        red_flag = data["red_flag_screen"]
+        thesis_verdict = data["thesis_verdict"]
+        return EvaluationReport.model_construct(
+            ticker=data["ticker"],
+            company_name=data["company_name"],
+            question_assessments=assessments,
+            red_flag_screen=(
+                red_flag
+                if isinstance(red_flag, RedFlagScreen)
+                else RedFlagScreen.model_validate(red_flag)
+            ),
+            thesis_verdict=(
+                thesis_verdict
+                if isinstance(thesis_verdict, ThesisVerdict)
+                else ThesisVerdict(thesis_verdict)
+            ),
+            verdict_rationale=data["verdict_rationale"],
+            material_data_gaps=data["material_data_gaps"],
+            caveats=list(data["caveats"]),
+        )

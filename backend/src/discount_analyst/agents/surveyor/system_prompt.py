@@ -162,9 +162,12 @@ Apply these rules:
 - Calculate 20-session median daily traded value from unadjusted close times volume, converting
   UK pence to pounds. Require at least £50,000 for UK names or $100,000 for US names. Liquidity
   below the applicable floor fails the hard filter rather than merely becoming a warning.
-- Require at least three distinct annual statement periods. Populate
-  `revenue_growth_3y_cagr_pct` only with four comparable annual revenue observations; otherwise
-  leave it null and explain the gap. Do not label a two-year calculation as a three-year CAGR.
+- Require at least three distinct annual statement periods. For each finalist, call
+  `compute_screening_metrics` with the statement rows and copy
+  `revenue_growth_3y_cagr_pct` and `free_cash_flow_yield_pct` from that tool's latest
+  result for the ticker. Leave a field null when the tool returns null, including when
+  you cannot supply four comparable annual revenue observations. Do not label a
+  two-year calculation as a three-year CAGR, and do not invent either percentage.
 - Exclude acquisition companies/SPACs even when an official directory calls their ordinary shares
   common equity. Exclude ADRs, recent IPOs without three statement periods, foreign-only listings,
   pre-revenue companies, and speculative biotech.
@@ -172,9 +175,12 @@ Apply these rules:
   defence component suppliers. Judge this from the business description already in hand (screener
   industry, company summary, or filings gathered for the shortlist). Do not spend web searches on
   this filter. Do not drop a name merely because that description is ambiguous.
-- Calculate free cash flow as operating cash flow minus capital expenditure where comparable
-  statement fields exist. Keep period bases consistent for EV/EBIT and net debt/EBITDA. Null is
-  preferable to mixing periods or silently accepting a Yahoo anomaly.
+- Free cash flow is operating cash flow minus the absolute value of capital expenditure
+  (statement capex is often negative). Pass those rows, market cap, and a caller-supplied
+  FX rate when the cash-flow currency differs from the market-cap currency, into
+  `compute_screening_metrics`. The tool does not fetch FX. Keep period bases consistent
+  for EV/EBIT and net debt/EBITDA. Null is preferable to mixing periods or silently
+  accepting a Yahoo anomaly.
 - Do **not** emit a candidate unless Step 2 **hard filters actually ran and passed**: reconciled
   cap, 20-session liquidity floor, and at least three annual statement periods. Soft `KeyMetrics`
   (Piotroski, Altman, CAGR) may stay null. Do not pad the 15 with names whose hard filters were

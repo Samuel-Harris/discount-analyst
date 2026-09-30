@@ -15,6 +15,11 @@ from discount_analyst.application.allocations.assemble import (
 )
 from discount_analyst.application.allocations.errors import AllocationAssemblyError
 from discount_analyst.domain.allocations.actions import derive_rebalance_action
+from discount_analyst.domain.allocations.constants import (
+    NEW_MONEY_MIN_PESSIMISTIC,
+    NEW_MONEY_MIN_UPSIDE,
+    WEIGHT_SUM_TOLERANCE_PP,
+)
 from discount_analyst.domain.allocations.allocation import (
     AllocationPosition,
     CashAllocation,
@@ -41,6 +46,11 @@ def finalise_curator_proposal(
         lane.identity.ticker.casefold(): lane for lane in curator_input.lanes
     }
     _assert_identical_ticker_sets(proposal, curator_input)
+    for proposed in proposal.positions:
+        _assert_new_money_hurdle(
+            proposed,
+            lanes_by_ticker[proposed.ticker.casefold()],
+        )
     valued_positions = tuple(
         _stamp_valued_position(
             proposed,
@@ -112,6 +122,32 @@ def _assert_identical_ticker_sets(
             f"unexpected={sorted(proposed - expected)}."
         )
         raise AllocationInvariantError(msg)
+
+
+def _assert_new_money_hurdle(
+    proposed: ProposedPosition,
+    lane: AppraisedLaneEvidence,
+) -> None:
+    """Increases need 20% expected upside and a pessimistic case no worse than -40%."""
+    current_weight = lane.identity.current_weight_pct
+    if proposed.target_weight_pct <= current_weight + WEIGHT_SUM_TOLERANCE_PP:
+        return
+    price = lane.appraiser.current_price
+    if price <= 0:
+        msg = (
+            f"{proposed.ticker} has no positive current price for the new-money hurdle."
+        )
+        raise AllocationInvariantError(msg)
+    upside = (lane.appraiser.expected_value / price) - 1
+    pessimistic = (lane.appraiser.p10 / price) - 1
+    if upside >= NEW_MONEY_MIN_UPSIDE and pessimistic >= NEW_MONEY_MIN_PESSIMISTIC:
+        return
+    msg = (
+        f"{proposed.ticker} new money requires upside >= {NEW_MONEY_MIN_UPSIDE:.0%} "
+        f"(got {upside:.1%}) and pessimistic case >= {NEW_MONEY_MIN_PESSIMISTIC:.0%} "
+        f"(got {pessimistic:.1%})."
+    )
+    raise AllocationInvariantError(msg)
 
 
 def _stamp_valued_position(

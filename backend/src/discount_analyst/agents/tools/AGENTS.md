@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-08-30 | Updated: 2026-08-30 -->
+<!-- Generated: 2026-08-30 | Updated: 2026-09-30 -->
 
 # tools
 
@@ -9,7 +9,9 @@ Agent-facing tool clients used by pipeline factories: web research, FX conversio
 
 ## Key Files
 
-None at this package root (`__init__.py` is empty). Implementation lives in subpackages.
+| File           | Description                                                                 |
+| -------------- | --------------------------------------------------------------------------- |
+| `screening.py` | Surveyor-only `compute_screening_metrics` host tool. Calls `domain/screening/metrics.py`. |
 
 ## Subdirectories
 

@@ -33,6 +33,8 @@ def _identity(
         current_weight_pct=weight,
         sector="Technology",
         industry="Semiconductors",
+        market_cap_local=150_000_000,
+        market_cap_currency="GBP",
     )
 
 
@@ -48,6 +50,7 @@ def _packed_thesis(*, ticker: str = "ABC.L") -> PackedMispricingThesis:
         thesis_risks=["Risk"],
         evaluation_questions=["Q1", "Q2", "Q3", "Q4", "Q5"],
         permanent_loss_scenarios=["Loss"],
+        thesis_direction="undervalued",
         conviction_level="Medium",
     )
 

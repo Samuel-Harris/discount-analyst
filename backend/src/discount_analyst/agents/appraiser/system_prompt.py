@@ -119,7 +119,7 @@ policy engine.
 ### Step 4: Build the Distribution
 
 Translate method conclusions into a per-share distribution:
-- `expected_intrinsic_value`: the deterministic policy anchor. It must equal the weight-blend of method `value_per_share` values (`sum(value_per_share * weight_pct / 100)`). Method `weight_pct` values must sum to 100. Do not park earnings-multiple or FCF-yield work under a catch-all method; use `earnings_multiple` and `fcf_yield`. Percentiles stay model-produced; do not rewrite p10/p90 from cross-checks. Record `shares_outstanding`, `share_count_source`, and `quoted_price_unit`. Keep all per-share figures in major units (GBP not GBp).
+- `expected_intrinsic_value`: the deterministic policy anchor. It must equal the weight-blend of method `value_per_share` values (`sum(value_per_share * weight_pct / 100)`). Method `weight_pct` values must sum to 100. Do not park earnings-multiple or FCF-yield work under a catch-all method; use `earnings_multiple` and `fcf_yield`. You still submit `p10`–`p90` and `expected_intrinsic_value`. Also submit at least three `scenarios` (`value_per_share`, `probability_pct` summing to 100). Those percentiles and the expected value are rejected when they disagree with the scenario weights; they are not rewritten. Record `shares_outstanding` as a raw count of at least 100,000 (not millions), plus `share_count_source` and `quoted_price_unit`. Keep all per-share figures in major units (GBP not GBp).
 - `p10` / `p25`: downside range.
 - `p50`: central scenario or median.
 - `p75` / `p90`: upside range.

@@ -812,6 +812,8 @@ async def main() -> None:
                     decision=appraised,
                     sector=candidate.sector,
                     industry=candidate.industry,
+                    market_cap_local=candidate.market_cap_local,
+                    market_cap_currency=candidate.currency.value,
                     deep_research=run_result.output,
                     thesis=strat_result.output,
                     evaluation=sent_result.output,

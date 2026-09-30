@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-03-03 | Updated: 2026-08-28 -->
+<!-- Generated: 2026-03-03 | Updated: 2026-09-30 -->
 
 # appraiser
 
@@ -36,7 +36,7 @@ None.
 ### Common Patterns
 
 - **Search Tools**: Uses `AsyncPerplexity` with `search_mode="web"` for general research and `search_mode="sec"` for official financial filings.
-- **Structured I/O**: Input contract `AppraiserInput` and output `AppraiserOutput` live in `schema.py`. Each method requires `value_per_share` and `weight_pct`; weights must sum to 100 ± 0.05; `expected_intrinsic_value` must equal that weight-blend. Percentiles stay monotonic with expected in [p10, p90]. Audit fields `shares_outstanding`, `share_count_source`, and `quoted_price_unit` are required. There is no `other` method — use `earnings_multiple` / `fcf_yield`. CLI is `uv run discount-analyst agent appraiser`. Other callers build `AppraiserInput` in code and call `user_prompt.create_user_prompt`.
+- **Structured I/O**: Input contract `AppraiserInput` and output `AppraiserOutput` live in `schema.py`. Each method requires `value_per_share` and `weight_pct`; weights must sum to 100 ± 0.05; `expected_intrinsic_value` must equal that weight-blend. Percentiles stay monotonic with expected in [p10, p90], and both the expected value and each percentile are rejected when they disagree with at least three `scenarios` (they are not rewritten). `shares_outstanding` is a raw count of at least 100,000. Audit fields `share_count_source` and `quoted_price_unit` are required. `scenarios` persist as nullable `appraiser_reports.scenarios_json`; rows from before that column still load. There is no `other` method — use `earnings_multiple` / `fcf_yield`. CLI is `uv run discount-analyst agent appraiser`. Other callers build `AppraiserInput` in code and call `user_prompt.create_user_prompt`.
 
 ## Dependencies
 

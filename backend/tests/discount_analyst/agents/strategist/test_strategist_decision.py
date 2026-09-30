@@ -11,6 +11,7 @@ from discount_analyst.adapters.simulation.mock_outputs import (
 from discount_analyst.agents.strategist.schema import (
     MispricingThesis,
     StrategistDecision,
+    stored_mispricing_thesis,
 )
 from discount_analyst.application.theses import (
     KeepPriorWithoutThesisError,
@@ -31,6 +32,7 @@ def _thesis(*, argument: str = "Original argument.") -> MispricingThesis:
         evaluation_questions=["Q1", "Q2", "Q3", "Q4", "Q5"],
         permanent_loss_scenarios=["PL1", "PL2"],
         conviction_level="Medium",
+        thesis_direction="undervalued",
     )
 
 
@@ -99,3 +101,35 @@ def test_mock_decision_replaces_without_prior() -> None:
     assert decision.decision == "replace"
     assert decision.thesis is not None
     assert decision.thesis.ticker == "M1.L"
+
+
+def test_thesis_requires_direction_and_three_to_five_questions() -> None:
+    payload = _thesis().model_dump()
+    payload.pop("thesis_direction")
+    with pytest.raises(ValidationError):
+        MispricingThesis.model_validate(payload)
+    payload["thesis_direction"] = "undervalued"
+    payload["evaluation_questions"] = ["Q1", "Q2"]
+    with pytest.raises(ValidationError):
+        MispricingThesis.model_validate(payload)
+
+
+def test_historical_thesis_without_direction_still_loads() -> None:
+    thesis = stored_mispricing_thesis(
+        {
+            "ticker": "OLD.L",
+            "company_name": "Old plc",
+            "mispricing_type": "t",
+            "market_belief": "m",
+            "mispricing_argument": "a",
+            "resolution_mechanism": "r",
+            "falsification_conditions": ["C1", "C2", "C3"],
+            "thesis_risks": ["Risk"],
+            "evaluation_questions": ["Q1", "Q2", "Q3", "Q4", "Q5", "Q6"],
+            "permanent_loss_scenarios": ["PL1", "PL2"],
+            "conviction_level": "Medium",
+            "thesis_direction": None,
+        }
+    )
+    assert thesis.thesis_direction is None
+    assert len(thesis.evaluation_questions) == 6

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, cast
 
 from sqlalchemy import func
 from sqlmodel import Session, col, delete, select
@@ -32,12 +31,11 @@ from discount_analyst.adapters.persistence.models import (
 )
 from discount_analyst.agents.strategist.schema import (
     MispricingThesis as MispricingThesisSchema,
+    stored_mispricing_thesis,
 )
 from discount_analyst.domain.allocations.allocation import (
     PortfolioAllocation as DomainPortfolioAllocation,
 )
-
-ConvictionLevel = Literal["Low", "Medium", "High"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,6 +209,7 @@ def _insert_snapshot(
         mispricing_argument=thesis.mispricing_argument,
         resolution_mechanism=thesis.resolution_mechanism,
         conviction_level=thesis.conviction_level,
+        thesis_direction=thesis.thesis_direction,
         origin=snapshot.origin,
     )
     session.add(row)
@@ -300,84 +299,90 @@ def _delete_snapshots_for_workflow(session: Session, workflow_run_id: str) -> No
 def _workflow_row_to_schema(
     session: Session, row: WorkflowInvestmentThesis
 ) -> MispricingThesisSchema:
-    return MispricingThesisSchema(
-        ticker=row.ticker,
-        company_name=row.company_name,
-        mispricing_type=row.mispricing_type,
-        market_belief=row.market_belief,
-        mispricing_argument=row.mispricing_argument,
-        resolution_mechanism=row.resolution_mechanism,
-        falsification_conditions=_ordered_texts(
-            session,
-            WorkflowInvestmentThesisFalsificationCondition,
-            WorkflowInvestmentThesisFalsificationCondition.workflow_investment_thesis_id,
-            row.id,
-            "condition_text",
-        ),
-        thesis_risks=_ordered_texts(
-            session,
-            WorkflowInvestmentThesisRisk,
-            WorkflowInvestmentThesisRisk.workflow_investment_thesis_id,
-            row.id,
-            "risk_text",
-        ),
-        evaluation_questions=_ordered_texts(
-            session,
-            WorkflowInvestmentThesisEvaluationQuestion,
-            WorkflowInvestmentThesisEvaluationQuestion.workflow_investment_thesis_id,
-            row.id,
-            "question_text",
-        ),
-        permanent_loss_scenarios=_ordered_texts(
-            session,
-            WorkflowInvestmentThesisPermanentLossScenario,
-            WorkflowInvestmentThesisPermanentLossScenario.workflow_investment_thesis_id,
-            row.id,
-            "scenario_text",
-        ),
-        conviction_level=_conviction(row.conviction_level),
+    return stored_mispricing_thesis(
+        {
+            "ticker": row.ticker,
+            "company_name": row.company_name,
+            "mispricing_type": row.mispricing_type,
+            "market_belief": row.market_belief,
+            "mispricing_argument": row.mispricing_argument,
+            "resolution_mechanism": row.resolution_mechanism,
+            "falsification_conditions": _ordered_texts(
+                session,
+                WorkflowInvestmentThesisFalsificationCondition,
+                WorkflowInvestmentThesisFalsificationCondition.workflow_investment_thesis_id,
+                row.id,
+                "condition_text",
+            ),
+            "thesis_risks": _ordered_texts(
+                session,
+                WorkflowInvestmentThesisRisk,
+                WorkflowInvestmentThesisRisk.workflow_investment_thesis_id,
+                row.id,
+                "risk_text",
+            ),
+            "evaluation_questions": _ordered_texts(
+                session,
+                WorkflowInvestmentThesisEvaluationQuestion,
+                WorkflowInvestmentThesisEvaluationQuestion.workflow_investment_thesis_id,
+                row.id,
+                "question_text",
+            ),
+            "permanent_loss_scenarios": _ordered_texts(
+                session,
+                WorkflowInvestmentThesisPermanentLossScenario,
+                WorkflowInvestmentThesisPermanentLossScenario.workflow_investment_thesis_id,
+                row.id,
+                "scenario_text",
+            ),
+            "conviction_level": row.conviction_level,
+            "thesis_direction": row.thesis_direction,
+        }
     )
 
 
 def _execution_row_to_schema(
     session: Session, row: MispricingThesis, run: Run
 ) -> MispricingThesisSchema:
-    return MispricingThesisSchema(
-        ticker=run.ticker,
-        company_name=run.company_name,
-        mispricing_type=row.mispricing_type,
-        market_belief=row.market_belief,
-        mispricing_argument=row.mispricing_argument,
-        resolution_mechanism=row.resolution_mechanism,
-        falsification_conditions=_ordered_texts(
-            session,
-            MispricingThesisFalsificationCondition,
-            MispricingThesisFalsificationCondition.mispricing_thesis_id,
-            row.id,
-            "condition_text",
-        ),
-        thesis_risks=_ordered_texts(
-            session,
-            MispricingThesisRisk,
-            MispricingThesisRisk.mispricing_thesis_id,
-            row.id,
-            "risk_text",
-        ),
-        evaluation_questions=_ordered_texts(
-            session,
-            MispricingThesisEvaluationQuestion,
-            MispricingThesisEvaluationQuestion.mispricing_thesis_id,
-            row.id,
-            "question_text",
-        ),
-        permanent_loss_scenarios=_ordered_texts(
-            session,
-            MispricingThesisPermanentLossScenario,
-            MispricingThesisPermanentLossScenario.mispricing_thesis_id,
-            row.id,
-            "scenario_text",
-        ),
-        conviction_level=_conviction(row.conviction_level),
+    return stored_mispricing_thesis(
+        {
+            "ticker": run.ticker,
+            "company_name": run.company_name,
+            "mispricing_type": row.mispricing_type,
+            "market_belief": row.market_belief,
+            "mispricing_argument": row.mispricing_argument,
+            "resolution_mechanism": row.resolution_mechanism,
+            "falsification_conditions": _ordered_texts(
+                session,
+                MispricingThesisFalsificationCondition,
+                MispricingThesisFalsificationCondition.mispricing_thesis_id,
+                row.id,
+                "condition_text",
+            ),
+            "thesis_risks": _ordered_texts(
+                session,
+                MispricingThesisRisk,
+                MispricingThesisRisk.mispricing_thesis_id,
+                row.id,
+                "risk_text",
+            ),
+            "evaluation_questions": _ordered_texts(
+                session,
+                MispricingThesisEvaluationQuestion,
+                MispricingThesisEvaluationQuestion.mispricing_thesis_id,
+                row.id,
+                "question_text",
+            ),
+            "permanent_loss_scenarios": _ordered_texts(
+                session,
+                MispricingThesisPermanentLossScenario,
+                MispricingThesisPermanentLossScenario.mispricing_thesis_id,
+                row.id,
+                "scenario_text",
+            ),
+            "conviction_level": row.conviction_level,
+            "thesis_direction": row.thesis_direction,
+        }
     )
 
 
@@ -394,7 +399,3 @@ def _ordered_texts(
         )
     )
     return [getattr(child, text_attr) for child in rows]
-
-
-def _conviction(value: str) -> ConvictionLevel:
-    return cast(ConvictionLevel, value)

@@ -83,7 +83,12 @@ class AppraiserOutput(BaseModel):
     upside_drivers_to_value: list[str] = Field(default_factory=list)
     data_quality: Literal["High", "Medium", "Low"]
     caveats: list[str] = Field(default_factory=list)
-    shares_outstanding: float = Field(gt=0)
+    shares_outstanding: float = Field(
+        ge=100_000,
+        description=(
+            "Raw share count, not millions. Counts below 100,000 are rejected."
+        ),
+    )
     share_count_source: Literal["filing", "profile", "implied_from_market_cap"]
     quoted_price_unit: Literal["major", "subunit"] = Field(
         description=(

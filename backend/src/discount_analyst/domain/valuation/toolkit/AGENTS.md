@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-05-31 | Updated: 2026-07-11 -->
+<!-- Generated: 2026-05-31 | Updated: 2026-09-30 -->
 
 # toolkit
 
@@ -14,7 +14,7 @@ Optional, deterministic valuation helpers for Appraiser terminal analysis. These
 | `dcf.py`           | FCFF projection, present value, terminal value, and per-share DCF helpers.         |
 | `reverse_dcf.py`   | Implied growth and margin-of-safety helpers for reverse-valuation checks.          |
 | `multiples.py`     | Peer multiple summaries and EV multiple per-share valuation helpers.               |
-| `scenarios.py`     | Weighted expected value and percentile distribution helpers.                       |
+| `scenarios.py`     | Weighted expected value and percentile helpers. Appraiser percentiles are checked against these, not left optional. |
 | `sanity_checks.py` | Monotonic percentile, expected-value, terminal-value, GDP-growth, and peer checks. |
 | `reporting.py`     | Rich table helper for method summaries.                                            |
 
