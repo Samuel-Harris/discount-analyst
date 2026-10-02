@@ -11,10 +11,12 @@ import {
   curatorBookStatusMessage,
   formatBookMembership,
   formatRebalanceAction,
+  formatRecommendedPosition,
   formatWeightBand,
   formatWeightChange,
   formatWeightPct,
   isDisplayedBookPosition,
+  recommendedPositionGbp,
 } from "./allocationDisplay";
 
 const nonCompletedStatuses: Exclude<ExecutionStatusApi, "completed">[] = [
@@ -117,6 +119,26 @@ describe("curatorBookPane", () => {
       kind: "status",
       message: "Could not load allocation.",
     });
+  });
+});
+
+describe("recommendedPositionGbp", () => {
+  it("applies the target weight to the input portfolio value", () => {
+    expect(recommendedPositionGbp(10_000, 15)).toBe(1_500);
+    expect(recommendedPositionGbp(10_000, 85)).toBe(8_500);
+    expect(recommendedPositionGbp(10_000, 0)).toBe(0);
+  });
+
+  it("rounds to the nearest penny", () => {
+    expect(recommendedPositionGbp(100, 33.33)).toBe(33.33);
+    expect(recommendedPositionGbp(1, 33.33)).toBe(0.33);
+  });
+});
+
+describe("formatRecommendedPosition", () => {
+  it("formats sterling and an em dash when the portfolio value is missing", () => {
+    expect(formatRecommendedPosition(10_000, 15)).toBe("£1,500.00");
+    expect(formatRecommendedPosition(null, 15)).toBe("—");
   });
 });
 

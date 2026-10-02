@@ -62,6 +62,33 @@ export function curatorBookPane(
   };
 }
 
+const poundsFormat = new Intl.NumberFormat("en-GB", {
+  style: "currency",
+  currency: "GBP",
+});
+
+function formatPounds(value: number): string {
+  return poundsFormat.format(value);
+}
+
+/** Input portfolio value × weight, rounded to the nearest penny. */
+export function recommendedPositionGbp(
+  portfolioValueGbp: number,
+  weightPct: number,
+): number {
+  const portfolioPence = Math.round(portfolioValueGbp * 100);
+  const valuePence = Math.round((portfolioPence * weightPct) / 100);
+  return valuePence / 100;
+}
+
+export function formatRecommendedPosition(
+  portfolioValueGbp: number | null,
+  weightPct: number,
+): string {
+  if (portfolioValueGbp === null) return "—";
+  return formatPounds(recommendedPositionGbp(portfolioValueGbp, weightPct));
+}
+
 export function formatWeightPct(value: number): string {
   return `${value.toFixed(1)}%`;
 }

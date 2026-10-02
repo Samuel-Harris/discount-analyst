@@ -737,6 +737,19 @@
             "title": "Is Mock",
             "type": "boolean"
           },
+          "portfolio_value_gbp": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "multipleOf": 0.01,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Portfolio Value Gbp"
+          },
           "runs": {
             "items": {
               "$ref": "#/components/schemas/TickerRunDetail"
@@ -773,6 +786,7 @@
           "can_retry_failed_agents",
           "surveyor_execution",
           "curator_execution",
+          "portfolio_value_gbp",
           "runs"
         ],
         "title": "WorkflowRunDetailResponse",

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from typing import TypedDict
 
 from discount_analyst.adapters.persistence.models import CandidateGateStatusDb
@@ -29,6 +30,7 @@ class WorkflowRunHeaderRow(TypedDict):
     is_mock: bool
     error_message: str | None
     portfolio_tickers: list[str]
+    portfolio_value_gbp: Decimal | None
 
 
 class AgentExecutionRow(TypedDict):

@@ -15,6 +15,7 @@ function baseDetail(
     is_mock: true,
     error_message: null,
     can_retry_failed_agents: false,
+    portfolio_value_gbp: null,
     surveyor_execution: {
       id: "wfe-1",
       agent_name: "surveyor",

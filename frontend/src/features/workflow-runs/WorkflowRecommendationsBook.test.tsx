@@ -57,6 +57,7 @@ describe("WorkflowRecommendationsBook", () => {
   it("orders positions by target weight descending then ticker", () => {
     render(
       <WorkflowRecommendationsBook
+        portfolioValueGbp={10_000}
         allocation={allocation({
           positions: [
             position({
@@ -90,6 +91,7 @@ describe("WorkflowRecommendationsBook", () => {
   it("renders clusters as label and member tickers only", () => {
     render(
       <WorkflowRecommendationsBook
+        portfolioValueGbp={10_000}
         allocation={allocation({
           shared_risk_clusters: [
             {
@@ -113,7 +115,12 @@ describe("WorkflowRecommendationsBook", () => {
   });
 
   it("omits the clusters heading when the list is empty", () => {
-    render(<WorkflowRecommendationsBook allocation={allocation()} />);
+    render(
+      <WorkflowRecommendationsBook
+        portfolioValueGbp={10_000}
+        allocation={allocation()}
+      />,
+    );
     expect(
       screen.queryByRole("heading", { name: "Clusters" }),
     ).not.toBeInTheDocument();
@@ -122,6 +129,7 @@ describe("WorkflowRecommendationsBook", () => {
   it("omits unheld Avoid names and keeps holdings and new entries", () => {
     render(
       <WorkflowRecommendationsBook
+        portfolioValueGbp={10_000}
         allocation={allocation({
           positions: [
             position({
@@ -162,5 +170,43 @@ describe("WorkflowRecommendationsBook", () => {
     );
     expect(tickers).toEqual(["HOLD.L", "NEW.L", "EXIT.L"]);
     expect(screen.queryByText("SKIP.L")).not.toBeInTheDocument();
+  });
+
+  it("shows the recommended sterling size from the input portfolio value", () => {
+    render(
+      <WorkflowRecommendationsBook
+        portfolioValueGbp={10_000}
+        allocation={allocation()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("columnheader", { name: "Recommended (£)" }),
+    ).toBeInTheDocument();
+    const seedRow = screen
+      .getAllByRole("row")
+      .find((row) => row.classList.contains("recommendations-book-position"));
+    expect(seedRow).toBeDefined();
+    expect(
+      within(seedRow as HTMLElement).getByText("£1,500.00"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Cash 20\.0% → 85\.0%/)).toHaveTextContent(
+      "£8,500.00",
+    );
+  });
+
+  it("shows an em dash when the run has no stored portfolio value", () => {
+    render(
+      <WorkflowRecommendationsBook
+        portfolioValueGbp={null}
+        allocation={allocation()}
+      />,
+    );
+
+    const seedRow = screen
+      .getAllByRole("row")
+      .find((row) => row.classList.contains("recommendations-book-position"));
+    expect(within(seedRow as HTMLElement).getByText("—")).toBeInTheDocument();
+    expect(screen.getByText(/Cash 20\.0% → 85\.0%/)).toHaveTextContent("—");
   });
 });

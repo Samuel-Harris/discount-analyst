@@ -55,11 +55,19 @@ class SterlingPortfolioLedger(BaseModel):
         return self
 
 
+def sterling_portfolio_value(ledger: SterlingPortfolioLedger) -> Decimal:
+    """Holdings plus cash: the sterling book the operator submitted."""
+    holdings = sum(
+        (position.value_gbp for position in ledger.positions),
+        Decimal("0"),
+    )
+    return holdings + ledger.cash_gbp
+
+
 def snapshot_from_sterling_ledger(
     ledger: SterlingPortfolioLedger, *, as_of: date
 ) -> CurrentPortfolioSnapshot:
-    total = sum((position.value_gbp for position in ledger.positions), Decimal("0"))
-    total += ledger.cash_gbp
+    total = sterling_portfolio_value(ledger)
     if total == 0:
         return CurrentPortfolioSnapshot(
             as_of=as_of,

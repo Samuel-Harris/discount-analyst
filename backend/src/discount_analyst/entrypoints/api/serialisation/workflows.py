@@ -59,6 +59,7 @@ def workflow_detail(
         curator_execution=_optional_execution_summary(
             workflow_run_detail_record["curator_execution"]
         ),
+        portfolio_value_gbp=workflow_run_detail_record["portfolio_value_gbp"],
         runs=[_ticker_run_detail(run) for run in workflow_run_detail_record["runs"]],
     )
 
