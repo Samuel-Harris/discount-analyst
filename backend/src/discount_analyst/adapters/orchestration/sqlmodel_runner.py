@@ -9,6 +9,7 @@ import logfire
 from pydantic_ai.messages import ModelMessage
 
 from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
+from discount_analyst.domain.workflow_cost import AttemptCost
 
 from discount_analyst.adapters.persistence.models import (
     AgentNameDb,
@@ -210,6 +211,7 @@ class DashboardPipelineRunner:
         output_json: str | None,
         messages: list[ModelMessage] | None = None,
         messages_json: str | None = None,
+        attempt_cost: AttemptCost | None = None,
     ) -> None:
         await self.db(
             complete_agent_execution_with_conversation,
@@ -220,6 +222,7 @@ class DashboardPipelineRunner:
             completed_at=utc_now_iso(),
             messages=messages,
             messages_json=messages_json,
+            attempt_cost=attempt_cost,
         )
 
     async def complete_workflow_exec_with_conversation(
@@ -230,6 +233,7 @@ class DashboardPipelineRunner:
         output_json: str | None,
         messages: list[ModelMessage] | None = None,
         messages_json: str | None = None,
+        attempt_cost: AttemptCost | None = None,
     ) -> None:
         await self.db(
             complete_agent_execution_with_conversation,
@@ -240,6 +244,7 @@ class DashboardPipelineRunner:
             completed_at=utc_now_iso(),
             messages=messages,
             messages_json=messages_json,
+            attempt_cost=attempt_cost,
         )
 
     async def _load_candidate_for_run(self, run_id: str) -> SurveyorCandidate | None:

@@ -32,6 +32,10 @@ class FakeProfilerHost:
     def _log(self, name: str, **kwargs: Any) -> None:
         self.calls.append((name, kwargs))
 
+    async def db(self, fn: Any, *args: Any, **kwargs: Any) -> Any:
+        self._log("db", fn=fn, args=args, kwargs=kwargs)
+        return None
+
     async def get_exec_id(self, run_id: str, agent_name: str) -> str | None:
         self._log("get_exec_id", run_id=run_id, agent_name=agent_name)
         return self.profiler_exec_id
@@ -61,22 +65,24 @@ class FakeProfilerHost:
     async def recompute(self, workflow_run_id: str) -> None:
         self._log("recompute", workflow_run_id=workflow_run_id)
 
-    async def store_agent_conversation(
+    async def complete_exec_with_conversation(
         self,
         *,
-        run_id: str,
-        agent_name: str,
+        execution_id: str,
         system_prompt: str,
+        output_json: str | None,
         messages: list[ModelMessage] | None = None,
         messages_json: str | None = None,
+        attempt_cost: object = None,
     ) -> None:
         self._log(
-            "store_agent_conversation",
-            run_id=run_id,
-            agent_name=agent_name,
+            "complete_exec_with_conversation",
+            execution_id=execution_id,
             system_prompt=system_prompt,
+            output_json=output_json,
             messages=messages,
             messages_json=messages_json,
+            attempt_cost=attempt_cost,
         )
 
     async def update_ticker_run_company_name(
@@ -111,18 +117,15 @@ async def test_profiler_stage_mock_path_records_expected_port_sequence() -> None
         "get_exec_id",
         "mark_exec",
         "recompute",
-        "mark_exec",
-        "store_agent_conversation",
+        "complete_exec_with_conversation",
         "update_ticker_run_company_name",
     ]
     assert host.calls[1][1]["status"] == "running"
     assert host.calls[1][1]["started"] is True
     assert host.calls[1][1]["model_name"] is None
-    assert host.calls[3][1]["status"] == "completed"
-    assert host.calls[3][1]["completed"] is True
     assert host.calls[3][1]["output_json"] is not None
-    assert host.calls[4][1]["agent_name"] == "profiler"
-    assert host.calls[4][1]["messages_json"] is not None
+    assert host.calls[3][1]["messages_json"] is not None
+    assert host.calls[3][1]["attempt_cost"] is None
 
 
 @pytest.mark.asyncio
@@ -144,7 +147,9 @@ async def test_profiler_stage_non_mock_path_uses_run_agent_with_terminal() -> No
     settings = dashboard_settings_for_tests()
     host = FakeProfilerHost(profiler_exec_id="exec-p", settings=settings)
     profiler_output = mock_outputs.mock_profiler_output(ticker="X.L")
-    fake_outcome = SimpleNamespace(output=profiler_output, all_messages=[object()])
+    fake_outcome = SimpleNamespace(
+        output=profiler_output, all_messages=[object()], usage=None
+    )
     with patch(
         "discount_analyst.adapters.orchestration.stages.profiler_stage.run_agent_with_terminal",
         new=AsyncMock(return_value=fake_outcome),
@@ -158,4 +163,5 @@ async def test_profiler_stage_non_mock_path_uses_run_agent_with_terminal() -> No
         )
     assert candidate.ticker == "X.L"
     assert host.calls[1][1]["model_name"] is ModelName.GPT_6_LUNA
-    assert host.calls[4][1]["messages"] == fake_outcome.all_messages
+    assert host.calls[3][1]["messages"] == fake_outcome.all_messages
+    assert host.calls[3][1]["attempt_cost"] is None

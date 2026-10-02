@@ -18,6 +18,9 @@
             ],
             "title": "Completed At"
           },
+          "cost": {
+            "$ref": "#/components/schemas/WorkflowCostFigure"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -53,7 +56,8 @@
           "agent_name",
           "status",
           "started_at",
-          "completed_at"
+          "completed_at",
+          "cost"
         ],
         "title": "AgentExecutionSummary",
         "type": "object"
@@ -70,6 +74,22 @@
         ],
         "title": "AgentNameSlug",
         "type": "string"
+      },
+      "AgentTypeCost": {
+        "properties": {
+          "agent_name": {
+            "$ref": "#/components/schemas/AgentNameSlug"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/WorkflowCostFigure"
+          }
+        },
+        "required": [
+          "agent_name",
+          "cost"
+        ],
+        "title": "AgentTypeCost",
+        "type": "object"
       },
       "AllocationPosition": {
         "properties": {
@@ -690,6 +710,34 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "WorkflowCostFigure": {
+        "properties": {
+          "amount_usd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Usd"
+          },
+          "state": {
+            "enum": [
+              "amount",
+              "unknown"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "title": "WorkflowCostFigure",
+        "type": "object"
+      },
       "WorkflowRunDetailResponse": {
         "properties": {
           "can_retry_failed_agents": {
@@ -707,6 +755,22 @@
               }
             ],
             "title": "Completed At"
+          },
+          "cost_by_agent": {
+            "items": {
+              "$ref": "#/components/schemas/AgentTypeCost"
+            },
+            "title": "Cost By Agent",
+            "type": "array"
+          },
+          "cost_successful": {
+            "$ref": "#/components/schemas/WorkflowCostFigure"
+          },
+          "cost_total": {
+            "$ref": "#/components/schemas/WorkflowCostFigure"
+          },
+          "cost_unsuccessful": {
+            "$ref": "#/components/schemas/WorkflowCostFigure"
           },
           "curator_execution": {
             "anyOf": [
@@ -787,6 +851,10 @@
           "surveyor_execution",
           "curator_execution",
           "portfolio_value_gbp",
+          "cost_total",
+          "cost_successful",
+          "cost_unsuccessful",
+          "cost_by_agent",
           "runs"
         ],
         "title": "WorkflowRunDetailResponse",

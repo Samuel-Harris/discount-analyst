@@ -389,6 +389,16 @@ class StreamWithRetriesContext[T]:
             raise RuntimeError("No active stream attempt is open.")
         return self._active_streamed_result
 
+    def accumulated_usage(self) -> RunUsage | None:
+        """Usage so far, including a checkpoint from an attempt that already closed."""
+        active_result = self._active_streamed_result
+        if active_result is not None:
+            try:
+                return active_result.usage
+            except Exception:
+                return self._next_usage
+        return self._next_usage
+
     async def reopen_after_stream_interrupt(self, exc: BaseException) -> None:
         """Handle a stream error, optionally reopening a fresh attempt."""
         if not should_retry_streaming_error(exc) or self._attempt_index >= (
@@ -493,6 +503,15 @@ class StreamWithRetriesContext[T]:
             return self._user_prompt
         return None
 
+    def _snapshot_active_usage(self) -> None:
+        active_result = self._active_streamed_result
+        if active_result is None:
+            return
+        try:
+            self._next_usage = deepcopy(active_result.usage)
+        except Exception:
+            return
+
     def _checkpoint_active_attempt(self) -> bool:
         active_result = self._active_streamed_result
         if active_result is None:
@@ -583,6 +602,7 @@ class StreamWithRetriesContext[T]:
         context_manager = self._run_stream_context_manager
         if context_manager is None:
             return
+        self._snapshot_active_usage()
         try:
             await context_manager.__aexit__(exc_type, exc, traceback)
         finally:

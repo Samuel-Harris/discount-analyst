@@ -12,6 +12,7 @@ from discount_analyst.agents.runtime.streamed_agent_run import (
     StreamedAgentRunOutcome,
     run_streamed_agent,
 )
+from discount_analyst.agents.runtime.streamed_run_usage import streamed_run_usage
 from discount_analyst.config.settings import settings
 from discount_analyst.agents.runtime.terminal_run import (
     TerminalRunOptions,
@@ -527,3 +528,63 @@ async def test_run_streamed_agent_logs_per_turn_context_usage(
             },
         )
     ]
+
+
+@pytest.mark.anyio
+async def test_terminal_cleanup_failure_keeps_model_usage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _no_wait(exc: BaseException, attempt: int) -> float:
+        del exc, attempt
+        return 0.0
+
+    monkeypatch.setattr(
+        streaming_retries,
+        "streaming_retry_sleep_seconds",
+        _no_wait,
+    )
+    monkeypatch.setattr(streamed_agent_run_mod, "AI_LOGFIRE", _FakeLogfire())
+
+    async def _fail_delete(service_url: str, session_id: str) -> None:
+        del service_url, session_id
+        raise RuntimeError("cleanup")
+
+    async def _noop_close(session_state: Any) -> None:
+        del session_state
+
+    async def _noop_probe(*, service_url: str) -> None:
+        del service_url
+
+    monkeypatch.setattr(streamed_agent_run_mod, "delete_terminal_session", _fail_delete)
+    monkeypatch.setattr(streamed_agent_run_mod, "close_terminal_http", _noop_close)
+    monkeypatch.setattr(streamed_agent_run_mod, "ensure_terminal_ready", _noop_probe)
+
+    agent = _FakeAgent(name="surveyor")
+
+    async def _fail_output() -> str:
+        raise RuntimeError("model")
+
+    agent.streamed_result.get_output = _fail_output  # type: ignore[method-assign]
+    runtime = TerminalRuntimeConfig(
+        service_url="http://terminal.test",
+        command_timeout_s=30,
+        max_output_bytes=1024,
+    )
+    terminal = terminal_run_options(
+        settings,
+        enabled=True,
+        session_id="fixed-session-id",
+        runtime=runtime,
+    )
+
+    with pytest.raises(RuntimeError, match="cleanup") as raised:
+        await run_streamed_agent(
+            agent=cast(Any, agent),
+            user_prompt="hi",
+            usage_limits=UsageLimits(request_limit=2),
+            terminal=terminal,
+        )
+
+    usage = streamed_run_usage(raised.value)
+    assert usage is not None
+    assert usage.input_tokens == 3

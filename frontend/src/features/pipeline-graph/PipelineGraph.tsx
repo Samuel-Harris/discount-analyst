@@ -131,6 +131,7 @@ const PipelineNode = memo(function PipelineNodeInner({
       {node.modelName ? (
         <div className="model-tag">{node.modelName}</div>
       ) : null}
+      <div className="cost-tag">{node.costLabel}</div>
       <Handle
         type="source"
         position={Position.Right}

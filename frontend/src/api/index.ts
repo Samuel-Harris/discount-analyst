@@ -9,6 +9,7 @@ import { DashboardApiError } from "./orval-mutator";
 
 export type {
   AgentExecutionSummary,
+  AgentTypeCost,
   AllocationPosition,
   CashAllocation,
   ConversationResponse,
@@ -23,6 +24,7 @@ export type {
   RebalanceAction,
   SharedRiskCluster,
   TickerRunDetail,
+  WorkflowCostFigure,
   WorkflowRunDetailResponse,
   WorkflowRunListItem,
   WorkflowScopedAgentNameSlug,

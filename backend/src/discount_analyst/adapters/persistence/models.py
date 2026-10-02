@@ -34,6 +34,11 @@ class ExecutionStatusDb(StrEnum):
     CANCELLED = "cancelled"
 
 
+class AttemptOutcomeDb(StrEnum):
+    SUCCESSFUL = "successful"
+    UNSUCCESSFUL = "unsuccessful"
+
+
 class EntryPathDb(StrEnum):
     SURVEYOR = "surveyor"
     PROFILER = "profiler"
@@ -167,6 +172,31 @@ class AgentExecution(SQLModel, table=True):
             nullable=True,
         ),
     )
+
+
+class AgentAttemptCost(SQLModel, table=True):
+    __tablename__ = "agent_attempt_costs"  # pyright: ignore[reportAssignmentType]
+    __table_args__ = (
+        CheckConstraint(
+            "outcome IN ('successful', 'unsuccessful')",
+            name="agent_attempt_cost_outcome",
+        ),
+    )
+
+    id: str = Field(primary_key=True)
+    agent_execution_id: str = Field(foreign_key="agent_executions.id", index=True)
+    outcome: AttemptOutcomeDb = Field(
+        sa_column=Column(
+            SAEnum(
+                AttemptOutcomeDb,
+                native_enum=False,
+                values_callable=_str_enum_sql_values,
+            ),
+            nullable=False,
+        ),
+    )
+    cost_usd: Decimal | None = Field(default=None, sa_type=Numeric(18, 8))
+    recorded_at: datetime
 
 
 class CandidateSnapshot(SQLModel, table=True):

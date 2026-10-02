@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_EVEN
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 
 from pydantic import AfterValidator, BaseModel, Field, PlainSerializer, model_validator
 from pydantic.json_schema import WithJsonSchema
@@ -46,6 +46,16 @@ class WorkflowRunListItem(BaseModel):
     failed_ticker_run_count: int
 
 
+class WorkflowCostFigure(BaseModel):
+    state: Literal["amount", "unknown"]
+    amount_usd: str | None = None
+
+
+class AgentTypeCost(BaseModel):
+    agent_name: AgentNameSlug
+    cost: WorkflowCostFigure
+
+
 class AgentExecutionSummary(BaseModel):
     id: str
     agent_name: AgentNameSlug
@@ -53,6 +63,7 @@ class AgentExecutionSummary(BaseModel):
     started_at: datetime | None
     completed_at: datetime | None
     model_name: ModelName | None = None
+    cost: WorkflowCostFigure
 
 
 class CandidateGateSummary(BaseModel):
@@ -86,6 +97,10 @@ class WorkflowRunDetailResponse(BaseModel):
     surveyor_execution: AgentExecutionSummary | None
     curator_execution: AgentExecutionSummary | None
     portfolio_value_gbp: SterlingPounds | None
+    cost_total: WorkflowCostFigure
+    cost_successful: WorkflowCostFigure
+    cost_unsuccessful: WorkflowCostFigure
+    cost_by_agent: list[AgentTypeCost]
     runs: list[TickerRunDetail]
 
 

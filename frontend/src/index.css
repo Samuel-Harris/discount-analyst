@@ -1612,7 +1612,8 @@ button {
   letter-spacing: 0.06em;
 }
 
-.pipeline-node .model-tag {
+.pipeline-node .model-tag,
+.pipeline-node .cost-tag {
   font-size: 8px;
   color: var(--muted);
   margin-top: 1px;

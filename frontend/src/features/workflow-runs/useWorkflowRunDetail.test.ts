@@ -10,6 +10,7 @@ import {
 } from "@/lib/server-state/invalidation";
 import { workflowAllocationKey } from "@/lib/server-state/queryKeys";
 import { useWorkflowRunDetail } from "./useWorkflowRunDetail";
+import { ZERO_RUN_COST, ZERO_WORKFLOW_COST } from "@/utils/formatWorkflowCost";
 
 function minimalDetail(id: string): WorkflowRunDetailResponse {
   return {
@@ -20,10 +21,12 @@ function minimalDetail(id: string): WorkflowRunDetailResponse {
     is_mock: true,
     error_message: null,
     can_retry_failed_agents: false,
+    ...ZERO_RUN_COST,
     portfolio_value_gbp: null,
     surveyor_execution: {
       id: "wfe-1",
       agent_name: "surveyor",
+      cost: ZERO_WORKFLOW_COST,
       status: "running",
       started_at: null,
       completed_at: null,

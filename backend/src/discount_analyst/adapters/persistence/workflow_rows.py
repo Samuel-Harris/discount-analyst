@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import TypedDict
+from typing import Literal, TypedDict
 
 from discount_analyst.adapters.persistence.models import CandidateGateStatusDb
 from discount_analyst.domain.model_selection.model_name import ModelName
@@ -33,6 +33,16 @@ class WorkflowRunHeaderRow(TypedDict):
     portfolio_value_gbp: Decimal | None
 
 
+class CostFigureRow(TypedDict):
+    state: Literal["amount", "unknown"]
+    amount_usd: str | None
+
+
+class AgentTypeCostRow(TypedDict):
+    agent_name: str
+    cost: CostFigureRow
+
+
 class AgentExecutionRow(TypedDict):
     id: str
     agent_name: str
@@ -40,6 +50,7 @@ class AgentExecutionRow(TypedDict):
     started_at: datetime | None
     completed_at: datetime | None
     model_name: ModelName | None
+    cost: CostFigureRow
 
 
 class CandidateGateRow(TypedDict):
@@ -74,4 +85,8 @@ class WorkflowRunDetailRecord(WorkflowRunHeaderRow):
     can_retry_failed_agents: bool
     surveyor_execution: AgentExecutionRow | None
     curator_execution: AgentExecutionRow | None
+    cost_total: CostFigureRow
+    cost_successful: CostFigureRow
+    cost_unsuccessful: CostFigureRow
+    cost_by_agent: list[AgentTypeCostRow]
     runs: list[TickerRunRow]
