@@ -10,10 +10,13 @@ from typing import Any, NamedTuple
 from sqlalchemy import case, desc, func
 from sqlmodel import Session, col, select
 
+from discount_analyst.adapters.persistence.crud.attempt_costs import (
+    list_recorded_attempts,
+)
 from discount_analyst.adapters.persistence.workflow_rows import (
     AgentExecutionRow,
     CandidateGateRow,
-    TickerRunRow,
+    CostFigureRow,
     TickerRunResumeRow,
     WorkflowRunDetailRecord,
     WorkflowRunHeaderRow,
@@ -46,6 +49,11 @@ from discount_analyst.domain.allocations.snapshot import (
     SterlingPortfolioLedger,
     SterlingPosition,
     sterling_portfolio_value,
+)
+from discount_analyst.domain.workflow_cost import (
+    CostFigure,
+    WorkflowCostSummary,
+    summarise_workflow_cost,
 )
 
 TERMINAL_WORKFLOW_STATUSES = frozenset(
@@ -319,16 +327,9 @@ def fetch_workflow_detail(
         return None
 
     se = get_workflow_scoped_execution(session, workflow_run_id, AgentNameDb.SURVEYOR)
-    surveyor_execution: AgentExecutionRow | None = None
-    if se is not None:
-        surveyor_execution = _workflow_agent_execution_row(se)
-
     curator = get_workflow_scoped_execution(
         session, workflow_run_id, AgentNameDb.CURATOR
     )
-    curator_execution: AgentExecutionRow | None = None
-    if curator is not None:
-        curator_execution = _workflow_agent_execution_row(curator)
 
     agent_order = {
         AgentNameDb.PROFILER.value: 0,
@@ -346,7 +347,7 @@ def fetch_workflow_detail(
         )
     )
     executions_by_run_id: dict[str, list[AgentExecution]] = {}
-    runs_out: list[TickerRunRow] = []
+    lane_agents: list[tuple[Run, list[AgentExecution], CandidateGateRow | None]] = []
     for run in runs:
         agents = list(
             session.scalars(
@@ -357,17 +358,6 @@ def fetch_workflow_detail(
         agents_sorted = sorted(
             agents, key=lambda a: agent_order.get(a.agent_name.value, 99)
         )
-        agent_rows: list[AgentExecutionRow] = [
-            {
-                "id": agent.id,
-                "agent_name": agent.agent_name.value,
-                "status": agent.status.value,
-                "started_at": agent.started_at,
-                "completed_at": agent.completed_at,
-                "model_name": agent.model_name,
-            }
-            for agent in agents_sorted
-        ]
         candidate_gate: CandidateGateRow | None = None
         if run.candidate_snapshot_id is not None:
             snapshot = session.get(CandidateSnapshot, run.candidate_snapshot_id)
@@ -379,20 +369,16 @@ def fetch_workflow_detail(
                     "gate_failure_reason": snapshot.gate_failure_reason,
                     "is_actively_trading": snapshot.is_actively_trading,
                 }
-        runs_out.append(
-            {
-                "id": run.id,
-                "ticker": run.ticker,
-                "company_name": run.company_name,
-                "entry_path": run.entry_path.value,
-                "status": run.status.value,
-                "final_rating": run.final_rating,
-                "decision_type": run.decision_type.value if run.decision_type else None,
-                "candidate_gate": candidate_gate,
-                "agent_executions": agent_rows,
-            }
-        )
+        lane_agents.append((run, agents_sorted, candidate_gate))
 
+    executions = [execution for execution in (se, curator) if execution is not None]
+    for lane_executions in executions_by_run_id.values():
+        executions.extend(lane_executions)
+    cost_summary = summarise_workflow_cost(
+        list_recorded_attempts(session, [execution.id for execution in executions]),
+        is_mock=wf["is_mock"],
+        execution_ids=[execution.id for execution in executions],
+    )
     detail: WorkflowRunDetailRecord = {
         **wf,
         "can_retry_failed_agents": workflow_can_retry_failed_agents(
@@ -402,14 +388,54 @@ def fetch_workflow_detail(
             runs=runs,
             executions_by_run_id=executions_by_run_id,
         ),
-        "surveyor_execution": surveyor_execution,
-        "curator_execution": curator_execution,
-        "runs": runs_out,
+        "surveyor_execution": (
+            None if se is None else _workflow_agent_execution_row(se, cost_summary)
+        ),
+        "curator_execution": (
+            None
+            if curator is None
+            else _workflow_agent_execution_row(curator, cost_summary)
+        ),
+        "cost_total": _cost_figure_row(cost_summary.total),
+        "cost_successful": _cost_figure_row(cost_summary.successful),
+        "cost_unsuccessful": _cost_figure_row(cost_summary.unsuccessful),
+        "cost_by_agent": [
+            {
+                "agent_name": agent_cost.agent_name,
+                "cost": _cost_figure_row(agent_cost.cost),
+            }
+            for agent_cost in cost_summary.by_agent
+        ],
+        "runs": [
+            {
+                "id": run.id,
+                "ticker": run.ticker,
+                "company_name": run.company_name,
+                "entry_path": run.entry_path.value,
+                "status": run.status.value,
+                "final_rating": run.final_rating,
+                "decision_type": (
+                    run.decision_type.value if run.decision_type else None
+                ),
+                "candidate_gate": candidate_gate,
+                "agent_executions": [
+                    _workflow_agent_execution_row(agent, cost_summary)
+                    for agent in agents_sorted
+                ],
+            }
+            for run, agents_sorted, candidate_gate in lane_agents
+        ],
     }
     return detail
 
 
-def _workflow_agent_execution_row(execution: AgentExecution) -> AgentExecutionRow:
+def _cost_figure_row(figure: CostFigure) -> CostFigureRow:
+    return {"state": figure.state, "amount_usd": figure.amount_text()}
+
+
+def _workflow_agent_execution_row(
+    execution: AgentExecution, summary: WorkflowCostSummary
+) -> AgentExecutionRow:
     return {
         "id": execution.id,
         "agent_name": execution.agent_name.value,
@@ -417,6 +443,7 @@ def _workflow_agent_execution_row(execution: AgentExecution) -> AgentExecutionRo
         "started_at": execution.started_at,
         "completed_at": execution.completed_at,
         "model_name": execution.model_name,
+        "cost": _cost_figure_row(summary.figure_for_execution(execution.id)),
     }
 
 

@@ -11,6 +11,7 @@ import type {
 import * as api from "@/api";
 import { resetQueryInvalidationRegistryForTests } from "@/lib/server-state/invalidation";
 import { WorkflowRecommendationsView } from "./WorkflowRecommendationsView";
+import { ZERO_RUN_COST, ZERO_WORKFLOW_COST } from "@/utils/formatWorkflowCost";
 
 function lane(overrides: Partial<TickerRunDetail> = {}): TickerRunDetail {
   return {
@@ -37,10 +38,12 @@ function detail(
     is_mock: true,
     error_message: null,
     can_retry_failed_agents: false,
+    ...ZERO_RUN_COST,
     portfolio_value_gbp: 10_000,
     surveyor_execution: {
       id: "wfe-surveyor",
       agent_name: "surveyor",
+      cost: ZERO_WORKFLOW_COST,
       status: "completed",
       started_at: null,
       completed_at: null,
@@ -48,6 +51,7 @@ function detail(
     curator_execution: {
       id: "wfe-curator",
       agent_name: "curator",
+      cost: ZERO_WORKFLOW_COST,
       status: "pending",
       started_at: null,
       completed_at: null,
@@ -193,6 +197,7 @@ describe("WorkflowRecommendationsView", () => {
           curator_execution: {
             id: "wfe-curator",
             agent_name: "curator",
+            cost: ZERO_WORKFLOW_COST,
             status: "completed",
             started_at: null,
             completed_at: null,
@@ -275,6 +280,7 @@ describe("WorkflowRecommendationsView", () => {
           curator_execution: {
             id: "wfe-curator",
             agent_name: "curator",
+            cost: ZERO_WORKFLOW_COST,
             status: "completed",
             started_at: null,
             completed_at: null,
@@ -304,6 +310,7 @@ describe("WorkflowRecommendationsView", () => {
           curator_execution: {
             id: "wfe-curator",
             agent_name: "curator",
+            cost: ZERO_WORKFLOW_COST,
             status: "completed",
             started_at: null,
             completed_at: null,

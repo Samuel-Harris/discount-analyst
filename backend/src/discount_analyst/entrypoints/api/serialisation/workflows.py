@@ -2,8 +2,10 @@
 
 from discount_analyst.entrypoints.api.contracts.api import (
     AgentExecutionSummary,
+    AgentTypeCost,
     CandidateGateSummary,
     TickerRunDetail,
+    WorkflowCostFigure,
     WorkflowRunDetailResponse,
     WorkflowRunListItem,
 )
@@ -18,6 +20,7 @@ from discount_analyst.entrypoints.api.contracts.enums import (
 )
 from discount_analyst.adapters.persistence.workflow_rows import (
     AgentExecutionRow,
+    CostFigureRow,
     TickerRunRow,
     WorkflowRunDetailRecord,
     WorkflowRunListRow,
@@ -60,6 +63,16 @@ def workflow_detail(
             workflow_run_detail_record["curator_execution"]
         ),
         portfolio_value_gbp=workflow_run_detail_record["portfolio_value_gbp"],
+        cost_total=_cost_figure(workflow_run_detail_record["cost_total"]),
+        cost_successful=_cost_figure(workflow_run_detail_record["cost_successful"]),
+        cost_unsuccessful=_cost_figure(workflow_run_detail_record["cost_unsuccessful"]),
+        cost_by_agent=[
+            AgentTypeCost(
+                agent_name=AgentNameSlug(agent_cost["agent_name"]),
+                cost=_cost_figure(agent_cost["cost"]),
+            )
+            for agent_cost in workflow_run_detail_record["cost_by_agent"]
+        ],
         runs=[_ticker_run_detail(run) for run in workflow_run_detail_record["runs"]],
     )
 
@@ -72,6 +85,10 @@ def _optional_execution_summary(
     return _execution_summary(row)
 
 
+def _cost_figure(row: CostFigureRow) -> WorkflowCostFigure:
+    return WorkflowCostFigure(state=row["state"], amount_usd=row["amount_usd"])
+
+
 def _execution_summary(row: AgentExecutionRow) -> AgentExecutionSummary:
     return AgentExecutionSummary(
         id=row["id"],
@@ -80,6 +97,7 @@ def _execution_summary(row: AgentExecutionRow) -> AgentExecutionSummary:
         started_at=row["started_at"],
         completed_at=row["completed_at"],
         model_name=row["model_name"],
+        cost=_cost_figure(row["cost"]),
     )
 
 

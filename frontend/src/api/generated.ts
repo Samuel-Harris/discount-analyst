@@ -14,6 +14,7 @@ export type AgentExecutionSummaryStartedAt = string | null;
 export interface AgentExecutionSummary {
   agent_name: AgentNameSlug;
   completed_at: AgentExecutionSummaryCompletedAt;
+  cost: WorkflowCostFigure;
   id: string;
   model_name?: AgentExecutionSummaryModelName;
   started_at: AgentExecutionSummaryStartedAt;
@@ -33,6 +34,11 @@ export const AgentNameSlug = {
   appraiser: 'appraiser',
   curator: 'curator',
 } as const;
+
+export interface AgentTypeCost {
+  agent_name: AgentNameSlug;
+  cost: WorkflowCostFigure;
+}
 
 export interface AllocationPosition {
   /**
@@ -287,6 +293,22 @@ export interface ValidationError {
   type: string;
 }
 
+export type WorkflowCostFigureAmountUsd = string | null;
+
+export type WorkflowCostFigureState = typeof WorkflowCostFigureState[keyof typeof WorkflowCostFigureState];
+
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const WorkflowCostFigureState = {
+  amount: 'amount',
+  unknown: 'unknown',
+} as const;
+
+export interface WorkflowCostFigure {
+  amount_usd?: WorkflowCostFigureAmountUsd;
+  state: WorkflowCostFigureState;
+}
+
 export type WorkflowRunDetailResponseCompletedAt = string | null;
 
 export type WorkflowRunDetailResponseCuratorExecution = AgentExecutionSummary | null;
@@ -300,6 +322,10 @@ export type WorkflowRunDetailResponseSurveyorExecution = AgentExecutionSummary |
 export interface WorkflowRunDetailResponse {
   can_retry_failed_agents: boolean;
   completed_at: WorkflowRunDetailResponseCompletedAt;
+  cost_by_agent: AgentTypeCost[];
+  cost_successful: WorkflowCostFigure;
+  cost_total: WorkflowCostFigure;
+  cost_unsuccessful: WorkflowCostFigure;
   curator_execution: WorkflowRunDetailResponseCuratorExecution;
   error_message: WorkflowRunDetailResponseErrorMessage;
   id: string;

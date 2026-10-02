@@ -10,6 +10,13 @@ from pydantic_ai.messages import ModelMessage
 
 from sqlmodel import Session
 
+from discount_analyst.adapters.orchestration.attempt_cost import (
+    attempt_cost_from_usage,
+)
+from discount_analyst.adapters.orchestration.live_agent import (
+    record_failed_attempt_cost,
+    run_and_record_failure,
+)
 from discount_analyst.adapters.orchestration.llm_config import (
     PipelineLlmConfig,
     pipeline_llm_config,
@@ -65,6 +72,7 @@ from discount_analyst.application.allocations.skip_reasons import (
 from discount_analyst.application.workflows.agent_errors import (
     extract_agent_error_message,
 )
+from discount_analyst.domain.workflow_cost import AttemptCost
 from discount_analyst.domain.allocations.allocation import (
     PortfolioAllocation as DomainPortfolioAllocation,
 )
@@ -165,6 +173,7 @@ class CuratorStage:
             bundles = await host.db(load_completed_lane_bundles, workflow_run_id)
             valued, dqr = bundles
             job = assemble_curator_job(valued, snapshot, date.today(), dqr=dqr)
+            attempt_cost: AttemptCost | None = None
             if not job.curator_input.lanes:
                 allocation = synthesise_cash_only_allocation(job)
                 messages = None
@@ -173,17 +182,30 @@ class CuratorStage:
                     "Curator branch completed without LLM (no valued lanes)"
                 )
             else:
-                agent_result = await self._run_curator_agent(
-                    curator_input=job.curator_input,
-                    is_mock=is_mock,
-                    llm=llm,
-                    settings=host.settings,
-                    session_id=execution_id,
+                agent_result = await run_and_record_failure(
+                    db=host.db,
+                    execution_id=execution_id,
+                    start=lambda: self._run_curator_agent(
+                        curator_input=job.curator_input,
+                        is_mock=is_mock,
+                        llm=llm,
+                        settings=host.settings,
+                        session_id=execution_id,
+                    ),
                 )
-                allocation = finalise_curator_proposal(
-                    agent_result.proposal,
-                    job,
-                )
+                attempt_cost = agent_result.attempt_cost
+                try:
+                    allocation = finalise_curator_proposal(
+                        agent_result.proposal,
+                        job,
+                    )
+                except Exception:
+                    await record_failed_attempt_cost(
+                        db=host.db,
+                        execution_id=execution_id,
+                        attempt_cost=attempt_cost,
+                    )
+                    raise
                 messages = agent_result.messages
                 messages_json = agent_result.messages_json
                 completed_message = "Curator branch completed"
@@ -194,6 +216,7 @@ class CuratorStage:
                 messages=messages,
                 messages_json=messages_json,
                 allocation=allocation,
+                attempt_cost=attempt_cost,
             )
             AI_LOGFIRE.info(
                 completed_message,
@@ -257,11 +280,12 @@ class CuratorStage:
             proposal=outcome.output,
             messages=list(outcome.all_messages),
             messages_json=None,
+            attempt_cost=attempt_cost_from_usage(outcome.usage),
         )
 
 
 class _CuratorRunResult:
-    __slots__ = ("proposal", "messages", "messages_json")
+    __slots__ = ("attempt_cost", "messages", "messages_json", "proposal")
 
     def __init__(
         self,
@@ -269,10 +293,12 @@ class _CuratorRunResult:
         proposal: CuratorProposal,
         messages: list[ModelMessage] | None,
         messages_json: str | None,
+        attempt_cost: AttemptCost | None = None,
     ) -> None:
         self.proposal = proposal
         self.messages = messages
         self.messages_json = messages_json
+        self.attempt_cost = attempt_cost
 
 
 def persist_completed_curator_execution(
@@ -283,6 +309,7 @@ def persist_completed_curator_execution(
     messages: list[ModelMessage] | None,
     messages_json: str | None,
     allocation: DomainPortfolioAllocation,
+    attempt_cost: AttemptCost | None = None,
 ) -> None:
     persist_portfolio_allocation(
         session, agent_execution_id=execution_id, allocation=allocation
@@ -305,6 +332,7 @@ def persist_completed_curator_execution(
         completed_at=utc_now_iso(),
         messages=messages,
         messages_json=messages_json,
+        attempt_cost=attempt_cost,
     )
 
 

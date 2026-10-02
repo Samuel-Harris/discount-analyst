@@ -13,6 +13,9 @@ from pydantic_ai.messages import ModelMessage
 from pydantic_ai.usage import RunUsage, UsageLimits
 
 from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
+from discount_analyst.agents.runtime.streamed_run_usage import (
+    attach_streamed_run_usage,
+)
 from discount_analyst.agents.runtime.streaming_retries import stream_with_retries
 from discount_analyst.agents.runtime.terminal_run import TerminalRunOptions
 from discount_analyst.agents.tools.terminal.client import (
@@ -91,16 +94,24 @@ async def run_streamed_agent[T](
     output: T
     usage: RunUsage
     all_messages: list[ModelMessage]
+    recorded_usage: RunUsage | None = None
     with logfire.set_baggage(ai_agent=agent_tag, agent_name=agent_tag.lower()):
         with AI_LOGFIRE.with_tags(agent_tag).span(
             "Run AI agent {agent_name}", agent_name=agent_tag
         ):
+            retries = stream_with_retries(
+                agent=agent,
+                user_prompt=user_prompt,
+                usage_limits=usage_limits,
+            )
+
+            def usage_for_failure() -> RunUsage | None:
+                if recorded_usage is not None:
+                    return recorded_usage
+                return retries.accumulated_usage()
+
             try:
-                async with stream_with_retries(
-                    agent=agent,
-                    user_prompt=user_prompt,
-                    usage_limits=usage_limits,
-                ) as result:
+                async with retries as result:
                     async for chunk in result.stream_output(
                         debounce_by=stream_debounce_by
                     ):
@@ -108,19 +119,27 @@ async def run_streamed_agent[T](
                             on_stream_chunk(chunk)
                     output = await result.get_output()
                     usage = result.usage
+                    recorded_usage = usage
                     all_messages = result.all_messages()
                     _log_turn_context_usage(
                         agent_name=agent_tag,
                         model_name=agent_model_name(agent),
                         messages=all_messages,
                     )
+            except BaseException as exc:
+                attach_streamed_run_usage(exc, usage_for_failure())
+                raise
             finally:
                 if terminal.enabled:
-                    await delete_terminal_session(
-                        terminal.runtime.service_url,
-                        terminal.require_session_id(),
-                    )
-                    await close_terminal_http(terminal.session_state)
+                    try:
+                        await delete_terminal_session(
+                            terminal.runtime.service_url,
+                            terminal.require_session_id(),
+                        )
+                        await close_terminal_http(terminal.session_state)
+                    except BaseException as cleanup_exc:
+                        attach_streamed_run_usage(cleanup_exc, usage_for_failure())
+                        raise
     elapsed_s = perf_counter() - start
     return StreamedAgentRunOutcome(
         output=output,

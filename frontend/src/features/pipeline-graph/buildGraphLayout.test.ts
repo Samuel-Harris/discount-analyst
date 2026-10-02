@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { PROFILER_ENTRY_AGENT_NAMES } from "./agentLaneOrder";
 import { buildGraphLayout } from "./buildGraphLayout";
 import type { AgentExecutionSummary, WorkflowRunDetailResponse } from "@/api";
+import { ZERO_RUN_COST, ZERO_WORKFLOW_COST } from "@/utils/formatWorkflowCost";
 
 function baseDetail(
   overrides: Partial<WorkflowRunDetailResponse> = {},
@@ -15,10 +16,12 @@ function baseDetail(
     is_mock: true,
     error_message: null,
     can_retry_failed_agents: false,
+    ...ZERO_RUN_COST,
     portfolio_value_gbp: null,
     surveyor_execution: {
       id: "wfe-1",
       agent_name: "surveyor",
+      cost: ZERO_WORKFLOW_COST,
       status: "completed",
       started_at: "2026-04-01T12:00:01Z",
       completed_at: "2026-04-01T12:00:10Z",
@@ -36,6 +39,7 @@ function curatorExecution(
   return {
     id: "wfe-curator",
     agent_name: "curator",
+    cost: ZERO_WORKFLOW_COST,
     status,
     started_at: "2026-04-01T12:01:00Z",
     completed_at: status === "completed" ? "2026-04-01T12:01:10Z" : null,
@@ -51,6 +55,7 @@ describe("buildGraphLayout", () => {
     expect(wf?.agentName).toBe("surveyor");
     expect(wf?.label).toBe("SURVEYOR");
     expect(wf?.modelName).toBe("gpt-5.1");
+    expect(wf?.costLabel).toBe("$0.00");
   });
 
   it("passes lane agent model_name through to layout nodes", () => {
@@ -69,6 +74,7 @@ describe("buildGraphLayout", () => {
             {
               id: "a-prof",
               agent_name: "profiler",
+              cost: ZERO_WORKFLOW_COST,
               status: "running",
               started_at: null,
               completed_at: null,
@@ -100,6 +106,7 @@ describe("buildGraphLayout", () => {
             {
               id: "x1",
               agent_name: "researcher",
+              cost: ZERO_WORKFLOW_COST,
               status: "running",
               started_at: null,
               completed_at: null,
@@ -131,6 +138,7 @@ describe("buildGraphLayout", () => {
             {
               id: "a-app",
               agent_name: "appraiser",
+              cost: ZERO_WORKFLOW_COST,
               status: "pending",
               started_at: null,
               completed_at: null,
@@ -138,6 +146,7 @@ describe("buildGraphLayout", () => {
             {
               id: "a-prof",
               agent_name: "profiler",
+              cost: ZERO_WORKFLOW_COST,
               status: "completed",
               started_at: null,
               completed_at: null,
@@ -145,6 +154,7 @@ describe("buildGraphLayout", () => {
             {
               id: "a-res",
               agent_name: "researcher",
+              cost: ZERO_WORKFLOW_COST,
               status: "running",
               started_at: null,
               completed_at: null,
@@ -179,6 +189,7 @@ describe("buildGraphLayout", () => {
             {
               id: "p1",
               agent_name: "profiler",
+              cost: ZERO_WORKFLOW_COST,
               status: "completed",
               started_at: null,
               completed_at: null,
@@ -186,6 +197,7 @@ describe("buildGraphLayout", () => {
             {
               id: "p2",
               agent_name: "researcher",
+              cost: ZERO_WORKFLOW_COST,
               status: "running",
               started_at: null,
               completed_at: null,
@@ -217,6 +229,7 @@ describe("buildGraphLayout", () => {
             {
               id: "d1",
               agent_name: "researcher",
+              cost: ZERO_WORKFLOW_COST,
               status: "completed",
               started_at: null,
               completed_at: null,
@@ -235,6 +248,7 @@ describe("buildGraphLayout", () => {
             {
               id: "m1",
               agent_name: "researcher",
+              cost: ZERO_WORKFLOW_COST,
               status: "completed",
               started_at: null,
               completed_at: null,
@@ -274,6 +288,7 @@ describe("buildGraphLayout", () => {
             {
               id: "m1",
               agent_name: "profiler",
+              cost: ZERO_WORKFLOW_COST,
               status: "pending",
               started_at: null,
               completed_at: null,
@@ -292,6 +307,7 @@ describe("buildGraphLayout", () => {
             {
               id: "d1",
               agent_name: "researcher",
+              cost: ZERO_WORKFLOW_COST,
               status: "running",
               started_at: null,
               completed_at: null,
@@ -327,6 +343,7 @@ describe("buildGraphLayout", () => {
             {
               id: "a1",
               agent_name: "profiler",
+              cost: ZERO_WORKFLOW_COST,
               status: "completed",
               started_at: null,
               completed_at: null,
@@ -345,6 +362,7 @@ describe("buildGraphLayout", () => {
             {
               id: "z1",
               agent_name: "profiler",
+              cost: ZERO_WORKFLOW_COST,
               status: "running",
               started_at: null,
               completed_at: null,
@@ -379,6 +397,7 @@ describe("buildGraphLayout", () => {
             {
               id: "a-prof",
               agent_name: "profiler",
+              cost: ZERO_WORKFLOW_COST,
               status: "completed",
               started_at: null,
               completed_at: null,
@@ -386,6 +405,7 @@ describe("buildGraphLayout", () => {
             {
               id: "a-res",
               agent_name: "researcher",
+              cost: ZERO_WORKFLOW_COST,
               status: "completed",
               started_at: null,
               completed_at: null,
@@ -431,6 +451,7 @@ describe("buildGraphLayout", () => {
             {
               id: "a1",
               agent_name: "researcher",
+              cost: ZERO_WORKFLOW_COST,
               status: "completed",
               started_at: null,
               completed_at: null,
@@ -438,6 +459,7 @@ describe("buildGraphLayout", () => {
             {
               id: "a2",
               agent_name: "appraiser",
+              cost: ZERO_WORKFLOW_COST,
               status: "skipped",
               started_at: null,
               completed_at: null,
@@ -456,6 +478,7 @@ describe("buildGraphLayout", () => {
             {
               id: "b1",
               agent_name: "researcher",
+              cost: ZERO_WORKFLOW_COST,
               status: "completed",
               started_at: null,
               completed_at: null,
@@ -463,6 +486,7 @@ describe("buildGraphLayout", () => {
             {
               id: "b2",
               agent_name: "appraiser",
+              cost: ZERO_WORKFLOW_COST,
               status: "skipped",
               started_at: null,
               completed_at: null,

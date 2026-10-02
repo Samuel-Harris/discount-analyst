@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { TickerRunDetail } from "@/api";
 import { laneStatusDisplay } from "./laneStatusDisplay";
+import { ZERO_WORKFLOW_COST } from "@/utils/formatWorkflowCost";
 
 function run(overrides: Partial<TickerRunDetail>): TickerRunDetail {
   return {
@@ -51,6 +52,7 @@ describe("laneStatusDisplay", () => {
             {
               id: "e1",
               agent_name: "researcher",
+              cost: ZERO_WORKFLOW_COST,
               status: "pending",
               started_at: null,
               completed_at: null,
@@ -74,6 +76,7 @@ describe("laneStatusDisplay", () => {
             {
               id: "e1",
               agent_name: "researcher",
+              cost: ZERO_WORKFLOW_COST,
               status: "completed",
               started_at: null,
               completed_at: null,
@@ -81,6 +84,7 @@ describe("laneStatusDisplay", () => {
             {
               id: "e2",
               agent_name: "strategist",
+              cost: ZERO_WORKFLOW_COST,
               status: "running",
               started_at: null,
               completed_at: null,

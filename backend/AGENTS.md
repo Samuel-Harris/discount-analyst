@@ -21,7 +21,7 @@ Server-side home for Discount Analyst: the installable `discount_analyst` monoli
 
 | Directory                           | Purpose                                                                |
 | ----------------------------------- | ---------------------------------------------------------------------- |
-| `src/discount_analyst/domain/`      | Pure domain: valuation, decisions, model selection, allocations.       |
+| `src/discount_analyst/domain/`      | Pure domain: valuation, decisions, model selection, allocations, workflow-run cost. |
 | `src/discount_analyst/agents/`      | Agent stages + `runtime/` + `tools/` + `common_prompts/`.              |
 | `src/discount_analyst/application/` | Ports, workflow helpers, decision builders, gate result types.         |
 | `src/discount_analyst/adapters/`    | Persistence, market data, orchestration, simulation, observability.    |

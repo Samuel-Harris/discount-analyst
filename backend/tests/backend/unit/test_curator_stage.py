@@ -57,7 +57,7 @@ async def test_curator_stage_non_mock_path_uses_run_agent_with_terminal() -> Non
     settings = dashboard_settings_for_tests()
     curator_input = _empty_curator_input()
     proposal = mock_outputs.mock_curator_proposal(curator_input)
-    fake_outcome = SimpleNamespace(output=proposal, all_messages=[object()])
+    fake_outcome = SimpleNamespace(output=proposal, all_messages=[object()], usage=None)
 
     with patch(
         "discount_analyst.adapters.orchestration.stages.curator_stage.run_agent_with_terminal",
@@ -173,7 +173,12 @@ async def test_hurdle_breach_fails_execution_without_persisting_allocation() -> 
 
     async def fake_run(self: CuratorStage, **kwargs: object) -> SimpleNamespace:
         del self, kwargs
-        return SimpleNamespace(proposal=proposal, messages=None, messages_json=None)
+        return SimpleNamespace(
+            proposal=proposal,
+            messages=None,
+            messages_json=None,
+            attempt_cost=None,
+        )
 
     with (
         patch.object(CuratorStage, "_run_curator_agent", fake_run),

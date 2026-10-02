@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from pydantic_ai.messages import ModelMessage
 
@@ -21,7 +21,12 @@ from discount_analyst.agents.profiler.system_prompt import (
 )
 from discount_analyst.agents.profiler.user_prompt import create_profiler_user_prompt
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
+from discount_analyst.adapters.orchestration.attempt_cost import (
+    attempt_cost_from_usage,
+)
+from discount_analyst.adapters.orchestration.live_agent import run_and_record_failure
 from discount_analyst.adapters.orchestration.llm_config import pipeline_llm_config
+from discount_analyst.domain.workflow_cost import AttemptCost
 
 if TYPE_CHECKING:
     from discount_analyst.config.settings import Settings
@@ -33,6 +38,8 @@ _PROFILER_AGENT = "profiler"
 class ProfilerStageHost(Protocol):
     @property
     def settings(self) -> Settings: ...
+
+    async def db(self, fn: Any, *args: Any, **kwargs: Any) -> Any: ...
 
     async def get_exec_id(self, run_id: str, agent_name: str) -> str | None: ...
 
@@ -50,14 +57,15 @@ class ProfilerStageHost(Protocol):
 
     async def recompute(self, workflow_run_id: str) -> None: ...
 
-    async def store_agent_conversation(
+    async def complete_exec_with_conversation(
         self,
         *,
-        run_id: str,
-        agent_name: str,
+        execution_id: str,
         system_prompt: str,
+        output_json: str | None,
         messages: list[ModelMessage] | None = None,
         messages_json: str | None = None,
+        attempt_cost: AttemptCost | None = None,
     ) -> None: ...
 
     async def update_ticker_run_company_name(
@@ -100,10 +108,11 @@ class ProfilerStage:
             is_mock=is_mock,
         )
         mock_msgs_json: str | None = None
+        messages: list[ModelMessage] | None = None
+        attempt_cost: AttemptCost | None = None
         if is_mock:
             await asyncio.sleep(5)
             profiler_output = mock_outputs.mock_profiler_output(ticker=ticker)
-            messages = None
             mock_msgs_json = mock_conversation_messages.profiler_messages_json(
                 ticker=ticker
             )
@@ -111,33 +120,32 @@ class ProfilerStage:
             ai_cfg = llm.ai_models_config
             if ai_cfg is None:
                 raise RuntimeError("Profiler LLM config missing for non-mock run")
-            outcome = await run_agent_with_terminal(
-                settings=settings,
-                session_id=profiler_exec_id,
-                build_agent=lambda t: create_profiler_agent(
-                    ai_models_config=ai_cfg,
-                    use_perplexity=settings.use_perplexity,
-                    use_mcp_financial_data=settings.use_mcp_financial_data,
-                    terminal=t,
+            outcome = await run_and_record_failure(
+                db=host.db,
+                execution_id=profiler_exec_id,
+                start=lambda: run_agent_with_terminal(
+                    settings=settings,
+                    session_id=profiler_exec_id,
+                    build_agent=lambda t: create_profiler_agent(
+                        ai_models_config=ai_cfg,
+                        use_perplexity=settings.use_perplexity,
+                        use_mcp_financial_data=settings.use_mcp_financial_data,
+                        terminal=t,
+                    ),
+                    user_prompt=create_profiler_user_prompt(ticker),
+                    usage_limits=ai_cfg.model.usage_limits,
                 ),
-                user_prompt=create_profiler_user_prompt(ticker),
-                usage_limits=ai_cfg.model.usage_limits,
             )
             profiler_output = outcome.output
             messages = list(outcome.all_messages)
-            mock_msgs_json = None
-        await host.mark_exec(
+            attempt_cost = attempt_cost_from_usage(outcome.usage)
+        await host.complete_exec_with_conversation(
             execution_id=profiler_exec_id,
-            status="completed",
-            output_json=profiler_output.model_dump_json(),
-            completed=True,
-        )
-        await host.store_agent_conversation(
-            run_id=run_id,
-            agent_name=_PROFILER_AGENT,
             system_prompt=with_current_date(PROFILER_SYSTEM_PROMPT),
+            output_json=profiler_output.model_dump_json(),
             messages=messages,
             messages_json=mock_msgs_json,
+            attempt_cost=attempt_cost,
         )
         await host.update_ticker_run_company_name(
             run_id=run_id,

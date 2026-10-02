@@ -34,6 +34,9 @@ from discount_analyst.adapters.persistence.crud.agent_output_persistence import 
 from discount_analyst.adapters.persistence.crud.candidate_snapshots import (
     snapshot_to_candidate,
 )
+from discount_analyst.adapters.persistence.crud.attempt_costs import (
+    insert_attempt_cost_once,
+)
 from discount_analyst.adapters.persistence.crud.conversations import (
     assistant_response_for_run_agent,
     insert_conversation_for_agent_execution,
@@ -66,6 +69,7 @@ from discount_analyst.domain.decisions.schema import (
 )
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
 from discount_analyst.domain.model_selection.model_name import ModelName
+from discount_analyst.domain.workflow_cost import AttemptCost
 
 _ACTIVE_RUN_STATUSES = frozenset({WorkflowRunStatusDb.RUNNING.value})
 _TERMINAL_RUN_STATUSES = frozenset(
@@ -596,7 +600,15 @@ def complete_agent_execution_with_conversation(
     completed_at: str,
     messages: list[ModelMessage] | None = None,
     messages_json: str | None = None,
+    attempt_cost: AttemptCost | None = None,
 ) -> None:
+    if attempt_cost is not None:
+        insert_attempt_cost_once(
+            session,
+            execution_id=execution_id,
+            successful=True,
+            attempt_cost=attempt_cost,
+        )
     insert_conversation_for_agent_execution(
         session,
         conversation_id=conversation_id,
