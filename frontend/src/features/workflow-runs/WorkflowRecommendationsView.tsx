@@ -129,7 +129,10 @@ export function WorkflowRecommendationsView({
     <div className="recommendations-view">
       <div className="recommendations-book">
         {bookPane.kind === "book" ? (
-          <WorkflowRecommendationsBook allocation={bookPane.allocation} />
+          <WorkflowRecommendationsBook
+            allocation={bookPane.allocation}
+            portfolioValueGbp={detail.portfolio_value_gbp}
+          />
         ) : (
           <p className="recommendations-book-status">{bookPane.message}</p>
         )}

@@ -16,6 +16,7 @@ function makeDetail(
     is_mock: false,
     error_message: null,
     can_retry_failed_agents: false,
+    portfolio_value_gbp: null,
     surveyor_execution: null,
     curator_execution: null,
     runs: [],

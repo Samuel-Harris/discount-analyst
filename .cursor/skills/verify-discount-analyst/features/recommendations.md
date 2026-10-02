@@ -24,7 +24,7 @@ Preconditions:
 - `scripts/seed` has been run; `$RUN_ID` is the seeded workflow id from `GET $API_URL/api/workflow_runs`.
 
 - **Open via deep link.** Navigate to `$UI_URL/?run=$RUN_ID&view=recommendations`. Heading `Portfolio` is present. A table caption `Final ratings and lane status for workflow $RUN_ID` is present (visually hidden). Toolbar shows `2 of 2 lane(s)`.
-- **See the Curator book.** Rationale reads `Seed book: reduce the existing name and avoid the rejection.` Cash strip includes `20.0% → 85.0%` and band `84.0–86.0%`. `SEED1.L` is `Holding`, `Reduce`, `80.0% → 15.0%`, band `14.0–15.0%`. `SEED2.L` is not in the book (new Avoid). There is no `Clusters` heading.
+- **See the Curator book.** Rationale reads `Seed book: reduce the existing name and avoid the rejection.` Cash strip includes `20.0% → 85.0%`, band `84.0–86.0%`, and recommended cash `£8,500.00` (85% of the £10,000 input book). `SEED1.L` is `Holding`, `Reduce`, `80.0% → 15.0%`, recommended `£1,500.00`, band `14.0–15.0%`. `SEED2.L` is not in the book (new Avoid). There is no `Clusters` heading.
 - **See seed lane rows.** The `Lane ratings` table includes tickers `SEED1.L` and `SEED2.L`. Entry values are `Profiler` and `Surveyor`. `SEED2.L` shows verdict source `Sentinel`.
 - **Filter.** In the `Filter` search box type `SEED2`. Count becomes `1 of 2 lane(s)` and `SEED1.L` is gone from the lane-ratings table. `SEED1.L` remains in the Portfolio book.
 - **Clear filter.** Clear the search box. Both lane-rating rows return.

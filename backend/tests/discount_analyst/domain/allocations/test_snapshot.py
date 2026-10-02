@@ -14,6 +14,7 @@ from discount_analyst.domain.allocations.snapshot import (
     SterlingPosition,
     snapshot_from_sterling_ledger,
     snapshot_weight_for_ticker,
+    sterling_portfolio_value,
 )
 
 
@@ -71,6 +72,20 @@ def test_sterling_ledger_rejects_duplicate_tickers() -> None:
             ),
             cash_gbp=Decimal("0"),
         )
+
+
+def test_sterling_portfolio_value_sums_holdings_and_cash() -> None:
+    total = sterling_portfolio_value(
+        SterlingPortfolioLedger(
+            positions=(
+                SterlingPosition(ticker="AAA.L", value_gbp=Decimal("8000.00")),
+                SterlingPosition(ticker="BBB.L", value_gbp=Decimal("0")),
+            ),
+            cash_gbp=Decimal("2000.50"),
+        )
+    )
+
+    assert total == Decimal("10000.50")
 
 
 def test_snapshot_from_zero_total_ledger_is_cash_only() -> None:

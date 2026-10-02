@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from decimal import Decimal
 from typing import cast
 from uuid import UUID
 
@@ -84,6 +85,7 @@ def test_workflow_run_detail_matches_contract_after_post(client: TestClient) -> 
     assert m.surveyor_execution.model_name is None
     assert m.curator_execution is not None
     assert m.curator_execution.agent_name == "curator"
+    assert m.portfolio_value_gbp == Decimal("1000.00")
     assert len(m.runs) == 1
     run0 = m.runs[0]
     assert run0.entry_path == "profiler"
@@ -121,6 +123,25 @@ def test_workflow_run_detail_seed_profiler_and_surveyor_lanes(
     assert detail.curator_execution is not None
     assert detail.curator_execution.agent_name == "curator"
     assert detail.curator_execution.status == "completed"
+    assert detail.portfolio_value_gbp == Decimal("10000.00")
+
+
+def test_workflow_detail_portfolio_value_excludes_suggestions(
+    client: TestClient,
+) -> None:
+    wf_id = client.post(
+        "/api/workflow_runs",
+        json=_launch_json(
+            "HOLD.L",
+            cash_gbp=250.5,
+            suggestions=["IDEA.L"],
+            value_gbp=1000,
+        ),
+    ).json()["workflow_run_id"]
+    detail = WorkflowRunDetailResponse.model_validate(
+        client.get(f"/api/workflow_runs/{wf_id}").json()
+    )
+    assert detail.portfolio_value_gbp == Decimal("1250.50")
 
 
 def test_list_newest_workflow_first(client: TestClient) -> None:

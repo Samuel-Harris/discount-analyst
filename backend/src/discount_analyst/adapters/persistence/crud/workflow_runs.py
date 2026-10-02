@@ -45,6 +45,7 @@ from discount_analyst.adapters.persistence.models import (
 from discount_analyst.domain.allocations.snapshot import (
     SterlingPortfolioLedger,
     SterlingPosition,
+    sterling_portfolio_value,
 )
 
 TERMINAL_WORKFLOW_STATUSES = frozenset(
@@ -287,6 +288,16 @@ def get_workflow_run_row(
             .order_by(col(WorkflowRunPortfolioTicker.sort_order))
         )
     )
+    portfolio_value_gbp = (
+        None
+        if wf.cash_gbp is None
+        else sterling_portfolio_value(
+            SterlingPortfolioLedger(
+                positions=_holdings_from_ticker_rows(tickers),
+                cash_gbp=wf.cash_gbp,
+            )
+        )
+    )
     header: WorkflowRunHeaderRow = {
         "id": wf.id,
         "started_at": wf.started_at,
@@ -294,7 +305,8 @@ def get_workflow_run_row(
         "status": wf.status.value,
         "is_mock": wf.is_mock,
         "error_message": wf.error_message,
-        "portfolio_tickers": [t.ticker for t in tickers],
+        "portfolio_tickers": [ticker.ticker for ticker in tickers],
+        "portfolio_value_gbp": portfolio_value_gbp,
     }
     return header
 
@@ -421,6 +433,16 @@ def workflow_run_exists(session: Session, workflow_run_id: str) -> bool:
     return session.get(WorkflowRun, workflow_run_id) is not None
 
 
+def _holdings_from_ticker_rows(
+    rows: Sequence[WorkflowRunPortfolioTicker],
+) -> tuple[SterlingPosition, ...]:
+    return tuple(
+        SterlingPosition(ticker=row.ticker, value_gbp=row.value_gbp)
+        for row in rows
+        if row.value_gbp is not None
+    )
+
+
 def get_latest_portfolio_ledger(session: Session) -> LatestPortfolioLedger:
     workflow = session.scalars(
         select(WorkflowRun).order_by(desc(col(WorkflowRun.started_at)))
@@ -444,11 +466,7 @@ def get_latest_portfolio_ledger(session: Session) -> LatestPortfolioLedger:
             cash_gbp=Decimal("0"),
             suggestion_tickers=tuple(row.ticker for row in rows),
         )
-    holdings = tuple(
-        SterlingPosition(ticker=row.ticker, value_gbp=row.value_gbp)
-        for row in rows
-        if row.value_gbp is not None
-    )
+    holdings = _holdings_from_ticker_rows(rows)
     suggestions = tuple(row.ticker for row in rows if row.value_gbp is None)
     return LatestPortfolioLedger(
         positions=holdings,
@@ -472,11 +490,7 @@ def load_sterling_ledger_for_workflow(
             .order_by(col(WorkflowRunPortfolioTicker.sort_order))
         )
     )
-    holdings = tuple(
-        SterlingPosition(ticker=row.ticker, value_gbp=row.value_gbp)
-        for row in rows
-        if row.value_gbp is not None
-    )
+    holdings = _holdings_from_ticker_rows(rows)
     return (
         SterlingPortfolioLedger(positions=holdings, cash_gbp=workflow.cash_gbp),
         workflow.started_at.date(),

@@ -4,6 +4,7 @@ import type { PortfolioAllocation } from "@/api";
 import {
   formatBookMembership,
   formatRebalanceAction,
+  formatRecommendedPosition,
   formatWeightBand,
   formatWeightChange,
   isDisplayedBookPosition,
@@ -12,6 +13,8 @@ import { recommendationActionClassNames } from "./recommendationActionStyles";
 
 export interface WorkflowRecommendationsBookProps {
   allocation: PortfolioAllocation;
+  /** Sterling total submitted when the run was launched. Null when that ledger was not stored. */
+  portfolioValueGbp: number | null;
 }
 
 function comparePositions(
@@ -26,6 +29,7 @@ function comparePositions(
 
 export function WorkflowRecommendationsBook({
   allocation,
+  portfolioValueGbp,
 }: WorkflowRecommendationsBookProps) {
   const positions = useMemo(
     () =>
@@ -51,7 +55,7 @@ export function WorkflowRecommendationsBook({
           {`Cash ${formatWeightChange(cash.current_weight_pct, cash.target_weight_pct)} (${formatWeightBand(
             cash.acceptable_weight_low_pct,
             cash.acceptable_weight_high_pct,
-          )})`}
+          )}) · ${formatRecommendedPosition(portfolioValueGbp, cash.target_weight_pct)}`}
         </span>
         <span className="recommendations-book-cash-rationale">
           {cash.rationale}
@@ -65,6 +69,7 @@ export function WorkflowRecommendationsBook({
             <th scope="col">Book</th>
             <th scope="col">Action</th>
             <th scope="col">Weight</th>
+            <th scope="col">Recommended (£)</th>
             <th scope="col">Band</th>
           </tr>
         </thead>
@@ -87,6 +92,12 @@ export function WorkflowRecommendationsBook({
                   )}
                 </td>
                 <td className="recommendations-mono">
+                  {formatRecommendedPosition(
+                    portfolioValueGbp,
+                    position.target_weight_pct,
+                  )}
+                </td>
+                <td className="recommendations-mono">
                   {formatWeightBand(
                     position.acceptable_weight_low_pct,
                     position.acceptable_weight_high_pct,
@@ -94,7 +105,7 @@ export function WorkflowRecommendationsBook({
                 </td>
               </tr>
               <tr className="recommendations-book-rationale-row">
-                <td colSpan={6}>{position.rationale}</td>
+                <td colSpan={7}>{position.rationale}</td>
               </tr>
             </Fragment>
           ))}

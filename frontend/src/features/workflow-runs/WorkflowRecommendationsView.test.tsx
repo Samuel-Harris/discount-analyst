@@ -37,6 +37,7 @@ function detail(
     is_mock: true,
     error_message: null,
     can_retry_failed_agents: false,
+    portfolio_value_gbp: 10_000,
     surveyor_execution: {
       id: "wfe-surveyor",
       agent_name: "surveyor",
@@ -247,6 +248,12 @@ describe("WorkflowRecommendationsView", () => {
     expect(
       within(seed1Row as HTMLElement).getByText("14.0–15.0%"),
     ).toBeInTheDocument();
+    expect(
+      within(seed1Row as HTMLElement).getByText("£1,500.00"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Cash 20\.0% → 85\.0%/)).toHaveTextContent(
+      "£8,500.00",
+    );
 
     expect(
       screen.getByRole("heading", { name: "Lane ratings" }),

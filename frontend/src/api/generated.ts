@@ -293,6 +293,8 @@ export type WorkflowRunDetailResponseCuratorExecution = AgentExecutionSummary | 
 
 export type WorkflowRunDetailResponseErrorMessage = string | null;
 
+export type WorkflowRunDetailResponsePortfolioValueGbp = number | null;
+
 export type WorkflowRunDetailResponseSurveyorExecution = AgentExecutionSummary | null;
 
 export interface WorkflowRunDetailResponse {
@@ -302,6 +304,7 @@ export interface WorkflowRunDetailResponse {
   error_message: WorkflowRunDetailResponseErrorMessage;
   id: string;
   is_mock: boolean;
+  portfolio_value_gbp: WorkflowRunDetailResponsePortfolioValueGbp;
   runs: TickerRunDetail[];
   started_at: string;
   status: WorkflowRunStatusApi;

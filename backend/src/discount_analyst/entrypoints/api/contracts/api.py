@@ -85,6 +85,7 @@ class WorkflowRunDetailResponse(BaseModel):
     can_retry_failed_agents: bool
     surveyor_execution: AgentExecutionSummary | None
     curator_execution: AgentExecutionSummary | None
+    portfolio_value_gbp: SterlingPounds | None
     runs: list[TickerRunDetail]
 
 
