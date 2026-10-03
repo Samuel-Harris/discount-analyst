@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import pytest
+from pydantic_ai._utils import group_by_temporal
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 from pydantic_ai.models import Model, ModelRequestParameters
 
@@ -52,6 +53,34 @@ class _RaisingModel(Model):
         model_request_parameters: Any,
     ) -> Any:
         raise self._exc
+
+
+class _ChunkModel(Model):
+    @property
+    def model_name(self) -> str:
+        return "gate-test"
+
+    @property
+    def system(self) -> str:
+        return "test"
+
+    async def request(
+        self,
+        messages: list[Any],
+        model_settings: Any,
+        model_request_parameters: Any,
+    ) -> Any:
+        raise NotImplementedError
+
+    @asynccontextmanager
+    async def request_stream(
+        self,
+        messages: list[Any],
+        model_settings: Any,
+        model_request_parameters: Any,
+        run_context: Any = None,
+    ) -> AsyncIterator[Any]:
+        yield None
 
 
 class _HoldingStreamModel(Model):
@@ -289,3 +318,23 @@ async def test_request_stream_holds_the_slot_until_the_caller_exits() -> None:
     await stream_task
     await other_task
     assert order.index("still-holding") < order.index("other-in")
+
+
+@pytest.mark.anyio
+async def test_debounced_stream_returns_the_slot_from_another_task() -> None:
+    gate = ProcessModelGate(1)
+    model = AdmittedModel(_ChunkModel(), gate)
+
+    async def chunks() -> AsyncIterator[str]:
+        async with model.request_stream([], None, ModelRequestParameters()):
+            yield "one"
+            yield "two"
+
+    collected: list[str] = []
+    async with group_by_temporal(chunks(), 0.0) as groups:
+        async for group in groups:
+            collected.extend(group)
+
+    assert collected == ["one", "two"]
+    await asyncio.wait_for(gate.acquire("after"), timeout=0.2)
+    gate.release()

@@ -21,7 +21,7 @@ from typing import Any
 import httpx
 from openai import APIError, RateLimitError
 from pydantic_ai import RunContext
-from pydantic_ai.concurrency import AbstractConcurrencyLimiter, ConcurrencyLimiter
+from pydantic_ai.concurrency import AbstractConcurrencyLimiter
 from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.messages import ModelMessage, ModelResponse
 from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
@@ -173,6 +173,9 @@ class ProcessModelGate(AbstractConcurrencyLimiter):
     """In-process cap on provider model segments, plus one quiet deadline.
 
     At most ``max_running`` slots are held. The queue is unlimited.
+    Slots are an ``asyncio.Semaphore``: a debounced stream enters
+    ``request_stream`` on one task and leaves it on another, and anyio's
+    capacity limiter will not return a token borrowed by a different task.
     ``acquire`` waits out the quiet deadline before taking a slot, and
     drops the slot if another arm moved the deadline. A rate-limit arm
     extends the deadline with ``max``. A failure already in the recent
@@ -182,10 +185,7 @@ class ProcessModelGate(AbstractConcurrencyLimiter):
     def __init__(self, max_running: int) -> None:
         if max_running < 1:
             raise ValueError(f"max_running must be >= 1, got {max_running}.")
-        self._slots = ConcurrencyLimiter(
-            max_running=max_running,
-            name="provider-model",
-        )
+        self._slots = asyncio.Semaphore(max_running)
         self._max_running = max_running
         self._quiet_until = 0.0
         self._armed_failures: deque[BaseException] = deque(maxlen=_ARMED_MEMORY)
@@ -201,7 +201,7 @@ class ProcessModelGate(AbstractConcurrencyLimiter):
             if remaining > 0:
                 await asyncio.sleep(remaining)
                 continue
-            await self._slots.acquire(source)
+            await self._slots.acquire()
             if self.quiet_remaining() > 0:
                 self._slots.release()
                 continue
