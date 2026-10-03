@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncGenerator, AsyncIterator, Iterator
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -23,10 +23,18 @@ from discount_analyst.agents.runtime.model_gate import (
 
 
 @pytest.fixture(autouse=True)
-def _isolated_process_model_gate() -> Iterator[None]:
+def isolated_process_model_gate() -> Iterator[None]:
     reset_process_model_gate()
     yield
     reset_process_model_gate()
+
+
+def _fixed_quiet(seconds: float):
+    def quiet(*, attempt: int, error_text: str) -> float:
+        del attempt, error_text
+        return seconds
+
+    return quiet
 
 
 def _quota_error() -> ModelHTTPError:
@@ -79,7 +87,7 @@ class _ChunkModel(Model):
         model_settings: Any,
         model_request_parameters: Any,
         run_context: Any = None,
-    ) -> AsyncIterator[Any]:
+    ) -> AsyncGenerator[Any]:
         yield None
 
 
@@ -112,7 +120,7 @@ class _HoldingStreamModel(Model):
         model_settings: Any,
         model_request_parameters: Any,
         run_context: Any = None,
-    ) -> AsyncIterator[Any]:
+    ) -> AsyncGenerator[Any]:
         self.started.set()
         try:
             yield None
@@ -230,7 +238,7 @@ async def test_callers_share_one_slot() -> None:
 
 @pytest.mark.anyio
 async def test_quiet_blocks_a_free_slot(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", lambda **_kwargs: 0.05)
+    monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", _fixed_quiet(0.05))
     gate = ProcessModelGate(2)
     holder_in = asyncio.Event()
     release_holder = asyncio.Event()
@@ -257,7 +265,7 @@ async def test_quiet_blocks_a_free_slot(monkeypatch: pytest.MonkeyPatch) -> None
 
 @pytest.mark.anyio
 async def test_quiet_wait_releases_the_slot(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", lambda **_kwargs: 0.05)
+    monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", _fixed_quiet(0.05))
     gate = ProcessModelGate(1)
     await gate.acquire("segment")
     gate.arm(_quota_error(), attempt=0)
@@ -270,7 +278,7 @@ async def test_quiet_wait_releases_the_slot(monkeypatch: pytest.MonkeyPatch) -> 
 async def test_admitted_model_arms_before_releasing_the_slot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", lambda **_kwargs: 60.0)
+    monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", _fixed_quiet(60.0))
     gate = _OrderGate(2)
     model = AdmittedModel(_RaisingModel(_quota_error()), gate)
     with pytest.raises(ModelHTTPError):

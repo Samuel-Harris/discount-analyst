@@ -159,7 +159,7 @@ def _high_jitter(low: float, high: float) -> float:
 
 
 @pytest.fixture(autouse=True)
-def _isolated_process_model_gate() -> Iterator[None]:
+def isolated_process_model_gate() -> Iterator[None]:
     reset_process_model_gate()
     yield
     reset_process_model_gate()
@@ -169,9 +169,14 @@ def _patch_zero_rate_limit_jitter(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(model_gate.random, "uniform", _low_jitter)
 
 
+def _no_quiet(*, attempt: int, error_text: str) -> float:
+    del attempt, error_text
+    return 0.0
+
+
 def _silence_quota_wait(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep quota retries from arming a real 60s quiet period."""
-    monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", lambda **_kwargs: 0.0)
+    monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", _no_quiet)
 
 
 def _quiet_seconds(exc: BaseException, attempt: int) -> float:

@@ -13,7 +13,7 @@ import random
 import re
 import time
 from collections import deque
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from typing import Any
@@ -280,7 +280,7 @@ class AdmittedModel(WrapperModel):
         return self._gate
 
     @asynccontextmanager
-    async def _segment(self, source: str) -> AsyncIterator[None]:
+    async def _segment(self, source: str) -> AsyncGenerator[None]:
         await self._gate.acquire(source)
         try:
             yield
@@ -319,7 +319,7 @@ class AdmittedModel(WrapperModel):
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
         run_context: RunContext[Any] | None = None,
-    ) -> AsyncIterator[StreamedResponse]:
+    ) -> AsyncGenerator[StreamedResponse]:
         async with self._segment(f"model:{self.model_name}"):
             async with self.wrapped.request_stream(
                 messages,
