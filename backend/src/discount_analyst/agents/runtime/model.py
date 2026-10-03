@@ -15,10 +15,15 @@ from discount_analyst.config.ai_models_config import (
     OpenAIAIModelConfig,
 )
 from discount_analyst.config.settings import settings
+from discount_analyst.agents.runtime.model_gate import AdmittedModel, process_model_gate
 from discount_analyst.agents.tools.http.retrying_client import create_rate_limit_client
 
 
 def create_model_from_config(config: AIModelConfig, /) -> Model:
+    return AdmittedModel(_provider_model(config), process_model_gate())
+
+
+def _provider_model(config: AIModelConfig) -> Model:
     match config:
         case AnthropicAIModelConfig():
             if settings.anthropic is None:

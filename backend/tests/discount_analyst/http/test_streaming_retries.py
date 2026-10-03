@@ -1,6 +1,6 @@
 """Unit tests for streaming retry helpers."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any, cast
 
 import httpx
@@ -21,7 +21,9 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.usage import RunUsage, UsageLimits
 
+import discount_analyst.agents.runtime.model_gate as model_gate
 import discount_analyst.agents.runtime.streaming_retries as streaming_retries_mod
+from discount_analyst.agents.runtime.model_gate import reset_process_model_gate
 from discount_analyst.agents.runtime.streaming_retries import (
     api_error_indicates_rate_limit,
     should_repair_structured_output_error,
@@ -152,8 +154,20 @@ def _high_jitter(low: float, high: float) -> float:
     return high
 
 
+@pytest.fixture(autouse=True)
+def _isolated_process_model_gate() -> Iterator[None]:
+    reset_process_model_gate()
+    yield
+    reset_process_model_gate()
+
+
 def _patch_zero_rate_limit_jitter(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(streaming_retries_mod.random, "uniform", _low_jitter)
+    monkeypatch.setattr(model_gate.random, "uniform", _low_jitter)
+
+
+def _silence_quota_wait(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep quota retries from arming a real 60s quiet period."""
+    monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", lambda **_kwargs: 0.0)
 
 
 def test_streaming_retry_sleep_rate_limit_ignores_short_provider_wait(
@@ -184,7 +198,7 @@ def test_streaming_retry_sleep_rate_limit_exponential_grows_then_caps(
 def test_streaming_retry_sleep_rate_limit_adds_high_side_jitter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(streaming_retries_mod.random, "uniform", _high_jitter)
+    monkeypatch.setattr(model_gate.random, "uniform", _high_jitter)
     exc = _api_error(
         "Rate limit reached on requests per min (RPM). Please try again in 2s."
     )
@@ -418,15 +432,7 @@ def _user_prompt_text(message: Any) -> str:
 async def test_stream_with_retries_resumes_with_copied_history_and_usage(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def _no_wait(exc: BaseException, attempt: int) -> float:
-        del exc, attempt
-        return 0.0
-
-    monkeypatch.setattr(
-        streaming_retries_mod,
-        "streaming_retry_sleep_seconds",
-        _no_wait,
-    )
+    _silence_quota_wait(monkeypatch)
 
     first_messages = [{"turn": {"text": "first-attempt"}}]
     first_usage = RunUsage(input_tokens=11, output_tokens=7, details={"cached": 1})
@@ -502,15 +508,7 @@ async def test_stream_with_retries_resumes_with_copied_history_and_usage(
 async def test_stream_with_retries_preserves_checkpoint_across_open_retry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def _no_wait(exc: BaseException, attempt: int) -> float:
-        del exc, attempt
-        return 0.0
-
-    monkeypatch.setattr(
-        streaming_retries_mod,
-        "streaming_retry_sleep_seconds",
-        _no_wait,
-    )
+    _silence_quota_wait(monkeypatch)
 
     first_messages = [{"turn": {"text": "checkpointed"}}]
     first_usage = RunUsage(input_tokens=9, output_tokens=4, details={"reasoning": 2})
@@ -578,11 +576,17 @@ async def test_stream_with_retries_checkpoints_captured_open_messages_on_tpm(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     sleep_calls: list[float] = []
+    clock = {"now": 1_000.0}
+
+    def _clock_now() -> float:
+        return clock["now"]
 
     async def _record_sleep(delay: float) -> None:
         sleep_calls.append(delay)
+        clock["now"] += delay
 
-    monkeypatch.setattr(streaming_retries_mod.asyncio, "sleep", _record_sleep)
+    monkeypatch.setattr(model_gate, "_now", _clock_now)
+    monkeypatch.setattr(model_gate.asyncio, "sleep", _record_sleep)
 
     captured_messages = [{"turn": {"text": "tool-progress-before-tpm"}}]
     first_cm = _FakeRunStreamContextManager(
@@ -646,15 +650,7 @@ async def test_stream_with_retries_checkpoints_captured_open_messages_on_tpm(
 async def test_stream_with_retries_retries_uncheckpointed_rate_limit_at_open(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def _no_wait(exc: BaseException, attempt: int) -> float:
-        del exc, attempt
-        return 0.0
-
-    monkeypatch.setattr(
-        streaming_retries_mod,
-        "streaming_retry_sleep_seconds",
-        _no_wait,
-    )
+    _silence_quota_wait(monkeypatch)
 
     failed_open_cm = _FakeRunStreamContextManager(
         enter_error=_api_error("Rate limit reached while opening stream.")
@@ -943,15 +939,7 @@ async def test_stream_with_retries_retries_connection_error_before_checkpoint(
 async def test_stream_with_retries_get_output_retry_preserves_history_and_usage(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def _no_wait(exc: BaseException, attempt: int) -> float:
-        del exc, attempt
-        return 0.0
-
-    monkeypatch.setattr(
-        streaming_retries_mod,
-        "streaming_retry_sleep_seconds",
-        _no_wait,
-    )
+    _silence_quota_wait(monkeypatch)
 
     first_messages = [{"turn": {"text": "before-get-output"}}]
     first_usage = RunUsage(input_tokens=13, output_tokens=8, details={"cached": 3})
@@ -1014,15 +1002,7 @@ async def test_stream_with_retries_get_output_retry_preserves_history_and_usage(
 async def test_stream_with_retries_get_output_retry_uses_response_partial(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def _no_wait(exc: BaseException, attempt: int) -> float:
-        del exc, attempt
-        return 0.0
-
-    monkeypatch.setattr(
-        streaming_retries_mod,
-        "streaming_retry_sleep_seconds",
-        _no_wait,
-    )
+    _silence_quota_wait(monkeypatch)
 
     first_messages = [{"turn": {"text": "before-response-partial"}}]
     first_result = _FakeStreamedRunResult(

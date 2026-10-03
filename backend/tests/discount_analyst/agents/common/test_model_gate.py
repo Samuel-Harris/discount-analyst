@@ -1,0 +1,259 @@
+"""Process model gate: shared slots and one quiet deadline."""
+
+from __future__ import annotations
+
+import asyncio
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager
+from typing import Any
+
+import pytest
+from pydantic_ai.exceptions import ModelHTTPError
+from pydantic_ai.models import Model, ModelRequestParameters
+
+import discount_analyst.agents.runtime.model_gate as model_gate
+from discount_analyst.agents.runtime.model_gate import (
+    AdmittedModel,
+    ProcessModelGate,
+    bind_stream_attempt,
+    process_model_gate,
+    reset_process_model_gate,
+)
+
+
+@pytest.fixture(autouse=True)
+def _isolated_process_model_gate() -> Iterator[None]:
+    reset_process_model_gate()
+    yield
+    reset_process_model_gate()
+
+
+def _quota_error() -> ModelHTTPError:
+    return ModelHTTPError(429, "gate-test", {"message": "rate limit"})
+
+
+class _RaisingModel(Model):
+    def __init__(self, exc: BaseException) -> None:
+        super().__init__()
+        self._exc = exc
+
+    @property
+    def model_name(self) -> str:
+        return "gate-test"
+
+    @property
+    def system(self) -> str:
+        return "test"
+
+    async def request(
+        self,
+        messages: list[Any],
+        model_settings: Any,
+        model_request_parameters: Any,
+    ) -> Any:
+        raise self._exc
+
+
+class _HoldingStreamModel(Model):
+    def __init__(self) -> None:
+        super().__init__()
+        self.started = asyncio.Event()
+        self.finish = asyncio.Event()
+
+    @property
+    def model_name(self) -> str:
+        return "gate-test"
+
+    @property
+    def system(self) -> str:
+        return "test"
+
+    async def request(
+        self,
+        messages: list[Any],
+        model_settings: Any,
+        model_request_parameters: Any,
+    ) -> Any:
+        raise NotImplementedError
+
+    @asynccontextmanager
+    async def request_stream(
+        self,
+        messages: list[Any],
+        model_settings: Any,
+        model_request_parameters: Any,
+        run_context: Any = None,
+    ) -> AsyncIterator[Any]:
+        self.started.set()
+        try:
+            yield None
+        finally:
+            await self.finish.wait()
+
+
+class _OrderGate(ProcessModelGate):
+    def __init__(self, max_running: int) -> None:
+        super().__init__(max_running)
+        self.events: list[str] = []
+
+    def arm_from_exception(self, exc: BaseException) -> None:
+        self.events.append("arm")
+        super().arm_from_exception(exc)
+
+    def release(self) -> None:
+        self.events.append("quiet" if self.quiet_remaining() > 0 else "open")
+        super().release()
+
+
+def test_process_model_gate_is_a_process_singleton(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(model_gate.settings, "model_max_running", 3)
+    gate = process_model_gate()
+    assert gate is process_model_gate()
+    assert gate.max_running == 3
+
+
+def test_same_exception_arms_the_quiet_deadline_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[int] = []
+
+    def _quiet(*, attempt: int, error_text: str) -> float:
+        del error_text
+        calls.append(attempt)
+        return 60.0
+
+    clock = {"now": 1_000.0}
+    monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", _quiet)
+    monkeypatch.setattr(model_gate, "_now", lambda: clock["now"])
+    gate = ProcessModelGate(2)
+    exc = _quota_error()
+    bind_stream_attempt(1)
+    gate.arm_from_exception(exc)
+    gate.arm_from_exception(exc)
+    assert calls == [1]
+    assert gate.quiet_remaining() == 60.0
+
+
+def test_a_later_quota_failure_extends_the_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _quiet(*, attempt: int, error_text: str) -> float:
+        del error_text
+        return 60.0 if attempt == 0 else 120.0
+
+    clock = {"now": 1_000.0}
+    monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", _quiet)
+    monkeypatch.setattr(model_gate, "_now", lambda: clock["now"])
+    gate = ProcessModelGate(2)
+    bind_stream_attempt(0)
+    gate.arm_from_exception(_quota_error())
+    assert gate.quiet_remaining() == 60.0
+    bind_stream_attempt(1)
+    gate.arm_from_exception(_quota_error())
+    assert gate.quiet_remaining() == 120.0
+
+
+@pytest.mark.anyio
+async def test_callers_share_one_slot() -> None:
+    gate = ProcessModelGate(1)
+    order: list[str] = []
+
+    async def _hold() -> None:
+        await gate.acquire("first")
+        order.append("first-in")
+        await asyncio.sleep(0.05)
+        gate.release()
+        order.append("first-out")
+
+    async def _wait() -> None:
+        await asyncio.sleep(0.01)
+        order.append("second-wait")
+        await gate.acquire("second")
+        order.append("second-in")
+        gate.release()
+
+    await asyncio.gather(_hold(), _wait())
+    assert order.index("first-out") < order.index("second-in")
+
+
+@pytest.mark.anyio
+async def test_quiet_blocks_a_free_slot(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", lambda **_kwargs: 0.05)
+    gate = ProcessModelGate(2)
+    await gate.acquire("holder")
+    bind_stream_attempt(0)
+    gate.arm_from_exception(_quota_error())
+    started = asyncio.get_running_loop().time()
+    await asyncio.wait_for(gate.acquire("other"), timeout=1.0)
+    elapsed = asyncio.get_running_loop().time() - started
+    gate.release()
+    gate.release()
+    assert elapsed >= 0.04
+
+
+@pytest.mark.anyio
+async def test_quiet_wait_releases_the_slot(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", lambda **_kwargs: 0.05)
+    gate = ProcessModelGate(1)
+    bind_stream_attempt(0)
+    await gate.acquire("segment")
+    gate.arm_from_exception(_quota_error())
+    gate.release()
+    await asyncio.wait_for(gate.acquire("retry"), timeout=1.0)
+    gate.release()
+
+
+@pytest.mark.anyio
+async def test_admitted_model_arms_before_releasing_the_slot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", lambda **_kwargs: 60.0)
+    gate = _OrderGate(2)
+    model = AdmittedModel(_RaisingModel(_quota_error()), gate)
+    with pytest.raises(ModelHTTPError):
+        await model.request([], None, ModelRequestParameters())
+    assert gate.events == ["arm", "quiet"]
+
+
+@pytest.mark.anyio
+async def test_admitted_model_does_not_arm_when_cancelled() -> None:
+    gate = _OrderGate(1)
+    model = AdmittedModel(_RaisingModel(asyncio.CancelledError()), gate)
+    with pytest.raises(asyncio.CancelledError):
+        await model.request([], None, ModelRequestParameters())
+    assert gate.events == ["open"]
+
+
+@pytest.mark.anyio
+async def test_request_stream_holds_the_slot_until_the_caller_exits() -> None:
+    gate = ProcessModelGate(1)
+    inner = _HoldingStreamModel()
+    model = AdmittedModel(inner, gate)
+    order: list[str] = []
+
+    async def _stream() -> None:
+        async with model.request_stream([], None, ModelRequestParameters()):
+            order.append("streaming")
+            await asyncio.sleep(0.05)
+            order.append("still-holding")
+
+    async def _other() -> None:
+        await inner.started.wait()
+        order.append("other-wait")
+        await gate.acquire("other")
+        order.append("other-in")
+        gate.release()
+
+    stream_task = asyncio.create_task(_stream())
+    await inner.started.wait()
+    other_task = asyncio.create_task(_other())
+    try:
+        await asyncio.sleep(0.01)
+        assert "other-in" not in order
+    finally:
+        inner.finish.set()
+    await stream_task
+    await other_task
+    assert order.index("still-holding") < order.index("other-in")

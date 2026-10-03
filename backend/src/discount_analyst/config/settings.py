@@ -170,6 +170,17 @@ class Settings(BaseSettings):
         ),
         description="Maximum combined stdout+stderr bytes returned per terminal_exec.",
     )
+    model_max_running: int = Field(
+        default=2,
+        ge=1,
+        le=8,
+        validation_alias="MODEL_MAX_RUNNING",
+        description=(
+            "Maximum provider model streams in flight in this process. "
+            "Further streams wait. After a rate-limit failure, new streams "
+            "also wait out the shared quiet period."
+        ),
+    )
     deploy_env: Literal["DEV", "PROD"] = Field(
         default="DEV",
         validation_alias=AliasChoices("ENV", "DASHBOARD_DEPLOY_ENV"),
