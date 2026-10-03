@@ -149,22 +149,23 @@ class _OrderGate(ProcessModelGate):
         super().release()
 
 
-def test_each_model_family_has_its_own_gate(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(model_gate.settings, "model_max_running_sol", 5)
-    monkeypatch.setattr(model_gate.settings, "model_max_running_luna", 20)
-    reset_process_model_gate()
-    sol = process_model_gate("gpt-6.1-sol")
-    luna = process_model_gate("gpt-6-luna")
-    other = process_model_gate("deepseek-v4-pro")
-    assert sol is process_model_gate("gpt-6.1-sol")
-    assert luna is process_model_gate("gpt-5.6-luna")
+def test_each_model_name_has_its_own_gate() -> None:
+    sol = process_model_gate("gpt-6.1-sol", 5)
+    luna = process_model_gate("gpt-6-luna", 20)
+    older_luna = process_model_gate("gpt-5.6-luna", 1)
+    assert sol is process_model_gate("gpt-6.1-sol", 5)
+    assert luna is process_model_gate("gpt-6-luna", 20)
     assert sol is not luna
-    assert other is not sol
+    assert older_luna is not luna
     assert sol.max_running == 5
     assert luna.max_running == 20
-    assert other.max_running == 2
+    assert older_luna.max_running == 1
+
+
+def test_a_second_cap_for_the_same_model_name_raises() -> None:
+    process_model_gate("gpt-6-luna", 20)
+    with pytest.raises(ValueError, match="gpt-6-luna"):
+        process_model_gate("gpt-6-luna", 1)
 
 
 def test_a_sol_rate_limit_does_not_quiet_luna(
@@ -172,22 +173,17 @@ def test_a_sol_rate_limit_does_not_quiet_luna(
 ) -> None:
     monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", _fixed_quiet(60.0))
     monkeypatch.setattr(model_gate.time, "monotonic", _fixed_monotonic(1_000.0))
-    sol = process_model_gate("gpt-6.1-sol")
-    luna = process_model_gate("gpt-6-luna")
+    sol = process_model_gate("gpt-6.1-sol", 5)
+    luna = process_model_gate("gpt-6-luna", 20)
     sol.arm(_quota_error(), attempt=0)
     assert sol.sleep_time_remaining_s == 60.0
     assert luna.sleep_time_remaining_s == 0.0
 
 
 @pytest.mark.anyio
-async def test_a_full_sol_gate_does_not_block_luna(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(model_gate.settings, "model_max_running_sol", 1)
-    monkeypatch.setattr(model_gate.settings, "model_max_running_luna", 1)
-    reset_process_model_gate()
-    sol = process_model_gate("gpt-6.1-sol")
-    luna = process_model_gate("gpt-6-luna")
+async def test_a_full_sol_gate_does_not_block_luna() -> None:
+    sol = process_model_gate("gpt-6.1-sol", 1)
+    luna = process_model_gate("gpt-6-luna", 1)
     await sol.acquire("sol")
     await asyncio.wait_for(luna.acquire("luna"), timeout=0.2)
     luna.release()

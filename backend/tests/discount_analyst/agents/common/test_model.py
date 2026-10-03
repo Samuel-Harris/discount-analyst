@@ -3,6 +3,7 @@ from typing import Any
 
 import pytest
 from pydantic_ai.models import Model
+from pydantic_ai.models.openai import OpenAIResponsesModel
 
 from discount_analyst.agents.runtime import model as model_module
 from discount_analyst.agents.runtime.model_gate import (
@@ -82,11 +83,32 @@ def test_create_deepseek_model_uses_deepseek_provider(
     )
 
     assert isinstance(created_model, AdmittedModel)
-    assert created_model.gate is process_model_gate("deepseek-v4-pro")
-    assert created_model.gate.max_running == 2
+    assert created_model.gate is process_model_gate("deepseek-v4-pro", 1)
+    assert created_model.gate.max_running == 1
     provider_model = created_model.wrapped
     assert isinstance(provider_model, FakeOpenAIChatModel)
     assert provider_model.model_name == "deepseek-v4-pro"
     assert created_providers[0].api_key == "test-deepseek-key"
     assert provider_model.provider is created_providers[0]
     assert created_clients == [1200]
+
+
+def test_sol_responses_model_sends_pro_reasoning_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        model_module,
+        "settings",
+        SimpleNamespace(openai=SimpleNamespace(api_key="test-openai-key")),
+    )
+
+    created_model = model_module.create_model_from_config(
+        AIModelsConfig(model_name=ModelName.GPT_6_1_SOL).model
+    )
+
+    assert isinstance(created_model, AdmittedModel)
+    provider_model = created_model.wrapped
+    assert isinstance(provider_model, OpenAIResponsesModel)
+    assert (
+        provider_model.profile.get("openai_responses_supports_reasoning_mode") is True
+    )

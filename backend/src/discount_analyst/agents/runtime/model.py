@@ -2,6 +2,7 @@ from pydantic_ai.models import Model
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
+from pydantic_ai.profiles.openai import OpenAIModelProfile
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.deepseek import DeepSeekProvider
 from pydantic_ai.providers.google import GoogleProvider
@@ -22,8 +23,22 @@ from discount_analyst.agents.tools.http.retrying_client import create_rate_limit
 def create_model_from_config(config: AIModelConfig, /) -> Model:
     return AdmittedModel(
         _provider_model(config),
-        process_model_gate(config.model_name),
+        process_model_gate(config.model_name, config.max_concurrent_agents),
     )
+
+
+def _openai_reasoning_mode_profile(
+    config: OpenAIAIModelConfig,
+) -> OpenAIModelProfile | None:
+    """Let Responses send ``reasoning.mode`` when it is not the API default.
+
+    pydantic-ai 2.27 only marks ``gpt-5.6*`` as supporting that field, so
+    ``gpt-6.1-sol``'s ``pro`` mode would otherwise be dropped.
+    """
+    if config.reasoning_mode == "standard":
+        return None
+    profile: OpenAIModelProfile = {"openai_responses_supports_reasoning_mode": True}
+    return profile
 
 
 def _provider_model(config: AIModelConfig) -> Model:
@@ -55,6 +70,7 @@ def _provider_model(config: AIModelConfig) -> Model:
                         timeout=1200
                     ),  # 20 min for long runs
                 ),
+                profile=_openai_reasoning_mode_profile(config),
             )
         case GoogleAIModelConfig():
             if settings.google is None:
