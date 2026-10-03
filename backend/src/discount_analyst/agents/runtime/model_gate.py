@@ -12,6 +12,7 @@ import asyncio
 import random
 import re
 import time
+from collections import deque
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
@@ -19,13 +20,13 @@ from typing import Any
 
 import httpx
 from openai import APIError, RateLimitError
+from pydantic_ai import RunContext
 from pydantic_ai.concurrency import AbstractConcurrencyLimiter, ConcurrencyLimiter
 from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.messages import ModelMessage, ModelResponse
 from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
 from pydantic_ai.models.wrapper import WrapperModel
 from pydantic_ai.settings import ModelSettings
-from pydantic_ai import RunContext
 from pydantic_ai.usage import RequestUsage
 
 from discount_analyst.config.settings import settings
@@ -46,15 +47,16 @@ _TRY_AGAIN_IN_RE = re.compile(
     re.IGNORECASE,
 )
 _ATTEMPT: ContextVar[int] = ContextVar("discount_analyst_model_gate_attempt", default=0)
-_ARMED_ATTR = "_model_gate_armed"
+_ARMED_MEMORY = 32
 _process_gate: ProcessModelGate | None = None
 
 
 def bind_stream_attempt(attempt: int) -> None:
-    """Record this task's stream-retry attempt for quiet-period arming.
+    """Record this task's stream-retry attempt for ``AdmittedModel``.
 
-    ``attempt`` is the zero-based index ``stream_with_retries`` already
-    uses. A missing bind reads as attempt 0. The value is task-local.
+    The model call does not receive the attempt, so the wrapper reads
+    this task-local value and passes it to ``ProcessModelGate.arm``.
+    A missing bind reads as attempt 0.
     """
     _ATTEMPT.set(attempt)
 
@@ -98,22 +100,35 @@ def is_provider_rate_limit(exc: BaseException) -> bool:
     ``ModelHTTPError`` 429, httpx 429, and the quota needles. Connection,
     timeout, and 5xx failures are false.
     """
+    return _is_provider_rate_limit(exc, seen=set())
+
+
+def _is_provider_rate_limit(exc: BaseException, *, seen: set[int]) -> bool:
+    exc_id = id(exc)
+    if exc_id in seen:
+        return False
+    seen.add(exc_id)
     if isinstance(exc, RateLimitError):
         return True
     if isinstance(exc, ModelHTTPError) and exc.status_code == 429:
         return True
     if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 429:
         return True
-    if isinstance(exc, APIError) and error_text_indicates_rate_limit(
-        _exception_text(exc)
-    ):
-        return True
-    if error_text_indicates_rate_limit(_exception_text(exc)):
-        return True
     if error_text_indicates_rate_limit(provider_error_text(exc)):
         return True
     cause = exc.__cause__
-    return cause is not None and is_provider_rate_limit(cause)
+    return cause is not None and _is_provider_rate_limit(cause, seen=seen)
+
+
+def _exception_chain(exc: BaseException) -> tuple[BaseException, ...]:
+    chain: list[BaseException] = []
+    current: BaseException | None = exc
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        chain.append(current)
+        current = current.__cause__
+    return tuple(chain)
 
 
 def _provider_retry_after_seconds(text: str) -> float:
@@ -160,8 +175,8 @@ class ProcessModelGate(AbstractConcurrencyLimiter):
     At most ``max_running`` slots are held. The queue is unlimited.
     ``acquire`` waits out the quiet deadline before taking a slot, and
     drops the slot if another arm moved the deadline. A rate-limit arm
-    extends the deadline with ``max`` and does not stack two waits for
-    the same exception object.
+    extends the deadline with ``max``. A failure already in the recent
+    chain, including one wrapped as ``__cause__``, does not arm again.
     """
 
     def __init__(self, max_running: int) -> None:
@@ -173,6 +188,7 @@ class ProcessModelGate(AbstractConcurrencyLimiter):
         )
         self._max_running = max_running
         self._quiet_until = 0.0
+        self._armed_failures: deque[BaseException] = deque(maxlen=_ARMED_MEMORY)
 
     @property
     def max_running(self) -> int:
@@ -195,23 +211,23 @@ class ProcessModelGate(AbstractConcurrencyLimiter):
         """Return one slot. Only valid while this caller holds one."""
         self._slots.release()
 
-    def arm_from_exception(self, exc: BaseException) -> None:
+    def arm(self, exc: BaseException, *, attempt: int) -> None:
         """Extend the quiet deadline when ``exc`` is a provider rate limit.
 
-        A second call with the same exception object does not add another
-        wait. ``CancelledError`` is not an ``Exception`` and is not passed
-        here.
+        ``attempt`` is the zero-based stream retry index. A second call for
+        the same failure, including a new exception whose ``__cause__`` is
+        already armed, does not add another wait.
         """
         if not is_provider_rate_limit(exc):
             return
-        if getattr(exc, _ARMED_ATTR, False):
+        chain = _exception_chain(exc)
+        if any(
+            remembered is link for link in chain for remembered in self._armed_failures
+        ):
             return
-        try:
-            setattr(exc, _ARMED_ATTR, True)
-        except (AttributeError, TypeError):
-            pass
+        self._armed_failures.extend(chain)
         duration = rate_limit_quiet_seconds(
-            attempt=bound_stream_attempt(),
+            attempt=attempt,
             error_text=provider_error_text(exc),
         )
         self._quiet_until = max(self._quiet_until, _now() + duration)
@@ -269,7 +285,7 @@ class AdmittedModel(WrapperModel):
         try:
             yield
         except Exception as exc:
-            self._gate.arm_from_exception(exc)
+            self._gate.arm(exc, attempt=bound_stream_attempt())
             raise
         finally:
             self._gate.release()

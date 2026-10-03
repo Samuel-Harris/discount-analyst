@@ -23,7 +23,11 @@ from pydantic_ai.usage import RunUsage, UsageLimits
 
 import discount_analyst.agents.runtime.model_gate as model_gate
 import discount_analyst.agents.runtime.streaming_retries as streaming_retries_mod
-from discount_analyst.agents.runtime.model_gate import reset_process_model_gate
+from discount_analyst.agents.runtime.model_gate import (
+    provider_error_text,
+    rate_limit_quiet_seconds,
+    reset_process_model_gate,
+)
 from discount_analyst.agents.runtime.streaming_retries import (
     api_error_indicates_rate_limit,
     should_repair_structured_output_error,
@@ -170,7 +174,14 @@ def _silence_quota_wait(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", lambda **_kwargs: 0.0)
 
 
-def test_streaming_retry_sleep_rate_limit_ignores_short_provider_wait(
+def _quiet_seconds(exc: BaseException, attempt: int) -> float:
+    return rate_limit_quiet_seconds(
+        attempt=attempt,
+        error_text=provider_error_text(exc),
+    )
+
+
+def test_rate_limit_quiet_seconds_ignores_short_provider_wait(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_zero_rate_limit_jitter(monkeypatch)
@@ -178,37 +189,37 @@ def test_streaming_retry_sleep_rate_limit_ignores_short_provider_wait(
         "Rate limit reached for gpt-5.1 on tokens per min (TPM): "
         "Limit 500000. Please try again in 1.5s."
     )
-    assert streaming_retry_sleep_seconds(exc, attempt=0) == 60.0
+    assert _quiet_seconds(exc, attempt=0) == 60.0
 
 
-def test_streaming_retry_sleep_rate_limit_exponential_grows_then_caps(
+def test_rate_limit_quiet_seconds_exponential_grows_then_caps(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_zero_rate_limit_jitter(monkeypatch)
     exc = _api_error(
         "Rate limit reached on requests per min (RPM). Please try again in 2s."
     )
-    assert streaming_retry_sleep_seconds(exc, attempt=0) == 60.0
-    assert streaming_retry_sleep_seconds(exc, attempt=1) == 120.0
-    assert streaming_retry_sleep_seconds(exc, attempt=2) == 240.0
-    assert streaming_retry_sleep_seconds(exc, attempt=3) == 480.0
-    assert streaming_retry_sleep_seconds(exc, attempt=4) == 480.0
+    assert _quiet_seconds(exc, 0) == 60.0
+    assert _quiet_seconds(exc, 1) == 120.0
+    assert _quiet_seconds(exc, 2) == 240.0
+    assert _quiet_seconds(exc, 3) == 480.0
+    assert _quiet_seconds(exc, 4) == 480.0
 
 
-def test_streaming_retry_sleep_rate_limit_adds_high_side_jitter(
+def test_rate_limit_quiet_seconds_adds_high_side_jitter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(model_gate.random, "uniform", _high_jitter)
     exc = _api_error(
         "Rate limit reached on requests per min (RPM). Please try again in 2s."
     )
-    assert streaming_retry_sleep_seconds(exc, attempt=0) == 75.0
-    assert streaming_retry_sleep_seconds(exc, attempt=1) == 150.0
-    assert streaming_retry_sleep_seconds(exc, attempt=2) == 300.0
-    assert streaming_retry_sleep_seconds(exc, attempt=3) == 480.0
+    assert _quiet_seconds(exc, 0) == 75.0
+    assert _quiet_seconds(exc, 1) == 150.0
+    assert _quiet_seconds(exc, 2) == 300.0
+    assert _quiet_seconds(exc, 3) == 480.0
 
 
-def test_streaming_retry_sleep_rate_limit_honours_longer_provider_wait(
+def test_rate_limit_quiet_seconds_honours_longer_provider_wait(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_zero_rate_limit_jitter(monkeypatch)
@@ -216,13 +227,13 @@ def test_streaming_retry_sleep_rate_limit_honours_longer_provider_wait(
         "Rate limit reached for gpt-5.6-luna on tokens per min (TPM): "
         "Please try again in 90s."
     )
-    assert streaming_retry_sleep_seconds(exc, attempt=0) == 90.0
-    assert streaming_retry_sleep_seconds(exc, attempt=1) == 120.0
+    assert _quiet_seconds(exc, 0) == 90.0
+    assert _quiet_seconds(exc, 1) == 120.0
 
 
-def test_streaming_retry_sleep_rate_limit_caps_long_provider_wait() -> None:
+def test_rate_limit_quiet_seconds_caps_long_provider_wait() -> None:
     exc = _api_error("Rate limit reached. Please try again in 900s.")
-    assert streaming_retry_sleep_seconds(exc, attempt=0) == 480.0
+    assert _quiet_seconds(exc, 0) == 480.0
 
 
 def test_streaming_retry_sleep_fallback_exponential() -> None:
@@ -256,15 +267,15 @@ def test_should_retry_streaming_error_model_api_wrapped_httpx_429() -> None:
     assert should_retry_streaming_error(wrapped) is True
 
 
-def test_streaming_retry_sleep_model_http_429_uses_floor(
+def test_rate_limit_quiet_seconds_model_http_429_uses_floor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_zero_rate_limit_jitter(monkeypatch)
     exc = _model_http_error(429, {"message": "slow down"})
-    assert streaming_retry_sleep_seconds(exc, attempt=0) == 60.0
+    assert _quiet_seconds(exc, 0) == 60.0
 
 
-def test_streaming_retry_sleep_wrapped_httpx_429_uses_floor(
+def test_rate_limit_quiet_seconds_wrapped_httpx_429_uses_floor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_zero_rate_limit_jitter(monkeypatch)
@@ -276,7 +287,7 @@ def test_streaming_retry_sleep_wrapped_httpx_429_uses_floor(
     )
     wrapped = ModelAPIError("gpt-5.6-luna", "Connection error.")
     wrapped.__cause__ = http_exc
-    assert streaming_retry_sleep_seconds(wrapped, attempt=0) == 60.0
+    assert _quiet_seconds(wrapped, 0) == 60.0
 
 
 class _FakeStreamedRunResult:

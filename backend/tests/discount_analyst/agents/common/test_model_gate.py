@@ -8,14 +8,14 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import pytest
-from pydantic_ai.exceptions import ModelHTTPError
+from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 from pydantic_ai.models import Model, ModelRequestParameters
 
 import discount_analyst.agents.runtime.model_gate as model_gate
 from discount_analyst.agents.runtime.model_gate import (
     AdmittedModel,
     ProcessModelGate,
-    bind_stream_attempt,
+    is_provider_rate_limit,
     process_model_gate,
     reset_process_model_gate,
 )
@@ -96,9 +96,9 @@ class _OrderGate(ProcessModelGate):
         super().__init__(max_running)
         self.events: list[str] = []
 
-    def arm_from_exception(self, exc: BaseException) -> None:
+    def arm(self, exc: BaseException, *, attempt: int) -> None:
         self.events.append("arm")
-        super().arm_from_exception(exc)
+        super().arm(exc, attempt=attempt)
 
     def release(self) -> None:
         self.events.append("quiet" if self.quiet_remaining() > 0 else "open")
@@ -129,9 +129,8 @@ def test_same_exception_arms_the_quiet_deadline_once(
     monkeypatch.setattr(model_gate, "_now", lambda: clock["now"])
     gate = ProcessModelGate(2)
     exc = _quota_error()
-    bind_stream_attempt(1)
-    gate.arm_from_exception(exc)
-    gate.arm_from_exception(exc)
+    gate.arm(exc, attempt=1)
+    gate.arm(exc, attempt=1)
     assert calls == [1]
     assert gate.quiet_remaining() == 60.0
 
@@ -149,12 +148,32 @@ def test_a_later_quota_failure_extends_the_deadline(
     gate = ProcessModelGate(2)
     first = _quota_error()
     second = _quota_error()
-    bind_stream_attempt(0)
-    gate.arm_from_exception(first)
+    gate.arm(first, attempt=0)
     assert gate.quiet_remaining() == 60.0
-    bind_stream_attempt(1)
-    gate.arm_from_exception(second)
+    gate.arm(second, attempt=1)
     assert gate.quiet_remaining() == 120.0
+
+
+def test_wrapped_cause_does_not_arm_again(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[int] = []
+
+    def _quiet(*, attempt: int, error_text: str) -> float:
+        del error_text
+        calls.append(attempt)
+        return 60.0 if attempt == 0 else 120.0
+
+    clock = {"now": 1_000.0}
+    monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", _quiet)
+    monkeypatch.setattr(model_gate, "_now", lambda: clock["now"])
+    gate = ProcessModelGate(2)
+    inner = _quota_error()
+    gate.arm(inner, attempt=0)
+    wrapped = ModelAPIError("gate-test", "Connection error.")
+    wrapped.__cause__ = inner
+    assert is_provider_rate_limit(wrapped) is True
+    gate.arm(wrapped, attempt=1)
+    assert calls == [0]
+    assert gate.quiet_remaining() == 60.0
 
 
 @pytest.mark.anyio
@@ -195,8 +214,7 @@ async def test_quiet_blocks_a_free_slot(monkeypatch: pytest.MonkeyPatch) -> None
 
     holder_task = asyncio.create_task(_hold())
     await holder_in.wait()
-    bind_stream_attempt(0)
-    gate.arm_from_exception(_quota_error())
+    gate.arm(_quota_error(), attempt=0)
     started = asyncio.get_running_loop().time()
     try:
         await asyncio.wait_for(gate.acquire("other"), timeout=1.0)
@@ -212,9 +230,8 @@ async def test_quiet_blocks_a_free_slot(monkeypatch: pytest.MonkeyPatch) -> None
 async def test_quiet_wait_releases_the_slot(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", lambda **_kwargs: 0.05)
     gate = ProcessModelGate(1)
-    bind_stream_attempt(0)
     await gate.acquire("segment")
-    gate.arm_from_exception(_quota_error())
+    gate.arm(_quota_error(), attempt=0)
     gate.release()
     await asyncio.wait_for(gate.acquire("retry"), timeout=1.0)
     gate.release()

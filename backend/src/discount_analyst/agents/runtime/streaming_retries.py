@@ -46,8 +46,6 @@ from discount_analyst.agents.runtime.model_gate import (
     error_text_indicates_rate_limit,
     is_provider_rate_limit,
     process_model_gate,
-    provider_error_text,
-    rate_limit_quiet_seconds,
 )
 from discount_analyst.agents.runtime.structured_output_unwrap import (
     singleton_envelope_keys_for_prompt,
@@ -90,10 +88,6 @@ def api_error_indicates_rate_limit(exc: APIError) -> bool:
     return error_text_indicates_rate_limit(text)
 
 
-def _is_rate_limit_error(exc: BaseException) -> bool:
-    return is_provider_rate_limit(exc)
-
-
 def _is_connection_error(exc: BaseException) -> bool:
     """True for transport/connect failures, including pydantic-ai's ModelAPIError wrap."""
     if isinstance(
@@ -128,7 +122,7 @@ def _is_retryable_single_error(exc: BaseException) -> bool:
     """Check if a single exception (not a group) is retryable."""
     if (
         _is_connection_error(exc)
-        or _is_rate_limit_error(exc)
+        or is_provider_rate_limit(exc)
         or _is_idle_read_transport_error(exc)
     ):
         return True
@@ -190,7 +184,7 @@ def _can_retry_open_without_checkpoint(exc: BaseException) -> bool:
         return all(_can_retry_open_without_checkpoint(sub) for sub in group.exceptions)
     return (
         _is_connection_error(exc)
-        or _is_rate_limit_error(exc)
+        or is_provider_rate_limit(exc)
         or _is_idle_read_transport_error(exc)
     )
 
@@ -204,17 +198,8 @@ def _stream_wait(attempt: int) -> float:
 
 
 def streaming_retry_sleep_seconds(exc: BaseException, attempt: int) -> float:
-    """Seconds to wait before a non-quota retry.
-
-    Quota failures do not use this number on the live path. They arm the
-    process model gate and ``wait_until_quiet``. This function still returns
-    the quiet duration for quota errors so schedule tests keep one formula.
-    """
-    if _is_rate_limit_error(exc):
-        return rate_limit_quiet_seconds(
-            attempt=attempt,
-            error_text=provider_error_text(exc),
-        )
+    """Seconds for a connection, timeout, or other non-quota retry."""
+    del exc
     return min(_stream_wait(attempt), FALLBACK_MAX_WEIGHT_SECONDS)
 
 
@@ -380,19 +365,19 @@ class StreamWithRetriesContext[T]:
     def _planned_retry_wait(self, exc: BaseException) -> float:
         """Seconds to log before the next attempt.
 
-        A quota failure arms the process gate and reports the shared quiet
-        time still remaining. Any other retry uses the local backoff.
+        Quota failures arm the process gate when the model wrapper has not
+        already armed this failure, then report the shared quiet time still
+        remaining. Any other retry uses the local backoff.
         """
-        bind_stream_attempt(self._attempt_index)
-        if _is_rate_limit_error(exc):
+        if is_provider_rate_limit(exc):
             gate = process_model_gate()
-            gate.arm_from_exception(exc)
+            gate.arm(exc, attempt=self._attempt_index)
             return gate.quiet_remaining()
         return streaming_retry_sleep_seconds(exc, self._attempt_index)
 
     async def _wait_out_retry(self, exc: BaseException, wait: float) -> None:
         """Pause before the next attempt. Quota pauses do not hold a slot."""
-        if _is_rate_limit_error(exc):
+        if is_provider_rate_limit(exc):
             await process_model_gate().wait_until_quiet()
             return
         await asyncio.sleep(wait)
