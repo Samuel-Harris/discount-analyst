@@ -12,9 +12,9 @@ from pydantic_ai._utils import group_by_temporal
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 from pydantic_ai.models import Model, ModelRequestParameters
 
-import discount_analyst.agents.runtime.model_gate as model_gate
-from discount_analyst.agents.runtime.model_gate import (
-    AdmittedModel,
+import discount_analyst.config.model_gate as model_gate
+from discount_analyst.config.ai_models_config import AdmittedModel
+from discount_analyst.config.model_gate import (
     ProcessModelGate,
     is_provider_rate_limit,
     process_model_gate,

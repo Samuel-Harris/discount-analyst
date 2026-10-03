@@ -13,23 +13,14 @@ import random
 import re
 import time
 from collections import deque
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
 from contextvars import ContextVar
-from typing import Any
 
 import httpx
 from openai import APIError, RateLimitError
-from pydantic_ai import RunContext
 from pydantic_ai.concurrency import AbstractConcurrencyLimiter
 from pydantic_ai.exceptions import ModelHTTPError
-from pydantic_ai.messages import ModelMessage, ModelResponse
-from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
-from pydantic_ai.models.wrapper import WrapperModel
-from pydantic_ai.settings import ModelSettings
-from pydantic_ai.usage import RequestUsage
+from pydantic_ai.models import Model
 
-from discount_analyst.config.ai_models_config import AIModelsConfig
 from discount_analyst.domain.model_selection.model_name import ModelName
 
 QUIET_FLOOR_SECONDS: float = 60.0
@@ -269,74 +260,14 @@ def reset_process_model_gate() -> None:
     _process_gates.clear()
 
 
-class AdmittedModel(WrapperModel):
-    """Provider model that takes one process-gate slot per model call.
-
-    On a provider rate limit the gate is armed before the slot is released,
-    so another workflow cannot acquire in that gap.
-    """
-
-    def __init__(self, wrapped: Model, gate: ProcessModelGate) -> None:
-        super().__init__(wrapped)
-        self.gate = gate
-
-    @asynccontextmanager
-    async def _segment(self) -> AsyncGenerator[None]:
-        await self.gate.acquire(f"model:{self.model_name}")
-        try:
-            yield
-        except Exception as exc:
-            self.gate.arm(exc, attempt=bound_stream_attempt())
-            raise
-        finally:
-            self.gate.release()
-
-    async def request(
-        self,
-        messages: list[ModelMessage],
-        model_settings: ModelSettings | None,
-        model_request_parameters: ModelRequestParameters,
-    ) -> ModelResponse:
-        async with self._segment():
-            return await self.wrapped.request(
-                messages, model_settings, model_request_parameters
-            )
-
-    async def count_tokens(
-        self,
-        messages: list[ModelMessage],
-        model_settings: ModelSettings | None,
-        model_request_parameters: ModelRequestParameters,
-    ) -> RequestUsage:
-        async with self._segment():
-            return await self.wrapped.count_tokens(
-                messages, model_settings, model_request_parameters
-            )
-
-    @asynccontextmanager
-    async def request_stream(
-        self,
-        messages: list[ModelMessage],
-        model_settings: ModelSettings | None,
-        model_request_parameters: ModelRequestParameters,
-        run_context: RunContext[Any] | None = None,
-    ) -> AsyncGenerator[StreamedResponse]:
-        async with self._segment():
-            async with self.wrapped.request_stream(
-                messages,
-                model_settings,
-                model_request_parameters,
-                run_context,
-            ) as response_stream:
-                yield response_stream
-
-
 def gate_for_agent(agent: object) -> ProcessModelGate:
     """Return the gate the agent's model already holds.
 
     A retry that never entered ``AdmittedModel`` still arms that same gate.
     An agent with no model, such as a test double, uses an unnamed gate.
     """
+    from discount_analyst.config.ai_models_config import AdmittedModel
+
     model = getattr(agent, "model", None)
     if isinstance(model, AdmittedModel):
         return model.gate
@@ -348,5 +279,9 @@ def gate_for_agent(agent: object) -> ProcessModelGate:
 
 
 def _gate_for_configured_model(model_name: str) -> ProcessModelGate:
-    cap = AIModelsConfig(model_name=ModelName(model_name)).model.max_concurrent_agents
+    from discount_analyst.config.ai_models_config import AIModelsConfig
+
+    cap = AIModelsConfig(
+        model_name=ModelName(model_name)
+    ).pydantic_ai_model.max_concurrent_agents
     return process_model_gate(model_name, cap)

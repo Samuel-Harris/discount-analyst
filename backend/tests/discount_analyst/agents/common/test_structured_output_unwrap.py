@@ -22,7 +22,7 @@ from discount_analyst.agents.sentinel.schema import (
     RedFlagScreen,
     ThesisVerdict,
 )
-from discount_analyst.config.ai_models_config import AIModelConfig, AIModelsConfig
+from discount_analyst.config.ai_models_config import AIModelsConfig
 from discount_analyst.domain.model_selection.model_name import ModelName
 
 
@@ -96,7 +96,7 @@ def test_create_agent_final_result_schema_stays_flat_and_unwraps_payload(
 ) -> None:
     captured: dict[str, object] = {}
 
-    def fake_create_model_from_config(_config: AIModelConfig) -> TestModel:
+    def fake_to_model(self: object) -> TestModel:
         return TestModel()
 
     def fake_agent(**kwargs: object) -> SimpleNamespace:
@@ -104,9 +104,8 @@ def test_create_agent_final_result_schema_stays_flat_and_unwraps_payload(
         return SimpleNamespace(name=kwargs.get("name"))
 
     monkeypatch.setattr(
-        agent_factory,
-        "create_model_from_config",
-        fake_create_model_from_config,
+        "discount_analyst.config.ai_models_config.DeepSeekAIModelConfig.to_model",
+        fake_to_model,
     )
     monkeypatch.setattr(agent_factory, "Agent", fake_agent)
 

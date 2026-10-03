@@ -17,7 +17,6 @@ Agent-facing tool clients used by pipeline factories: web research, FX conversio
 
 | Directory          | Purpose                                                                 |
 | ------------------ | ----------------------------------------------------------------------- |
-| `http/`            | Retrying httpx client shared by tool modules                            |
 | `market_data/`     | Frankfurter FX and FMP/EODHD MCP toolsets                               |
 | `web_research/`    | Perplexity, bounded DuckDuckGo search, text-only web fetch              |
 | `terminal/`        | Terminal HTTP client and `InfallibleToolset`                            |
@@ -38,7 +37,7 @@ Agent-facing tool clients used by pipeline factories: web research, FX conversio
 
 ### Internal
 
-- `discount_analyst.config.settings`, `discount_analyst.agents.runtime`.
+- `discount_analyst.config.settings`, `discount_analyst.config.rate_limit_client`, `discount_analyst.agents.runtime`.
 
 ### External
 

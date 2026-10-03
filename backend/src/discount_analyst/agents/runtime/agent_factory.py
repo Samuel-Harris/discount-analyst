@@ -12,7 +12,6 @@ from pydantic_ai_harness.tool_output_limits import Band, ToolOutputLimits, Trunc
 from discount_analyst.config.settings import settings as app_settings
 from discount_analyst.agents.runtime.agent_names import AgentName
 from discount_analyst.agents.common_prompts.current_date import with_current_date
-from discount_analyst.agents.runtime.model import create_model_from_config
 from discount_analyst.agents.runtime.structured_output_unwrap import (
     unwrapping_output_type,
 )
@@ -177,7 +176,7 @@ def create_agent[OutT](
         web_tooling = create_web_research_tooling(
             agent_name=spec.name,
             use_perplexity=use_perplexity,
-            provider=ai_models_config.model.provider,
+            provider=ai_models_config.pydantic_ai_model.provider,
         )
         capabilities.extend(web_tooling.capabilities)
         toolsets.extend(web_tooling.toolsets)
@@ -186,7 +185,7 @@ def create_agent[OutT](
         add_required_feature_to_builtin_tools(
             required_feature=ProviderFeature.MCP,
             toolsets=toolsets,
-            provider=ai_models_config.model.provider,
+            provider=ai_models_config.pydantic_ai_model.provider,
         )
 
     toolsets.append(create_frankfurter_toolset())
@@ -199,8 +198,8 @@ def create_agent[OutT](
     return Agent(
         name=spec.name,
         output_type=ToolOutput(output_type),
-        model=create_model_from_config(ai_models_config.model),
-        model_settings=ai_models_config.model.model_settings,
+        model=ai_models_config.pydantic_ai_model.to_model(),
+        model_settings=ai_models_config.pydantic_ai_model.model_settings,
         system_prompt=with_current_date(spec.system_prompt),
         capabilities=capabilities,
         toolsets=toolsets,

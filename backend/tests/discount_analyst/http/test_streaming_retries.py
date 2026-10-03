@@ -21,9 +21,9 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.usage import RunUsage, UsageLimits
 
-import discount_analyst.agents.runtime.model_gate as model_gate
+import discount_analyst.config.model_gate as model_gate
 import discount_analyst.agents.runtime.streaming_retries as streaming_retries_mod
-from discount_analyst.agents.runtime.model_gate import (
+from discount_analyst.config.model_gate import (
     provider_error_text,
     rate_limit_quiet_seconds,
     reset_process_model_gate,

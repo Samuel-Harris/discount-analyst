@@ -1,21 +1,43 @@
-from typing import Annotated, Literal, assert_never
+from abc import ABC, abstractmethod
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+from typing import Annotated, Any, Literal, assert_never
 
 from anthropic.types.beta import BetaThinkingConfigEnabledParam
-from discount_analyst.domain.model_selection.model_name import ModelName
+from discount_analyst.config.model_gate import (
+    ProcessModelGate,
+    bound_stream_attempt,
+    process_model_gate,
+)
 from discount_analyst.config.provider_features import (
     PROVIDERS_BY_FEATURE,
     Provider,
     ProviderFeature,
 )
+from discount_analyst.config.rate_limit_client import create_rate_limit_client
+from discount_analyst.config.settings import settings
+from discount_analyst.domain.model_selection.model_name import ModelName
 from google.genai.types import ThinkingConfigDict
 from pydantic import BaseModel, Field, computed_field
-from pydantic_ai import UsageLimits
-from pydantic_ai.models.anthropic import AnthropicModelSettings
-from pydantic_ai.models.google import GoogleModelSettings
+from pydantic_ai import RunContext, UsageLimits
+from pydantic_ai.messages import ModelMessage, ModelResponse
+from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
+from pydantic_ai.models.anthropic import AnthropicModel, AnthropicModelSettings
+from pydantic_ai.models.google import GoogleModel, GoogleModelSettings
 from pydantic_ai.models.openai import (
+    OpenAIChatModel,
     OpenAIChatModelSettings,
+    OpenAIResponsesModel,
     OpenAIResponsesModelSettings,
 )
+from pydantic_ai.models.wrapper import WrapperModel
+from pydantic_ai.profiles.openai import OpenAIModelProfile
+from pydantic_ai.providers.anthropic import AnthropicProvider
+from pydantic_ai.providers.deepseek import DeepSeekProvider
+from pydantic_ai.providers.google import GoogleProvider
+from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.settings import ModelSettings
+from pydantic_ai.usage import RequestUsage
 
 _MAX_TOOL_CALLS = 60
 _MAX_TOKENS = 30_000
@@ -26,9 +48,72 @@ _OPENAI_COMPACTION_THRESHOLD_TOKENS = 200_000
 _ANTHROPIC_REASONING_EFFORT = "high"
 _OPENAI_REASONING_EFFORT = "high"
 _DEEPSEEK_REASONING_EFFORT = "high"
+_LONG_RUN_TIMEOUT_SECONDS = 1200
 
 
-class BaseAIModelConfig[P: Provider](BaseModel):
+class AdmittedModel(WrapperModel):
+    """Provider model that takes one process-gate slot per model call.
+
+    On a provider rate limit the gate is armed before the slot is released,
+    so another workflow cannot acquire in that gap.
+    """
+
+    def __init__(self, wrapped: Model, gate: ProcessModelGate) -> None:
+        super().__init__(wrapped)
+        self.gate = gate
+
+    @asynccontextmanager
+    async def _segment(self) -> AsyncGenerator[None]:
+        await self.gate.acquire(f"model:{self.model_name}")
+        try:
+            yield
+        except Exception as exc:
+            self.gate.arm(exc, attempt=bound_stream_attempt())
+            raise
+        finally:
+            self.gate.release()
+
+    async def request(
+        self,
+        messages: list[ModelMessage],
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
+    ) -> ModelResponse:
+        async with self._segment():
+            return await self.wrapped.request(
+                messages, model_settings, model_request_parameters
+            )
+
+    async def count_tokens(
+        self,
+        messages: list[ModelMessage],
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
+    ) -> RequestUsage:
+        async with self._segment():
+            return await self.wrapped.count_tokens(
+                messages, model_settings, model_request_parameters
+            )
+
+    @asynccontextmanager
+    async def request_stream(
+        self,
+        messages: list[ModelMessage],
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
+        run_context: RunContext[Any] | None = None,
+    ) -> AsyncGenerator[StreamedResponse]:
+        async with self._segment():
+            async with self.wrapped.request_stream(
+                messages,
+                model_settings,
+                model_request_parameters,
+                run_context,
+            ) as response_stream:
+                yield response_stream
+
+
+class BaseAIModelConfig[P: Provider](BaseModel, ABC):
     """Common fields shared by all provider model configs.
 
     Each concrete config specializes ``P`` to ``Literal[Provider.X]`` so the ``provider``
@@ -43,6 +128,10 @@ class BaseAIModelConfig[P: Provider](BaseModel):
 
     def supports_feature(self, feature: ProviderFeature) -> bool:
         return self.provider in PROVIDERS_BY_FEATURE[feature]
+
+    @abstractmethod
+    def to_model(self) -> AdmittedModel:
+        """Return the provider model on this config's process gate."""
 
 
 class AnthropicAIModelConfig(BaseAIModelConfig[Literal[Provider.ANTHROPIC]]):
@@ -82,6 +171,26 @@ class AnthropicAIModelConfig(BaseAIModelConfig[Literal[Provider.ANTHROPIC]]):
             anthropic_cache_messages="5m" if self.cache_messages else False,
             parallel_tool_calls=True,
             anthropic_effort=self.effort,
+        )
+
+    def _provider_model(self) -> AnthropicModel:
+        if settings.anthropic is None:
+            raise ValueError(
+                "Anthropic model selected but ANTHROPIC__API_KEY is not set. "
+                "Add ANTHROPIC__API_KEY to your environment or .env file."
+            )
+        return AnthropicModel(
+            self.model_name,
+            provider=AnthropicProvider(
+                api_key=settings.anthropic.api_key,
+                http_client=create_rate_limit_client(),
+            ),
+        )
+
+    def to_model(self) -> AdmittedModel:
+        return AdmittedModel(
+            self._provider_model(),
+            process_model_gate(self.model_name, self.max_concurrent_agents),
         )
 
 
@@ -133,6 +242,38 @@ class OpenAIAIModelConfig(BaseAIModelConfig[Literal[Provider.OPENAI]]):
             settings["openai_reasoning_summary"] = self.reasoning_summary
         return settings
 
+    def _reasoning_mode_profile(self) -> OpenAIModelProfile | None:
+        """Let Responses send ``reasoning.mode`` when it is not the API default.
+
+        pydantic-ai 2.27 only marks ``gpt-5.6*`` as supporting that field, so
+        ``gpt-6.1-sol``'s ``pro`` mode would otherwise be dropped.
+        """
+        if self.reasoning_mode == "standard":
+            return None
+        profile: OpenAIModelProfile = {"openai_responses_supports_reasoning_mode": True}
+        return profile
+
+    def _provider_model(self) -> OpenAIResponsesModel:
+        if settings.openai is None:
+            raise ValueError(
+                "OpenAI model selected but OPENAI__API_KEY is not set. "
+                "Add OPENAI__API_KEY to your environment or .env file."
+            )
+        return OpenAIResponsesModel(
+            self.model_name,
+            provider=OpenAIProvider(
+                api_key=settings.openai.api_key,
+                http_client=create_rate_limit_client(timeout=_LONG_RUN_TIMEOUT_SECONDS),
+            ),
+            profile=self._reasoning_mode_profile(),
+        )
+
+    def to_model(self) -> AdmittedModel:
+        return AdmittedModel(
+            self._provider_model(),
+            process_model_gate(self.model_name, self.max_concurrent_agents),
+        )
+
 
 class GoogleAIModelConfig(BaseAIModelConfig[Literal[Provider.GOOGLE]]):
     """Google model config with explicit thinking budget.
@@ -157,6 +298,26 @@ class GoogleAIModelConfig(BaseAIModelConfig[Literal[Provider.GOOGLE]]):
                 thinking_budget=self.thinking_budget_tokens
             )
         return settings
+
+    def _provider_model(self) -> GoogleModel:
+        if settings.google is None:
+            raise ValueError(
+                "Google model selected but GOOGLE__API_KEY is not set. "
+                "Add GOOGLE__API_KEY to your environment or .env file."
+            )
+        return GoogleModel(
+            self.model_name,
+            provider=GoogleProvider(
+                api_key=settings.google.api_key,
+                http_client=create_rate_limit_client(),
+            ),
+        )
+
+    def to_model(self) -> AdmittedModel:
+        return AdmittedModel(
+            self._provider_model(),
+            process_model_gate(self.model_name, self.max_concurrent_agents),
+        )
 
 
 class DeepSeekAIModelConfig(BaseAIModelConfig[Literal[Provider.DEEPSEEK]]):
@@ -184,6 +345,26 @@ class DeepSeekAIModelConfig(BaseAIModelConfig[Literal[Provider.DEEPSEEK]]):
             settings["openai_reasoning_effort"] = self.reasoning_effort
         return settings
 
+    def _provider_model(self) -> OpenAIChatModel:
+        if settings.deepseek is None:
+            raise ValueError(
+                "DeepSeek model selected but DEEPSEEK__API_KEY is not set. "
+                "Add DEEPSEEK__API_KEY to your environment or .env file."
+            )
+        return OpenAIChatModel(
+            self.model_name,
+            provider=DeepSeekProvider(
+                api_key=settings.deepseek.api_key,
+                http_client=create_rate_limit_client(timeout=_LONG_RUN_TIMEOUT_SECONDS),
+            ),
+        )
+
+    def to_model(self) -> AdmittedModel:
+        return AdmittedModel(
+            self._provider_model(),
+            process_model_gate(self.model_name, self.max_concurrent_agents),
+        )
+
 
 AIModelConfig = Annotated[
     AnthropicAIModelConfig
@@ -200,7 +381,7 @@ class AIModelsConfig(BaseModel):
 
     @computed_field
     @property
-    def model(self) -> AIModelConfig:
+    def pydantic_ai_model(self) -> AIModelConfig:
         match self.model_name:
             case ModelName.CLAUDE_OPUS_4_6 | ModelName.CLAUDE_SONNET_4_6:
                 return AnthropicAIModelConfig(

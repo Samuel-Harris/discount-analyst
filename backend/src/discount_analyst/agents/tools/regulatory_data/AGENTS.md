@@ -51,7 +51,7 @@ Official-source tools for US/UK listed-equity universes and filing-derived funda
 
 ### Internal
 
-- `discount_analyst.config.settings`, `discount_analyst.agents.tools.http.retrying_client`.
+- `discount_analyst.config.settings`, `discount_analyst.config.rate_limit_client`.
 
 ### External
 

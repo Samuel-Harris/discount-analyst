@@ -36,12 +36,12 @@ from pydantic_ai.messages import (
 from pydantic_ai.result import StreamedRunResult
 from pydantic_ai.usage import RunUsage, UsageLimits
 
-from discount_analyst.agents.tools.http.retrying_client import (
+from discount_analyst.config.rate_limit_client import (
     FALLBACK_MAX_WEIGHT_SECONDS,
     RETRY_WAIT_MULTIPLIER,
 )
 from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
-from discount_analyst.agents.runtime.model_gate import (
+from discount_analyst.config.model_gate import (
     bind_stream_attempt,
     error_text_indicates_rate_limit,
     gate_for_agent,

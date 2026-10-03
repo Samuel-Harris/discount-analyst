@@ -238,7 +238,7 @@ class SurveyorStage:
                     terminal=t,
                 ),
                 user_prompt=SURVEYOR_USER_PROMPT,
-                usage_limits=ai_cfg.model.usage_limits,
+                usage_limits=ai_cfg.pydantic_ai_model.usage_limits,
             ),
         )
         return _SurveyorRunResult(

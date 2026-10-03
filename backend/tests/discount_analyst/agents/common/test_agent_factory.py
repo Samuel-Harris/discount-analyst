@@ -23,10 +23,7 @@ from discount_analyst.agents.curator import curator as curator_module
 from discount_analyst.agents.curator.curator import create_curator_agent
 from discount_analyst.agents.strategist import strategist as strategist_module
 from discount_analyst.agents.strategist.strategist import create_strategist_agent
-from discount_analyst.config.ai_models_config import (
-    AIModelConfig,
-    AIModelsConfig,
-)
+from discount_analyst.config.ai_models_config import AIModelsConfig
 from discount_analyst.config.provider_features import Provider
 from discount_analyst.domain.model_selection.model_name import ModelName
 
@@ -114,7 +111,7 @@ def test_create_agent_prepends_current_date_to_system_prompt(
 ) -> None:
     captured: dict[str, str] = {}
 
-    def fake_create_model_from_config(_config: AIModelConfig) -> TestModel:
+    def fake_to_model(self: object) -> TestModel:
         return TestModel()
 
     def fake_agent(*, system_prompt: str, **kwargs: object) -> SimpleNamespace:
@@ -122,9 +119,8 @@ def test_create_agent_prepends_current_date_to_system_prompt(
         return SimpleNamespace(name=kwargs.get("name"))
 
     monkeypatch.setattr(
-        agent_factory,
-        "create_model_from_config",
-        fake_create_model_from_config,
+        "discount_analyst.config.ai_models_config.DeepSeekAIModelConfig.to_model",
+        fake_to_model,
     )
     monkeypatch.setattr(agent_factory, "Agent", fake_agent)
 
@@ -144,13 +140,12 @@ def test_create_agent_prepends_current_date_to_system_prompt(
 def test_create_agent_accepts_deepseek_web_research_tooling(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_create_model_from_config(_config: AIModelConfig) -> TestModel:
+    def fake_to_model(self: object) -> TestModel:
         return TestModel()
 
     monkeypatch.setattr(
-        agent_factory,
-        "create_model_from_config",
-        fake_create_model_from_config,
+        "discount_analyst.config.ai_models_config.DeepSeekAIModelConfig.to_model",
+        fake_to_model,
     )
 
     agent = create_agent(
@@ -173,7 +168,7 @@ def test_create_agent_attaches_always_on_tooling(
     filings_toolset = object()
     captured: dict[str, object] = {}
 
-    def fake_create_model_from_config(_config: AIModelConfig) -> TestModel:
+    def fake_to_model(self: object) -> TestModel:
         return TestModel()
 
     def fake_agent(**kwargs: object) -> SimpleNamespace:
@@ -194,9 +189,8 @@ def test_create_agent_attaches_always_on_tooling(
         agent_factory, "create_filings_toolset", lambda: filings_toolset
     )
     monkeypatch.setattr(
-        agent_factory,
-        "create_model_from_config",
-        fake_create_model_from_config,
+        "discount_analyst.config.ai_models_config.DeepSeekAIModelConfig.to_model",
+        fake_to_model,
     )
     monkeypatch.setattr(agent_factory, "Agent", fake_agent)
 
@@ -255,7 +249,7 @@ def test_non_surveyor_receives_filings_without_universe(
     filings_toolset = object()
     captured: dict[str, object] = {}
 
-    def fake_create_model_from_config(_config: AIModelConfig) -> TestModel:
+    def fake_to_model(self: object) -> TestModel:
         return TestModel()
 
     def fake_agent(**kwargs: object) -> SimpleNamespace:
@@ -270,9 +264,8 @@ def test_non_surveyor_receives_filings_without_universe(
         agent_factory, "create_filings_toolset", lambda: filings_toolset
     )
     monkeypatch.setattr(
-        agent_factory,
-        "create_model_from_config",
-        fake_create_model_from_config,
+        "discount_analyst.config.ai_models_config.DeepSeekAIModelConfig.to_model",
+        fake_to_model,
     )
     monkeypatch.setattr(agent_factory, "Agent", fake_agent)
 
@@ -294,7 +287,7 @@ def test_curator_receives_frankfurter_without_filings(
     filings_toolset = object()
     captured: dict[str, object] = {}
 
-    def fake_create_model_from_config(_config: AIModelConfig) -> TestModel:
+    def fake_to_model(self: object) -> TestModel:
         return TestModel()
 
     def fake_agent(**kwargs: object) -> SimpleNamespace:
@@ -309,9 +302,8 @@ def test_curator_receives_frankfurter_without_filings(
         agent_factory, "create_filings_toolset", lambda: filings_toolset
     )
     monkeypatch.setattr(
-        agent_factory,
-        "create_model_from_config",
-        fake_create_model_from_config,
+        "discount_analyst.config.ai_models_config.DeepSeekAIModelConfig.to_model",
+        fake_to_model,
     )
     monkeypatch.setattr(agent_factory, "Agent", fake_agent)
 

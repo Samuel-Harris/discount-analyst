@@ -1,10 +1,5 @@
 """Shared AI-tagged Logfire helper utilities."""
 
-from __future__ import annotations
+from discount_analyst.config.logging_constants import AI_LOGFIRE
 
-import logfire
-from logfire import Logfire
-
-from discount_analyst.agents.runtime.logging_constants import AI_LOG_TAG
-
-AI_LOGFIRE: Logfire = logfire.with_tags(AI_LOG_TAG)
+__all__ = ["AI_LOGFIRE"]

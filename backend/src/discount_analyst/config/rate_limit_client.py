@@ -18,7 +18,7 @@ from openai import (
 from pydantic_ai.retries import AsyncTenacityTransport, RetryConfig, wait_retry_after
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
-from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
+from discount_analyst.config.logging_constants import AI_LOGFIRE
 
 _OPENAI_API_HOST = "api.openai.com"
 # Cap logged bodies so Logfire and local logs stay usable on huge error payloads.
