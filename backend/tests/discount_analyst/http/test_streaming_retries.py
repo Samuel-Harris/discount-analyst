@@ -601,7 +601,7 @@ async def test_stream_with_retries_checkpoints_captured_open_messages_on_tpm(
         sleep_calls.append(delay)
         clock["now"] += delay
 
-    monkeypatch.setattr(model_gate, "_now", _clock_now)
+    monkeypatch.setattr(model_gate.time, "monotonic", _clock_now)
     monkeypatch.setattr(model_gate.asyncio, "sleep", _record_sleep)
 
     captured_messages = [{"turn": {"text": "tool-progress-before-tpm"}}]

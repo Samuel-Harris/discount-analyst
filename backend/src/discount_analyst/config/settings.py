@@ -177,7 +177,7 @@ class Settings(BaseSettings):
         validation_alias="MODEL_MAX_RUNNING_SOL",
         description=(
             "Maximum in-flight streams for model names ending in -sol. "
-            "Further Sol streams wait. A Sol rate limit quiets only this family."
+            "Further Sol streams wait. A Sol rate limit delays only this family."
         ),
     )
     model_max_running_luna: int = Field(
@@ -187,7 +187,7 @@ class Settings(BaseSettings):
         validation_alias="MODEL_MAX_RUNNING_LUNA",
         description=(
             "Maximum in-flight streams for model names ending in -luna. "
-            "Further Luna streams wait. A Luna rate limit quiets only this family."
+            "Further Luna streams wait. A Luna rate limit delays only this family."
         ),
     )
     deploy_env: Literal["DEV", "PROD"] = Field(

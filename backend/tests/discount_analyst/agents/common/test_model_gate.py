@@ -37,6 +37,13 @@ def _fixed_quiet(seconds: float):
     return quiet
 
 
+def _fixed_monotonic(seconds: float):
+    def monotonic() -> float:
+        return seconds
+
+    return monotonic
+
+
 def _quota_error() -> ModelHTTPError:
     return ModelHTTPError(429, "gate-test", {"message": "rate limit"})
 
@@ -138,7 +145,7 @@ class _OrderGate(ProcessModelGate):
         super().arm(exc, attempt=attempt)
 
     def release(self) -> None:
-        self.events.append("quiet" if self.quiet_remaining() > 0 else "open")
+        self.events.append("sleeping" if self.sleep_time_remaining_s > 0 else "open")
         super().release()
 
 
@@ -164,12 +171,12 @@ def test_a_sol_rate_limit_does_not_quiet_luna(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", _fixed_quiet(60.0))
-    monkeypatch.setattr(model_gate, "_now", lambda: 1_000.0)
+    monkeypatch.setattr(model_gate.time, "monotonic", _fixed_monotonic(1_000.0))
     sol = process_model_gate("gpt-6.1-sol")
     luna = process_model_gate("gpt-6-luna")
     sol.arm(_quota_error(), attempt=0)
-    assert sol.quiet_remaining() == 60.0
-    assert luna.quiet_remaining() == 0.0
+    assert sol.sleep_time_remaining_s == 60.0
+    assert luna.sleep_time_remaining_s == 0.0
 
 
 @pytest.mark.anyio
@@ -198,14 +205,18 @@ def test_same_exception_arms_the_quiet_deadline_once(
         return 60.0
 
     clock = {"now": 1_000.0}
+
+    def monotonic() -> float:
+        return clock["now"]
+
     monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", _quiet)
-    monkeypatch.setattr(model_gate, "_now", lambda: clock["now"])
+    monkeypatch.setattr(model_gate.time, "monotonic", monotonic)
     gate = ProcessModelGate(2)
     exc = _quota_error()
     gate.arm(exc, attempt=1)
     gate.arm(exc, attempt=1)
     assert calls == [1]
-    assert gate.quiet_remaining() == 60.0
+    assert gate.sleep_time_remaining_s == 60.0
 
 
 def test_a_later_quota_failure_extends_the_deadline(
@@ -216,15 +227,19 @@ def test_a_later_quota_failure_extends_the_deadline(
         return 60.0 if attempt == 0 else 120.0
 
     clock = {"now": 1_000.0}
+
+    def monotonic() -> float:
+        return clock["now"]
+
     monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", _quiet)
-    monkeypatch.setattr(model_gate, "_now", lambda: clock["now"])
+    monkeypatch.setattr(model_gate.time, "monotonic", monotonic)
     gate = ProcessModelGate(2)
     first = _quota_error()
     second = _quota_error()
     gate.arm(first, attempt=0)
-    assert gate.quiet_remaining() == 60.0
+    assert gate.sleep_time_remaining_s == 60.0
     gate.arm(second, attempt=1)
-    assert gate.quiet_remaining() == 120.0
+    assert gate.sleep_time_remaining_s == 120.0
 
 
 def test_wrapped_cause_does_not_arm_again(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -236,8 +251,12 @@ def test_wrapped_cause_does_not_arm_again(monkeypatch: pytest.MonkeyPatch) -> No
         return 60.0 if attempt == 0 else 120.0
 
     clock = {"now": 1_000.0}
+
+    def monotonic() -> float:
+        return clock["now"]
+
     monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", _quiet)
-    monkeypatch.setattr(model_gate, "_now", lambda: clock["now"])
+    monkeypatch.setattr(model_gate.time, "monotonic", monotonic)
     gate = ProcessModelGate(2)
     inner = _quota_error()
     gate.arm(inner, attempt=0)
@@ -246,7 +265,7 @@ def test_wrapped_cause_does_not_arm_again(monkeypatch: pytest.MonkeyPatch) -> No
     assert is_provider_rate_limit(wrapped) is True
     gate.arm(wrapped, attempt=1)
     assert calls == [0]
-    assert gate.quiet_remaining() == 60.0
+    assert gate.sleep_time_remaining_s == 60.0
 
 
 @pytest.mark.anyio
@@ -319,7 +338,7 @@ async def test_admitted_model_arms_before_releasing_the_slot(
     model = AdmittedModel(_RaisingModel(_quota_error()), gate)
     with pytest.raises(ModelHTTPError):
         await model.request([], None, ModelRequestParameters())
-    assert gate.events == ["arm", "quiet"]
+    assert gate.events == ["arm", "sleeping"]
 
 
 @pytest.mark.anyio

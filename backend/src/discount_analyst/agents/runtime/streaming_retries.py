@@ -366,19 +366,19 @@ class StreamWithRetriesContext[T]:
         """Seconds to log before the next attempt.
 
         Quota failures arm the model's family gate when the wrapper has not
-        already armed this failure, then report that family's quiet time
+        already armed this failure, then report that family's sleep time
         still remaining. Any other retry uses the local backoff.
         """
         if is_provider_rate_limit(exc):
             gate = gate_for_agent(self._agent)
             gate.arm(exc, attempt=self._attempt_index)
-            return gate.quiet_remaining()
+            return gate.sleep_time_remaining_s
         return streaming_retry_sleep_seconds(exc, self._attempt_index)
 
     async def _wait_out_retry(self, exc: BaseException, wait: float) -> None:
         """Pause before the next attempt. Quota pauses do not hold a slot."""
         if is_provider_rate_limit(exc):
-            await gate_for_agent(self._agent).wait_until_quiet()
+            await gate_for_agent(self._agent).sleep_until_ready()
             return
         await asyncio.sleep(wait)
 

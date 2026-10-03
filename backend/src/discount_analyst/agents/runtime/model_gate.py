@@ -1,9 +1,9 @@
 """Process-wide admission for provider model streams.
 
 Each model family has one ``ProcessModelGate``. A slot covers one
-``request_stream`` segment. A provider rate limit arms that family's
-quiet deadline so another workflow cannot start a segment of the same
-family during the retry wait, after the slot has been released.
+``request_stream`` segment. A provider rate limit sets that family's
+ready time so another workflow cannot start a segment of the same
+family during the retry sleep, after the slot has been released.
 """
 
 from __future__ import annotations
@@ -186,7 +186,7 @@ def _with_high_side_jitter(wait_seconds: float, *, cap: float) -> float:
 
 
 def rate_limit_quiet_seconds(*, attempt: int, error_text: str) -> float:
-    """Quiet duration for this attempt.
+    """Seconds to sleep for this attempt.
 
     Base is ``min(60 * 2**attempt, 480)``. A longer provider
     ``try again in`` hint raises that base, still capped at 480.
@@ -198,20 +198,16 @@ def rate_limit_quiet_seconds(*, attempt: int, error_text: str) -> float:
     return _with_high_side_jitter(wait_seconds, cap=QUIET_CAP_SECONDS)
 
 
-def _now() -> float:
-    return time.monotonic()
-
-
 class ProcessModelGate(AbstractConcurrencyLimiter):
-    """In-process cap on provider model segments, plus one quiet deadline.
+    """In-process cap on provider model segments, plus one ready time.
 
     At most ``max_running`` slots are held. The queue is unlimited.
     Slots are an ``asyncio.Semaphore``: a debounced stream enters
     ``request_stream`` on one task and leaves it on another, and anyio's
     capacity limiter will not return a token borrowed by a different task.
-    ``acquire`` waits out the quiet deadline before taking a slot, and
-    drops the slot if another arm moved the deadline. A rate-limit arm
-    extends the deadline with ``max``. A failure already in the recent
+    ``acquire`` sleeps until the gate is ready before taking a slot, and
+    drops the slot if another arm moved the ready time. A rate-limit arm
+    extends the ready time with ``max``. A failure already in the recent
     chain, including one wrapped as ``__cause__``, does not arm again.
     """
 
@@ -219,23 +215,19 @@ class ProcessModelGate(AbstractConcurrencyLimiter):
         if max_running < 1:
             raise ValueError(f"max_running must be >= 1, got {max_running}.")
         self._slots = asyncio.Semaphore(max_running)
-        self._max_running = max_running
-        self._quiet_until = 0.0
+        self.max_running = max_running
+        self._ready_at = 0.0
         self._armed_failures: deque[BaseException] = deque(maxlen=_ARMED_MEMORY)
 
-    @property
-    def max_running(self) -> int:
-        return self._max_running
-
     async def acquire(self, source: str) -> None:
-        """Wait out the quiet deadline, then take one slot."""
+        """Sleep until the gate is ready, then take one slot."""
         while True:
-            remaining = self.quiet_remaining()
+            remaining = self.sleep_time_remaining_s
             if remaining > 0:
                 await asyncio.sleep(remaining)
                 continue
             await self._slots.acquire()
-            if self.quiet_remaining() > 0:
+            if self.sleep_time_remaining_s > 0:
                 self._slots.release()
                 continue
             return
@@ -245,7 +237,7 @@ class ProcessModelGate(AbstractConcurrencyLimiter):
         self._slots.release()
 
     def arm(self, exc: BaseException, *, attempt: int) -> None:
-        """Extend the quiet deadline when ``exc`` is a provider rate limit.
+        """Push the ready time later when ``exc`` is a provider rate limit.
 
         ``attempt`` is the zero-based stream retry index. A second call for
         the same failure, including a new exception whose ``__cause__`` is
@@ -263,20 +255,21 @@ class ProcessModelGate(AbstractConcurrencyLimiter):
             attempt=attempt,
             error_text=provider_error_text(exc),
         )
-        self._quiet_until = max(self._quiet_until, _now() + duration)
+        self._ready_at = max(self._ready_at, time.monotonic() + duration)
 
-    def quiet_remaining(self) -> float:
-        """Seconds until a new segment may start. ``0`` when the gate is open."""
-        remaining = self._quiet_until - _now()
+    @property
+    def sleep_time_remaining_s(self) -> float:
+        """Seconds until a new segment may start. ``0`` when the gate is ready."""
+        remaining = self._ready_at - time.monotonic()
         if remaining <= 0:
             return 0.0
         return remaining
 
-    async def wait_until_quiet(self) -> float:
-        """Sleep until the quiet deadline has passed. Does not take a slot."""
+    async def sleep_until_ready(self) -> float:
+        """Sleep until the ready time has passed. Does not take a slot."""
         waited = 0.0
         while True:
-            remaining = self.quiet_remaining()
+            remaining = self.sleep_time_remaining_s
             if remaining <= 0:
                 return waited
             await asyncio.sleep(remaining)
@@ -294,7 +287,7 @@ def process_model_gate(model_name: str) -> ProcessModelGate:
 
 
 def reset_process_model_gate() -> None:
-    """Drop every family gate. Tests use this so a quiet deadline cannot leak."""
+    """Drop every family gate. Tests use this so a ready time cannot leak."""
     _process_gates.clear()
 
 
@@ -307,22 +300,18 @@ class AdmittedModel(WrapperModel):
 
     def __init__(self, wrapped: Model, gate: ProcessModelGate) -> None:
         super().__init__(wrapped)
-        self._gate = gate
-
-    @property
-    def gate(self) -> ProcessModelGate:
-        return self._gate
+        self.gate = gate
 
     @asynccontextmanager
-    async def _segment(self, source: str) -> AsyncGenerator[None]:
-        await self._gate.acquire(source)
+    async def _segment(self) -> AsyncGenerator[None]:
+        await self.gate.acquire(f"model:{self.model_name}")
         try:
             yield
         except Exception as exc:
-            self._gate.arm(exc, attempt=bound_stream_attempt())
+            self.gate.arm(exc, attempt=bound_stream_attempt())
             raise
         finally:
-            self._gate.release()
+            self.gate.release()
 
     async def request(
         self,
@@ -330,7 +319,7 @@ class AdmittedModel(WrapperModel):
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
     ) -> ModelResponse:
-        async with self._segment(f"model:{self.model_name}"):
+        async with self._segment():
             return await self.wrapped.request(
                 messages, model_settings, model_request_parameters
             )
@@ -341,7 +330,7 @@ class AdmittedModel(WrapperModel):
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
     ) -> RequestUsage:
-        async with self._segment(f"model:{self.model_name}"):
+        async with self._segment():
             return await self.wrapped.count_tokens(
                 messages, model_settings, model_request_parameters
             )
@@ -354,7 +343,7 @@ class AdmittedModel(WrapperModel):
         model_request_parameters: ModelRequestParameters,
         run_context: RunContext[Any] | None = None,
     ) -> AsyncGenerator[StreamedResponse]:
-        async with self._segment(f"model:{self.model_name}"):
+        async with self._segment():
             async with self.wrapped.request_stream(
                 messages,
                 model_settings,
