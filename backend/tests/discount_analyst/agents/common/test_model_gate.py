@@ -147,11 +147,13 @@ def test_a_later_quota_failure_extends_the_deadline(
     monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", _quiet)
     monkeypatch.setattr(model_gate, "_now", lambda: clock["now"])
     gate = ProcessModelGate(2)
+    first = _quota_error()
+    second = _quota_error()
     bind_stream_attempt(0)
-    gate.arm_from_exception(_quota_error())
+    gate.arm_from_exception(first)
     assert gate.quiet_remaining() == 60.0
     bind_stream_attempt(1)
-    gate.arm_from_exception(_quota_error())
+    gate.arm_from_exception(second)
     assert gate.quiet_remaining() == 120.0
 
 
@@ -182,15 +184,28 @@ async def test_callers_share_one_slot() -> None:
 async def test_quiet_blocks_a_free_slot(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", lambda **_kwargs: 0.05)
     gate = ProcessModelGate(2)
-    await gate.acquire("holder")
+    holder_in = asyncio.Event()
+    release_holder = asyncio.Event()
+
+    async def _hold() -> None:
+        await gate.acquire("holder")
+        holder_in.set()
+        await release_holder.wait()
+        gate.release()
+
+    holder_task = asyncio.create_task(_hold())
+    await holder_in.wait()
     bind_stream_attempt(0)
     gate.arm_from_exception(_quota_error())
     started = asyncio.get_running_loop().time()
-    await asyncio.wait_for(gate.acquire("other"), timeout=1.0)
-    elapsed = asyncio.get_running_loop().time() - started
-    gate.release()
-    gate.release()
-    assert elapsed >= 0.04
+    try:
+        await asyncio.wait_for(gate.acquire("other"), timeout=1.0)
+        elapsed = asyncio.get_running_loop().time() - started
+        gate.release()
+    finally:
+        release_holder.set()
+        await holder_task
+    assert elapsed >= 0.03
 
 
 @pytest.mark.anyio

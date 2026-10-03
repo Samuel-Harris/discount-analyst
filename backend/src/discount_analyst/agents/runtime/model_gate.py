@@ -46,6 +46,7 @@ _TRY_AGAIN_IN_RE = re.compile(
     re.IGNORECASE,
 )
 _ATTEMPT: ContextVar[int] = ContextVar("discount_analyst_model_gate_attempt", default=0)
+_ARMED_ATTR = "_model_gate_armed"
 _process_gate: ProcessModelGate | None = None
 
 
@@ -172,7 +173,6 @@ class ProcessModelGate(AbstractConcurrencyLimiter):
         )
         self._max_running = max_running
         self._quiet_until = 0.0
-        self._last_armed_id: int | None = None
 
     @property
     def max_running(self) -> int:
@@ -204,10 +204,12 @@ class ProcessModelGate(AbstractConcurrencyLimiter):
         """
         if not is_provider_rate_limit(exc):
             return
-        exc_id = id(exc)
-        if self._last_armed_id == exc_id:
+        if getattr(exc, _ARMED_ATTR, False):
             return
-        self._last_armed_id = exc_id
+        try:
+            setattr(exc, _ARMED_ATTR, True)
+        except (AttributeError, TypeError):
+            pass
         duration = rate_limit_quiet_seconds(
             attempt=bound_stream_attempt(),
             error_text=provider_error_text(exc),

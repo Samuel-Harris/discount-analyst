@@ -31,7 +31,7 @@ def test_create_deepseek_model_uses_deepseek_provider(
         def __init__(self, model_name: str, *, provider: Any) -> None:
             super().__init__()
             self._model_name = model_name
-            self.provider = provider
+            self._provider = provider
 
         @property
         def model_name(self) -> str:
@@ -40,6 +40,10 @@ def test_create_deepseek_model_uses_deepseek_provider(
         @property
         def system(self) -> str:
             return "deepseek"
+
+        @property
+        def provider(self) -> Any:
+            return self._provider
 
         async def request(
             self,
