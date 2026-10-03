@@ -77,7 +77,8 @@ Nested groups use double underscores, for example `PERPLEXITY__API_KEY`, `LOGGIN
 | `OPENAI__API_KEY`                   | Optional OpenAI key                                                                                                                                       |
 | `GOOGLE__API_KEY`                   | Optional Google GenAI key                                                                                                                                 |
 | `DEEPSEEK__API_KEY`                 | Optional DeepSeek key                                                                                                                                     |
-| `MODEL_MAX_RUNNING`                 | Maximum provider model streams in flight in one process (default `2`, range 1–8). After a provider rate limit, new streams in that process wait out a shared quiet period. |
+| `MODEL_MAX_RUNNING_SOL`             | Maximum in-flight streams whose model name ends in `-sol` (default `5`, range 1–64). A Sol rate limit quiets only that family.                                                |
+| `MODEL_MAX_RUNNING_LUNA`            | Maximum in-flight streams whose model name ends in `-luna` (default `20`, range 1–64). A Luna rate limit quiets only that family.                                              |
 | `FMP__API_KEY`                      | Financial Modeling Prep                                                                                                                                   |
 | `EODHD__API_KEY`                    | EODHD                                                                                                                                                     |
 | `EODHD__DISABLED`                   | Set to `true` to skip EODHD MCP (FMP unchanged)                                                                                                           |

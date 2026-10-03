@@ -170,15 +170,24 @@ class Settings(BaseSettings):
         ),
         description="Maximum combined stdout+stderr bytes returned per terminal_exec.",
     )
-    model_max_running: int = Field(
-        default=2,
+    model_max_running_sol: int = Field(
+        default=5,
         ge=1,
-        le=8,
-        validation_alias="MODEL_MAX_RUNNING",
+        le=64,
+        validation_alias="MODEL_MAX_RUNNING_SOL",
         description=(
-            "Maximum provider model streams in flight in this process. "
-            "Further streams wait. After a rate-limit failure, new streams "
-            "also wait out the shared quiet period."
+            "Maximum in-flight streams for model names ending in -sol. "
+            "Further Sol streams wait. A Sol rate limit quiets only this family."
+        ),
+    )
+    model_max_running_luna: int = Field(
+        default=20,
+        ge=1,
+        le=64,
+        validation_alias="MODEL_MAX_RUNNING_LUNA",
+        description=(
+            "Maximum in-flight streams for model names ending in -luna. "
+            "Further Luna streams wait. A Luna rate limit quiets only this family."
         ),
     )
     deploy_env: Literal["DEV", "PROD"] = Field(

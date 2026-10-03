@@ -5,7 +5,10 @@ import pytest
 from pydantic_ai.models import Model
 
 from discount_analyst.agents.runtime import model as model_module
-from discount_analyst.agents.runtime.model_gate import AdmittedModel
+from discount_analyst.agents.runtime.model_gate import (
+    AdmittedModel,
+    process_model_gate,
+)
 from discount_analyst.config.ai_models_config import AIModelsConfig
 from discount_analyst.domain.model_selection.model_name import ModelName
 
@@ -79,6 +82,8 @@ def test_create_deepseek_model_uses_deepseek_provider(
     )
 
     assert isinstance(created_model, AdmittedModel)
+    assert created_model.gate is process_model_gate("deepseek-v4-pro")
+    assert created_model.gate.max_running == 2
     provider_model = created_model.wrapped
     assert isinstance(provider_model, FakeOpenAIChatModel)
     assert provider_model.model_name == "deepseek-v4-pro"

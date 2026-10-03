@@ -1,9 +1,9 @@
 """Process-wide admission for provider model streams.
 
-One ``ProcessModelGate`` is shared by every model this process builds.
-A slot covers one ``request_stream`` segment. A provider rate limit also
-arms a single quiet deadline so another workflow cannot start a segment
-during the retry wait, after the slot has been released.
+Each model family has one ``ProcessModelGate``. A slot covers one
+``request_stream`` segment. A provider rate limit arms that family's
+quiet deadline so another workflow cannot start a segment of the same
+family during the retry wait, after the slot has been released.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ from collections import deque
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
+from enum import StrEnum
 from typing import Any
 
 import httpx
@@ -48,7 +49,39 @@ _TRY_AGAIN_IN_RE = re.compile(
 )
 _ATTEMPT: ContextVar[int] = ContextVar("discount_analyst_model_gate_attempt", default=0)
 _ARMED_MEMORY = 32
-_process_gate: ProcessModelGate | None = None
+_OTHER_MAX_RUNNING = 2
+_process_gates: dict["ModelFamily", "ProcessModelGate"] = {}
+
+
+class ModelFamily(StrEnum):
+    """Admission pool for a provider model name."""
+
+    SOL = "sol"
+    LUNA = "luna"
+    OTHER = "other"
+
+
+def model_family(model_name: str) -> ModelFamily:
+    """Map a model name to its admission pool.
+
+    ``gpt-6.1-sol`` and ``gpt-6-luna`` are the live pipeline models.
+    Older ``-luna`` names share the Luna pool. Every other name, including
+    Terra, Claude, Gemini, and DeepSeek, uses the residual pool.
+    """
+    lowered = model_name.casefold()
+    if lowered.endswith("-sol"):
+        return ModelFamily.SOL
+    if lowered.endswith("-luna"):
+        return ModelFamily.LUNA
+    return ModelFamily.OTHER
+
+
+def _max_running_for(family: ModelFamily) -> int:
+    if family is ModelFamily.SOL:
+        return settings.model_max_running_sol
+    if family is ModelFamily.LUNA:
+        return settings.model_max_running_luna
+    return _OTHER_MAX_RUNNING
 
 
 def bind_stream_attempt(attempt: int) -> None:
@@ -250,18 +283,19 @@ class ProcessModelGate(AbstractConcurrencyLimiter):
             waited += remaining
 
 
-def process_model_gate() -> ProcessModelGate:
-    """Return this process's gate, built once from ``settings.model_max_running``."""
-    global _process_gate
-    if _process_gate is None:
-        _process_gate = ProcessModelGate(settings.model_max_running)
-    return _process_gate
+def process_model_gate(model_name: str) -> ProcessModelGate:
+    """Return this process's gate for ``model_name``, built once per family."""
+    family = model_family(model_name)
+    gate = _process_gates.get(family)
+    if gate is None:
+        gate = ProcessModelGate(_max_running_for(family))
+        _process_gates[family] = gate
+    return gate
 
 
 def reset_process_model_gate() -> None:
-    """Drop the process gate. Tests use this so a quiet deadline cannot leak."""
-    global _process_gate
-    _process_gate = None
+    """Drop every family gate. Tests use this so a quiet deadline cannot leak."""
+    _process_gates.clear()
 
 
 class AdmittedModel(WrapperModel):
@@ -328,3 +362,19 @@ class AdmittedModel(WrapperModel):
                 run_context,
             ) as response_stream:
                 yield response_stream
+
+
+def gate_for_agent(agent: object) -> ProcessModelGate:
+    """Return the family gate the agent's model already holds.
+
+    A retry that never entered ``AdmittedModel`` still arms that same gate.
+    An agent with no model, such as a test double, uses the residual pool.
+    """
+    model = getattr(agent, "model", None)
+    if isinstance(model, AdmittedModel):
+        return model.gate
+    if isinstance(model, Model):
+        return process_model_gate(model.model_name)
+    if isinstance(model, str):
+        return process_model_gate(model)
+    return process_model_gate("")

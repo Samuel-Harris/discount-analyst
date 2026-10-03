@@ -44,8 +44,8 @@ from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
 from discount_analyst.agents.runtime.model_gate import (
     bind_stream_attempt,
     error_text_indicates_rate_limit,
+    gate_for_agent,
     is_provider_rate_limit,
-    process_model_gate,
 )
 from discount_analyst.agents.runtime.structured_output_unwrap import (
     singleton_envelope_keys_for_prompt,
@@ -365,12 +365,12 @@ class StreamWithRetriesContext[T]:
     def _planned_retry_wait(self, exc: BaseException) -> float:
         """Seconds to log before the next attempt.
 
-        Quota failures arm the process gate when the model wrapper has not
-        already armed this failure, then report the shared quiet time still
-        remaining. Any other retry uses the local backoff.
+        Quota failures arm the model's family gate when the wrapper has not
+        already armed this failure, then report that family's quiet time
+        still remaining. Any other retry uses the local backoff.
         """
         if is_provider_rate_limit(exc):
-            gate = process_model_gate()
+            gate = gate_for_agent(self._agent)
             gate.arm(exc, attempt=self._attempt_index)
             return gate.quiet_remaining()
         return streaming_retry_sleep_seconds(exc, self._attempt_index)
@@ -378,7 +378,7 @@ class StreamWithRetriesContext[T]:
     async def _wait_out_retry(self, exc: BaseException, wait: float) -> None:
         """Pause before the next attempt. Quota pauses do not hold a slot."""
         if is_provider_rate_limit(exc):
-            await process_model_gate().wait_until_quiet()
+            await gate_for_agent(self._agent).wait_until_quiet()
             return
         await asyncio.sleep(wait)
 

@@ -20,7 +20,10 @@ from discount_analyst.agents.tools.http.retrying_client import create_rate_limit
 
 
 def create_model_from_config(config: AIModelConfig, /) -> Model:
-    return AdmittedModel(_provider_model(config), process_model_gate())
+    return AdmittedModel(
+        _provider_model(config),
+        process_model_gate(config.model_name),
+    )
 
 
 def _provider_model(config: AIModelConfig) -> Model:

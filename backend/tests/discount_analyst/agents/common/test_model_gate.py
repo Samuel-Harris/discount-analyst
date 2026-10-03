@@ -142,13 +142,49 @@ class _OrderGate(ProcessModelGate):
         super().release()
 
 
-def test_process_model_gate_is_a_process_singleton(
+def test_each_model_family_has_its_own_gate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(model_gate.settings, "model_max_running", 3)
-    gate = process_model_gate()
-    assert gate is process_model_gate()
-    assert gate.max_running == 3
+    monkeypatch.setattr(model_gate.settings, "model_max_running_sol", 5)
+    monkeypatch.setattr(model_gate.settings, "model_max_running_luna", 20)
+    reset_process_model_gate()
+    sol = process_model_gate("gpt-6.1-sol")
+    luna = process_model_gate("gpt-6-luna")
+    other = process_model_gate("deepseek-v4-pro")
+    assert sol is process_model_gate("gpt-6.1-sol")
+    assert luna is process_model_gate("gpt-5.6-luna")
+    assert sol is not luna
+    assert other is not sol
+    assert sol.max_running == 5
+    assert luna.max_running == 20
+    assert other.max_running == 2
+
+
+def test_a_sol_rate_limit_does_not_quiet_luna(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", _fixed_quiet(60.0))
+    monkeypatch.setattr(model_gate, "_now", lambda: 1_000.0)
+    sol = process_model_gate("gpt-6.1-sol")
+    luna = process_model_gate("gpt-6-luna")
+    sol.arm(_quota_error(), attempt=0)
+    assert sol.quiet_remaining() == 60.0
+    assert luna.quiet_remaining() == 0.0
+
+
+@pytest.mark.anyio
+async def test_a_full_sol_gate_does_not_block_luna(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(model_gate.settings, "model_max_running_sol", 1)
+    monkeypatch.setattr(model_gate.settings, "model_max_running_luna", 1)
+    reset_process_model_gate()
+    sol = process_model_gate("gpt-6.1-sol")
+    luna = process_model_gate("gpt-6-luna")
+    await sol.acquire("sol")
+    await asyncio.wait_for(luna.acquire("luna"), timeout=0.2)
+    luna.release()
+    sol.release()
 
 
 def test_same_exception_arms_the_quiet_deadline_once(
