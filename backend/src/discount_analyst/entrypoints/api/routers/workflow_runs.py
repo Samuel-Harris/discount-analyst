@@ -6,8 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
-
+from discount_analyst.config.logging_constants import AI_LOGFIRE
 from discount_analyst.entrypoints.api.contracts.api import (
     CreateWorkflowRunRequest,
     CreateWorkflowRunResponse,

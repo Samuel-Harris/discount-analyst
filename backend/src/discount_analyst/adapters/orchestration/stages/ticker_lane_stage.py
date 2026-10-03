@@ -32,7 +32,7 @@ from discount_analyst.agents.appraiser.system_prompt import (
 from discount_analyst.agents.appraiser.user_prompt import (
     create_user_prompt as create_appraiser_user_prompt,
 )
-from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
+from discount_analyst.config.logging_constants import AI_LOGFIRE
 from discount_analyst.agents.runtime.streamed_agent_run import run_streamed_agent
 from discount_analyst.agents.runtime.terminal_run import (
     run_agent_with_terminal,

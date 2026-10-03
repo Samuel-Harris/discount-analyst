@@ -12,7 +12,7 @@ from discount_analyst.adapters.simulation import (
     mock_conversation_messages,
     mock_outputs,
 )
-from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
+from discount_analyst.config.logging_constants import AI_LOGFIRE
 from discount_analyst.agents.common_prompts.current_date import with_current_date
 from discount_analyst.agents.runtime.terminal_run import run_agent_with_terminal
 from discount_analyst.agents.profiler.profiler import create_profiler_agent

@@ -129,9 +129,17 @@ class BaseAIModelConfig[P: Provider](BaseModel, ABC):
     def supports_feature(self, feature: ProviderFeature) -> bool:
         return self.provider in PROVIDERS_BY_FEATURE[feature]
 
-    @abstractmethod
     def to_model(self) -> AdmittedModel:
         """Return the provider model on this config's process gate."""
+        return AdmittedModel(
+            self._provider_model(),
+            process_model_gate(self.model_name, self.max_concurrent_agents),
+        )
+
+    @abstractmethod
+    def _provider_model(self) -> Model:
+        """Build the unwrapped provider model."""
+        ...
 
 
 class AnthropicAIModelConfig(BaseAIModelConfig[Literal[Provider.ANTHROPIC]]):
@@ -185,12 +193,6 @@ class AnthropicAIModelConfig(BaseAIModelConfig[Literal[Provider.ANTHROPIC]]):
                 api_key=settings.anthropic.api_key,
                 http_client=create_rate_limit_client(),
             ),
-        )
-
-    def to_model(self) -> AdmittedModel:
-        return AdmittedModel(
-            self._provider_model(),
-            process_model_gate(self.model_name, self.max_concurrent_agents),
         )
 
 
@@ -268,12 +270,6 @@ class OpenAIAIModelConfig(BaseAIModelConfig[Literal[Provider.OPENAI]]):
             profile=self._reasoning_mode_profile(),
         )
 
-    def to_model(self) -> AdmittedModel:
-        return AdmittedModel(
-            self._provider_model(),
-            process_model_gate(self.model_name, self.max_concurrent_agents),
-        )
-
 
 class GoogleAIModelConfig(BaseAIModelConfig[Literal[Provider.GOOGLE]]):
     """Google model config with explicit thinking budget.
@@ -311,12 +307,6 @@ class GoogleAIModelConfig(BaseAIModelConfig[Literal[Provider.GOOGLE]]):
                 api_key=settings.google.api_key,
                 http_client=create_rate_limit_client(),
             ),
-        )
-
-    def to_model(self) -> AdmittedModel:
-        return AdmittedModel(
-            self._provider_model(),
-            process_model_gate(self.model_name, self.max_concurrent_agents),
         )
 
 
@@ -357,12 +347,6 @@ class DeepSeekAIModelConfig(BaseAIModelConfig[Literal[Provider.DEEPSEEK]]):
                 api_key=settings.deepseek.api_key,
                 http_client=create_rate_limit_client(timeout=_LONG_RUN_TIMEOUT_SECONDS),
             ),
-        )
-
-    def to_model(self) -> AdmittedModel:
-        return AdmittedModel(
-            self._provider_model(),
-            process_model_gate(self.model_name, self.max_concurrent_agents),
         )
 
 

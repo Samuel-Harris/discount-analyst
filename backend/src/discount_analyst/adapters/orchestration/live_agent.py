@@ -11,7 +11,7 @@ from discount_analyst.adapters.orchestration.attempt_cost import (
 from discount_analyst.adapters.persistence.crud.attempt_costs import (
     insert_attempt_cost_once,
 )
-from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
+from discount_analyst.config.logging_constants import AI_LOGFIRE
 from discount_analyst.agents.runtime.streamed_run_usage import streamed_run_usage
 from discount_analyst.domain.workflow_cost import AttemptCost
 

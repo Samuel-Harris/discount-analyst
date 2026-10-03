@@ -12,7 +12,7 @@ from pydantic_ai.agent.abstract import AbstractAgent
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.usage import RunUsage, UsageLimits
 
-from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
+from discount_analyst.config.logging_constants import AI_LOGFIRE
 from discount_analyst.agents.runtime.streamed_run_usage import (
     attach_streamed_run_usage,
 )

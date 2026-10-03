@@ -27,7 +27,7 @@ Server-side home for Discount Analyst: the installable `discount_analyst` monoli
 | `src/discount_analyst/adapters/`    | Persistence, market data, orchestration, simulation, observability.    |
 | `src/discount_analyst/entrypoints/` | FastAPI (`api/`) and CLI (`cli/`).                                     |
 | `src/discount_analyst/composition/` | Wiring: `api.py`, `cli.py`, `dev_seed.py`.                             |
-| `src/discount_analyst/config/`      | `Settings`, AI model config (`to_model` returns `AdmittedModel`), `model_gate`, `rate_limit_client`, provider features. |
+| `src/discount_analyst/config/`      | `Settings`, AI model config (`to_model` returns `AdmittedModel`), `model_gate`, `rate_limit_client`, `logging_constants` (`AI_LOGFIRE`), provider features. |
 | `migrations/`                       | Alembic env + versions.                                                |
 | `tests/`                            | Unit, integration, factories, architecture (import-linter).            |
 | `tools/`                            | OpenAPI / Alembic / terminal verify / regulatory-data refresh scripts. |
@@ -43,7 +43,7 @@ Server-side home for Discount Analyst: the installable `discount_analyst` monoli
 | `adapters/`        | DB, FMP/EODHD gates, mock mode, pipeline runner  | `adapters.persistence`, `adapters.orchestration`                                           | Cross-imports between persistence / market_data / simulation |
 | `entrypoints/`     | HTTP routes/DTOs or CLI argparse                 | `entrypoints.api.routers`, `entrypoints.cli.agents`                                        | API importing CLI or vice versa                              |
 | `composition/`     | App factory / console-script wiring only         | `composition.api:create_app`, `composition.cli:main`                                       | Business logic                                               |
-| `config/`          | Settings, model config, process model gate, retrying HTTP client | `config.settings`, `config.ai_models_config`, `config.model_gate`                          | Depending on adapters/entrypoints                            |
+| `config/`          | Settings, model config, process model gate, retrying HTTP client, AI Logfire tag | `config.settings`, `config.ai_models_config`, `config.model_gate`, `config.logging_constants` | Depending on adapters/entrypoints                            |
 | `tools/`           | One-off admin scripts outside the package        | `tools/export_dashboard_openapi.py`                                                        | Being imported by product code                               |
 | `tests/factories/` | Shared test builders                             | —                                                                                          | Reaching into unrelated adapters when a factory suffices     |
 

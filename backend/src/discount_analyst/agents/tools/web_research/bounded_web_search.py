@@ -12,7 +12,7 @@ from ddgs.ddgs import DDGS
 from pydantic_ai.common_tools.duckduckgo import DuckDuckGoResult, DuckDuckGoSearchTool
 from pydantic_ai.tools import Tool
 
-from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
+from discount_analyst.config.logging_constants import AI_LOGFIRE
 
 _DDGS_SEARCH_SEMAPHORE = asyncio.Semaphore(1)
 _TRANSIENT_ERROR_MESSAGES = (

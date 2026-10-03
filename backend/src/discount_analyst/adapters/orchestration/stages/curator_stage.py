@@ -57,7 +57,7 @@ from discount_analyst.agents.curator.system_prompt import (
 )
 from discount_analyst.agents.curator.user_prompt import create_user_prompt
 from discount_analyst.agents.common_prompts.current_date import with_current_date
-from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
+from discount_analyst.config.logging_constants import AI_LOGFIRE
 from discount_analyst.agents.runtime.terminal_run import run_agent_with_terminal
 from discount_analyst.application.allocations.assemble import (
     assemble_curator_job,

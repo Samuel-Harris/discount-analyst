@@ -14,7 +14,7 @@ from discount_analyst.adapters.persistence.crud.run_executions import (
     update_ticker_run_ticker,
 )
 from discount_analyst.adapters.persistence.models import AgentNameDb
-from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
+from discount_analyst.config.logging_constants import AI_LOGFIRE
 from discount_analyst.agents.surveyor.schema import (
     SurveyorCandidate,
     SurveyorLaneContext,

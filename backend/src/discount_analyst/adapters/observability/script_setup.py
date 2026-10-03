@@ -1,6 +1,6 @@
 import logfire
 
-from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
+from discount_analyst.config.logging_constants import AI_LOGFIRE
 from discount_analyst.config.settings import settings
 
 

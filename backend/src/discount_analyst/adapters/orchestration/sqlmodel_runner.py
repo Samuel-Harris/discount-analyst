@@ -8,7 +8,7 @@ from typing import Any
 import logfire
 from pydantic_ai.messages import ModelMessage
 
-from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
+from discount_analyst.config.logging_constants import AI_LOGFIRE
 from discount_analyst.domain.workflow_cost import AttemptCost
 
 from discount_analyst.adapters.persistence.models import (
