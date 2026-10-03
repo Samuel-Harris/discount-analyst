@@ -8,7 +8,7 @@ import httpx
 from httpx import HTTPStatusError
 from pydantic import BaseModel, Field
 
-from discount_analyst.agents.tools.http.retrying_client import create_rate_limit_client
+from discount_analyst.config.rate_limit_client import create_rate_limit_client
 
 FMP_STABLE_BASE_URL = "https://financialmodelingprep.com/stable"
 

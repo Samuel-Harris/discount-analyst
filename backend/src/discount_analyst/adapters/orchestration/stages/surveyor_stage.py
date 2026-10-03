@@ -34,7 +34,7 @@ from discount_analyst.adapters.orchestration.llm_config import (
     pipeline_llm_config,
 )
 from discount_analyst.domain.workflow_cost import AttemptCost
-from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
+from discount_analyst.config.logging_constants import AI_LOGFIRE
 from discount_analyst.agents.runtime.terminal_run import run_agent_with_terminal
 from discount_analyst.agents.common_prompts.current_date import with_current_date
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
@@ -238,7 +238,7 @@ class SurveyorStage:
                     terminal=t,
                 ),
                 user_prompt=SURVEYOR_USER_PROMPT,
-                usage_limits=ai_cfg.model.usage_limits,
+                usage_limits=ai_cfg.pydantic_ai_model.usage_limits,
             ),
         )
         return _SurveyorRunResult(

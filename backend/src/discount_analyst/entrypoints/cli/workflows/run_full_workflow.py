@@ -271,7 +271,7 @@ async def run_profiler_once(
     outcome = await run_streamed_agent(
         agent=agent,
         user_prompt=user_prompt,
-        usage_limits=ai_models_config.model.usage_limits,
+        usage_limits=ai_models_config.pydantic_ai_model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
         terminal=terminal,
     )
@@ -317,7 +317,7 @@ async def run_surveyor_once(
     outcome = await run_streamed_agent(
         agent=agent,
         user_prompt=USER_PROMPT,
-        usage_limits=ai_models_config.model.usage_limits,
+        usage_limits=ai_models_config.pydantic_ai_model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
         terminal=terminal,
     )
@@ -365,7 +365,7 @@ async def run_researcher_once(
     outcome = await run_streamed_agent(
         agent=agent,
         user_prompt=user_prompt,
-        usage_limits=ai_models_config.model.usage_limits,
+        usage_limits=ai_models_config.pydantic_ai_model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
         terminal=terminal,
     )
@@ -414,7 +414,7 @@ async def run_strategist_once(
     outcome = await run_streamed_agent(
         agent=agent,
         user_prompt=user_prompt,
-        usage_limits=ai_models_config.model.usage_limits,
+        usage_limits=ai_models_config.pydantic_ai_model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
         terminal=terminal,
     )
@@ -457,7 +457,7 @@ async def run_sentinel_once(
     outcome = await run_streamed_agent(
         agent=agent,
         user_prompt=user_prompt,
-        usage_limits=ai_models_config.model.usage_limits,
+        usage_limits=ai_models_config.pydantic_ai_model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
         terminal=terminal_run_options(app_settings, enabled=False),
     )

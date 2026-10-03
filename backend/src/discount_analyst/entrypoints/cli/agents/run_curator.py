@@ -86,7 +86,7 @@ async def main() -> None:
     outcome = await run_streamed_agent(
         agent=agent,
         user_prompt=create_user_prompt(curator_input=curator_input),
-        usage_limits=ai_models_config.model.usage_limits,
+        usage_limits=ai_models_config.pydantic_ai_model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
         terminal=terminal,
     )

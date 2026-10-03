@@ -44,9 +44,8 @@ None.
 
 - `discount_analyst.agents.appraiser.schema`: For `AppraiserInput` and `AppraiserOutput`.
 - `discount_analyst.agents.surveyor.schema`, `researcher.schema`, `strategist.schema`, `sentinel.schema`: Structured inputs embedded in the user prompt via `AppraiserInput`.
-- `discount_analyst.config.ai_models_config`: For model configuration and selection.
+- `discount_analyst.config.ai_models_config`: Model selection. `AIModelsConfig.pydantic_ai_model.to_model()` builds the LLM instance.
 - `discount_analyst.config.settings`: For API keys and rate limit settings.
-- `discount_analyst.agents.common.model`: For creating the LLM model instance.
 - `discount_analyst.integrations.perplexity`: For Perplexity-backed search tools via `create_perplexity_toolset(AgentName.APPRAISER)`.
 - `discount_analyst.agents.common.tool_support`: MCP toolset wiring via `add_required_feature_to_builtin_tools`.
 - `discount_analyst.integrations.financial_data_mcp`: EODHD/FMP `MCPToolset` factories.

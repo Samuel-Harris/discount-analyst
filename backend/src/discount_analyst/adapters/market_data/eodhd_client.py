@@ -7,7 +7,7 @@ from typing import Annotated, Any, cast
 import httpx
 from pydantic import BaseModel, BeforeValidator, Field
 
-from discount_analyst.agents.tools.http.retrying_client import create_rate_limit_client
+from discount_analyst.config.rate_limit_client import create_rate_limit_client
 
 EODHD_API_BASE_URL = "https://eodhd.com/api"
 

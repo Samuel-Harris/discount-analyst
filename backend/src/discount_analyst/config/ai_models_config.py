@@ -1,22 +1,43 @@
-from enum import StrEnum
-from typing import Annotated, Final, Literal
+from abc import ABC, abstractmethod
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+from typing import Annotated, Any, Literal, assert_never
 
 from anthropic.types.beta import BetaThinkingConfigEnabledParam
-from discount_analyst.domain.model_selection.model_name import ModelName
+from discount_analyst.config.model_gate import (
+    ProcessModelGate,
+    bound_stream_attempt,
+    process_model_gate,
+)
 from discount_analyst.config.provider_features import (
     PROVIDERS_BY_FEATURE,
     Provider,
     ProviderFeature,
 )
+from discount_analyst.config.rate_limit_client import create_rate_limit_client
+from discount_analyst.config.settings import settings
+from discount_analyst.domain.model_selection.model_name import ModelName
 from google.genai.types import ThinkingConfigDict
 from pydantic import BaseModel, Field, computed_field
-from pydantic_ai import UsageLimits
-from pydantic_ai.models.anthropic import AnthropicModelSettings
-from pydantic_ai.models.google import GoogleModelSettings
+from pydantic_ai import RunContext, UsageLimits
+from pydantic_ai.messages import ModelMessage, ModelResponse
+from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
+from pydantic_ai.models.anthropic import AnthropicModel, AnthropicModelSettings
+from pydantic_ai.models.google import GoogleModel, GoogleModelSettings
 from pydantic_ai.models.openai import (
+    OpenAIChatModel,
     OpenAIChatModelSettings,
+    OpenAIResponsesModel,
     OpenAIResponsesModelSettings,
 )
+from pydantic_ai.models.wrapper import WrapperModel
+from pydantic_ai.profiles.openai import OpenAIModelProfile
+from pydantic_ai.providers.anthropic import AnthropicProvider
+from pydantic_ai.providers.deepseek import DeepSeekProvider
+from pydantic_ai.providers.google import GoogleProvider
+from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.settings import ModelSettings
+from pydantic_ai.usage import RequestUsage
 
 _MAX_TOOL_CALLS = 60
 _MAX_TOKENS = 30_000
@@ -27,9 +48,72 @@ _OPENAI_COMPACTION_THRESHOLD_TOKENS = 200_000
 _ANTHROPIC_REASONING_EFFORT = "high"
 _OPENAI_REASONING_EFFORT = "high"
 _DEEPSEEK_REASONING_EFFORT = "high"
+_LONG_RUN_TIMEOUT_SECONDS = 1200
 
 
-class BaseAIModelConfig[P: Provider](BaseModel):
+class AdmittedModel(WrapperModel):
+    """Provider model that takes one process-gate slot per model call.
+
+    On a provider rate limit the gate is armed before the slot is released,
+    so another workflow cannot acquire in that gap.
+    """
+
+    def __init__(self, wrapped: Model, gate: ProcessModelGate) -> None:
+        super().__init__(wrapped)
+        self.gate = gate
+
+    @asynccontextmanager
+    async def _segment(self) -> AsyncGenerator[None]:
+        await self.gate.acquire(f"model:{self.model_name}")
+        try:
+            yield
+        except Exception as exc:
+            self.gate.arm(exc, attempt=bound_stream_attempt())
+            raise
+        finally:
+            self.gate.release()
+
+    async def request(
+        self,
+        messages: list[ModelMessage],
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
+    ) -> ModelResponse:
+        async with self._segment():
+            return await self.wrapped.request(
+                messages, model_settings, model_request_parameters
+            )
+
+    async def count_tokens(
+        self,
+        messages: list[ModelMessage],
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
+    ) -> RequestUsage:
+        async with self._segment():
+            return await self.wrapped.count_tokens(
+                messages, model_settings, model_request_parameters
+            )
+
+    @asynccontextmanager
+    async def request_stream(
+        self,
+        messages: list[ModelMessage],
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
+        run_context: RunContext[Any] | None = None,
+    ) -> AsyncGenerator[StreamedResponse]:
+        async with self._segment():
+            async with self.wrapped.request_stream(
+                messages,
+                model_settings,
+                model_request_parameters,
+                run_context,
+            ) as response_stream:
+                yield response_stream
+
+
+class BaseAIModelConfig[P: Provider](BaseModel, ABC):
     """Common fields shared by all provider model configs.
 
     Each concrete config specializes ``P`` to ``Literal[Provider.X]`` so the ``provider``
@@ -40,9 +124,22 @@ class BaseAIModelConfig[P: Provider](BaseModel):
     model_name: str
     max_tokens: int
     usage_limits: UsageLimits
+    max_concurrent_agents: int = Field(default=1, ge=1)
 
     def supports_feature(self, feature: ProviderFeature) -> bool:
         return self.provider in PROVIDERS_BY_FEATURE[feature]
+
+    def to_model(self) -> AdmittedModel:
+        """Return the provider model on this config's process gate."""
+        return AdmittedModel(
+            self._provider_model(),
+            process_model_gate(self.model_name, self.max_concurrent_agents),
+        )
+
+    @abstractmethod
+    def _provider_model(self) -> Model:
+        """Build the unwrapped provider model."""
+        ...
 
 
 class AnthropicAIModelConfig(BaseAIModelConfig[Literal[Provider.ANTHROPIC]]):
@@ -59,7 +156,7 @@ class AnthropicAIModelConfig(BaseAIModelConfig[Literal[Provider.ANTHROPIC]]):
     provider: Literal[Provider.ANTHROPIC] = Provider.ANTHROPIC
     thinking_budget_tokens: int | None = None
     cache_messages: bool = True
-    effort: Literal["low", "medium", "high", "max"] | None = None
+    effort: Literal["low", "medium", "high", "max"] | None = _ANTHROPIC_REASONING_EFFORT
 
     @property
     def model_settings(self) -> AnthropicModelSettings:
@@ -84,6 +181,20 @@ class AnthropicAIModelConfig(BaseAIModelConfig[Literal[Provider.ANTHROPIC]]):
             anthropic_effort=self.effort,
         )
 
+    def _provider_model(self) -> AnthropicModel:
+        if settings.anthropic is None:
+            raise ValueError(
+                "Anthropic model selected but ANTHROPIC__API_KEY is not set. "
+                "Add ANTHROPIC__API_KEY to your environment or .env file."
+            )
+        return AnthropicModel(
+            self.model_name,
+            provider=AnthropicProvider(
+                api_key=settings.anthropic.api_key,
+                http_client=create_rate_limit_client(),
+            ),
+        )
+
 
 class OpenAIAIModelConfig(BaseAIModelConfig[Literal[Provider.OPENAI]]):
     """OpenAI model config with compaction, caching, and privacy settings.
@@ -102,7 +213,8 @@ class OpenAIAIModelConfig(BaseAIModelConfig[Literal[Provider.OPENAI]]):
     """
 
     provider: Literal[Provider.OPENAI] = Provider.OPENAI
-    reasoning_effort: Literal["low", "medium", "high"] | None = None
+    reasoning_effort: Literal["low", "medium", "high"] | None = _OPENAI_REASONING_EFFORT
+    reasoning_mode: Literal["standard", "pro"] = "standard"
     # "auto" sets the reasoning summary to the highest available level for the model (often
     # equivalent to "detailed" today; OpenAI may add finer tiers later). See:
     # https://developers.openai.com/api/docs/guides/reasoning#reasoning-summaries
@@ -127,9 +239,36 @@ class OpenAIAIModelConfig(BaseAIModelConfig[Literal[Provider.OPENAI]]):
         }
         if self.reasoning_effort is not None:
             settings["openai_reasoning_effort"] = self.reasoning_effort
+        settings["openai_reasoning_mode"] = self.reasoning_mode
         if self.reasoning_summary is not None:
             settings["openai_reasoning_summary"] = self.reasoning_summary
         return settings
+
+    def _reasoning_mode_profile(self) -> OpenAIModelProfile | None:
+        """Let Responses send ``reasoning.mode`` when it is not the API default.
+
+        pydantic-ai 2.27 only marks ``gpt-5.6*`` as supporting that field, so
+        ``gpt-6.1-sol``'s ``pro`` mode would otherwise be dropped.
+        """
+        if self.reasoning_mode == "standard":
+            return None
+        profile: OpenAIModelProfile = {"openai_responses_supports_reasoning_mode": True}
+        return profile
+
+    def _provider_model(self) -> OpenAIResponsesModel:
+        if settings.openai is None:
+            raise ValueError(
+                "OpenAI model selected but OPENAI__API_KEY is not set. "
+                "Add OPENAI__API_KEY to your environment or .env file."
+            )
+        return OpenAIResponsesModel(
+            self.model_name,
+            provider=OpenAIProvider(
+                api_key=settings.openai.api_key,
+                http_client=create_rate_limit_client(timeout=_LONG_RUN_TIMEOUT_SECONDS),
+            ),
+            profile=self._reasoning_mode_profile(),
+        )
 
 
 class GoogleAIModelConfig(BaseAIModelConfig[Literal[Provider.GOOGLE]]):
@@ -156,6 +295,20 @@ class GoogleAIModelConfig(BaseAIModelConfig[Literal[Provider.GOOGLE]]):
             )
         return settings
 
+    def _provider_model(self) -> GoogleModel:
+        if settings.google is None:
+            raise ValueError(
+                "Google model selected but GOOGLE__API_KEY is not set. "
+                "Add GOOGLE__API_KEY to your environment or .env file."
+            )
+        return GoogleModel(
+            self.model_name,
+            provider=GoogleProvider(
+                api_key=settings.google.api_key,
+                http_client=create_rate_limit_client(),
+            ),
+        )
+
 
 class DeepSeekAIModelConfig(BaseAIModelConfig[Literal[Provider.DEEPSEEK]]):
     """DeepSeek model config using the OpenAI-compatible Chat Completions API.
@@ -167,7 +320,9 @@ class DeepSeekAIModelConfig(BaseAIModelConfig[Literal[Provider.DEEPSEEK]]):
     """
 
     provider: Literal[Provider.DEEPSEEK] = Provider.DEEPSEEK
-    reasoning_effort: Literal["low", "medium", "high", "xhigh"] | None = None
+    reasoning_effort: Literal["low", "medium", "high", "xhigh"] | None = (
+        _DEEPSEEK_REASONING_EFFORT
+    )
 
     @property
     def model_settings(self) -> OpenAIChatModelSettings:
@@ -180,6 +335,20 @@ class DeepSeekAIModelConfig(BaseAIModelConfig[Literal[Provider.DEEPSEEK]]):
             settings["openai_reasoning_effort"] = self.reasoning_effort
         return settings
 
+    def _provider_model(self) -> OpenAIChatModel:
+        if settings.deepseek is None:
+            raise ValueError(
+                "DeepSeek model selected but DEEPSEEK__API_KEY is not set. "
+                "Add DEEPSEEK__API_KEY to your environment or .env file."
+            )
+        return OpenAIChatModel(
+            self.model_name,
+            provider=DeepSeekProvider(
+                api_key=settings.deepseek.api_key,
+                http_client=create_rate_limit_client(timeout=_LONG_RUN_TIMEOUT_SECONDS),
+            ),
+        )
+
 
 AIModelConfig = Annotated[
     AnthropicAIModelConfig
@@ -190,88 +359,73 @@ AIModelConfig = Annotated[
 ]
 
 
-class _ModelConfigKind(StrEnum):
-    ANTHROPIC_ADAPTIVE = "anthropic_adaptive"
-    ANTHROPIC_BUDGET = "anthropic_budget"
-    OPENAI = "openai"
-    GOOGLE = "google"
-    DEEPSEEK = "deepseek"
-
-
-_MODEL_CONFIG_KIND: Final[dict[ModelName, _ModelConfigKind]] = {
-    ModelName.CLAUDE_OPUS_4_6: _ModelConfigKind.ANTHROPIC_ADAPTIVE,
-    ModelName.CLAUDE_SONNET_4_6: _ModelConfigKind.ANTHROPIC_ADAPTIVE,
-    ModelName.CLAUDE_OPUS_4_5: _ModelConfigKind.ANTHROPIC_BUDGET,
-    ModelName.CLAUDE_SONNET_4_5: _ModelConfigKind.ANTHROPIC_BUDGET,
-    ModelName.CLAUDE_HAIKU_4_6: _ModelConfigKind.ANTHROPIC_BUDGET,
-    ModelName.GPT_5_1: _ModelConfigKind.OPENAI,
-    ModelName.GPT_5_2: _ModelConfigKind.OPENAI,
-    ModelName.GPT_5_4: _ModelConfigKind.OPENAI,
-    ModelName.GPT_5_6_LUNA: _ModelConfigKind.OPENAI,
-    ModelName.GPT_5_6_TERRA: _ModelConfigKind.OPENAI,
-    ModelName.GPT_6_LUNA: _ModelConfigKind.OPENAI,
-    ModelName.GPT_6_1_SOL: _ModelConfigKind.OPENAI,
-    ModelName.GEMINI_3_PRO_PREVIEW: _ModelConfigKind.GOOGLE,
-    ModelName.GEMINI_3_1_PRO_PREVIEW: _ModelConfigKind.GOOGLE,
-    ModelName.DEEPSEEK_V4_FLASH: _ModelConfigKind.DEEPSEEK,
-    ModelName.DEEPSEEK_V4_PRO: _ModelConfigKind.DEEPSEEK,
-}
-
-
-def _assert_model_config_kinds_complete() -> None:
-    missing = set(ModelName) - _MODEL_CONFIG_KIND.keys()
-    if missing:
-        raise RuntimeError(
-            "ModelName members missing config kind: "
-            + ", ".join(sorted(name.value for name in missing))
-        )
-
-
-_assert_model_config_kinds_complete()
-
-
 class AIModelsConfig(BaseModel):
     model_name: ModelName
     cache_messages: bool = True
 
     @computed_field
     @property
-    def model(self) -> AIModelConfig:
-        match _MODEL_CONFIG_KIND[self.model_name]:
-            case _ModelConfigKind.ANTHROPIC_ADAPTIVE:
+    def pydantic_ai_model(self) -> AIModelConfig:
+        match self.model_name:
+            case ModelName.CLAUDE_OPUS_4_6 | ModelName.CLAUDE_SONNET_4_6:
                 return AnthropicAIModelConfig(
                     model_name=self.model_name,
                     max_tokens=_MAX_TOKENS,
                     usage_limits=_USAGE_LIMITS,
                     cache_messages=self.cache_messages,
-                    effort=_ANTHROPIC_REASONING_EFFORT,
                 )
-            case _ModelConfigKind.ANTHROPIC_BUDGET:
+            case (
+                ModelName.CLAUDE_OPUS_4_5
+                | ModelName.CLAUDE_SONNET_4_5
+                | ModelName.CLAUDE_HAIKU_4_6
+            ):
                 return AnthropicAIModelConfig(
                     model_name=self.model_name,
                     max_tokens=_MAX_TOKENS,
                     thinking_budget_tokens=_MAX_THINKING_BUDGET_TOKENS,
                     usage_limits=_USAGE_LIMITS,
                     cache_messages=self.cache_messages,
+                    effort=None,
                 )
-            case _ModelConfigKind.OPENAI:
+            case ModelName.GPT_6_1_SOL:
                 return OpenAIAIModelConfig(
                     model_name=self.model_name,
                     max_tokens=_MAX_TOKENS,
                     usage_limits=_USAGE_LIMITS,
-                    reasoning_effort=_OPENAI_REASONING_EFFORT,
+                    max_concurrent_agents=5,
+                    reasoning_mode="pro",
                 )
-            case _ModelConfigKind.GOOGLE:
+            case ModelName.GPT_6_LUNA:
+                return OpenAIAIModelConfig(
+                    model_name=self.model_name,
+                    max_tokens=_MAX_TOKENS,
+                    usage_limits=_USAGE_LIMITS,
+                    max_concurrent_agents=20,
+                )
+            case (
+                ModelName.GPT_5_1
+                | ModelName.GPT_5_2
+                | ModelName.GPT_5_4
+                | ModelName.GPT_5_6_LUNA
+                | ModelName.GPT_5_6_TERRA
+            ):
+                return OpenAIAIModelConfig(
+                    model_name=self.model_name,
+                    max_tokens=_MAX_TOKENS,
+                    usage_limits=_USAGE_LIMITS,
+                )
+            case ModelName.GEMINI_3_PRO_PREVIEW | ModelName.GEMINI_3_1_PRO_PREVIEW:
                 return GoogleAIModelConfig(
                     model_name=self.model_name,
                     max_tokens=_MAX_TOKENS,
                     thinking_budget_tokens=_MAX_THINKING_BUDGET_TOKENS,
                     usage_limits=_USAGE_LIMITS,
                 )
-            case _ModelConfigKind.DEEPSEEK:
+            case ModelName.DEEPSEEK_V4_FLASH | ModelName.DEEPSEEK_V4_PRO:
                 return DeepSeekAIModelConfig(
                     model_name=self.model_name,
                     max_tokens=_MAX_TOKENS,
                     usage_limits=_USAGE_LIMITS,
-                    reasoning_effort=_DEEPSEEK_REASONING_EFFORT,
                 )
+            case _:
+                assert_never(self.model_name)

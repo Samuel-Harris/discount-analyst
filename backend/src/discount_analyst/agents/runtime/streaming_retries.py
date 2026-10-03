@@ -1,7 +1,5 @@
 import asyncio
 import json
-import random
-import re
 from collections.abc import AsyncIterable
 from copy import deepcopy
 from contextlib import AbstractAsyncContextManager
@@ -13,14 +11,12 @@ from openai import (
     APIError,
     APITimeoutError,
     InternalServerError,
-    RateLimitError,
 )
 from pydantic import BaseModel
 from pydantic_ai import capture_run_messages
 from pydantic_ai.agent.abstract import AbstractAgent
 from pydantic_ai.exceptions import (
     ModelAPIError,
-    ModelHTTPError,
     UnexpectedModelBehavior,
 )
 from pydantic_ai.messages import (
@@ -40,11 +36,17 @@ from pydantic_ai.messages import (
 from pydantic_ai.result import StreamedRunResult
 from pydantic_ai.usage import RunUsage, UsageLimits
 
-from discount_analyst.agents.tools.http.retrying_client import (
+from discount_analyst.config.logging_constants import AI_LOGFIRE
+from discount_analyst.config.model_gate import (
+    bind_stream_attempt,
+    error_text_indicates_rate_limit,
+    gate_for_agent,
+    is_provider_rate_limit,
+)
+from discount_analyst.config.rate_limit_client import (
     FALLBACK_MAX_WEIGHT_SECONDS,
     RETRY_WAIT_MULTIPLIER,
 )
-from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
 from discount_analyst.agents.runtime.structured_output_unwrap import (
     singleton_envelope_keys_for_prompt,
 )
@@ -52,24 +54,6 @@ from discount_analyst.agents.runtime.structured_output_unwrap import (
 # Streaming can fail mid-`stream_output()` (e.g. OpenAI TPM) after a successful `run_stream` start.
 MAX_STREAM_RETRY_ATTEMPTS = 6
 MAX_STRUCTURED_OUTPUT_COMPLETIONS = 3
-
-# Provider Retry-After is often a few seconds and assumes no concurrent usage.
-# Floor at one TPM window, then double, so later attempts can drain org-wide load.
-_RATE_LIMIT_MIN_WAIT_SECONDS = 60.0
-_RATE_LIMIT_MAX_WAIT_SECONDS = 480.0
-_RATE_LIMIT_JITTER_RATIO = 0.25
-_RATE_LIMIT_TEXT_NEEDLES = (
-    "rate limit",
-    "tokens per min",
-    "requests per min",
-    "tpm",
-    "rpm",
-    "too many requests",
-)
-_TRY_AGAIN_IN_RE = re.compile(
-    r"try again in (?P<value>\d+(?:\.\d+)?)(?P<unit>ms|s)?",
-    re.IGNORECASE,
-)
 
 
 def _partial_output_retry_prompt(partial_output: str) -> str:
@@ -97,50 +81,11 @@ def _structured_output_repair_prompt(exc: BaseException) -> str:
     )
 
 
-def _openai_error_text(exc: BaseException) -> str:
-    if isinstance(exc, APIError):
-        msg = getattr(exc, "message", None)
-        if msg:
-            return str(msg)
-    if isinstance(exc, ModelHTTPError):
-        return f"{exc.status_code} {exc.body}"
-    return str(exc)
-
-
-def _combined_error_text(exc: BaseException) -> str:
-    parts: list[str] = []
-    current: BaseException | None = exc
-    seen: set[int] = set()
-    while current is not None and id(current) not in seen:
-        seen.add(id(current))
-        parts.append(_openai_error_text(current))
-        current = current.__cause__
-    return "\n".join(parts)
-
-
-def _error_text_indicates_rate_limit(text: str) -> bool:
-    lowered = text.lower()
-    return any(needle in lowered for needle in _RATE_LIMIT_TEXT_NEEDLES)
-
-
 def api_error_indicates_rate_limit(exc: APIError) -> bool:
     """True when OpenAI signals quota / TPM / RPM limits (not all APIError cases)."""
-    return _error_text_indicates_rate_limit(_openai_error_text(exc))
-
-
-def _is_rate_limit_error(exc: BaseException) -> bool:
-    if isinstance(exc, RateLimitError):
-        return True
-    if isinstance(exc, ModelHTTPError) and exc.status_code == 429:
-        return True
-    if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 429:
-        return True
-    if isinstance(exc, APIError):
-        return api_error_indicates_rate_limit(exc)
-    if _error_text_indicates_rate_limit(_openai_error_text(exc)):
-        return True
-    cause = exc.__cause__
-    return cause is not None and _is_rate_limit_error(cause)
+    message = getattr(exc, "message", None)
+    text = str(message) if message else str(exc)
+    return error_text_indicates_rate_limit(text)
 
 
 def _is_connection_error(exc: BaseException) -> bool:
@@ -177,7 +122,7 @@ def _is_retryable_single_error(exc: BaseException) -> bool:
     """Check if a single exception (not a group) is retryable."""
     if (
         _is_connection_error(exc)
-        or _is_rate_limit_error(exc)
+        or is_provider_rate_limit(exc)
         or _is_idle_read_transport_error(exc)
     ):
         return True
@@ -239,7 +184,7 @@ def _can_retry_open_without_checkpoint(exc: BaseException) -> bool:
         return all(_can_retry_open_without_checkpoint(sub) for sub in group.exceptions)
     return (
         _is_connection_error(exc)
-        or _is_rate_limit_error(exc)
+        or is_provider_rate_limit(exc)
         or _is_idle_read_transport_error(exc)
     )
 
@@ -252,45 +197,9 @@ def _stream_wait(attempt: int) -> float:
     )
 
 
-def _provider_retry_after_seconds(text: str) -> float:
-    match = _TRY_AGAIN_IN_RE.search(text)
-    if match is None:
-        return 0.0
-    value = float(match.group("value"))
-    unit = (match.group("unit") or "s").casefold()
-    if unit == "ms":
-        return value / 1000.0
-    return value
-
-
-def _with_high_side_jitter(wait_seconds: float, *, cap: float) -> float:
-    """Add up to 25% extra wait so concurrent lanes do not retry in lockstep.
-
-    Never waits less than ``wait_seconds`` (the TPM floor must not shrink).
-    """
-    if wait_seconds >= cap:
-        return cap
-    spread = min(wait_seconds * _RATE_LIMIT_JITTER_RATIO, cap - wait_seconds)
-    if spread <= 0:
-        return wait_seconds
-    return wait_seconds + random.uniform(0.0, spread)
-
-
-def _rate_limit_wait_seconds(attempt: int, error_text: str) -> float:
-    exponential = min(
-        _RATE_LIMIT_MIN_WAIT_SECONDS * (2**attempt),
-        _RATE_LIMIT_MAX_WAIT_SECONDS,
-    )
-    suggested = _provider_retry_after_seconds(error_text)
-    wait_seconds = min(max(exponential, suggested), _RATE_LIMIT_MAX_WAIT_SECONDS)
-    return _with_high_side_jitter(wait_seconds, cap=_RATE_LIMIT_MAX_WAIT_SECONDS)
-
-
 def streaming_retry_sleep_seconds(exc: BaseException, attempt: int) -> float:
-    """Sleep before retry; rate limits use a 60s-floored exponential wait with jitter."""
-    text = _combined_error_text(exc)
-    if _is_rate_limit_error(exc) or _error_text_indicates_rate_limit(text):
-        return _rate_limit_wait_seconds(attempt, text)
+    """Seconds for a connection, timeout, or other non-quota retry."""
+    del exc
     return min(_stream_wait(attempt), FALLBACK_MAX_WEIGHT_SECONDS)
 
 
@@ -414,7 +323,7 @@ class StreamWithRetriesContext[T]:
         self._append_partial_output_retry_message()
 
         await self._close_active_attempt(type(exc), exc, exc.__traceback__)
-        wait = streaming_retry_sleep_seconds(exc, self._attempt_index)
+        wait = self._planned_retry_wait(exc)
         AI_LOGFIRE.info(
             "Agent stream interrupted, retrying",
             attempt=self._attempt_index + 1,
@@ -422,7 +331,7 @@ class StreamWithRetriesContext[T]:
             wait_s=wait,
             error=str(exc),
         )
-        await asyncio.sleep(wait)
+        await self._wait_out_retry(exc, wait)
         self._attempt_index += 1
         await self._open_attempt_with_retries()
 
@@ -453,8 +362,29 @@ class StreamWithRetriesContext[T]:
         self._structured_output_repair_count = repair_attempt
         await self._open_attempt_with_retries()
 
+    def _planned_retry_wait(self, exc: BaseException) -> float:
+        """Seconds to log before the next attempt.
+
+        Quota failures arm the model's family gate when the wrapper has not
+        already armed this failure, then report that family's sleep time
+        still remaining. Any other retry uses the local backoff.
+        """
+        if is_provider_rate_limit(exc):
+            gate = gate_for_agent(self._agent)
+            gate.arm(exc, attempt=self._attempt_index)
+            return gate.sleep_time_remaining_s
+        return streaming_retry_sleep_seconds(exc, self._attempt_index)
+
+    async def _wait_out_retry(self, exc: BaseException, wait: float) -> None:
+        """Pause before the next attempt. Quota pauses do not hold a slot."""
+        if is_provider_rate_limit(exc):
+            await gate_for_agent(self._agent).sleep_until_ready()
+            return
+        await asyncio.sleep(wait)
+
     async def _open_attempt_with_retries(self) -> None:
         while True:
+            bind_stream_attempt(self._attempt_index)
             with capture_run_messages() as captured_messages:
                 context_manager = self._agent.run_stream(
                     self._next_user_prompt(),
@@ -481,7 +411,7 @@ class StreamWithRetriesContext[T]:
                             error=str(exc),
                         )
                     self._append_partial_output_retry_message()
-                    wait = streaming_retry_sleep_seconds(exc, self._attempt_index)
+                    wait = self._planned_retry_wait(exc)
                     AI_LOGFIRE.info(
                         "Agent stream start failed, retrying",
                         attempt=self._attempt_index + 1,
@@ -489,7 +419,7 @@ class StreamWithRetriesContext[T]:
                         wait_s=wait,
                         error=str(exc),
                     )
-                    await asyncio.sleep(wait)
+                    await self._wait_out_retry(exc, wait)
                     self._attempt_index += 1
                     continue
 

@@ -32,7 +32,7 @@ from discount_analyst.agents.appraiser.system_prompt import (
 from discount_analyst.agents.appraiser.user_prompt import (
     create_user_prompt as create_appraiser_user_prompt,
 )
-from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
+from discount_analyst.config.logging_constants import AI_LOGFIRE
 from discount_analyst.agents.runtime.streamed_agent_run import run_streamed_agent
 from discount_analyst.agents.runtime.terminal_run import (
     run_agent_with_terminal,
@@ -284,7 +284,7 @@ class TickerLaneStage:
                     user_prompt=create_researcher_user_prompt(
                         lane_context=lane_context
                     ),
-                    usage_limits=ai_cfg.model.usage_limits,
+                    usage_limits=ai_cfg.pydantic_ai_model.usage_limits,
                 ),
             )
             research_out = outcome.output
@@ -400,7 +400,7 @@ class TickerLaneStage:
                         deep_research=research_out,
                         prior_thesis=prior,
                     ),
-                    usage_limits=ai_cfg.model.usage_limits,
+                    usage_limits=ai_cfg.pydantic_ai_model.usage_limits,
                 ),
             )
             decision = outcome.output
@@ -514,7 +514,7 @@ class TickerLaneStage:
                         thesis=thesis,
                         is_existing_position=is_existing_position,
                     ),
-                    usage_limits=ai_cfg.model.usage_limits,
+                    usage_limits=ai_cfg.pydantic_ai_model.usage_limits,
                     terminal=terminal_run_options(host.settings, enabled=False),
                 ),
             )
@@ -635,7 +635,7 @@ class TickerLaneStage:
                         user_prompt=create_appraiser_user_prompt(
                             appraiser_input=appraiser_input
                         ),
-                        usage_limits=ai_cfg.model.usage_limits,
+                        usage_limits=ai_cfg.pydantic_ai_model.usage_limits,
                     ),
                 )
                 appraiser_out = outcome.output
