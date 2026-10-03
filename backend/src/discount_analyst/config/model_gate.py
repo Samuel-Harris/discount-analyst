@@ -23,9 +23,9 @@ from pydantic_ai.models import Model
 
 from discount_analyst.domain.model_selection.model_name import ModelName
 
-QUIET_FLOOR_SECONDS: float = 60.0
-QUIET_CAP_SECONDS: float = 480.0
-QUIET_JITTER_RATIO: float = 0.25
+SLEEP_FLOOR_SECONDS: float = 60.0
+SLEEP_CAP_SECONDS: float = 480.0
+SLEEP_JITTER_RATIO: float = 0.25
 _RATE_LIMIT_TEXT_NEEDLES = (
     "rate limit",
     "tokens per min",
@@ -139,23 +139,23 @@ def _with_high_side_jitter(wait_seconds: float, *, cap: float) -> float:
     """Add up to 25% extra wait. Never waits less than ``wait_seconds``."""
     if wait_seconds >= cap:
         return cap
-    spread = min(wait_seconds * QUIET_JITTER_RATIO, cap - wait_seconds)
+    spread = min(wait_seconds * SLEEP_JITTER_RATIO, cap - wait_seconds)
     if spread <= 0:
         return wait_seconds
     return wait_seconds + random.uniform(0.0, spread)
 
 
-def rate_limit_quiet_seconds(*, attempt: int, error_text: str) -> float:
+def rate_limit_sleep_seconds(*, attempt: int, error_text: str) -> float:
     """Seconds to sleep for this attempt.
 
     Base is ``min(60 * 2**attempt, 480)``. A longer provider
     ``try again in`` hint raises that base, still capped at 480.
     High-side jitter never shrinks the base and never exceeds the cap.
     """
-    exponential = min(QUIET_FLOOR_SECONDS * (2**attempt), QUIET_CAP_SECONDS)
+    exponential = min(SLEEP_FLOOR_SECONDS * (2**attempt), SLEEP_CAP_SECONDS)
     suggested = _provider_retry_after_seconds(error_text)
-    wait_seconds = min(max(exponential, suggested), QUIET_CAP_SECONDS)
-    return _with_high_side_jitter(wait_seconds, cap=QUIET_CAP_SECONDS)
+    wait_seconds = min(max(exponential, suggested), SLEEP_CAP_SECONDS)
+    return _with_high_side_jitter(wait_seconds, cap=SLEEP_CAP_SECONDS)
 
 
 class ProcessModelGate(AbstractConcurrencyLimiter):
@@ -211,7 +211,7 @@ class ProcessModelGate(AbstractConcurrencyLimiter):
         ):
             return
         self._armed_failures.extend(chain)
-        duration = rate_limit_quiet_seconds(
+        duration = rate_limit_sleep_seconds(
             attempt=attempt,
             error_text=provider_error_text(exc),
         )

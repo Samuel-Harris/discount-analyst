@@ -1,4 +1,4 @@
-"""Process model gate: shared slots and one quiet deadline."""
+"""Process model gate: shared slots and one sleep deadline."""
 
 from __future__ import annotations
 
@@ -29,12 +29,12 @@ def isolated_process_model_gate() -> Iterator[None]:
     reset_process_model_gate()
 
 
-def _fixed_quiet(seconds: float):
-    def quiet(*, attempt: int, error_text: str) -> float:
+def _fixed_sleep(seconds: float):
+    def sleep(*, attempt: int, error_text: str) -> float:
         del attempt, error_text
         return seconds
 
-    return quiet
+    return sleep
 
 
 def _fixed_monotonic(seconds: float):
@@ -168,10 +168,10 @@ def test_a_second_cap_for_the_same_model_name_raises() -> None:
         process_model_gate("gpt-6-luna", 1)
 
 
-def test_a_sol_rate_limit_does_not_quiet_luna(
+def test_a_sol_rate_limit_does_not_sleep_luna(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", _fixed_quiet(60.0))
+    monkeypatch.setattr(model_gate, "rate_limit_sleep_seconds", _fixed_sleep(60.0))
     monkeypatch.setattr(model_gate.time, "monotonic", _fixed_monotonic(1_000.0))
     sol = process_model_gate("gpt-6.1-sol", 5)
     luna = process_model_gate("gpt-6-luna", 20)
@@ -190,12 +190,12 @@ async def test_a_full_sol_gate_does_not_block_luna() -> None:
     sol.release()
 
 
-def test_same_exception_arms_the_quiet_deadline_once(
+def test_same_exception_arms_the_sleep_deadline_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[int] = []
 
-    def _quiet(*, attempt: int, error_text: str) -> float:
+    def _sleep(*, attempt: int, error_text: str) -> float:
         del error_text
         calls.append(attempt)
         return 60.0
@@ -205,7 +205,7 @@ def test_same_exception_arms_the_quiet_deadline_once(
     def monotonic() -> float:
         return clock["now"]
 
-    monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", _quiet)
+    monkeypatch.setattr(model_gate, "rate_limit_sleep_seconds", _sleep)
     monkeypatch.setattr(model_gate.time, "monotonic", monotonic)
     gate = ProcessModelGate(2)
     exc = _quota_error()
@@ -218,7 +218,7 @@ def test_same_exception_arms_the_quiet_deadline_once(
 def test_a_later_quota_failure_extends_the_deadline(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def _quiet(*, attempt: int, error_text: str) -> float:
+    def _sleep(*, attempt: int, error_text: str) -> float:
         del error_text
         return 60.0 if attempt == 0 else 120.0
 
@@ -227,7 +227,7 @@ def test_a_later_quota_failure_extends_the_deadline(
     def monotonic() -> float:
         return clock["now"]
 
-    monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", _quiet)
+    monkeypatch.setattr(model_gate, "rate_limit_sleep_seconds", _sleep)
     monkeypatch.setattr(model_gate.time, "monotonic", monotonic)
     gate = ProcessModelGate(2)
     first = _quota_error()
@@ -241,7 +241,7 @@ def test_a_later_quota_failure_extends_the_deadline(
 def test_wrapped_cause_does_not_arm_again(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[int] = []
 
-    def _quiet(*, attempt: int, error_text: str) -> float:
+    def _sleep(*, attempt: int, error_text: str) -> float:
         del error_text
         calls.append(attempt)
         return 60.0 if attempt == 0 else 120.0
@@ -251,7 +251,7 @@ def test_wrapped_cause_does_not_arm_again(monkeypatch: pytest.MonkeyPatch) -> No
     def monotonic() -> float:
         return clock["now"]
 
-    monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", _quiet)
+    monkeypatch.setattr(model_gate, "rate_limit_sleep_seconds", _sleep)
     monkeypatch.setattr(model_gate.time, "monotonic", monotonic)
     gate = ProcessModelGate(2)
     inner = _quota_error()
@@ -288,8 +288,8 @@ async def test_callers_share_one_slot() -> None:
 
 
 @pytest.mark.anyio
-async def test_quiet_blocks_a_free_slot(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", _fixed_quiet(0.05))
+async def test_sleep_blocks_a_free_slot(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(model_gate, "rate_limit_sleep_seconds", _fixed_sleep(0.05))
     gate = ProcessModelGate(2)
     holder_in = asyncio.Event()
     release_holder = asyncio.Event()
@@ -315,8 +315,8 @@ async def test_quiet_blocks_a_free_slot(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 @pytest.mark.anyio
-async def test_quiet_wait_releases_the_slot(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", _fixed_quiet(0.05))
+async def test_sleep_wait_releases_the_slot(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(model_gate, "rate_limit_sleep_seconds", _fixed_sleep(0.05))
     gate = ProcessModelGate(1)
     await gate.acquire("segment")
     gate.arm(_quota_error(), attempt=0)
@@ -329,7 +329,7 @@ async def test_quiet_wait_releases_the_slot(monkeypatch: pytest.MonkeyPatch) -> 
 async def test_admitted_model_arms_before_releasing_the_slot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(model_gate, "rate_limit_quiet_seconds", _fixed_quiet(60.0))
+    monkeypatch.setattr(model_gate, "rate_limit_sleep_seconds", _fixed_sleep(60.0))
     gate = _OrderGate(2)
     model = AdmittedModel(_RaisingModel(_quota_error()), gate)
     with pytest.raises(ModelHTTPError):
