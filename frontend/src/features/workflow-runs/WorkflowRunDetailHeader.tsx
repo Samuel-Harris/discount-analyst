@@ -1,6 +1,7 @@
 import type { WorkflowRunDetailResponse } from "@/api";
 import { UiStateText } from "@/components/UiStateText";
 import { formatWhen } from "@/utils/formatWhen";
+import { formatWorkflowCost } from "@/utils/formatWorkflowCost";
 import type { WorkflowMainView } from "./useWorkflowRunNavigation";
 
 export interface WorkflowRunDetailHeaderProps {
@@ -50,6 +51,19 @@ export function WorkflowRunDetailHeader({
         <div className="meta" style={{ marginTop: 4 }}>
           id {detail.id}
         </div>
+        <div className="meta" style={{ marginTop: 4 }}>
+          Cost {formatWorkflowCost(detail.cost_total)} · Successful{" "}
+          {formatWorkflowCost(detail.cost_successful)} · Unsuccessful{" "}
+          {formatWorkflowCost(detail.cost_unsuccessful)}
+        </div>
+        <div className="meta" style={{ marginTop: 4 }}>
+          {detail.cost_by_agent
+            .map(
+              (agentCost) =>
+                `${agentCost.agent_name.toUpperCase()} ${formatWorkflowCost(agentCost.cost)}`,
+            )
+            .join(" · ")}
+        </div>
         {detail.error_message ? (
           <UiStateText tone="error" as="div" className="lane-hint">
             {detail.error_message}
@@ -57,8 +71,8 @@ export function WorkflowRunDetailHeader({
         ) : null}
         <div className="lane-hint">
           {detail.runs.length} ticker lane(s). Completed nodes with stored
-          transcripts open the conversation panel. Open Recommendations for a
-          sortable verdict table (suited to large runs).
+          transcripts open the conversation panel. Open Recommendations for the
+          Curator book and a sortable lane-ratings table.
         </div>
       </div>
       <div className="detail-header-actions">

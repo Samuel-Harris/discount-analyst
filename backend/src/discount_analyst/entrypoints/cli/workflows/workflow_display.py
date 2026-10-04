@@ -8,17 +8,10 @@ from rich.console import Console
 from rich.table import Table
 
 from discount_analyst.agents.researcher.schema import DeepResearchReport
-from discount_analyst.agents.sentinel.schema import (
-    EvaluationReport,
-    sentinel_proceeds_to_valuation,
-)
+from discount_analyst.agents.sentinel.schema import EvaluationReport
 from discount_analyst.agents.strategist.schema import MispricingThesis
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
-from discount_analyst.domain.decisions.schema import (
-    RatingTableDecision,
-    SentinelRejection,
-    Verdict,
-)
+from discount_analyst.domain.decisions.schema import AppraisedDecision
 
 console = Console()
 
@@ -118,12 +111,8 @@ def display_sentinel_output(output: EvaluationReport) -> None:
     table.add_row("Company", output.company_name)
     table.add_row("Thesis verdict", output.thesis_verdict)
     table.add_row(
-        "Valuation gate (derived)",
-        (
-            "Proceed to valuation"
-            if sentinel_proceeds_to_valuation(output)
-            else "Do not proceed"
-        ),
+        "Red-flag screen",
+        output.red_flag_screen.overall_red_flag_verdict.value,
     )
     console.print(table)
 
@@ -198,52 +187,24 @@ def display_profiler_failure_summary(failures: list[FailedProfilerRun]) -> None:
     console.print(table)
 
 
-def display_verdicts_table(verdicts: list[Verdict]) -> None:
-    """Portfolio-style summary: one row per Verdict."""
+def display_verdicts_table(verdicts: list[AppraisedDecision]) -> None:
+    """Portfolio-style summary: one row per AppraisedDecision."""
     if not verdicts:
         return
     table = Table(
-        title="Verdicts summary",
+        title="Appraised lanes",
         show_header=True,
         header_style="bold magenta",
     )
     table.add_column("Ticker", style="cyan", no_wrap=True)
     table.add_column("Company", style="green")
-    table.add_column("Rating", style="yellow")
-    table.add_column("Recommended action", style="white")
-    table.add_column("Provenance", style="blue")
+    table.add_column("Decision", style="blue")
     table.add_column("Existing", justify="center")
-    table.add_column("Rejection reason", style="dim")
-    table.add_column("Conviction", style="white")
-    table.add_column("MoS verdict", style="white")
-    for v in verdicts:
-        if isinstance(v.decision, SentinelRejection):
-            provenance = "Sentinel"
-            rejection_reason = v.decision.rejection_reason
-            conviction = "—"
-            margin_of_safety_verdict = "—"
-        elif isinstance(v.decision, RatingTableDecision):
-            provenance = "Rating table"
-            rejection_reason = "—"
-            conviction = v.decision.conviction
-            margin_of_safety_verdict = (
-                v.decision.margin_of_safety.margin_of_safety_verdict
-            )
-        else:
-            provenance = "Data quality"
-            rejection_reason = v.decision.rejection_reason
-            conviction = "—"
-            margin_of_safety_verdict = "—"
-
+    for decision in verdicts:
         table.add_row(
-            v.ticker,
-            v.company_name,
-            v.rating,
-            v.recommended_action,
-            provenance,
-            "Y" if v.is_existing_position else "N",
-            rejection_reason,
-            conviction,
-            margin_of_safety_verdict,
+            decision.ticker,
+            decision.company_name,
+            "Appraised",
+            "Y" if decision.is_existing_position else "N",
         )
     console.print(table)

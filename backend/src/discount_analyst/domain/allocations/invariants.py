@@ -87,37 +87,6 @@ def validate_ordered_weight_range(
         raise AllocationInvariantError(msg)
 
 
-def validate_forced_zero_weights(
-    *,
-    low_pct: float,
-    target_pct: float,
-    high_pct: float,
-    ticker: str,
-) -> None:
-    if (low_pct, target_pct, high_pct) != (0.0, 0.0, 0.0):
-        msg = (
-            f"Forced-zero position {ticker!r} must be exactly [0, 0, 0]; "
-            f"got low={low_pct}, target={target_pct}, high={high_pct}."
-        )
-        raise AllocationInvariantError(msg)
-
-
-def validate_retain_or_reduce_weights(
-    *,
-    target_pct: float,
-    high_pct: float,
-    current_weight_pct: float,
-    ticker: str,
-) -> None:
-    if target_pct > current_weight_pct or high_pct > current_weight_pct:
-        msg = (
-            f"Retain-or-reduce position {ticker!r} cannot have target "
-            f"{target_pct} or upper bound {high_pct} above current weight "
-            f"{current_weight_pct}."
-        )
-        raise AllocationInvariantError(msg)
-
-
 def validate_company_weight_caps(
     rows: Sequence[tuple[str, float, float]],
 ) -> None:

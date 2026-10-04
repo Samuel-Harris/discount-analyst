@@ -1,12 +1,14 @@
 """Tests for dashboard conversation persistence."""
 
 import json
+from decimal import Decimal
 from unittest.mock import patch
 
 from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
 from pydantic_ai.usage import RequestUsage
 from sqlmodel import Session, col, select
 
+from backend.tests.factories.sterling import sterling_holdings
 from discount_analyst.adapters.persistence.crud.agent_output_persistence import (
     replace_research_report,
 )
@@ -89,6 +91,45 @@ def test_replace_conversation_messages_persists_thinking_parts_as_text(
             ],
         }
     ]
+
+
+def test_tool_return_redacts_api_token_before_insert(db_session: Session) -> None:
+    conversation = AgentConversation(
+        id="conversation-1",
+        agent_execution_id="agent-execution-1",
+        system_prompt="System prompt",
+    )
+    db_session.add(conversation)
+    db_session.commit()
+
+    replace_conversation_messages(
+        db_session,
+        conversation_id=conversation.id,
+        messages_payload=[
+            {
+                "kind": "request",
+                "parts": [
+                    {
+                        "part_kind": "tool-return",
+                        "tool_name": "web_fetch",
+                        "tool_call_id": "call-1",
+                        "content": (
+                            "https://example.test/feed?api_token=secret"
+                            "&apikey=other&api_key=third"
+                        ),
+                    }
+                ],
+            }
+        ],
+    )
+    db_session.commit()
+
+    part = db_session.scalars(select(AgentConversationMessagePart)).one()
+    assert part.content_text is not None
+    assert "secret" not in part.content_text
+    assert "api_token=REDACTED" in part.content_text
+    assert "apikey=REDACTED" in part.content_text
+    assert "api_key=REDACTED" in part.content_text
 
 
 def test_replace_conversation_messages_persists_builtin_tool_call(
@@ -204,7 +245,9 @@ def test_research_report_without_candidate_persists_and_rehydrates(
     insert_workflow_run(
         db_session,
         workflow_run_id=workflow_run_id,
-        portfolio_tickers=["ABC.L"],
+        holdings=sterling_holdings("ABC.L"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
     )
     snapshot = candidate_to_snapshot(
@@ -262,7 +305,9 @@ def test_replace_conversation_messages_persists_response_usage(
     insert_workflow_run(
         db_session,
         workflow_run_id="workflow-usage",
-        portfolio_tickers=["ABC.L"],
+        holdings=sterling_holdings("ABC.L"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
         surveyor_execution_id="surveyor-exec-usage",
     )
@@ -335,7 +380,9 @@ def test_insert_conversation_persists_usage_from_model_messages(
     insert_workflow_run(
         db_session,
         workflow_run_id="workflow-live-usage",
-        portfolio_tickers=["ABC.L"],
+        holdings=sterling_holdings("ABC.L"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
         surveyor_execution_id="surveyor-exec-live-usage",
     )

@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Any
 
+from pydantic_ai.messages import ModelMessage
 from sqlalchemy import select
 from sqlmodel import Session, col
 
@@ -33,6 +33,9 @@ from discount_analyst.adapters.persistence.crud.agent_output_persistence import 
 )
 from discount_analyst.adapters.persistence.crud.candidate_snapshots import (
     snapshot_to_candidate,
+)
+from discount_analyst.adapters.persistence.crud.attempt_costs import (
+    insert_attempt_cost_once,
 )
 from discount_analyst.adapters.persistence.crud.conversations import (
     assistant_response_for_run_agent,
@@ -58,6 +61,7 @@ from discount_analyst.adapters.persistence.models import (
 )
 from discount_analyst.agents.appraiser.schema import AppraiserOutput
 from discount_analyst.domain.decisions.schema import (
+    AppraisedDecision,
     DataQualityRejection,
     RatingTableDecision,
     SentinelRejection,
@@ -65,6 +69,7 @@ from discount_analyst.domain.decisions.schema import (
 )
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
 from discount_analyst.domain.model_selection.model_name import ModelName
+from discount_analyst.domain.workflow_cost import AttemptCost
 
 _ACTIVE_RUN_STATUSES = frozenset({WorkflowRunStatusDb.RUNNING.value})
 _TERMINAL_RUN_STATUSES = frozenset(
@@ -593,9 +598,17 @@ def complete_agent_execution_with_conversation(
     system_prompt: str,
     output_json: str | None,
     completed_at: str,
-    messages: list[Any] | None = None,
+    messages: list[ModelMessage] | None = None,
     messages_json: str | None = None,
+    attempt_cost: AttemptCost | None = None,
 ) -> None:
+    if attempt_cost is not None:
+        insert_attempt_cost_once(
+            session,
+            execution_id=execution_id,
+            successful=True,
+            attempt_cost=attempt_cost,
+        )
     insert_conversation_for_agent_execution(
         session,
         conversation_id=conversation_id,
@@ -720,6 +733,38 @@ def persist_ticker_run_final_verdict(
     """Upsert structured final decision rows from the verdict JSON payload."""
     if not final_verdict_json or not decision_type:
         return
+    if decision_type == DecisionTypeDb.APPRAISED.value:
+        source_execution_id = get_agent_execution_id_by_run_and_agent(
+            session, run_id=run_id, agent_name=AgentNameDb.APPRAISER.value
+        )
+        if source_execution_id is None:
+            return
+        decision = AppraisedDecision.model_validate_json(final_verdict_json)
+        upsert_run_final_decision(
+            session,
+            run_id=run_id,
+            source_agent_execution_id=source_execution_id,
+            decision_type=DecisionTypeDb.APPRAISED,
+            decision_date=date.fromisoformat(decision.decision_date),
+            is_existing_position=decision.is_existing_position,
+            rating=None,
+            recommended_action=None,
+            conviction=None,
+            rejection_reason=None,
+            current_price=None,
+            bear_intrinsic_value=None,
+            base_intrinsic_value=None,
+            bull_intrinsic_value=None,
+            margin_of_safety_base_pct=None,
+            margin_of_safety_verdict=None,
+            primary_driver=None,
+            red_flag_disposition=None,
+            data_gap_disposition=None,
+            thesis_expiry_note=None,
+            supporting_factors=[],
+            mitigating_factors=[],
+        )
+        return
     verdict = Verdict.model_validate_json(final_verdict_json)
     if decision_type == DecisionTypeDb.RATING_TABLE.value:
         source_execution_id = get_agent_execution_id_by_run_and_agent(
@@ -797,7 +842,7 @@ def persist_ticker_run_final_verdict(
             decision_type=DecisionTypeDb.DATA_QUALITY_REJECTION,
             decision_date=date.fromisoformat(decision.decision_date),
             is_existing_position=decision.is_existing_position,
-            rating=decision.rating.value,
+            rating=None,
             recommended_action=decision.recommended_action,
             conviction=None,
             rejection_reason=decision.rejection_reason,

@@ -4,7 +4,7 @@ from math import isfinite
 from pydantic import BaseModel
 from pydantic_ai import FunctionToolset
 
-from discount_analyst.agents.tools.http.retrying_client import create_rate_limit_client
+from discount_analyst.config.rate_limit_client import create_rate_limit_client
 from discount_analyst.agents.tools.terminal.infallible_toolset import InfallibleToolset
 
 FRANKFURTER_API_BASE = "https://api.frankfurter.dev"

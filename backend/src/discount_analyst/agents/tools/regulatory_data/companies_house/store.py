@@ -107,6 +107,14 @@ def require_active_database(cache: RegulatoryDataCache) -> Path:
     return path
 
 
+def companies_house_cache_is_present(cache: RegulatoryDataCache) -> bool:
+    try:
+        require_active_database(cache)
+    except ColdCacheError:
+        return False
+    return True
+
+
 def validate_database(connection: sqlite3.Connection) -> None:
     company_columns = _table_columns(connection, "companies")
     missing_companies = _COMPANY_COLUMNS - company_columns

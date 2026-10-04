@@ -36,7 +36,8 @@ Follow this order. Do not narrate tool selection or exploratory steps in model p
 When `terminal_exec` is available, create one yfinance `Ticker` and collect one dated snapshot.
 Use the latest non-null unadjusted close, direct `fast_info` attributes, `Ticker.info` identity
 fields, and `get_shares_full()` only where needed. Reconcile price × shares with market
-capitalisation and record any material discrepancy in `data_gaps`.
+capitalisation and record any material discrepancy in `data_gaps`. Convert documents and PDFs
+with Python `markitdown`; do not call `curl`, `wget`, or `pdftotext`.
 
 For `.L` tickers, convert yfinance's GBp `fast_info` price and market capitalisation to major GBP
 exactly once. `Ticker.info["marketCap"]` is already in major GBP. Store `market_cap_local` as a

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import CheckConstraint, Column, UniqueConstraint
+from sqlalchemy import CheckConstraint, Column, Numeric, UniqueConstraint
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, SQLModel  # pyright: ignore[reportUnknownVariableType]
 
@@ -33,6 +34,11 @@ class ExecutionStatusDb(StrEnum):
     CANCELLED = "cancelled"
 
 
+class AttemptOutcomeDb(StrEnum):
+    SUCCESSFUL = "successful"
+    UNSUCCESSFUL = "unsuccessful"
+
+
 class EntryPathDb(StrEnum):
     SURVEYOR = "surveyor"
     PROFILER = "profiler"
@@ -52,6 +58,7 @@ class DecisionTypeDb(StrEnum):
     RATING_TABLE = "rating_table"
     SENTINEL_REJECTION = "sentinel_rejection"
     DATA_QUALITY_REJECTION = "data_quality_rejection"
+    APPRAISED = "appraised"
 
 
 class WorkflowInvestmentThesisOriginDb(StrEnum):
@@ -94,6 +101,7 @@ class WorkflowRun(SQLModel, table=True):
     status: WorkflowRunStatusDb = Field(default=WorkflowRunStatusDb.RUNNING)
     is_mock: bool
     error_message: str | None = None
+    cash_gbp: Decimal | None = Field(default=None, sa_type=Numeric(18, 2))
 
 
 class WorkflowRunPortfolioTicker(SQLModel, table=True):
@@ -104,6 +112,7 @@ class WorkflowRunPortfolioTicker(SQLModel, table=True):
     workflow_run_id: str = Field(foreign_key="workflow_runs.id", index=True)
     sort_order: int
     ticker: str
+    value_gbp: Decimal | None = Field(default=None, sa_type=Numeric(18, 2))
 
 
 class Run(SQLModel, table=True):
@@ -163,6 +172,31 @@ class AgentExecution(SQLModel, table=True):
             nullable=True,
         ),
     )
+
+
+class AgentAttemptCost(SQLModel, table=True):
+    __tablename__ = "agent_attempt_costs"  # pyright: ignore[reportAssignmentType]
+    __table_args__ = (
+        CheckConstraint(
+            "outcome IN ('successful', 'unsuccessful')",
+            name="agent_attempt_cost_outcome",
+        ),
+    )
+
+    id: str = Field(primary_key=True)
+    agent_execution_id: str = Field(foreign_key="agent_executions.id", index=True)
+    outcome: AttemptOutcomeDb = Field(
+        sa_column=Column(
+            SAEnum(
+                AttemptOutcomeDb,
+                native_enum=False,
+                values_callable=_str_enum_sql_values,
+            ),
+            nullable=False,
+        ),
+    )
+    cost_usd: Decimal | None = Field(default=None, sa_type=Numeric(18, 8))
+    recorded_at: datetime
 
 
 class CandidateSnapshot(SQLModel, table=True):
@@ -348,6 +382,7 @@ class MispricingThesis(SQLModel, table=True):
     mispricing_argument: str
     resolution_mechanism: str
     conviction_level: str
+    thesis_direction: str | None = Field(default=None)
     origin: WorkflowInvestmentThesisOriginDb = Field(
         sa_column=Column(
             SAEnum(
@@ -462,6 +497,7 @@ class AppraiserReport(SQLModel, table=True):
     p90_intrinsic_value: float
     distribution_method: str
     distribution_reasoning: str
+    scenarios_json: str | None = Field(default=None)
     methods_json: str
     key_value_drivers_json: str
     downside_risks_to_value_json: str
@@ -526,6 +562,24 @@ class RunFinalDecision(SQLModel, table=True):
                 AND data_gap_disposition IS NULL
                 AND thesis_expiry_note IS NULL
             )
+            OR
+            (
+                decision_type = 'appraised'
+                AND rating IS NULL
+                AND recommended_action IS NULL
+                AND rejection_reason IS NULL
+                AND conviction IS NULL
+                AND current_price IS NULL
+                AND bear_intrinsic_value IS NULL
+                AND base_intrinsic_value IS NULL
+                AND bull_intrinsic_value IS NULL
+                AND margin_of_safety_base_pct IS NULL
+                AND margin_of_safety_verdict IS NULL
+                AND primary_driver IS NULL
+                AND red_flag_disposition IS NULL
+                AND data_gap_disposition IS NULL
+                AND thesis_expiry_note IS NULL
+            )
             """
         ),
     )
@@ -547,8 +601,8 @@ class RunFinalDecision(SQLModel, table=True):
     )
     decision_date: date
     is_existing_position: bool
-    rating: str
-    recommended_action: str
+    rating: str | None = None
+    recommended_action: str | None = None
     conviction: str | None = None
     rejection_reason: str | None = None
     current_price: float | None = None
@@ -727,30 +781,6 @@ class PortfolioAllocationPosition(SQLModel, table=True):
         CheckConstraint(
             _WEIGHT_RANGE_CHECK, name="portfolio_allocation_position_range"
         ),
-        CheckConstraint(
-            """
-            (
-                policy_kind = 'investable'
-                AND forced_zero_reason IS NULL
-            )
-            OR
-            (
-                policy_kind = 'retain_or_reduce'
-                AND forced_zero_reason IS NULL
-                AND target_weight_pct <= current_weight_pct
-                AND acceptable_weight_high_pct <= current_weight_pct
-            )
-            OR
-            (
-                policy_kind = 'forced_zero'
-                AND forced_zero_reason IS NOT NULL
-                AND target_weight_pct = 0
-                AND acceptable_weight_low_pct = 0
-                AND acceptable_weight_high_pct = 0
-            )
-            """,
-            name="portfolio_allocation_position_policy",
-        ),
     )
 
     id: str = Field(primary_key=True)
@@ -761,14 +791,15 @@ class PortfolioAllocationPosition(SQLModel, table=True):
     company_name: str
     is_existing_position: bool
     current_weight_pct: float
-    policy_kind: AllocationPolicyKindDb = Field(
+    policy_kind: AllocationPolicyKindDb | None = Field(
+        default=None,
         sa_column=Column(
             SAEnum(
                 AllocationPolicyKindDb,
                 native_enum=False,
                 values_callable=_str_enum_sql_values,
             ),
-            nullable=False,
+            nullable=True,
         ),
     )
     forced_zero_reason: ForcedZeroReasonDb | None = Field(
@@ -826,6 +857,7 @@ class WorkflowInvestmentThesis(SQLModel, table=True):
     mispricing_argument: str
     resolution_mechanism: str
     conviction_level: str
+    thesis_direction: str | None = Field(default=None)
     origin: WorkflowInvestmentThesisOriginDb = Field(
         sa_column=Column(
             SAEnum(

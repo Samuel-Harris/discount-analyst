@@ -14,7 +14,7 @@ from discount_analyst.adapters.persistence.crud.run_executions import (
     update_ticker_run_ticker,
 )
 from discount_analyst.adapters.persistence.models import AgentNameDb
-from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
+from discount_analyst.config.logging_constants import AI_LOGFIRE
 from discount_analyst.agents.surveyor.schema import (
     SurveyorCandidate,
     SurveyorLaneContext,
@@ -196,7 +196,7 @@ class CandidateGateStage:
             update_ticker_run_completion,
             run_id=run_id,
             status="completed",
-            final_rating=str(verdict.rating.value),
+            final_rating=None,
             decision_type="data_quality_rejection",
             recommended_action=verdict.recommended_action,
             final_verdict_json=verdict.model_dump_json(),

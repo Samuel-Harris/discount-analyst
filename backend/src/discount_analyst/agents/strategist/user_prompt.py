@@ -3,8 +3,8 @@ from discount_analyst.agents.common_prompts.structured_output import (
 )
 from discount_analyst.agents.researcher.schema import DeepResearchReport
 from discount_analyst.agents.strategist.schema import (
-    STRATEGIST_DECISION_TYPE_NAME,
     MispricingThesis,
+    StrategistDecision,
 )
 from discount_analyst.agents.surveyor.lane_context_prompt import (
     LANE_CONTEXT_QUANTITATIVE_OMISSION_NOTE,
@@ -34,11 +34,11 @@ def create_user_prompt(
     )
 
     return f"""
-You are receiving two inputs: **screening context** for the name (structured lane context JSON), and a **completed deep research report** (neutral evidence assembly). Your task is to synthesise these into a `{STRATEGIST_DECISION_TYPE_NAME}`.
+You are receiving two inputs: **screening context** for the name (structured lane context JSON), and a **completed deep research report** (neutral evidence assembly). Your task is to synthesise these into a `{StrategistDecision.__name__}`.
 
 **Upstream contract:** The research is **not** arguing for a trade — it may include **tensions and contradictions**. The screening block means **“worth investigating”**, not “already validated.”
 
-**Downstream contract:** A replace thesis must be **attackable in good faith** — traceable claims, bespoke `evaluation_questions` (answerable from the last reported period plus the last trading update; not 'what will the next FY print?'), and clear “this would break me” conditions.
+**Downstream contract:** A replace thesis must be **attackable in good faith** — traceable claims, bespoke `evaluation_questions` (answerable from figures already in the packed research: last reported period plus last trading update; not unpublished cohort/ARR bridges; not 'what will the next FY print?'; never-disclosed facts are not load-bearing), and clear “this would break me” conditions.
 
 {LANE_CONTEXT_QUANTITATIVE_OMISSION_NOTE}
 
@@ -82,7 +82,7 @@ Be rigorous, be honest, and be specific. **Clarity and falsifiability matter mor
 
 **Action Items:**
 1. First, provide your concise, human-readable reasoning. You must include the exact sentence: "This thesis hangs on [specific field/claim from the deep research]."
-2. {final_result_user_step(output_type_name=STRATEGIST_DECISION_TYPE_NAME)} Use the schema from your system instructions.
+2. {final_result_user_step(output_type_name=StrategistDecision.__name__)} Use the schema from your system instructions.
 """.strip()
 
 

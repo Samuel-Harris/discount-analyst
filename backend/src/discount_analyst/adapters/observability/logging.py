@@ -6,7 +6,7 @@ import logfire
 from fastapi import FastAPI
 from logfire import ConsoleOptions, LevelName
 
-from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
+from discount_analyst.config.logging_constants import AI_LOGFIRE
 from discount_analyst.config.settings import DashboardLogLevel, Settings
 
 _configured = False

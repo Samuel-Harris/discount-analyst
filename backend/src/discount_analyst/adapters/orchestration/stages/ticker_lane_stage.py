@@ -1,4 +1,4 @@
-"""Per-ticker lane stages: researcher through appraiser and final rating."""
+"""Per-ticker lane stages: researcher through appraiser."""
 
 from __future__ import annotations
 
@@ -6,15 +6,24 @@ import asyncio
 from datetime import date
 from typing import TYPE_CHECKING, Any, Protocol
 
+from pydantic_ai.messages import ModelMessage
+
 from discount_analyst.adapters.persistence.models import AgentNameDb, ExecutionStatusDb
 from discount_analyst.adapters.simulation import (
     mock_conversation_messages,
     mock_outputs,
 )
+from discount_analyst.adapters.orchestration.attempt_cost import (
+    attempt_cost_from_usage,
+)
+from discount_analyst.adapters.orchestration.live_agent import (
+    record_failed_attempt_cost,
+    run_and_record_failure,
+)
 from discount_analyst.adapters.orchestration.llm_config import (
-    PipelineLlmConfig,
     pipeline_llm_config,
 )
+from discount_analyst.domain.workflow_cost import AttemptCost
 from discount_analyst.agents.appraiser.appraiser import create_appraiser_agent
 from discount_analyst.agents.appraiser.schema import AppraiserInput, AppraiserOutput
 from discount_analyst.agents.appraiser.system_prompt import (
@@ -23,7 +32,7 @@ from discount_analyst.agents.appraiser.system_prompt import (
 from discount_analyst.agents.appraiser.user_prompt import (
     create_user_prompt as create_appraiser_user_prompt,
 )
-from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
+from discount_analyst.config.logging_constants import AI_LOGFIRE
 from discount_analyst.agents.runtime.streamed_agent_run import run_streamed_agent
 from discount_analyst.agents.runtime.terminal_run import (
     run_agent_with_terminal,
@@ -41,7 +50,6 @@ from discount_analyst.agents.researcher.user_prompt import (
 from discount_analyst.agents.sentinel.derive_thesis_verdict import (
     finalise_sentinel_evaluation,
 )
-from discount_analyst.agents.sentinel.schema import sentinel_proceeds_to_valuation
 from discount_analyst.agents.sentinel.schema import (
     EvaluationReport as SentinelEvaluationReport,
 )
@@ -66,9 +74,7 @@ from discount_analyst.agents.strategist.user_prompt import (
 from discount_analyst.agents.surveyor.schema import SurveyorLaneContext
 from discount_analyst.agents.tools.terminal.client import TerminalRuntimeConfig
 from discount_analyst.application.decisions.builders import (
-    build_rating_table_decision,
-    build_sentinel_rejection,
-    verdict_from_decision,
+    build_appraised_decision,
 )
 from discount_analyst.adapters.persistence.crud.run_executions import (
     update_ticker_run_completion,
@@ -78,7 +84,6 @@ from discount_analyst.adapters.persistence.crud.workflow_investment_theses impor
 )
 from discount_analyst.application.theses import resolve_live_thesis
 from discount_analyst.domain.model_selection.model_name import ModelName
-from discount_analyst.domain.decisions.margin_of_safety import MarginOfSafetyAssessment
 
 if TYPE_CHECKING:
     from discount_analyst.config.settings import Settings
@@ -120,8 +125,9 @@ class TickerLaneStageHost(Protocol):
         execution_id: str,
         system_prompt: str,
         output_json: str | None,
-        messages: list[Any] | None = None,
+        messages: list[ModelMessage] | None = None,
         messages_json: str | None = None,
+        attempt_cost: AttemptCost | None = None,
     ) -> None: ...
 
 
@@ -146,29 +152,13 @@ class TickerLaneStage:
             is_mock=is_mock,
             is_existing_position=is_existing_position,
         )
-        if not sentinel_proceeds_to_valuation(evaluation):
-            AI_LOGFIRE.info(
-                "Sentinel gate did not pass; skipping valuation stages",
-                workflow_run_id=workflow_run_id,
-                run_id=run_id,
-                ticker=lane_context.ticker,
-            )
-            await self.apply_sentinel_rejection(
-                host,
-                workflow_run_id=workflow_run_id,
-                run_id=run_id,
-                thesis=thesis,
-                evaluation=evaluation,
-                is_existing_position=is_existing_position,
-            )
-            return
         AI_LOGFIRE.info(
-            "Sentinel gate passed; continuing to appraiser",
+            "Sentinel completed; continuing to appraiser",
             workflow_run_id=workflow_run_id,
             run_id=run_id,
             ticker=lane_context.ticker,
         )
-        await self.run_appraiser_final_rating(
+        await self.run_appraiser(
             host,
             workflow_run_id=workflow_run_id,
             run_id=run_id,
@@ -189,15 +179,13 @@ class TickerLaneStage:
         lane_context: SurveyorLaneContext,
         is_mock: bool,
         is_existing_position: bool,
-    ) -> tuple[Any, Any, Any]:
-        llm = pipeline_llm_config(host.settings, is_mock=is_mock)
+    ) -> tuple[DeepResearchReport, MispricingThesis, SentinelEvaluationReport]:
         research_out = await self._run_researcher(
             host,
             workflow_run_id=workflow_run_id,
             run_id=run_id,
             lane_context=lane_context,
             is_mock=is_mock,
-            llm=llm,
         )
         thesis = await self._run_strategist(
             host,
@@ -206,7 +194,6 @@ class TickerLaneStage:
             lane_context=lane_context,
             research_out=research_out,
             is_mock=is_mock,
-            llm=llm,
         )
         evaluation = await self._run_sentinel(
             host,
@@ -217,7 +204,6 @@ class TickerLaneStage:
             thesis=thesis,
             is_mock=is_mock,
             is_existing_position=is_existing_position,
-            llm=llm,
         )
         return research_out, thesis, evaluation
 
@@ -229,7 +215,6 @@ class TickerLaneStage:
         run_id: str,
         lane_context: SurveyorLaneContext,
         is_mock: bool,
-        llm: PipelineLlmConfig,
     ) -> DeepResearchReport:
         research_exec_id = await host.get_exec_id(run_id, AgentNameDb.RESEARCHER.value)
         if research_exec_id is None:
@@ -252,6 +237,9 @@ class TickerLaneStage:
             )
             return DeepResearchReport.model_validate_json(research_json)
 
+        llm = pipeline_llm_config(
+            host.settings, agent_name=AgentNameDb.RESEARCHER, is_mock=is_mock
+        )
         await host.mark_exec(
             execution_id=research_exec_id,
             status="running",
@@ -268,6 +256,7 @@ class TickerLaneStage:
             is_mock=is_mock,
         )
         r_mock_json: str | None = None
+        attempt_cost: AttemptCost | None = None
         if is_mock:
             await asyncio.sleep(5)
             research_out = mock_outputs.mock_deep_research(lane_context)
@@ -279,28 +268,36 @@ class TickerLaneStage:
             ai_cfg = llm.ai_models_config
             if ai_cfg is None:
                 raise RuntimeError("Researcher LLM config missing for non-mock run")
-            outcome = await run_agent_with_terminal(
-                settings=host.settings,
-                session_id=research_exec_id,
-                runtime=host.cached_terminal_runtime(),
-                build_agent=lambda t: create_researcher_agent(
-                    ai_cfg,
-                    use_perplexity=host.settings.use_perplexity,
-                    use_mcp_financial_data=host.settings.use_mcp_financial_data,
-                    terminal=t,
+            outcome = await run_and_record_failure(
+                db=host.db,
+                execution_id=research_exec_id,
+                start=lambda: run_agent_with_terminal(
+                    settings=host.settings,
+                    session_id=research_exec_id,
+                    runtime=host.cached_terminal_runtime(),
+                    build_agent=lambda t: create_researcher_agent(
+                        ai_cfg,
+                        use_perplexity=host.settings.use_perplexity,
+                        use_mcp_financial_data=host.settings.use_mcp_financial_data,
+                        terminal=t,
+                    ),
+                    user_prompt=create_researcher_user_prompt(
+                        lane_context=lane_context
+                    ),
+                    usage_limits=ai_cfg.pydantic_ai_model.usage_limits,
                 ),
-                user_prompt=create_researcher_user_prompt(lane_context=lane_context),
-                usage_limits=ai_cfg.model.usage_limits,
             )
             research_out = outcome.output
             r_messages = list(outcome.all_messages)
             r_mock_json = None
+            attempt_cost = attempt_cost_from_usage(outcome.usage)
         await host.complete_exec_with_conversation(
             execution_id=research_exec_id,
             system_prompt=with_current_date(RESEARCHER_SYSTEM_PROMPT),
             output_json=research_out.model_dump_json(),
             messages=r_messages,
             messages_json=r_mock_json,
+            attempt_cost=attempt_cost,
         )
         AI_LOGFIRE.info(
             "Researcher stage completed",
@@ -320,7 +317,6 @@ class TickerLaneStage:
         lane_context: SurveyorLaneContext,
         research_out: DeepResearchReport,
         is_mock: bool,
-        llm: PipelineLlmConfig,
     ) -> MispricingThesis:
         strategist_exec_id = await host.get_exec_id(
             run_id, AgentNameDb.STRATEGIST.value
@@ -348,6 +344,9 @@ class TickerLaneStage:
             )
             return MispricingThesis.model_validate_json(thesis_json)
 
+        llm = pipeline_llm_config(
+            host.settings, agent_name=AgentNameDb.STRATEGIST, is_mock=is_mock
+        )
         await host.mark_exec(
             execution_id=strategist_exec_id,
             status="running",
@@ -364,6 +363,7 @@ class TickerLaneStage:
             is_mock=is_mock,
         )
         s_mock_json: str | None = None
+        attempt_cost: AttemptCost | None = None
         if is_mock:
             await asyncio.sleep(5)
             decision: StrategistDecision = mock_outputs.mock_strategist_decision(
@@ -382,33 +382,47 @@ class TickerLaneStage:
             ai_cfg = llm.ai_models_config
             if ai_cfg is None:
                 raise RuntimeError("Strategist LLM config missing for non-mock run")
-            outcome = await run_agent_with_terminal(
-                settings=host.settings,
-                session_id=strategist_exec_id,
-                runtime=host.cached_terminal_runtime(),
-                build_agent=lambda t: create_strategist_agent(
-                    ai_cfg,
-                    use_perplexity=host.settings.use_perplexity,
-                    use_mcp_financial_data=host.settings.use_mcp_financial_data,
-                    terminal=t,
+            outcome = await run_and_record_failure(
+                db=host.db,
+                execution_id=strategist_exec_id,
+                start=lambda: run_agent_with_terminal(
+                    settings=host.settings,
+                    session_id=strategist_exec_id,
+                    runtime=host.cached_terminal_runtime(),
+                    build_agent=lambda t: create_strategist_agent(
+                        ai_cfg,
+                        use_perplexity=host.settings.use_perplexity,
+                        use_mcp_financial_data=host.settings.use_mcp_financial_data,
+                        terminal=t,
+                    ),
+                    user_prompt=create_strategist_user_prompt(
+                        lane_context=lane_context,
+                        deep_research=research_out,
+                        prior_thesis=prior,
+                    ),
+                    usage_limits=ai_cfg.pydantic_ai_model.usage_limits,
                 ),
-                user_prompt=create_strategist_user_prompt(
-                    lane_context=lane_context,
-                    deep_research=research_out,
-                    prior_thesis=prior,
-                ),
-                usage_limits=ai_cfg.model.usage_limits,
             )
             decision = outcome.output
             s_messages = list(outcome.all_messages)
             s_mock_json = None
-        live_thesis = resolve_live_thesis(decision, prior)
+            attempt_cost = attempt_cost_from_usage(outcome.usage)
+        try:
+            live_thesis = resolve_live_thesis(decision, prior)
+        except Exception:
+            await record_failed_attempt_cost(
+                db=host.db,
+                execution_id=strategist_exec_id,
+                attempt_cost=attempt_cost,
+            )
+            raise
         await host.complete_exec_with_conversation(
             execution_id=strategist_exec_id,
             system_prompt=with_current_date(STRATEGIST_SYSTEM_PROMPT),
             output_json=decision.model_dump_json(),
             messages=s_messages,
             messages_json=s_mock_json,
+            attempt_cost=attempt_cost,
         )
         AI_LOGFIRE.info(
             "Strategist stage completed",
@@ -430,7 +444,6 @@ class TickerLaneStage:
         thesis: MispricingThesis,
         is_mock: bool,
         is_existing_position: bool,
-        llm: PipelineLlmConfig,
     ) -> SentinelEvaluationReport:
         sentinel_exec_id = await host.get_exec_id(run_id, AgentNameDb.SENTINEL.value)
         if sentinel_exec_id is None:
@@ -453,6 +466,9 @@ class TickerLaneStage:
             )
             return SentinelEvaluationReport.model_validate_json(evaluation_json)
 
+        llm = pipeline_llm_config(
+            host.settings, agent_name=AgentNameDb.SENTINEL, is_mock=is_mock
+        )
         await host.mark_exec(
             execution_id=sentinel_exec_id,
             status="running",
@@ -469,6 +485,7 @@ class TickerLaneStage:
             is_mock=is_mock,
         )
         n_mock_json: str | None = None
+        attempt_cost: AttemptCost | None = None
         if is_mock:
             await asyncio.sleep(5)
             evaluation = mock_outputs.mock_sentinel_evaluation(
@@ -486,27 +503,40 @@ class TickerLaneStage:
             if ai_cfg is None:
                 raise RuntimeError("Sentinel LLM config missing for non-mock run")
             agent = create_sentinel_agent(ai_cfg)
-            outcome = await run_streamed_agent(
-                agent=agent,
-                user_prompt=create_sentinel_user_prompt(
-                    lane_context=lane_context,
-                    deep_research=research_out,
-                    thesis=thesis,
-                    is_existing_position=is_existing_position,
+            outcome = await run_and_record_failure(
+                db=host.db,
+                execution_id=sentinel_exec_id,
+                start=lambda: run_streamed_agent(
+                    agent=agent,
+                    user_prompt=create_sentinel_user_prompt(
+                        lane_context=lane_context,
+                        deep_research=research_out,
+                        thesis=thesis,
+                        is_existing_position=is_existing_position,
+                    ),
+                    usage_limits=ai_cfg.pydantic_ai_model.usage_limits,
+                    terminal=terminal_run_options(host.settings, enabled=False),
                 ),
-                usage_limits=ai_cfg.model.usage_limits,
-                terminal=terminal_run_options(host.settings, enabled=False),
-                run_settings=host.settings,
             )
-            evaluation = finalise_sentinel_evaluation(outcome.output, thesis)
             n_messages = list(outcome.all_messages)
             n_mock_json = None
+            attempt_cost = attempt_cost_from_usage(outcome.usage)
+            try:
+                evaluation = finalise_sentinel_evaluation(outcome.output, thesis)
+            except Exception:
+                await record_failed_attempt_cost(
+                    db=host.db,
+                    execution_id=sentinel_exec_id,
+                    attempt_cost=attempt_cost,
+                )
+                raise
         await host.complete_exec_with_conversation(
             execution_id=sentinel_exec_id,
             system_prompt=with_current_date(SENTINEL_SYSTEM_PROMPT),
             output_json=evaluation.model_dump_json(),
             messages=n_messages,
             messages_json=n_mock_json,
+            attempt_cost=attempt_cost,
         )
         AI_LOGFIRE.info(
             "Sentinel stage completed",
@@ -517,60 +547,19 @@ class TickerLaneStage:
         )
         return evaluation
 
-    async def apply_sentinel_rejection(
-        self,
-        host: TickerLaneStageHost,
-        *,
-        workflow_run_id: str,
-        run_id: str,
-        thesis: Any,
-        evaluation: Any,
-        is_existing_position: bool,
-    ) -> None:
-        AI_LOGFIRE.info(
-            "Applying sentinel rejection verdict",
-            workflow_run_id=workflow_run_id,
-            run_id=run_id,
-        )
-        for agent_name in ("appraiser",):
-            execution_id = await host.get_exec_id(run_id, agent_name)
-            if execution_id is not None:
-                await host.mark_exec(
-                    execution_id=execution_id, status="skipped", completed=True
-                )
-        rejection = build_sentinel_rejection(
-            evaluation,
-            thesis,
-            is_existing_position=is_existing_position,
-            decision_date=date.today().isoformat(),
-        )
-        verdict = verdict_from_decision(rejection)
-        await host.db(
-            update_ticker_run_completion,
-            run_id=run_id,
-            status="completed",
-            final_rating=str(verdict.rating.value),
-            decision_type="sentinel_rejection",
-            recommended_action=verdict.recommended_action,
-            final_verdict_json=verdict.model_dump_json(),
-            error_message=None,
-        )
-        await host.recompute(workflow_run_id)
-
-    async def run_appraiser_final_rating(
+    async def run_appraiser(
         self,
         host: TickerLaneStageHost,
         *,
         workflow_run_id: str,
         run_id: str,
         lane_context: SurveyorLaneContext,
-        research_out: Any,
-        thesis: Any,
-        evaluation: Any,
+        research_out: DeepResearchReport,
+        thesis: MispricingThesis,
+        evaluation: SentinelEvaluationReport,
         is_mock: bool,
         is_existing_position: bool,
     ) -> None:
-        llm = pipeline_llm_config(host.settings, is_mock=is_mock)
         appraiser_exec_id = await host.get_exec_id(run_id, AgentNameDb.APPRAISER.value)
         if appraiser_exec_id is None:
             return
@@ -592,6 +581,9 @@ class TickerLaneStage:
                 ticker=lane_context.ticker,
             )
         else:
+            llm = pipeline_llm_config(
+                host.settings, agent_name=AgentNameDb.APPRAISER, is_mock=is_mock
+            )
             await host.mark_exec(
                 execution_id=appraiser_exec_id,
                 status="running",
@@ -615,6 +607,7 @@ class TickerLaneStage:
                 risk_free_rate_pct=host.settings.risk_free_rate_pct,
             )
             a_mock_json: str | None = None
+            attempt_cost: AttemptCost | None = None
             if is_mock:
                 await asyncio.sleep(5)
                 appraiser_out = mock_outputs.mock_appraiser_output(lane_context)
@@ -626,30 +619,36 @@ class TickerLaneStage:
                 ai_cfg = llm.ai_models_config
                 if ai_cfg is None:
                     raise RuntimeError("Appraiser LLM config missing for non-mock run")
-                outcome = await run_agent_with_terminal(
-                    settings=host.settings,
-                    session_id=appraiser_exec_id,
-                    runtime=host.cached_terminal_runtime(),
-                    build_agent=lambda t: create_appraiser_agent(
-                        ai_cfg,
-                        use_perplexity=host.settings.use_perplexity,
-                        use_mcp_financial_data=host.settings.use_mcp_financial_data,
-                        terminal=t,
+                outcome = await run_and_record_failure(
+                    db=host.db,
+                    execution_id=appraiser_exec_id,
+                    start=lambda: run_agent_with_terminal(
+                        settings=host.settings,
+                        session_id=appraiser_exec_id,
+                        runtime=host.cached_terminal_runtime(),
+                        build_agent=lambda t: create_appraiser_agent(
+                            ai_cfg,
+                            use_perplexity=host.settings.use_perplexity,
+                            use_mcp_financial_data=host.settings.use_mcp_financial_data,
+                            terminal=t,
+                        ),
+                        user_prompt=create_appraiser_user_prompt(
+                            appraiser_input=appraiser_input
+                        ),
+                        usage_limits=ai_cfg.pydantic_ai_model.usage_limits,
                     ),
-                    user_prompt=create_appraiser_user_prompt(
-                        appraiser_input=appraiser_input
-                    ),
-                    usage_limits=ai_cfg.model.usage_limits,
                 )
                 appraiser_out = outcome.output
                 a_messages = list(outcome.all_messages)
                 a_mock_json = None
+                attempt_cost = attempt_cost_from_usage(outcome.usage)
             await host.complete_exec_with_conversation(
                 execution_id=appraiser_exec_id,
                 system_prompt=with_current_date(APPRAISER_SYSTEM_PROMPT),
                 output_json=appraiser_out.model_dump_json(),
                 messages=a_messages,
                 messages_json=a_mock_json,
+                attempt_cost=attempt_cost,
             )
             AI_LOGFIRE.info(
                 "Appraiser stage completed",
@@ -659,40 +658,24 @@ class TickerLaneStage:
                 ticker=lane_context.ticker,
             )
 
-        if is_mock:
-            await asyncio.sleep(5)
-            rating_decision = mock_outputs.mock_rating_table_decision(
-                lane_context,
-                is_existing_position=is_existing_position,
-                thesis=thesis,
-                evaluation=evaluation,
-            )
-        else:
-            mos = MarginOfSafetyAssessment.from_distribution(
-                appraiser_out.valuation_distribution
-            )
-            rating_decision = build_rating_table_decision(
-                lane_context=lane_context,
-                thesis=thesis,
-                evaluation=evaluation,
-                margin_of_safety=mos,
-                is_existing_position=is_existing_position,
-                decision_date=date.today().isoformat(),
-            )
-        verdict = verdict_from_decision(rating_decision)
+        appraised = build_appraised_decision(
+            lane_context,
+            is_existing_position=is_existing_position,
+            decision_date=date.today().isoformat(),
+        )
         await host.db(
             update_ticker_run_completion,
             run_id=run_id,
             status="completed",
-            final_rating=str(verdict.rating.value),
-            decision_type="rating_table",
-            recommended_action=verdict.recommended_action,
-            final_verdict_json=verdict.model_dump_json(),
+            final_rating=None,
+            decision_type="appraised",
+            recommended_action=None,
+            final_verdict_json=appraised.model_dump_json(),
             error_message=None,
         )
         await host.recompute(workflow_run_id)
         AI_LOGFIRE.info(
-            "Deterministic rating table applied; ticker run finished",
+            "Appraiser completion persisted; ticker run finished",
             agent_name=AgentNameDb.APPRAISER,
             workflow_run_id=workflow_run_id,
             run_id=run_id,

@@ -4,6 +4,7 @@ import type {
   EntryPathApi,
   WorkflowRunDetailResponse,
 } from "@/api";
+import { formatWorkflowCost } from "@/utils/formatWorkflowCost";
 import { GRAPH_LAYOUT_PROFILER_LANE_ORDER } from "./agentLaneOrder";
 import { sortedWorkflowRuns } from "./tickerRunOrder";
 
@@ -21,7 +22,10 @@ function sortAgents(
   );
 }
 
-export type GraphNodeKind = "workflow_surveyor" | "lane_agent";
+export type GraphNodeKind =
+  | "workflow_surveyor"
+  | "workflow_curator"
+  | "lane_agent";
 
 export interface LayoutNode {
   id: string;
@@ -30,6 +34,7 @@ export interface LayoutNode {
   agentName: AgentNameSlug;
   status: AgentExecutionSummary["status"];
   modelName: AgentExecutionSummary["model_name"];
+  costLabel: string;
   runId: string | null;
   ticker: string | null;
   entryPath: EntryPathApi | null;
@@ -109,8 +114,10 @@ export function buildGraphLayout(detail: WorkflowRunDetailResponse): {
   nodes: LayoutNode[];
   edges: LayoutEdge[];
   surveyorNodeId: string;
+  curatorNodeId: string;
 } {
   const surveyorNodeId = `wf-${detail.id}-surveyor`;
+  const curatorNodeId = `wf-${detail.id}-curator`;
   const nodes: LayoutNode[] = [];
   const edges: LayoutEdge[] = [];
 
@@ -179,6 +186,7 @@ export function buildGraphLayout(detail: WorkflowRunDetailResponse): {
       agentName: "surveyor",
       status: detail.surveyor_execution.status,
       modelName: detail.surveyor_execution.model_name ?? null,
+      costLabel: formatWorkflowCost(detail.surveyor_execution.cost),
       runId: null,
       ticker: null,
       entryPath: null,
@@ -214,6 +222,7 @@ export function buildGraphLayout(detail: WorkflowRunDetailResponse): {
         agentName: exec.agent_name,
         status: exec.status,
         modelName: exec.model_name ?? null,
+        costLabel: formatWorkflowCost(exec.cost),
         runId: run.id,
         ticker: run.ticker,
         entryPath: run.entry_path,
@@ -244,5 +253,51 @@ export function buildGraphLayout(detail: WorkflowRunDetailResponse): {
     }
   });
 
-  return { nodes, edges, surveyorNodeId };
+  if (detail.curator_execution) {
+    let maxLastCol = -1;
+    const lastLaneNodeIds: string[] = [];
+    runs.forEach((run) => {
+      const sorted = sortAgents(run.agent_executions);
+      const last = sorted.at(-1);
+      if (!last) return;
+      const colIndex = CANONICAL_ORDER.indexOf(last.agent_name);
+      maxLastCol = Math.max(maxLastCol, colIndex >= 0 ? colIndex : 0);
+      lastLaneNodeIds.push(`run-${run.id}--${last.agent_name}`);
+    });
+    const curatorCol =
+      maxLastCol >= 0 ? maxLastCol + 1 : CANONICAL_ORDER.length;
+    const curatorY =
+      runs.length === 0
+        ? TOP_Y
+        : runs.length === 1
+          ? laneY(0)
+          : (laneY(0) + laneY(runs.length - 1)) / 2 - NODE_H / 2;
+    nodes.push({
+      id: curatorNodeId,
+      kind: "workflow_curator",
+      label: agentDisplayLabel("curator"),
+      agentName: "curator",
+      status: detail.curator_execution.status,
+      modelName: detail.curator_execution.model_name ?? null,
+      costLabel: formatWorkflowCost(detail.curator_execution.cost),
+      runId: null,
+      ticker: null,
+      entryPath: null,
+      workflowRunId: detail.id,
+      position: { x: columnX(curatorCol), y: curatorY },
+      handleTargetLeft: lastLaneNodeIds.length > 0,
+      handleTargetTop: false,
+    });
+    for (const lastId of lastLaneNodeIds) {
+      edges.push({
+        id: `e-${lastId}-${curatorNodeId}`,
+        source: lastId,
+        target: curatorNodeId,
+        sourceHandle: "r",
+        targetHandle: "l",
+      });
+    }
+  }
+
+  return { nodes, edges, surveyorNodeId, curatorNodeId };
 }

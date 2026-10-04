@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-03-03 | Updated: 2026-08-30 -->
+<!-- Generated: 2026-03-03 | Updated: 2026-09-30 -->
 
 # surveyor
 
@@ -13,6 +13,7 @@ The `surveyor` directory contains the implementation of the "Surveyor" AI agent.
 | ------------------ | ----------------------------------------------------------------------------- |
 | `surveyor.py`      | Factory function for creating the Surveyor agent, including its search tools. |
 | `system_prompt.py` | System prompt for the Surveyor agent persona and instructions.                |
+| `screening_check.py` | Rejects a non-null FCF yield or revenue CAGR that was not copied from `compute_screening_metrics`. Null metrics stay legal. |
 | `__init__.py`      | Package initialization for the surveyor module.                               |
 
 ## Subdirectories
@@ -23,7 +24,7 @@ None.
 
 ### Working In This Directory
 
-- **Agent Tools**: Terminal access is required because it runs bounded yfinance screening and enrichment; constructing Surveyor with terminal disabled fails immediately. Official universe listing tools and filing tools verify finalists. By default (`use_perplexity=False`), the agent uses pydantic-ai `WebSearch` and `WebFetch`; with `use_perplexity=True`, Perplexity-backed tools come from `create_perplexity_toolset(AgentName.SURVEYOR)`. EODHD and FMP MCP toolsets remain optional, one-attempt gap-fill sources when `use_mcp_financial_data=True`; never use their paid endpoints for universe screening. Google does not support MCP—use `use_mcp_financial_data=False` or `--no-mcp`.
+- **Agent Tools**: Terminal access is required because it runs bounded yfinance screening and enrichment; constructing Surveyor with terminal disabled fails immediately. `compute_screening_metrics` is a host tool (the sandbox cannot import `discount_analyst`); Step 2 copies its yield and CAGR, or leaves them null when the tool returns null. Official universe listing tools and filing tools verify finalists. By default (`use_perplexity=False`), the agent uses pydantic-ai `WebSearch` and `WebFetch`; with `use_perplexity=True`, Perplexity-backed tools come from `create_perplexity_toolset(AgentName.SURVEYOR)`. EODHD and FMP MCP toolsets remain optional, one-attempt gap-fill sources when `use_mcp_financial_data=True`; never use their paid endpoints for universe screening. Google does not support MCP—use `use_mcp_financial_data=False` or `--no-mcp`.
 - **Prompts**: Keep the system persona in `system_prompt.py`.
 
 ### Testing Requirements
@@ -41,9 +42,8 @@ None.
 ### Internal
 
 - `discount_analyst.agents.surveyor.schema`: For `SurveyorOutput`, `SurveyorCandidate`, and `SurveyorLaneContext`.
-- `discount_analyst.config.ai_models_config`: For model configuration and selection.
+- `discount_analyst.config.ai_models_config`: Model selection. `AIModelsConfig.pydantic_ai_model.to_model()` builds the LLM instance.
 - `discount_analyst.config.settings`: For API keys and rate limit settings.
-- `discount_analyst.agents.common.model`: For creating the LLM model instance.
 - `discount_analyst.integrations.perplexity`: For Perplexity-backed search tools via `create_perplexity_toolset(AgentName.SURVEYOR)`.
 - `discount_analyst.agents.common.tool_support`: MCP toolset wiring via `add_required_feature_to_builtin_tools`.
 - `discount_analyst.integrations.financial_data_mcp`: EODHD/FMP `MCPToolset` factories.

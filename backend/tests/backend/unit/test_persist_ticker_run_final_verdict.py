@@ -1,7 +1,10 @@
 """Tests for ``persist_ticker_run_final_verdict`` data-quality rejection lookup."""
 
+from decimal import Decimal
+
 from sqlmodel import Session, col, select
 
+from backend.tests.factories.sterling import sterling_holdings
 from discount_analyst.adapters.persistence.crud.db_utils import new_id
 from discount_analyst.adapters.persistence.crud.run_executions import (
     get_agent_execution_id_by_run_and_agent,
@@ -51,7 +54,9 @@ def test_persist_dqr_uses_profiler_execution_not_researcher(
     insert_workflow_run(
         db_session,
         workflow_run_id=workflow_run_id,
-        portfolio_tickers=["BOWL.L"],
+        holdings=sterling_holdings("BOWL.L"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
     )
     insert_ticker_run_with_agents(
@@ -100,7 +105,9 @@ def test_persist_dqr_uses_workflow_surveyor_when_no_profiler(
     insert_workflow_run(
         db_session,
         workflow_run_id=workflow_run_id,
-        portfolio_tickers=["CGS.L"],
+        holdings=sterling_holdings("CGS.L"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
         surveyor_execution_id=surveyor_execution_id,
     )
@@ -144,7 +151,9 @@ def test_persist_dqr_skips_upsert_when_workflow_surveyor_is_absent(
     surveyor_id, _curator_id = insert_workflow_run(
         db_session,
         workflow_run_id=workflow_run_id,
-        portfolio_tickers=["KEYS.L"],
+        holdings=sterling_holdings("KEYS.L"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
     )
     run_id = new_id()

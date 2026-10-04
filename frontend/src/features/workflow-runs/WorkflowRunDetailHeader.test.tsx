@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { WorkflowRunDetailResponse } from "@/api";
 import { WorkflowRunDetailHeader } from "./WorkflowRunDetailHeader";
+import { ZERO_RUN_COST, ZERO_WORKFLOW_COST } from "@/utils/formatWorkflowCost";
 
 function makeDetail(
   overrides: Partial<WorkflowRunDetailResponse> = {},
@@ -16,6 +17,8 @@ function makeDetail(
     is_mock: false,
     error_message: null,
     can_retry_failed_agents: false,
+    ...ZERO_RUN_COST,
+    portfolio_value_gbp: null,
     surveyor_execution: null,
     curator_execution: null,
     runs: [],
@@ -44,6 +47,8 @@ describe("WorkflowRunDetailHeader", () => {
     expect(
       screen.getByRole("button", { name: "Cancel workflow" }),
     ).toBeInTheDocument();
+    expect(screen.getByText(/Cost \$0\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/SURVEYOR \$0\.00/)).toBeInTheDocument();
 
     rerender(
       <WorkflowRunDetailHeader
@@ -123,6 +128,7 @@ describe("WorkflowRunDetailHeader", () => {
         detail={makeDetail({
           status: "completed",
           can_retry_failed_agents: true,
+          ...ZERO_RUN_COST,
           runs: [
             {
               id: "run-1",
@@ -136,6 +142,7 @@ describe("WorkflowRunDetailHeader", () => {
                 {
                   id: "exec-1",
                   agent_name: "researcher",
+                  cost: ZERO_WORKFLOW_COST,
                   status: "failed",
                   started_at: null,
                   completed_at: null,
@@ -190,6 +197,7 @@ describe("WorkflowRunDetailHeader", () => {
         detail={makeDetail({
           status: "failed",
           can_retry_failed_agents: true,
+          ...ZERO_RUN_COST,
           runs: [
             {
               id: "run-1",
@@ -203,6 +211,7 @@ describe("WorkflowRunDetailHeader", () => {
                 {
                   id: "exec-1",
                   agent_name: "researcher",
+                  cost: ZERO_WORKFLOW_COST,
                   status: "skipped",
                   started_at: null,
                   completed_at: null,
@@ -210,6 +219,7 @@ describe("WorkflowRunDetailHeader", () => {
                 {
                   id: "exec-2",
                   agent_name: "strategist",
+                  cost: ZERO_WORKFLOW_COST,
                   status: "skipped",
                   started_at: null,
                   completed_at: null,
@@ -217,6 +227,7 @@ describe("WorkflowRunDetailHeader", () => {
                 {
                   id: "exec-3",
                   agent_name: "sentinel",
+                  cost: ZERO_WORKFLOW_COST,
                   status: "skipped",
                   started_at: null,
                   completed_at: null,
@@ -224,6 +235,7 @@ describe("WorkflowRunDetailHeader", () => {
                 {
                   id: "exec-4",
                   agent_name: "appraiser",
+                  cost: ZERO_WORKFLOW_COST,
                   status: "skipped",
                   started_at: null,
                   completed_at: null,
@@ -254,9 +266,11 @@ describe("WorkflowRunDetailHeader", () => {
         detail={makeDetail({
           status: "failed",
           can_retry_failed_agents: true,
+          ...ZERO_RUN_COST,
           surveyor_execution: {
             id: "surveyor-1",
             agent_name: "surveyor",
+            cost: ZERO_WORKFLOW_COST,
             status: "failed",
             started_at: null,
             completed_at: null,

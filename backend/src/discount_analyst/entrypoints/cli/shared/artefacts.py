@@ -8,7 +8,7 @@ from pydantic import BaseModel, TypeAdapter
 
 from discount_analyst.agents.runtime.agent_names import AgentName
 from discount_analyst.domain.model_selection.model_name import ModelName
-from discount_analyst.domain.decisions.schema import Verdict
+from discount_analyst.domain.decisions.schema import AppraisedDecision
 
 from discount_analyst.entrypoints.cli.shared.constants import CLI_OUTPUTS_DIR
 
@@ -54,13 +54,12 @@ def write_agent_json(
     return path.resolve()
 
 
-def write_verdicts_json(*, verdicts: list[Verdict], model_name: ModelName) -> Path:
-    """Serialise ``list[Verdict]`` to ``scripts/outputs``; stem includes ``VERDICTS``."""
+def write_verdicts_json(*, verdicts: list[AppraisedDecision]) -> Path:
+    """Serialise ``list[AppraisedDecision]`` to CLI outputs; stem includes ``VERDICTS``."""
     ts = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    safe_model = model_name.value.replace(".", "-")
-    filename = f"{ts}-{safe_model}-VERDICTS.json"
+    filename = f"{ts}-VERDICTS.json"
     CLI_OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
     path = CLI_OUTPUTS_DIR / filename
-    adapter = TypeAdapter(list[Verdict])
+    adapter = TypeAdapter(list[AppraisedDecision])
     path.write_text(adapter.dump_json(verdicts, indent=2, exclude_none=False).decode())
     return path.resolve()

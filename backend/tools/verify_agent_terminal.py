@@ -556,7 +556,6 @@ async def phase6_live_agent(s: VerifyState) -> bool:
             user_prompt=prompt,
             usage_limits=UsageLimits(request_limit=8, tool_calls_limit=4),
             terminal=terminal,
-            run_settings=settings,
         )
         if "AAPL" not in str(outcome.output):
             s.fail("live_agent", f"output={outcome.output}")

@@ -6,8 +6,10 @@ import asyncio
 from typing import Any
 
 import logfire
+from pydantic_ai.messages import ModelMessage
 
-from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
+from discount_analyst.config.logging_constants import AI_LOGFIRE
+from discount_analyst.domain.workflow_cost import AttemptCost
 
 from discount_analyst.adapters.persistence.models import (
     AgentNameDb,
@@ -207,8 +209,9 @@ class DashboardPipelineRunner:
         execution_id: str,
         system_prompt: str,
         output_json: str | None,
-        messages: list[Any] | None = None,
+        messages: list[ModelMessage] | None = None,
         messages_json: str | None = None,
+        attempt_cost: AttemptCost | None = None,
     ) -> None:
         await self.db(
             complete_agent_execution_with_conversation,
@@ -219,6 +222,7 @@ class DashboardPipelineRunner:
             completed_at=utc_now_iso(),
             messages=messages,
             messages_json=messages_json,
+            attempt_cost=attempt_cost,
         )
 
     async def complete_workflow_exec_with_conversation(
@@ -227,8 +231,9 @@ class DashboardPipelineRunner:
         execution_id: str,
         system_prompt: str,
         output_json: str | None,
-        messages: list[Any] | None = None,
+        messages: list[ModelMessage] | None = None,
         messages_json: str | None = None,
+        attempt_cost: AttemptCost | None = None,
     ) -> None:
         await self.db(
             complete_agent_execution_with_conversation,
@@ -239,6 +244,7 @@ class DashboardPipelineRunner:
             completed_at=utc_now_iso(),
             messages=messages,
             messages_json=messages_json,
+            attempt_cost=attempt_cost,
         )
 
     async def _load_candidate_for_run(self, run_id: str) -> SurveyorCandidate | None:
@@ -253,7 +259,7 @@ class DashboardPipelineRunner:
         run_id: str,
         agent_name: str,
         system_prompt: str,
-        messages: list[Any] | None = None,
+        messages: list[ModelMessage] | None = None,
         messages_json: str | None = None,
     ) -> None:
         execution_id = await self.get_exec_id(run_id, agent_name)
@@ -311,6 +317,7 @@ class DashboardPipelineRunner:
                             run_id=run["id"],
                             ticker=run["ticker"],
                             is_mock=is_mock,
+                            is_existing_position=run["is_existing_position"],
                         )
                         continue
                     candidate = await self._load_candidate_for_run(run["id"])
@@ -381,7 +388,13 @@ class DashboardPipelineRunner:
         )
 
     async def _profiler_entry_pipeline(
-        self, *, workflow_run_id: str, run_id: str, ticker: str, is_mock: bool
+        self,
+        *,
+        workflow_run_id: str,
+        run_id: str,
+        ticker: str,
+        is_mock: bool,
+        is_existing_position: bool,
     ) -> None:
         with logfire.set_baggage(
             workflow_run_id=workflow_run_id, run_id=run_id, ticker=ticker
@@ -407,7 +420,7 @@ class DashboardPipelineRunner:
                     run_id=run_id,
                     candidate=candidate,
                     is_mock=is_mock,
-                    is_existing_position=True,
+                    is_existing_position=is_existing_position,
                 )
                 if lane_context is None:
                     return
@@ -417,7 +430,7 @@ class DashboardPipelineRunner:
                     run_id=run_id,
                     lane_context=lane_context,
                     is_mock=is_mock,
-                    is_existing_position=True,
+                    is_existing_position=is_existing_position,
                 )
                 AI_LOGFIRE.info(
                     "Profiler entry pipeline completed",

@@ -48,6 +48,19 @@ Every candidate you surface **must** satisfy all of the following:
 | Liquidity | Average daily trading volume sufficient for a retail investor to build a position over several weeks without moving the price. Use judgement — flag any stock where liquidity is a concern. |
 | Domicile / reporting | Company files with either the SEC (US) or Companies House / FCA (UK). You need verifiable public filings. |
 | Operating history | At least 3 years of public financial statements. No SPACs, blank-cheque companies, or recent IPOs with fewer than 3 years of reported results. |
+| Ethical exclusions | Primary or material business is none of the excluded sectors listed below. |
+
+### Excluded sectors
+
+Exclude a company when its primary or material business is one of these. "Material" means what the business is, not a share of revenue. Do not exclude a company only because segment revenue is missing or exposure is unclear.
+
+- **Defence and military** — companies whose primary or material business involves weapons systems, military aerospace, government armaments contracts, or defence technology. This includes both large prime contractors and component suppliers.
+- **Civilian firearms** — manufacturers or distributors of consumer firearms, ammunition, or related accessories.
+- **Fossil fuels** — companies engaged in the exploration, extraction, production, refining, or transportation of coal, oil, or natural gas as a primary or material business activity.
+- **Tobacco and nicotine** — manufacturers or distributors of cigarettes, cigars, smokeless tobacco, or nicotine delivery products.
+- **Gambling** — operators of sports betting platforms, online casinos, physical casinos, or other gambling services.
+- **Private prisons and detention** — companies that operate or manage private prisons, immigration detention facilities, or juvenile detention centres under government contract.
+- **Predatory consumer finance** — payday lenders, rent-to-own operators, or any business whose primary model depends on high-interest short-term lending to financially vulnerable consumers.
 
 ### Soft signals (used for ranking, not filtering)
 
@@ -98,9 +111,10 @@ that source for this run. Do not probe sibling endpoints or inspect subscription
 
 {REGULATORY_UNIVERSE_TOOL_RULES}
 
-`terminal_exec` has yfinance 1.7.0 and a persistent sandbox. Keep raw Yahoo responses and
-intermediate tables under `/tmp`; never print an entire universe, statement, or raw response into
-the conversation. Each terminal call should print only counts, exclusion reasons, warnings, and
+`terminal_exec` has yfinance 1.7.0, Python `markitdown` for documents/PDFs, and a persistent sandbox.
+Keep raw Yahoo responses and intermediate tables under `/tmp`; never print an entire universe,
+statement, or raw response into the conversation. Do not call `curl`, `wget`, or `pdftotext`.
+Each terminal call should print only counts, exclusion reasons, warnings, and
 at most 60 compact candidate rows. Use no more than three terminal calls for the whole screen:
 combined universe collection, shortlist enrichment, and final hard-filter metric calculation.
 
@@ -109,8 +123,11 @@ combined universe collection, shortlist enrichment, and final hard-filter metric
 Use one terminal script with `yfinance.EquityQuery` and `yf.screen`:
 
 1. **US:** filter `region='us'`, exchange code in `NMS`, `NYQ`, `NCM`, or `ASE`,
-   `intradaymarketcap` from $25M through $600M, plus a positive price and volume filter. Page with
-   `size=250`; stop when the result is exhausted or after 12 pages. `ASE` results are discovery
+   `intradaymarketcap` from $25M through $600M, plus a positive price and a valid EquityQuery
+   trading field such as `avgdailyvol3m` (or `dayvolume` / `intradayprice`). Page with
+   `size=250`; stop when the result is exhausted or after 12 pages. If the US `yf.screen` call
+   fails, retry **once** without the volume operand and rely on the Step 2 20-session traded-value
+   hard filter; do not abandon the US universe. `ASE` results are discovery
    only: exclude a candidate unless official confirmation identifies its exchange as NYSE or
    NASDAQ. Locally remove ETFs, funds, ADRs, preferred shares, warrants, rights, shells, acquisition
    companies/SPACs, and obvious pre-revenue names.
@@ -145,15 +162,30 @@ Apply these rules:
 - Calculate 20-session median daily traded value from unadjusted close times volume, converting
   UK pence to pounds. Require at least £50,000 for UK names or $100,000 for US names. Liquidity
   below the applicable floor fails the hard filter rather than merely becoming a warning.
-- Require at least three distinct annual statement periods. Populate
-  `revenue_growth_3y_cagr_pct` only with four comparable annual revenue observations; otherwise
-  leave it null and explain the gap. Do not label a two-year calculation as a three-year CAGR.
+- Require at least three distinct annual statement periods. For each finalist, call
+  `compute_screening_metrics` with the statement rows and copy
+  `revenue_growth_3y_cagr_pct` and `free_cash_flow_yield_pct` from that tool's latest
+  result for the ticker. Leave a field null when the tool returns null, including when
+  you cannot supply four comparable annual revenue observations. Do not label a
+  two-year calculation as a three-year CAGR, and do not invent either percentage.
 - Exclude acquisition companies/SPACs even when an official directory calls their ordinary shares
   common equity. Exclude ADRs, recent IPOs without three statement periods, foreign-only listings,
   pre-revenue companies, and speculative biotech.
-- Calculate free cash flow as operating cash flow minus capital expenditure where comparable
-  statement fields exist. Keep period bases consistent for EV/EBIT and net debt/EBITDA. Null is
-  preferable to mixing periods or silently accepting a Yahoo anomaly.
+- Exclude a name whose primary or material business matches an excluded sector above, including
+  defence component suppliers. Judge this from the business description already in hand (screener
+  industry, company summary, or filings gathered for the shortlist). Do not spend web searches on
+  this filter. Do not drop a name merely because that description is ambiguous.
+- Free cash flow is operating cash flow minus the absolute value of capital expenditure
+  (statement capex is often negative). Pass those rows, market cap, and a caller-supplied
+  FX rate when the cash-flow currency differs from the market-cap currency, into
+  `compute_screening_metrics`. The tool does not fetch FX. Keep period bases consistent
+  for EV/EBIT and net debt/EBITDA. Null is preferable to mixing periods or silently
+  accepting a Yahoo anomaly.
+- Do **not** emit a candidate unless Step 2 **hard filters actually ran and passed**: reconciled
+  cap, 20-session liquidity floor, and at least three annual statement periods. Soft `KeyMetrics`
+  (Piotroski, Altman, CAGR) may stay null. Do not pad the 15 with names whose hard filters were
+  not computed. A Companies House cold cache is a helper limitation, not a reason to drop a
+  verified name; fetch issuer filings via web if needed.
 
 Retain exactly 15 provisional finalists, reasonably balanced across UK and US, plus
 at least two ranked reserve names in `/tmp`. If a later check removes a finalist, promote the next
@@ -221,7 +253,9 @@ JSON.
 
 Your output is constrained by a structured schema. Populate every field you can. A few notes on how to fill it well:
 
-- **Do not pad the list.** Return exactly 15 candidates. Use no more than two saved reserves to replace exclusions without weakening any hard filter.
+- **Do not pad the list.** Return exactly 15 candidates. If you cannot find 15 names whose Step 2
+  hard filters actually ran and passed, fail the schema rather than emitting an all-null slate.
+  Use no more than two saved reserves to replace exclusions without weakening any hard filter.
 - **Mix UK and US stocks.** The operator invests in both markets. Aim for a reasonable balance — do not screen only one geography unless there are genuinely no opportunities in the other.
 - **Mix value and growth.** Balance styles; do not over-index on one.
 - **Be honest about uncertainty.** Leave uncertain soft metrics null and explain why. Do not include a candidate whose market cap, listing, liquidity, reporting status, or operating history remains uncertain because those are hard filters.

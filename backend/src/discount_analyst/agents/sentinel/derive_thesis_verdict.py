@@ -3,7 +3,8 @@
 from discount_analyst.agents.sentinel.schema import EvaluationReport, ThesisVerdict
 from discount_analyst.agents.strategist.schema import MispricingThesis
 
-_MATERIAL_GAP_KINDS = frozenset({"none", "never_disclosed", "contradicted"})
+_PRINTED_WEAKENS_GAP_KINDS = frozenset({"none", "contradicted"})
+_SOFT_GAP_KINDS = frozenset({"calendar", "never_disclosed"})
 _BREAKS_THESIS = "Breaks thesis"
 _WEAKENS_THESIS = "Weakens thesis"
 _MEDIUM_OR_HIGH = frozenset({"Medium", "High"})
@@ -29,20 +30,24 @@ def derive_thesis_verdict(evaluation: EvaluationReport) -> ThesisVerdict:
         return ThesisVerdict.BROKEN_DO_NOT_PROCEED
     if any(
         assessment.verdict == _WEAKENS_THESIS
-        and assessment.gap_kind in _MATERIAL_GAP_KINDS
+        and assessment.gap_kind in _PRINTED_WEAKENS_GAP_KINDS
         for assessment in assessments
     ):
         return ThesisVerdict.WEAKENED_DO_NOT_PROCEED
-    non_calendar = [
-        assessment for assessment in assessments if assessment.gap_kind != "calendar"
+    printed = [
+        assessment
+        for assessment in assessments
+        if assessment.gap_kind not in _SOFT_GAP_KINDS
     ]
-    if non_calendar:
-        low_count = sum(
-            1 for assessment in non_calendar if assessment.confidence == "Low"
+    if printed:
+        low_count = sum(1 for assessment in printed if assessment.confidence == "Low")
+        has_adverse = any(
+            assessment.verdict in {_WEAKENS_THESIS, _BREAKS_THESIS}
+            for assessment in assessments
         )
-        if low_count * 2 >= len(non_calendar):
+        if low_count * 2 >= len(printed) and has_adverse:
             return ThesisVerdict.UNPROVEN_DO_NOT_PROCEED
-    if any(assessment.gap_kind == "calendar" for assessment in assessments):
+    if any(assessment.gap_kind in _SOFT_GAP_KINDS for assessment in assessments):
         return ThesisVerdict.INTACT_WITH_RESERVATIONS
     return ThesisVerdict.INTACT_PROCEED_TO_VALUATION
 

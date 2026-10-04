@@ -8,13 +8,10 @@ from discount_analyst.domain.allocations.actions import RebalanceAction
 from discount_analyst.domain.allocations.invariants import (
     require_unique_casefold,
     validate_company_weight_caps,
-    validate_forced_zero_weights,
     validate_ordered_weight_range,
     validate_portfolio_weight_totals,
-    validate_retain_or_reduce_weights,
     validate_shared_risk_clusters,
 )
-from discount_analyst.domain.allocations.policy import AllocationPolicy
 
 
 class AllocationPosition(BaseModel):
@@ -23,7 +20,6 @@ class AllocationPosition(BaseModel):
     source_run_id: str
     is_existing_position: bool
     current_weight_pct: float = Field(ge=0, le=100)
-    policy: AllocationPolicy
     target_weight_pct: float = Field(ge=0, le=100)
     acceptable_weight_low_pct: float = Field(ge=0, le=100)
     acceptable_weight_high_pct: float = Field(ge=0, le=100)
@@ -66,20 +62,6 @@ class PortfolioAllocation(BaseModel):
                 high_pct=position.acceptable_weight_high_pct,
                 label=f"Position {position.ticker!r}",
             )
-            if position.policy.kind == "forced_zero":
-                validate_forced_zero_weights(
-                    low_pct=position.acceptable_weight_low_pct,
-                    target_pct=position.target_weight_pct,
-                    high_pct=position.acceptable_weight_high_pct,
-                    ticker=position.ticker,
-                )
-            elif position.policy.kind == "retain_or_reduce":
-                validate_retain_or_reduce_weights(
-                    target_pct=position.target_weight_pct,
-                    high_pct=position.acceptable_weight_high_pct,
-                    current_weight_pct=position.policy.current_weight_pct,
-                    ticker=position.ticker,
-                )
         validate_ordered_weight_range(
             low_pct=self.cash.acceptable_weight_low_pct,
             target_pct=self.cash.target_weight_pct,

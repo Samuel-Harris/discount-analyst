@@ -1,7 +1,10 @@
 """Tests for structured agent output persistence."""
 
+from decimal import Decimal
+
 from sqlmodel import Session, col, select
 
+from backend.tests.factories.sterling import sterling_holdings
 from discount_analyst.adapters.persistence.crud.agent_output_persistence import (
     persist_profiler_output,
 )
@@ -27,7 +30,9 @@ def test_persist_profiler_output_writes_one_first_candidate_snapshot(
     insert_workflow_run(
         db_session,
         workflow_run_id=workflow_run_id,
-        portfolio_tickers=["ABC.L"],
+        holdings=sterling_holdings("ABC.L"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
     )
     insert_ticker_run_with_agents(

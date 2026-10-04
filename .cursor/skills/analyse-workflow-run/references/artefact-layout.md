@@ -35,8 +35,8 @@ Script (stdlib only, no repo imports):
 
 Output:
 
-- Per-conversation `{AGENT}_{ticker}.md` (Surveyor workflow conversation → `SURVEYOR___workflow__.md`).
-- `_MERGED_{AGENT}.md` for each agent with conversations (names are **uppercase** in production SQLite).
+- Per-conversation `{AGENT}_{ticker}.md` (Surveyor and Curator workflow conversations → `SURVEYOR___workflow__.md`, `CURATOR___workflow__.md`).
+- `_MERGED_{AGENT}.md` for each agent with conversations (SQLite `agent_name` is **lowercase**; the exporter writes **uppercase** filenames).
 
 ## Aggregated conversations (transcripts)
 
@@ -47,8 +47,8 @@ Script (stdlib only, no repo imports):
 - Required flags: same three as digest export (`--workflow-id`, `--sqlite-path`, `--output-dir`).
 - Optional: **`--full-transcripts`** — disable compression and line cap (verbatim export).
 - Optional: **`--max-lines N`** — per-agent line cap when curated (default **6000**).
-- Creates `<workflow-run-id>/aggregated_conversations/` with one markdown file per agent: `SURVEYOR.md` (workflow-scoped, if present) and `PROFILER.md`, `RESEARCHER.md`, `STRATEGIST.md`, `SENTINEL.md`, `APPRAISER.md` (each file contains ticker sections in ticker order).
-- **Default (curated):** stubs duplicate system prompts, thins huge `user_prompt` blocks (Appraiser also redacts upstream JSON before `ValuationResult` when that pattern appears), then enforces the line cap by **omitting** lowest-scoring ticker threads first (heuristic keywords aligned with typical workflow-run review themes). Header blockquotes list any omitted tickers.
+- Creates `<workflow-run-id>/aggregated_conversations/` with one markdown file per agent: `SURVEYOR.md` and `CURATOR.md` (workflow-scoped, if present) and `PROFILER.md`, `RESEARCHER.md`, `STRATEGIST.md`, `SENTINEL.md`, `APPRAISER.md` (each file contains ticker sections in ticker order).
+- **Default (curated):** stubs duplicate system prompts, thins huge `user_prompt` blocks (Appraiser also redacts upstream JSON before `ValuationResult` when that pattern appears; Curator also redacts packed `<CuratorInput>` JSON), then enforces the line cap by **omitting** lowest-scoring ticker threads first (heuristic keywords aligned with typical workflow-run review themes). Header blockquotes list any omitted tickers.
 - Use **`--full-transcripts`** for audit trails that need every line; use **default** for grep-friendly issue-focused review; use `conversation_digests/` for token-efficient merged digests in subagent step 6.
 
 ## Final report
@@ -57,9 +57,11 @@ Script (stdlib only, no repo imports):
 - Same directory as the SQLite copy and export folders; open in a browser.
 - Section layout and HTML requirements: see step 7 and **Report format (HTML)** in [`../SKILL.md`](../SKILL.md).
 - **Required Report Sections:**
-  1. **Data sources:** Details of the copied SQLite database (path, size, timestamp) and the Logfire query parameters used.
-  2. **Executive summary:** Tickers processed, success rates, profiler coverage (< 25 conversations warning), sentinel pass count, and final ratings.
-  3. **Terminal Tool Analytics:** Comprehensive summary of `terminal_exec` tool calls, success rates, timeouts, errors, and an audit of toolkit vs. ad-hoc commands used.
-  4. **Appraiser Valuation Audit:** A clear table containing method-agnostic valuation metrics extracted from `appraiser_reports` (EXPECTED, P10, P50, and P90 intrinsic values, current share price, currency, primary vs cross-check valuation methods, weights, and data quality).
-  5. **Qualitative conversation review:** Individual sections per pipeline agent (`SURVEYOR`, `PROFILER`, `RESEARCHER`, `STRATEGIST`, `SENTINEL`, `APPRAISER`) reviewing reasoning, rate limit recoveries, edge cases, and tool usage.
-  6. **Appendix: telemetry:** Raw or formatted Logfire output, span summaries, and execution metrics.
+  1. **Data sources:** Copied SQLite (path, size, timestamp) and Logfire query parameters.
+  2. **Executive summary:** Tickers split holding vs prospect and `appraised` vs DQR (historical ratings if present); Curator status / cash; Profiler coverage only vs Profiler-entry lanes. Lead with any user-specific concern.
+  3. **Pipeline synthesis:** Causal chain, mechanical vs judgement, per-ticker decision table. See [`pipeline-synthesis.md`](pipeline-synthesis.md).
+  4. **Terminal Tool Analytics:** `terminal_exec` counts, success, timeouts, toolkit vs ad-hoc (lane-scoped and workflow-scoped Surveyor/Curator).
+  5. **Appraiser Valuation Audit:** EXPECTED, P10, P50, P90, price, methods/weights, data quality; recompute blends.
+  6. **Curator Allocation Audit:** Positions, cash, clusters; DQR stamps vs discretionary zeros.
+  7. **Qualitative conversation review:** One section per pipeline agent (`SURVEYOR` … `CURATOR`). Inputs to synthesis, not a substitute.
+  8. **Appendix: telemetry:** Logfire tables; retry vs final SQLite.

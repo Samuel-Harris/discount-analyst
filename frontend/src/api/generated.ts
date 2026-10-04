@@ -14,6 +14,7 @@ export type AgentExecutionSummaryStartedAt = string | null;
 export interface AgentExecutionSummary {
   agent_name: AgentNameSlug;
   completed_at: AgentExecutionSummaryCompletedAt;
+  cost: WorkflowCostFigure;
   id: string;
   model_name?: AgentExecutionSummaryModelName;
   started_at: AgentExecutionSummaryStartedAt;
@@ -34,7 +35,10 @@ export const AgentNameSlug = {
   curator: 'curator',
 } as const;
 
-export type AllocationPositionPolicy = InvestablePolicy | RetainOrReducePolicy | ForcedZeroPolicy;
+export interface AgentTypeCost {
+  agent_name: AgentNameSlug;
+  cost: WorkflowCostFigure;
+}
 
 export interface AllocationPosition {
   /**
@@ -55,7 +59,6 @@ export interface AllocationPosition {
    */
   current_weight_pct: number;
   is_existing_position: boolean;
-  policy: AllocationPositionPolicy;
   rationale: string;
   source_run_id: string;
   /**
@@ -122,9 +125,11 @@ export interface ConversationResponse {
 }
 
 export interface CreateWorkflowRunRequest {
+  /** @minimum 0 */
+  cash_gbp: number;
   is_mock?: boolean;
-  /** @minItems 0 */
-  portfolio_tickers: string[];
+  positions?: PortfolioPositionInput[];
+  suggestion_tickers?: string[];
 }
 
 export interface CreateWorkflowRunResponse {
@@ -134,6 +139,8 @@ export interface CreateWorkflowRunResponse {
 }
 
 export interface DashboardStatusResponse {
+  companies_house_cache_present: boolean;
+  sec_user_agent_configured: boolean;
   yfinance: YfinanceFreshnessResponse;
 }
 
@@ -145,6 +152,7 @@ export const DecisionTypeApi = {
   rating_table: 'rating_table',
   sentinel_rejection: 'sentinel_rejection',
   data_quality_rejection: 'data_quality_rejection',
+  appraised: 'appraised',
 } as const;
 
 export type EntryPathApi = typeof EntryPathApi[keyof typeof EntryPathApi];
@@ -170,29 +178,9 @@ export const ExecutionStatusApi = {
   cancelled: 'cancelled',
 } as const;
 
-export interface ForcedZeroPolicy {
-  kind?: 'forced_zero';
-  reason: ForcedZeroReason;
-}
-
-export type ForcedZeroReason = typeof ForcedZeroReason[keyof typeof ForcedZeroReason];
-
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const ForcedZeroReason = {
-  new_hold: 'new_hold',
-  sell: 'sell',
-  strong_sell: 'strong_sell',
-} as const;
-
 export interface HTTPValidationError {
   detail?: ValidationError[];
 }
-
-export const InvestablePolicyValue = {
-  kind: 'investable',
-} as const;
-export type InvestablePolicy = typeof InvestablePolicyValue;
 
 export type ModelName = typeof ModelName[keyof typeof ModelName];
 
@@ -208,6 +196,9 @@ export const ModelName = {
   'gpt-52': 'gpt-5.2',
   'gpt-54': 'gpt-5.4',
   'gpt-56-luna': 'gpt-5.6-luna',
+  'gpt-56-terra': 'gpt-5.6-terra',
+  'gpt-6-luna': 'gpt-6-luna',
+  'gpt-61-sol': 'gpt-6.1-sol',
   'gemini-3-pro-preview': 'gemini-3-pro-preview',
   'gemini-31-pro-preview': 'gemini-3.1-pro-preview',
   'deepseek-v4-flash': 'deepseek-v4-flash',
@@ -222,8 +213,18 @@ export interface PortfolioAllocation {
   shared_risk_clusters: SharedRiskCluster[];
 }
 
+export interface PortfolioPositionInput {
+  /** @minLength 1 */
+  ticker: string;
+  /** @minimum 0 */
+  value_gbp: number;
+}
+
 export interface PortfolioResponse {
-  portfolio_tickers: string[];
+  /** @minimum 0 */
+  cash_gbp: number;
+  positions: PortfolioPositionInput[];
+  suggestion_tickers: string[];
 }
 
 export interface ProfilerRunCreated {
@@ -243,15 +244,6 @@ export const RebalanceAction = {
   exit: 'exit',
   avoid: 'avoid',
 } as const;
-
-export interface RetainOrReducePolicy {
-  /**
-   * @minimum 0
-   * @maximum 100
-   */
-  current_weight_pct: number;
-  kind?: 'retain_or_reduce';
-}
 
 export interface SharedRiskCluster {
   allocation_effect: string;
@@ -301,21 +293,44 @@ export interface ValidationError {
   type: string;
 }
 
+export type WorkflowCostFigureAmountUsd = string | null;
+
+export type WorkflowCostFigureState = typeof WorkflowCostFigureState[keyof typeof WorkflowCostFigureState];
+
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const WorkflowCostFigureState = {
+  amount: 'amount',
+  unknown: 'unknown',
+} as const;
+
+export interface WorkflowCostFigure {
+  amount_usd?: WorkflowCostFigureAmountUsd;
+  state: WorkflowCostFigureState;
+}
+
 export type WorkflowRunDetailResponseCompletedAt = string | null;
 
 export type WorkflowRunDetailResponseCuratorExecution = AgentExecutionSummary | null;
 
 export type WorkflowRunDetailResponseErrorMessage = string | null;
 
+export type WorkflowRunDetailResponsePortfolioValueGbp = number | null;
+
 export type WorkflowRunDetailResponseSurveyorExecution = AgentExecutionSummary | null;
 
 export interface WorkflowRunDetailResponse {
   can_retry_failed_agents: boolean;
   completed_at: WorkflowRunDetailResponseCompletedAt;
+  cost_by_agent: AgentTypeCost[];
+  cost_successful: WorkflowCostFigure;
+  cost_total: WorkflowCostFigure;
+  cost_unsuccessful: WorkflowCostFigure;
   curator_execution: WorkflowRunDetailResponseCuratorExecution;
   error_message: WorkflowRunDetailResponseErrorMessage;
   id: string;
   is_mock: boolean;
+  portfolio_value_gbp: WorkflowRunDetailResponsePortfolioValueGbp;
   runs: TickerRunDetail[];
   started_at: string;
   status: WorkflowRunStatusApi;

@@ -17,21 +17,53 @@ describe("useConversation", () => {
       assistant_response: "{}",
     };
     const surveyor = vi
-      .spyOn(api, "fetchSurveyorConversation")
+      .spyOn(api, "fetchWorkflowAgentConversation")
       .mockResolvedValue(payload);
     const runAgent = vi.spyOn(api, "fetchRunAgentConversation");
     const { result } = renderHook(() => useConversation());
     await act(async () => {
-      await result.current.load({ kind: "surveyor", workflowRunId: "wf-1" });
+      await result.current.load({
+        kind: "workflow_agent",
+        workflowRunId: "wf-1",
+        agentName: "surveyor",
+      });
     });
     expect(result.current.loading).toBe(false);
     expect(surveyor).toHaveBeenCalledWith(
       "wf-1",
+      "surveyor",
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(runAgent).not.toHaveBeenCalled();
     expect(result.current.data).toEqual(payload);
     expect(result.current.error).toBeNull();
+  });
+
+  it("loads curator conversation from the workflow-scoped endpoint", async () => {
+    const payload = {
+      system_prompt: "seed curator system",
+      messages_json: "[]",
+      assistant_response: "{}",
+    };
+    const workflowAgent = vi
+      .spyOn(api, "fetchWorkflowAgentConversation")
+      .mockResolvedValue(payload);
+    const runAgent = vi.spyOn(api, "fetchRunAgentConversation");
+    const { result } = renderHook(() => useConversation());
+    await act(async () => {
+      await result.current.load({
+        kind: "workflow_agent",
+        workflowRunId: "wf-1",
+        agentName: "curator",
+      });
+    });
+    expect(workflowAgent).toHaveBeenCalledWith(
+      "wf-1",
+      "curator",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    expect(runAgent).not.toHaveBeenCalled();
+    expect(result.current.data).toEqual(payload);
   });
 
   it("loads ticker agent conversation from the run-scoped endpoint", async () => {
@@ -43,7 +75,7 @@ describe("useConversation", () => {
     const runAgent = vi
       .spyOn(api, "fetchRunAgentConversation")
       .mockResolvedValue(payload);
-    const surveyor = vi.spyOn(api, "fetchSurveyorConversation");
+    const surveyor = vi.spyOn(api, "fetchWorkflowAgentConversation");
     const { result } = renderHook(() => useConversation());
     await act(async () => {
       await result.current.load({
@@ -77,15 +109,16 @@ describe("useConversation", () => {
       messages_json: "[]",
       assistant_response: "{}",
     };
-    vi.spyOn(api, "fetchSurveyorConversation").mockImplementation(() => slow);
+    vi.spyOn(api, "fetchWorkflowAgentConversation").mockImplementation(() => slow);
     const runAgent = vi
       .spyOn(api, "fetchRunAgentConversation")
       .mockResolvedValue(payloadB);
     const { result } = renderHook(() => useConversation());
     await act(async () => {
       void result.current.load({
-        kind: "surveyor",
+        kind: "workflow_agent",
         workflowRunId: "wf-slow",
+        agentName: "surveyor",
       });
     });
     await act(async () => {
@@ -117,8 +150,8 @@ describe("useConversation", () => {
       messages_json: "[]",
       assistant_response: "{}",
     };
-    vi.spyOn(api, "fetchSurveyorConversation")
-      .mockImplementationOnce((_id, init) => {
+    vi.spyOn(api, "fetchWorkflowAgentConversation")
+      .mockImplementationOnce((_id, _agent, init) => {
         return new Promise((_resolve, reject) => {
           init?.signal?.addEventListener(
             "abort",
@@ -130,10 +163,18 @@ describe("useConversation", () => {
       .mockResolvedValueOnce(payload);
     const { result } = renderHook(() => useConversation());
     await act(async () => {
-      void result.current.load({ kind: "surveyor", workflowRunId: "wf-1" });
+      void result.current.load({
+        kind: "workflow_agent",
+        workflowRunId: "wf-1",
+        agentName: "surveyor",
+      });
     });
     await act(async () => {
-      await result.current.load({ kind: "surveyor", workflowRunId: "wf-2" });
+      await result.current.load({
+        kind: "workflow_agent",
+        workflowRunId: "wf-2",
+        agentName: "surveyor",
+      });
     });
     await waitFor(() => {
       expect(result.current.loading).toBe(false);

@@ -4,11 +4,15 @@ from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, text
 
 from discount_analyst.composition.api import create_app
 from discount_analyst.adapters.persistence.session import sqlite_url_from_path
-from discount_analyst.adapters.persistence.verify_schema import verify_alembic_schema
+from discount_analyst.adapters.persistence.verify_schema import (
+    alembic_config_for_url,
+    verify_alembic_schema,
+)
 from discount_analyst.config.testing_settings import dashboard_settings_for_tests
 
 
@@ -26,7 +30,10 @@ def test_startup_applies_alembic_head_and_is_idempotent(tmp_path: Path) -> None:
         revision = session.exec(text("SELECT version_num FROM alembic_version")).one()
 
     table_names = {row[0] for row in tables}
-    assert revision[0] == "0015_workflow_investment_theses"
+    heads = ScriptDirectory.from_config(
+        alembic_config_for_url(sqlite_url_from_path(db_path))
+    ).get_heads()
+    assert heads == [revision[0]]
     assert "workflow_runs" in table_names
     assert "candidate_snapshots" in table_names
     assert "agent_conversation_message_parts" in table_names

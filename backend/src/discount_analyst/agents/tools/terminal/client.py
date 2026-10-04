@@ -117,7 +117,8 @@ remain visible to later ``terminal_exec`` calls until the run finishes.
 
 Use for:
 - Short Python or shell analysis (pandas, numpy, scipy, sympy, statsmodels, yfinance, etc.)
-- Downloading or transforming tabular data when MCP is insufficient
+- Converting documents and PDFs with Python ``markitdown`` (do not call ``curl``, ``wget``, or ``pdftotext``)
+- Transforming tabular data when MCP is insufficient
 - Sanity-checking arithmetic or small numerical experiments
 
 Prefer project MCP and yfinance-backed tools when they already answer the question; use this

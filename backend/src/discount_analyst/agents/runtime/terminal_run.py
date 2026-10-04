@@ -91,5 +91,4 @@ async def run_agent_with_terminal[T](
         user_prompt=user_prompt,
         usage_limits=usage_limits,
         terminal=terminal,
-        run_settings=settings,
     )

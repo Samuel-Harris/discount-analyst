@@ -68,7 +68,7 @@ Read the candidate once and identify the smallest set of facts needed to verify 
 
 ### Step 1 — Establish the market-data snapshot with yfinance
 
-Use `terminal_exec` with yfinance for price, price history, market capitalisation and shares. Keep the retrieval focused and preferably make one bounded call:
+Use `terminal_exec` with yfinance for price, price history, market capitalisation and shares. Keep the retrieval focused and preferably make one bounded call. Convert filings and other documents with Python `markitdown`; do not call `curl`, `wget`, or `pdftotext`.
 
 - Use `Ticker.history(..., auto_adjust=False)` so raw closes, splits and dividends remain distinguishable. Use the latest non-null close for the dated price snapshot.
 - Read `Ticker.fast_info` through direct attributes. Use `Ticker.info["marketCap"]` and `Ticker.info["sharesOutstanding"]` when those fields are needed, and `Ticker.get_shares_full()` to verify material share-count changes.
@@ -85,7 +85,7 @@ Locate the latest annual filing, latest interim or quarterly filing, and any mat
 - **UK:** Use Companies House for the cached official account snapshot and issuer-hosted annual reports or RNS documents for the full statements and narrative. Universe-listing tools are not registered for Researcher.
 - **Companies House:** It requires a preloaded bulk cache. Call `resolve_uk_company` before `get_companies_house_accounts`; proceed only with an unambiguous selected company number. Never guess a company number or infer missing profit-and-loss fields from filleted accounts.
 
-When an official helper is absent from the registered tools, unconfigured, cache-missing or incomplete, use the primary filing URL through web search/fetch and state the helper limitation in `data_gaps_update`.
+When an official helper is absent from the registered tools, unconfigured, cache-missing or incomplete, use the primary filing URL through web search/fetch and state the helper limitation in `data_gaps_update` as a remaining open gap, not a material thesis-blocking gap. A cold Companies House cache is a helper limitation: fetch issuer filings via web. Convert documents and PDFs with Python `markitdown` in `terminal_exec`; do not call `curl`, `wget`, or `pdftotext`.
 
 ### Step 3 — Research narrative and recent developments
 
@@ -169,7 +169,11 @@ Label each entry accordingly so readers can tell **economic change** from **perc
 
 ### `data_gaps_update`
 
-Carry forward the candidate JSON's `data_gaps` text into `original_data_gaps` verbatim. For each gap, classify it into exactly one of: `closed_gaps`, `remaining_open_gaps`, or `material_open_gaps`. A gap is material if a reasonable analyst would consider it load-bearing for any investment thesis on this stock.
+Carry forward the candidate JSON's `data_gaps` text into `original_data_gaps` verbatim. For each gap, classify it into exactly one of: `closed_gaps`, `remaining_open_gaps`, or `material_open_gaps`.
+
+**Material** means unpublished economics that a reasonable analyst would treat as load-bearing (next print, customer/cash bridges, missing primary filings). Classify those as `material_open_gaps`.
+
+**Not material** — classify as `remaining_open_gaps`, never `material_open_gaps`: missing `SEC__USER_AGENT`, Companies House cold cache, missing `curl`/`wget`/`pdftotext`/`pypdf`, null Piotroski/Altman, and sandbox helper failures. Still record the limitation; then fetch the primary filing via web if possible.
 
 ### `source_notes`
 

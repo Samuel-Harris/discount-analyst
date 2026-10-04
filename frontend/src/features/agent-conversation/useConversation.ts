@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from "react";
 
 import {
   fetchRunAgentConversation,
-  fetchSurveyorConversation,
+  fetchWorkflowAgentConversation,
   type ConversationResponse,
 } from "@/api";
 import type { ConversationTarget } from "@/types/conversationTarget";
@@ -25,12 +25,25 @@ export function useConversation() {
     setData(null);
     try {
       const signal = controller.signal;
-      const res =
-        target.kind === "surveyor"
-          ? await fetchSurveyorConversation(target.workflowRunId, { signal })
-          : await fetchRunAgentConversation(target.runId, target.agentName, {
-              signal,
-            });
+      let res: ConversationResponse;
+      switch (target.kind) {
+        case "workflow_agent":
+          res = await fetchWorkflowAgentConversation(
+            target.workflowRunId,
+            target.agentName,
+            { signal },
+          );
+          break;
+        case "run_agent":
+          res = await fetchRunAgentConversation(target.runId, target.agentName, {
+            signal,
+          });
+          break;
+        default: {
+          const unhandled: never = target;
+          throw new Error(`Unhandled conversation target: ${String(unhandled)}`);
+        }
+      }
       if (mySeq !== requestSeqRef.current) return;
       setData(res);
     } catch (e) {

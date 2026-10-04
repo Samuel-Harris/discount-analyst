@@ -1,5 +1,6 @@
 """Tests for extract_agent_error_message."""
 
+import httpx
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 
 from discount_analyst.application.workflows.agent_errors import (
@@ -51,3 +52,10 @@ def test_unexpected_model_behavior_with_generic_cause() -> None:
     result = extract_agent_error_message(exc)
     assert "Tool failure:" in result
     assert "Connection timeout" in result
+
+
+def test_empty_httpx_read_timeout_falls_back_to_type_name() -> None:
+    request = httpx.Request("POST", "https://example.test/v1/responses")
+    exc = httpx.ReadTimeout("", request=request)
+    assert str(exc) == ""
+    assert extract_agent_error_message(exc) == "ReadTimeout"

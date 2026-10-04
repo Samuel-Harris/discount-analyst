@@ -26,6 +26,7 @@ from discount_analyst.agents.surveyor.system_prompt import (
     SYSTEM_PROMPT as SURVEYOR_PROMPT,
 )
 from discount_analyst.agents.surveyor.schema import SurveyorOutput
+from discount_analyst.agents.tools.terminal.client import TERMINAL_EXEC_DESCRIPTION
 
 
 def test_market_data_rules_reach_agents_that_can_run_yfinance() -> None:
@@ -85,3 +86,23 @@ def test_sentinel_cannot_claim_market_data_research() -> None:
     assert "You cannot run yfinance" in SENTINEL_PROMPT
     assert "Paid FMP/EODHD tools" in SENTINEL_PROMPT
     assert "one `get_sec_company_facts` call" in SENTINEL_PROMPT
+
+
+def test_surveyor_uses_valid_yfinance_volume_field() -> None:
+    assert "avgdailyvol3m" in SURVEYOR_PROMPT
+    lowered = SURVEYOR_PROMPT.casefold()
+    assert "averagedailyvolume10day" not in lowered
+    assert "averagevolume10days" not in lowered
+
+
+def test_researcher_classifies_helper_failures_as_remaining_gaps() -> None:
+    assert "never `material_open_gaps`" in RESEARCHER_PROMPT
+    assert "SEC__USER_AGENT" in RESEARCHER_PROMPT
+    assert "Companies House cold cache" in RESEARCHER_PROMPT
+
+
+def test_terminal_description_uses_markitdown_not_downloaders() -> None:
+    assert "markitdown" in TERMINAL_EXEC_DESCRIPTION
+    assert "do not call ``curl``" in TERMINAL_EXEC_DESCRIPTION
+    assert "wget" in TERMINAL_EXEC_DESCRIPTION
+    assert "pdftotext" in TERMINAL_EXEC_DESCRIPTION

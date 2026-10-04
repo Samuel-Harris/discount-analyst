@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, Any, Protocol
 
+from pydantic_ai.messages import ModelMessage
+
 from discount_analyst.adapters.persistence.crud.db_utils import utc_now_iso
 from discount_analyst.adapters.persistence.crud.run_executions import (
     get_workflow_candidate_snapshot_id,
@@ -20,14 +22,25 @@ from discount_analyst.adapters.simulation import (
 from discount_analyst.application.workflows.agent_errors import (
     extract_agent_error_message,
 )
+from discount_analyst.adapters.orchestration.attempt_cost import (
+    attempt_cost_from_usage,
+)
+from discount_analyst.adapters.orchestration.live_agent import (
+    record_failed_attempt_cost,
+    run_and_record_failure,
+)
 from discount_analyst.adapters.orchestration.llm_config import (
     PipelineLlmConfig,
     pipeline_llm_config,
 )
-from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
+from discount_analyst.domain.workflow_cost import AttemptCost
+from discount_analyst.config.logging_constants import AI_LOGFIRE
 from discount_analyst.agents.runtime.terminal_run import run_agent_with_terminal
 from discount_analyst.agents.common_prompts.current_date import with_current_date
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
+from discount_analyst.agents.surveyor.screening_check import (
+    assert_screening_metrics_match_tool_results,
+)
 from discount_analyst.agents.surveyor.surveyor import create_surveyor_agent
 from discount_analyst.agents.surveyor.system_prompt import (
     SYSTEM_PROMPT as SURVEYOR_SYSTEM_PROMPT,
@@ -57,8 +70,9 @@ class SurveyorStageHost(Protocol):
         execution_id: str,
         system_prompt: str,
         output_json: str | None,
-        messages: list[Any] | None = None,
+        messages: list[ModelMessage] | None = None,
         messages_json: str | None = None,
+        attempt_cost: AttemptCost | None = None,
     ) -> None: ...
 
     async def spawn_surveyor_discovered_run(
@@ -102,7 +116,9 @@ class SurveyorStage:
             )
             return
         try:
-            llm = pipeline_llm_config(host.settings, is_mock=is_mock)
+            llm = pipeline_llm_config(
+                host.settings, agent_name=AgentNameDb.SURVEYOR, is_mock=is_mock
+            )
             AI_LOGFIRE.info(
                 "Surveyor branch started",
                 agent_name=AgentNameDb.SURVEYOR,
@@ -124,12 +140,25 @@ class SurveyorStage:
                 is_mock=is_mock,
                 llm=llm,
             )
+            try:
+                assert_screening_metrics_match_tool_results(
+                    surveyor_output.candidates,
+                    surveyor_output.messages,
+                )
+            except Exception:
+                await record_failed_attempt_cost(
+                    db=host.db,
+                    execution_id=surveyor_exec_id,
+                    attempt_cost=surveyor_output.attempt_cost,
+                )
+                raise
             await host.complete_workflow_exec_with_conversation(
                 execution_id=surveyor_exec_id,
                 system_prompt=with_current_date(SURVEYOR_SYSTEM_PROMPT),
                 output_json=surveyor_output.output_json,
                 messages=surveyor_output.messages,
                 messages_json=surveyor_output.messages_json,
+                attempt_cost=surveyor_output.attempt_cost,
             )
             for candidate in surveyor_output.candidates:
                 if candidate.ticker.casefold() in portfolio_fold:
@@ -195,39 +224,52 @@ class SurveyorStage:
         ai_cfg = llm.ai_models_config
         if ai_cfg is None:
             raise RuntimeError("Surveyor LLM config missing for non-mock run")
-        outcome = await run_agent_with_terminal(
-            settings=host.settings,
-            session_id=execution_id,
-            runtime=host.cached_terminal_runtime(),
-            build_agent=lambda t: create_surveyor_agent(
-                ai_models_config=ai_cfg,
-                use_perplexity=host.settings.use_perplexity,
-                use_mcp_financial_data=host.settings.use_mcp_financial_data,
-                terminal=t,
+        outcome = await run_and_record_failure(
+            db=host.db,
+            execution_id=execution_id,
+            start=lambda: run_agent_with_terminal(
+                settings=host.settings,
+                session_id=execution_id,
+                runtime=host.cached_terminal_runtime(),
+                build_agent=lambda t: create_surveyor_agent(
+                    ai_models_config=ai_cfg,
+                    use_perplexity=host.settings.use_perplexity,
+                    use_mcp_financial_data=host.settings.use_mcp_financial_data,
+                    terminal=t,
+                ),
+                user_prompt=SURVEYOR_USER_PROMPT,
+                usage_limits=ai_cfg.pydantic_ai_model.usage_limits,
             ),
-            user_prompt=SURVEYOR_USER_PROMPT,
-            usage_limits=ai_cfg.model.usage_limits,
         )
         return _SurveyorRunResult(
             candidates=outcome.output.candidates,
             output_json=outcome.output.model_dump_json(),
             messages=list(outcome.all_messages),
             messages_json=None,
+            attempt_cost=attempt_cost_from_usage(outcome.usage),
         )
 
 
 class _SurveyorRunResult:
-    __slots__ = ("candidates", "output_json", "messages", "messages_json")
+    __slots__ = (
+        "attempt_cost",
+        "candidates",
+        "messages",
+        "messages_json",
+        "output_json",
+    )
 
     def __init__(
         self,
         *,
         candidates: list[SurveyorCandidate],
         output_json: str,
-        messages: list[Any] | None,
+        messages: list[ModelMessage] | None,
         messages_json: str | None,
+        attempt_cost: AttemptCost | None = None,
     ) -> None:
         self.candidates = candidates
         self.output_json = output_json
         self.messages = messages
         self.messages_json = messages_json
+        self.attempt_cost = attempt_cost

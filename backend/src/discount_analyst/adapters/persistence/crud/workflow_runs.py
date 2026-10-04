@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Sequence
+from datetime import date
+from decimal import Decimal
+from typing import Any, NamedTuple
 
 from sqlalchemy import case, desc, func
 from sqlmodel import Session, col, select
 
+from discount_analyst.adapters.persistence.crud.attempt_costs import (
+    list_recorded_attempts,
+)
 from discount_analyst.adapters.persistence.workflow_rows import (
     AgentExecutionRow,
     CandidateGateRow,
-    TickerRunRow,
+    CostFigureRow,
     TickerRunResumeRow,
     WorkflowRunDetailRecord,
     WorkflowRunHeaderRow,
@@ -39,6 +45,16 @@ from discount_analyst.adapters.persistence.models import (
     WorkflowRunPortfolioTicker,
     WorkflowRunStatusDb,
 )
+from discount_analyst.domain.allocations.snapshot import (
+    SterlingPortfolioLedger,
+    SterlingPosition,
+    sterling_portfolio_value,
+)
+from discount_analyst.domain.workflow_cost import (
+    CostFigure,
+    WorkflowCostSummary,
+    summarise_workflow_cost,
+)
 
 TERMINAL_WORKFLOW_STATUSES = frozenset(
     {
@@ -47,6 +63,12 @@ TERMINAL_WORKFLOW_STATUSES = frozenset(
         WorkflowRunStatusDb.CANCELLED.value,
     }
 )
+
+
+class LatestPortfolioLedger(NamedTuple):
+    positions: tuple[SterlingPosition, ...]
+    cash_gbp: Decimal
+    suggestion_tickers: tuple[str, ...]
 
 
 def get_workflow_run_inputs(
@@ -142,7 +164,9 @@ def insert_workflow_run(
     session: Session,
     *,
     workflow_run_id: str,
-    portfolio_tickers: list[str],
+    holdings: Sequence[SterlingPosition],
+    suggestion_tickers: Sequence[str],
+    cash_gbp: Decimal,
     is_mock: bool,
     surveyor_execution_id: str | None = None,
     curator_execution_id: str | None = None,
@@ -157,17 +181,35 @@ def insert_workflow_run(
             status=WorkflowRunStatusDb.RUNNING,
             is_mock=is_mock,
             error_message=None,
+            cash_gbp=cash_gbp,
         )
     )
-    for idx, ticker in enumerate(portfolio_tickers):
+    holding_keys = {position.ticker.casefold() for position in holdings}
+    sort_order = 0
+    for position in holdings:
         session.add(
             WorkflowRunPortfolioTicker(
                 id=new_id(),
                 workflow_run_id=workflow_run_id,
-                sort_order=idx,
-                ticker=ticker,
+                sort_order=sort_order,
+                ticker=position.ticker,
+                value_gbp=position.value_gbp,
             )
         )
+        sort_order += 1
+    for ticker in suggestion_tickers:
+        if ticker.casefold() in holding_keys:
+            continue
+        session.add(
+            WorkflowRunPortfolioTicker(
+                id=new_id(),
+                workflow_run_id=workflow_run_id,
+                sort_order=sort_order,
+                ticker=ticker,
+                value_gbp=None,
+            )
+        )
+        sort_order += 1
     session.add(
         AgentExecution(
             id=surveyor_id,
@@ -254,6 +296,16 @@ def get_workflow_run_row(
             .order_by(col(WorkflowRunPortfolioTicker.sort_order))
         )
     )
+    portfolio_value_gbp = (
+        None
+        if wf.cash_gbp is None
+        else sterling_portfolio_value(
+            SterlingPortfolioLedger(
+                positions=_holdings_from_ticker_rows(tickers),
+                cash_gbp=wf.cash_gbp,
+            )
+        )
+    )
     header: WorkflowRunHeaderRow = {
         "id": wf.id,
         "started_at": wf.started_at,
@@ -261,7 +313,8 @@ def get_workflow_run_row(
         "status": wf.status.value,
         "is_mock": wf.is_mock,
         "error_message": wf.error_message,
-        "portfolio_tickers": [t.ticker for t in tickers],
+        "portfolio_tickers": [ticker.ticker for ticker in tickers],
+        "portfolio_value_gbp": portfolio_value_gbp,
     }
     return header
 
@@ -274,16 +327,9 @@ def fetch_workflow_detail(
         return None
 
     se = get_workflow_scoped_execution(session, workflow_run_id, AgentNameDb.SURVEYOR)
-    surveyor_execution: AgentExecutionRow | None = None
-    if se is not None:
-        surveyor_execution = _workflow_agent_execution_row(se)
-
     curator = get_workflow_scoped_execution(
         session, workflow_run_id, AgentNameDb.CURATOR
     )
-    curator_execution: AgentExecutionRow | None = None
-    if curator is not None:
-        curator_execution = _workflow_agent_execution_row(curator)
 
     agent_order = {
         AgentNameDb.PROFILER.value: 0,
@@ -301,7 +347,7 @@ def fetch_workflow_detail(
         )
     )
     executions_by_run_id: dict[str, list[AgentExecution]] = {}
-    runs_out: list[TickerRunRow] = []
+    lane_agents: list[tuple[Run, list[AgentExecution], CandidateGateRow | None]] = []
     for run in runs:
         agents = list(
             session.scalars(
@@ -312,17 +358,6 @@ def fetch_workflow_detail(
         agents_sorted = sorted(
             agents, key=lambda a: agent_order.get(a.agent_name.value, 99)
         )
-        agent_rows: list[AgentExecutionRow] = [
-            {
-                "id": agent.id,
-                "agent_name": agent.agent_name.value,
-                "status": agent.status.value,
-                "started_at": agent.started_at,
-                "completed_at": agent.completed_at,
-                "model_name": agent.model_name,
-            }
-            for agent in agents_sorted
-        ]
         candidate_gate: CandidateGateRow | None = None
         if run.candidate_snapshot_id is not None:
             snapshot = session.get(CandidateSnapshot, run.candidate_snapshot_id)
@@ -334,20 +369,16 @@ def fetch_workflow_detail(
                     "gate_failure_reason": snapshot.gate_failure_reason,
                     "is_actively_trading": snapshot.is_actively_trading,
                 }
-        runs_out.append(
-            {
-                "id": run.id,
-                "ticker": run.ticker,
-                "company_name": run.company_name,
-                "entry_path": run.entry_path.value,
-                "status": run.status.value,
-                "final_rating": run.final_rating,
-                "decision_type": run.decision_type.value if run.decision_type else None,
-                "candidate_gate": candidate_gate,
-                "agent_executions": agent_rows,
-            }
-        )
+        lane_agents.append((run, agents_sorted, candidate_gate))
 
+    executions = [execution for execution in (se, curator) if execution is not None]
+    for lane_executions in executions_by_run_id.values():
+        executions.extend(lane_executions)
+    cost_summary = summarise_workflow_cost(
+        list_recorded_attempts(session, [execution.id for execution in executions]),
+        is_mock=wf["is_mock"],
+        execution_ids=[execution.id for execution in executions],
+    )
     detail: WorkflowRunDetailRecord = {
         **wf,
         "can_retry_failed_agents": workflow_can_retry_failed_agents(
@@ -357,14 +388,54 @@ def fetch_workflow_detail(
             runs=runs,
             executions_by_run_id=executions_by_run_id,
         ),
-        "surveyor_execution": surveyor_execution,
-        "curator_execution": curator_execution,
-        "runs": runs_out,
+        "surveyor_execution": (
+            None if se is None else _workflow_agent_execution_row(se, cost_summary)
+        ),
+        "curator_execution": (
+            None
+            if curator is None
+            else _workflow_agent_execution_row(curator, cost_summary)
+        ),
+        "cost_total": _cost_figure_row(cost_summary.total),
+        "cost_successful": _cost_figure_row(cost_summary.successful),
+        "cost_unsuccessful": _cost_figure_row(cost_summary.unsuccessful),
+        "cost_by_agent": [
+            {
+                "agent_name": agent_cost.agent_name,
+                "cost": _cost_figure_row(agent_cost.cost),
+            }
+            for agent_cost in cost_summary.by_agent
+        ],
+        "runs": [
+            {
+                "id": run.id,
+                "ticker": run.ticker,
+                "company_name": run.company_name,
+                "entry_path": run.entry_path.value,
+                "status": run.status.value,
+                "final_rating": run.final_rating,
+                "decision_type": (
+                    run.decision_type.value if run.decision_type else None
+                ),
+                "candidate_gate": candidate_gate,
+                "agent_executions": [
+                    _workflow_agent_execution_row(agent, cost_summary)
+                    for agent in agents_sorted
+                ],
+            }
+            for run, agents_sorted, candidate_gate in lane_agents
+        ],
     }
     return detail
 
 
-def _workflow_agent_execution_row(execution: AgentExecution) -> AgentExecutionRow:
+def _cost_figure_row(figure: CostFigure) -> CostFigureRow:
+    return {"state": figure.state, "amount_usd": figure.amount_text()}
+
+
+def _workflow_agent_execution_row(
+    execution: AgentExecution, summary: WorkflowCostSummary
+) -> AgentExecutionRow:
     return {
         "id": execution.id,
         "agent_name": execution.agent_name.value,
@@ -372,6 +443,7 @@ def _workflow_agent_execution_row(execution: AgentExecution) -> AgentExecutionRo
         "started_at": execution.started_at,
         "completed_at": execution.completed_at,
         "model_name": execution.model_name,
+        "cost": _cost_figure_row(summary.figure_for_execution(execution.id)),
     }
 
 
@@ -388,12 +460,26 @@ def workflow_run_exists(session: Session, workflow_run_id: str) -> bool:
     return session.get(WorkflowRun, workflow_run_id) is not None
 
 
-def get_latest_portfolio_tickers(session: Session) -> list[str] | None:
+def _holdings_from_ticker_rows(
+    rows: Sequence[WorkflowRunPortfolioTicker],
+) -> tuple[SterlingPosition, ...]:
+    return tuple(
+        SterlingPosition(ticker=row.ticker, value_gbp=row.value_gbp)
+        for row in rows
+        if row.value_gbp is not None
+    )
+
+
+def get_latest_portfolio_ledger(session: Session) -> LatestPortfolioLedger:
     workflow = session.scalars(
         select(WorkflowRun).order_by(desc(col(WorkflowRun.started_at)))
     ).first()
     if workflow is None:
-        return None
+        return LatestPortfolioLedger(
+            positions=(),
+            cash_gbp=Decimal("0"),
+            suggestion_tickers=(),
+        )
     rows = list(
         session.scalars(
             select(WorkflowRunPortfolioTicker)
@@ -401,7 +487,84 @@ def get_latest_portfolio_tickers(session: Session) -> list[str] | None:
             .order_by(col(WorkflowRunPortfolioTicker.sort_order))
         )
     )
-    return [r.ticker for r in rows]
+    if workflow.cash_gbp is None:
+        return LatestPortfolioLedger(
+            positions=(),
+            cash_gbp=Decimal("0"),
+            suggestion_tickers=tuple(row.ticker for row in rows),
+        )
+    holdings = _holdings_from_ticker_rows(rows)
+    suggestions = tuple(row.ticker for row in rows if row.value_gbp is None)
+    return LatestPortfolioLedger(
+        positions=holdings,
+        cash_gbp=workflow.cash_gbp,
+        suggestion_tickers=suggestions,
+    )
+
+
+def load_sterling_ledger_for_workflow(
+    session: Session, workflow_run_id: str
+) -> tuple[SterlingPortfolioLedger, date]:
+    workflow = session.get(WorkflowRun, workflow_run_id)
+    if workflow is None:
+        raise RuntimeError(f"Workflow run {workflow_run_id} was not found.")
+    if workflow.cash_gbp is None:
+        raise RuntimeError("This workflow was launched without a sterling ledger.")
+    rows = list(
+        session.scalars(
+            select(WorkflowRunPortfolioTicker)
+            .where(col(WorkflowRunPortfolioTicker.workflow_run_id) == workflow_run_id)
+            .order_by(col(WorkflowRunPortfolioTicker.sort_order))
+        )
+    )
+    holdings = _holdings_from_ticker_rows(rows)
+    return (
+        SterlingPortfolioLedger(positions=holdings, cash_gbp=workflow.cash_gbp),
+        workflow.started_at.date(),
+    )
+
+
+def load_sterling_ledger_for_curator(
+    session: Session, workflow_run_id: str
+) -> tuple[SterlingPortfolioLedger, date]:
+    ledger, as_of = load_sterling_ledger_for_workflow(session, workflow_run_id)
+    return _holdings_with_resolved_run_tickers(session, workflow_run_id, ledger), as_of
+
+
+def _holdings_with_resolved_run_tickers(
+    session: Session,
+    workflow_run_id: str,
+    ledger: SterlingPortfolioLedger,
+) -> SterlingPortfolioLedger:
+    runs = list(
+        session.scalars(
+            select(Run).where(
+                col(Run.workflow_run_id) == workflow_run_id,
+                col(Run.is_existing_position).is_(True),
+            )
+        )
+    )
+    resolved_by_launch: dict[str, str] = {}
+    for run in runs:
+        launch_ticker = run.ticker
+        if run.candidate_snapshot_id is not None:
+            snapshot = session.get(CandidateSnapshot, run.candidate_snapshot_id)
+            if snapshot is not None:
+                launch_ticker = snapshot.ticker
+        resolved_by_launch[launch_ticker.casefold()] = run.ticker
+        resolved_by_launch[run.ticker.casefold()] = run.ticker
+    return SterlingPortfolioLedger(
+        positions=tuple(
+            SterlingPosition(
+                ticker=resolved_by_launch.get(
+                    position.ticker.casefold(), position.ticker
+                ),
+                value_gbp=position.value_gbp,
+            )
+            for position in ledger.positions
+        ),
+        cash_gbp=ledger.cash_gbp,
+    )
 
 
 def set_workflow_error(session: Session, workflow_run_id: str, message: str) -> None:

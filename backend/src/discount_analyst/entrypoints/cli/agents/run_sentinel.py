@@ -12,10 +12,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from discount_analyst.agents.sentinel.schema import (
-    EvaluationReport,
-    sentinel_proceeds_to_valuation,
-)
+from discount_analyst.agents.sentinel.schema import EvaluationReport
 from discount_analyst.agents.sentinel.sentinel import create_sentinel_agent
 from discount_analyst.agents.sentinel.derive_thesis_verdict import (
     finalise_sentinel_evaluation,
@@ -100,7 +97,9 @@ def parse_args() -> SentinelArgs:
             "or '<strategist_run_output.json>:<TICKER>' to require a ticker match."
         ),
     )
-    add_agent_cli_model_argument(parser)
+    add_agent_cli_model_argument(
+        parser, default=app_settings.agent_default_models.sentinel
+    )
     raw = parser.parse_args()
     selectors = [
         parse_report_selector(
@@ -210,12 +209,8 @@ def display_output(output: EvaluationReport) -> None:
     table.add_row("Company", output.company_name)
     table.add_row("Thesis verdict", output.thesis_verdict)
     table.add_row(
-        "Valuation gate (derived)",
-        (
-            "Proceed to valuation"
-            if sentinel_proceeds_to_valuation(output)
-            else "Do not proceed"
-        ),
+        "Red-flag screen",
+        output.red_flag_screen.overall_red_flag_verdict.value,
     )
     console.print(
         Panel.fit(
@@ -247,10 +242,9 @@ async def run_agent(
     outcome = await run_streamed_agent(
         agent=agent,
         user_prompt=user_prompt,
-        usage_limits=ai_models_config.model.usage_limits,
+        usage_limits=ai_models_config.pydantic_ai_model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
         terminal=terminal_run_options(app_settings, enabled=False),
-        run_settings=app_settings,
     )
     output = finalise_sentinel_evaluation(outcome.output, thesis)
     usage = outcome.usage

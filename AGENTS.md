@@ -1,4 +1,4 @@
-<!-- Generated: 2026-02-23 | Updated: 2026-08-30 (curator pipeline) -->
+<!-- Generated: 2026-02-23 | Updated: 2026-09-06 (curator-only recommendation) -->
 
 # Discount Analyst
 
@@ -10,7 +10,7 @@ An AI-powered stock analysis tool ("Discount Analyst") for identifying and valui
 
 The live automated pipeline is documented in [`current_workflow.md`](current_workflow.md) (regenerate with the `sync-workflow` skill). Dashboard and CLI run:
 
-**Surveyor** (universe screen) and/or **Profiler** (named portfolio tickers) → deterministic candidate gate (dashboard only) → **Researcher** → **Strategist** → **Sentinel** (valuation gate) → **Appraiser** (if the gate passes) → deterministic rating table → `Verdict` → **Curator** (workflow-level portfolio construction, after every ticker lane is terminal-success).
+**Surveyor** (universe screen) and/or **Profiler** (dashboard sterling holdings and also-analyse names, or CLI named tickers) → deterministic candidate gate (dashboard only) → **Researcher** → **Strategist** → **Sentinel** (evidence memo) → **Appraiser** (valuation memo) → **Curator** (workflow-level portfolio construction; weights are the recommendation).
 
 Human decision sits after that allocation. One-shot agents remain available via `uv run discount-analyst agent {surveyor,profiler,researcher,strategist,sentinel,appraiser,curator}`.
 
@@ -31,7 +31,7 @@ Human decision sits after that allocation. One-shot agents remain available via 
 | `.cursor/skills/analyse-workflow-run/SKILL.md`          | Analyse a dashboard `workflow_run_id` (qualitative HTML review).                                                     |
 | `.cursor/skills/investigate-workflow-failures/SKILL.md` | Diagnose FAILED/CANCELLED lanes for a `workflow_run_id` (no fixes).                                                  |
 | `.cursor/skills/sync-workflow/SKILL.md`                 | Regenerates `current_workflow.md` from live pipeline code.                                                           |
-| `.cursor/skills/verify-discount-analyst/SKILL.md`        | Drive the local DEV dashboard (isolated API+Vite) and capture UI proof.                                              |
+| `.cursor/skills/verify-discount-analyst/SKILL.md`       | Drive the local DEV dashboard (isolated API+Vite) and capture UI proof.                                              |
 
 ## Subdirectories
 
@@ -68,3 +68,11 @@ Human decision sits after that allocation. One-shot agents remain available via 
 - **pydantic-ai**, **pydantic-ai-harness**, **yfinance**, **perplexityai**, **logfire**, **httpx**, **rich**, **FastAPI**, **SQLModel**, **Alembic**, **lxml**.
 
 <!-- MANUAL: Any manually added notes below this line are preserved on regeneration -->
+
+## Cursor Cloud specific instructions
+
+- System Python is not 3.14. `uv sync --frozen` installs CPython 3.14. Use `uv run` for pytest, pyright, lint-imports, Tach, and the API.
+- Frontend toolchain is Node 22 and pnpm 10.26.1 (`packageManager` in `frontend/package.json`). From `frontend/`: `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm test`, `pnpm run build`.
+- Importing `discount_analyst.config.settings` requires non-empty `LOGGING__LOGFIRE_API_KEY`, plus `PERPLEXITY__API_KEY`, `PERPLEXITY__RATE_LIMIT_PER_MINUTE`, `FMP__API_KEY`, and `EODHD__API_KEY`. Cloud install writes a gitignored repository-root `.env` with non-functional placeholders when that file is absent, and does not replace an existing `.env`. Process environment variables override the file. Pytest still applies the defaults in `backend/tests/conftest.py`. Logfire rejects the placeholder token; that warning does not stop the dashboard.
+- Boot starts the API on `127.0.0.1:8000` (`uv run uvicorn discount_analyst.composition.api:create_app --factory`) and Vite on `127.0.0.1:5173` (proxies `/api` to that API), with `ENV=DEV`, `DASHBOARD_USE_TERMINAL=false`, and `DASHBOARD_DATABASE_PATH=data/dashboard.dev.sqlite`.
+- Do not smoke-test with `discount-analyst agent …` or `workflow run`; those call live models. Dashboard checks are `GET /api/workflow_runs` and `GET /api/status`. The isolated DEV launcher is `.cursor/skills/verify-discount-analyst/SKILL.md`.

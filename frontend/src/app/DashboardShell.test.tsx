@@ -11,6 +11,7 @@ import { useWorkflowRuns } from "@/features/workflow-runs/useWorkflowRuns";
 import * as serverState from "@/lib/server-state/invalidation";
 import { DashboardShell } from "./DashboardShell";
 import { useYfinanceFreshness } from "./useYfinanceFreshness";
+import { ZERO_RUN_COST, ZERO_WORKFLOW_COST } from "@/utils/formatWorkflowCost";
 
 vi.mock("@/features/workflow-runs/useWorkflowRuns", () => ({
   useWorkflowRuns: vi.fn(),
@@ -84,9 +85,12 @@ function makeDetail(
     is_mock: false,
     error_message: null,
     can_retry_failed_agents: false,
+    ...ZERO_RUN_COST,
+    portfolio_value_gbp: null,
     surveyor_execution: {
       id: "wfe-1",
       agent_name: "surveyor",
+      cost: ZERO_WORKFLOW_COST,
       status: "running",
       started_at: null,
       completed_at: null,

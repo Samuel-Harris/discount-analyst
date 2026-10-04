@@ -36,11 +36,20 @@ class DataQualityRejection(BaseModel):
     decision_date: str
     is_existing_position: bool
 
-    rating: Literal[InvestmentRating.SELL]
     recommended_action: str
     rejection_reason: str = Field(
         description="Plain-language statement of the gate failure."
     )
+
+
+class AppraisedDecision(BaseModel):
+    """Appraiser-completed lane with no investment rating."""
+
+    decision_kind: Literal["appraised"]
+    ticker: str
+    company_name: str
+    decision_date: str
+    is_existing_position: bool
 
 
 class RatingTableRationale(BaseModel):
@@ -73,15 +82,15 @@ class RatingTableDecision(BaseModel):
 
 
 class Verdict(BaseModel):
-    """Unified human-facing output; ``decision`` encodes Sentinel vs rating-table path."""
+    """Historical envelope for rating-table, Sentinel-rejection, and DQR JSON."""
 
     ticker: str
     company_name: str
     decision_date: str
     is_existing_position: bool
 
-    rating: InvestmentRating
-    recommended_action: str
+    rating: InvestmentRating | None = None
+    recommended_action: str | None = None
 
     decision: Annotated[
         RatingTableDecision | SentinelRejection | DataQualityRejection,

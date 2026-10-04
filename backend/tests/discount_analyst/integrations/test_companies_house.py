@@ -29,6 +29,7 @@ from discount_analyst.agents.tools.regulatory_data.companies_house.resolve impor
 from discount_analyst.agents.tools.regulatory_data.companies_house.store import (
     SQLITE_FILENAME,
     account_count,
+    companies_house_cache_is_present,
     initialise_database,
     require_active_database,
 )
@@ -295,6 +296,12 @@ async def test_filleted_account_marks_missing_profit_and_loss(
     assert snapshot.cash == Decimal("220000")
     assert "revenue" in snapshot.missing_fields
     assert "net_income" in snapshot.missing_fields
+
+
+def test_companies_house_cache_presence(cache: RegulatoryDataCache) -> None:
+    assert companies_house_cache_is_present(cache) is False
+    _publish_seed(cache)
+    assert companies_house_cache_is_present(cache) is True
 
 
 async def test_cold_cache_errors_name_refresh_command(

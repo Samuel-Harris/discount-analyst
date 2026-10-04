@@ -3,7 +3,7 @@ from uuid import uuid4
 
 from httpx import AsyncClient, Response
 
-from discount_analyst.agents.tools.http.retrying_client import create_rate_limit_client
+from discount_analyst.config.rate_limit_client import create_rate_limit_client
 from discount_analyst.agents.tools.regulatory_data.errors import (
     SecUserAgentMissingError,
 )

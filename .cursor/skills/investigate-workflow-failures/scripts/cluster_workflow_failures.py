@@ -41,10 +41,10 @@ def classify_error(error_message: str | None) -> str:
     if not text.strip():
         return "empty"
     lowered = text.lower()
+    if "schema must be an object" in lowered:
+        return "tool_output_schema"
     if "dataqualityrejection" in lowered or "sentinelrejection" in lowered:
         return "persist_union"
-    if "eodhdrealtimequote" in lowered:
-        return "eodhd_payload"
     if "evaluationreport" in lowered or "material_data_gaps" in lowered:
         return "structured_output"
     if "web_fetch" in lowered or "max retries" in lowered:
@@ -55,7 +55,12 @@ def classify_error(error_message: str | None) -> str:
         return "http_auth"
     if "timeout" in lowered or "readtimeout" in lowered or "readerror" in lowered:
         return "timeout"
-    if "rate limit" in lowered or "tokens per min" in lowered or "tpm" in lowered:
+    if (
+        "rate limit" in lowered
+        or "tokens per min" in lowered
+        or "tpm" in lowered
+        or "too many requests" in lowered
+    ):
         return "rate_limit"
     return "other"
 

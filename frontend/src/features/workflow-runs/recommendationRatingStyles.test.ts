@@ -14,8 +14,8 @@ describe("finalRatingToneSlug", () => {
     expect(finalRatingToneSlug("STRONG SELL")).toBe("strong-sell");
   });
 
-  it("returns pending when finalRating is null", () => {
-    expect(finalRatingToneSlug(null)).toBe("pending");
+  it("returns none when finalRating is null", () => {
+    expect(finalRatingToneSlug(null)).toBe("none");
   });
 
   it("returns unknown for unexpected rating text", () => {

@@ -23,10 +23,7 @@ from discount_analyst.agents.curator import curator as curator_module
 from discount_analyst.agents.curator.curator import create_curator_agent
 from discount_analyst.agents.strategist import strategist as strategist_module
 from discount_analyst.agents.strategist.strategist import create_strategist_agent
-from discount_analyst.config.ai_models_config import (
-    AIModelConfig,
-    AIModelsConfig,
-)
+from discount_analyst.config.ai_models_config import AIModelsConfig
 from discount_analyst.config.provider_features import Provider
 from discount_analyst.domain.model_selection.model_name import ModelName
 
@@ -114,7 +111,7 @@ def test_create_agent_prepends_current_date_to_system_prompt(
 ) -> None:
     captured: dict[str, str] = {}
 
-    def fake_create_model_from_config(_config: AIModelConfig) -> TestModel:
+    def fake_to_model(self: object) -> TestModel:
         return TestModel()
 
     def fake_agent(*, system_prompt: str, **kwargs: object) -> SimpleNamespace:
@@ -122,9 +119,8 @@ def test_create_agent_prepends_current_date_to_system_prompt(
         return SimpleNamespace(name=kwargs.get("name"))
 
     monkeypatch.setattr(
-        agent_factory,
-        "create_model_from_config",
-        fake_create_model_from_config,
+        "discount_analyst.config.ai_models_config.DeepSeekAIModelConfig.to_model",
+        fake_to_model,
     )
     monkeypatch.setattr(agent_factory, "Agent", fake_agent)
 
@@ -144,13 +140,12 @@ def test_create_agent_prepends_current_date_to_system_prompt(
 def test_create_agent_accepts_deepseek_web_research_tooling(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_create_model_from_config(_config: AIModelConfig) -> TestModel:
+    def fake_to_model(self: object) -> TestModel:
         return TestModel()
 
     monkeypatch.setattr(
-        agent_factory,
-        "create_model_from_config",
-        fake_create_model_from_config,
+        "discount_analyst.config.ai_models_config.DeepSeekAIModelConfig.to_model",
+        fake_to_model,
     )
 
     agent = create_agent(
@@ -168,11 +163,12 @@ def test_create_agent_attaches_always_on_tooling(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fx_toolset = object()
+    screening_toolset = object()
     universe_toolset = object()
     filings_toolset = object()
     captured: dict[str, object] = {}
 
-    def fake_create_model_from_config(_config: AIModelConfig) -> TestModel:
+    def fake_to_model(self: object) -> TestModel:
         return TestModel()
 
     def fake_agent(**kwargs: object) -> SimpleNamespace:
@@ -182,15 +178,19 @@ def test_create_agent_attaches_always_on_tooling(
 
     monkeypatch.setattr(agent_factory, "create_frankfurter_toolset", lambda: fx_toolset)
     monkeypatch.setattr(
+        agent_factory,
+        "create_screening_metrics_toolset",
+        lambda: screening_toolset,
+    )
+    monkeypatch.setattr(
         agent_factory, "create_universe_toolset", lambda: universe_toolset
     )
     monkeypatch.setattr(
         agent_factory, "create_filings_toolset", lambda: filings_toolset
     )
     monkeypatch.setattr(
-        agent_factory,
-        "create_model_from_config",
-        fake_create_model_from_config,
+        "discount_analyst.config.ai_models_config.DeepSeekAIModelConfig.to_model",
+        fake_to_model,
     )
     monkeypatch.setattr(agent_factory, "Agent", fake_agent)
 
@@ -206,7 +206,12 @@ def test_create_agent_attaches_always_on_tooling(
         ),
     )
 
-    assert captured["toolsets"] == [fx_toolset, universe_toolset, filings_toolset]
+    assert captured["toolsets"] == [
+        fx_toolset,
+        screening_toolset,
+        universe_toolset,
+        filings_toolset,
+    ]
     capabilities = captured["capabilities"]
     assert isinstance(capabilities, list)
     assert capabilities[:2] == [
@@ -244,7 +249,7 @@ def test_non_surveyor_receives_filings_without_universe(
     filings_toolset = object()
     captured: dict[str, object] = {}
 
-    def fake_create_model_from_config(_config: AIModelConfig) -> TestModel:
+    def fake_to_model(self: object) -> TestModel:
         return TestModel()
 
     def fake_agent(**kwargs: object) -> SimpleNamespace:
@@ -259,9 +264,8 @@ def test_non_surveyor_receives_filings_without_universe(
         agent_factory, "create_filings_toolset", lambda: filings_toolset
     )
     monkeypatch.setattr(
-        agent_factory,
-        "create_model_from_config",
-        fake_create_model_from_config,
+        "discount_analyst.config.ai_models_config.DeepSeekAIModelConfig.to_model",
+        fake_to_model,
     )
     monkeypatch.setattr(agent_factory, "Agent", fake_agent)
 
@@ -283,7 +287,7 @@ def test_curator_receives_frankfurter_without_filings(
     filings_toolset = object()
     captured: dict[str, object] = {}
 
-    def fake_create_model_from_config(_config: AIModelConfig) -> TestModel:
+    def fake_to_model(self: object) -> TestModel:
         return TestModel()
 
     def fake_agent(**kwargs: object) -> SimpleNamespace:
@@ -298,9 +302,8 @@ def test_curator_receives_frankfurter_without_filings(
         agent_factory, "create_filings_toolset", lambda: filings_toolset
     )
     monkeypatch.setattr(
-        agent_factory,
-        "create_model_from_config",
-        fake_create_model_from_config,
+        "discount_analyst.config.ai_models_config.DeepSeekAIModelConfig.to_model",
+        fake_to_model,
     )
     monkeypatch.setattr(agent_factory, "Agent", fake_agent)
 
@@ -370,7 +373,7 @@ def test_create_sentinel_agent_is_interpretation_only(
     assert getattr(terminal, "enabled") is False
 
 
-def test_create_curator_agent_is_closed_book(
+def test_create_curator_agent_enables_web_without_perplexity_or_mcp(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, object] = {}
@@ -382,11 +385,10 @@ def test_create_curator_agent_is_closed_book(
     monkeypatch.setattr(curator_module, "create_agent", fake_create_agent)
     create_curator_agent(AIModelsConfig(model_name=ModelName.DEEPSEEK_V4_PRO))
 
-    assert captured["enable_web_research_tools"] is False
+    assert captured.get("enable_web_research_tools", True) is True
     assert captured["use_perplexity"] is False
     assert captured["use_mcp_financial_data"] is False
-    terminal = captured["terminal"]
-    assert getattr(terminal, "enabled") is False
+    assert captured["terminal"] is None
 
 
 def test_perplexity_descriptions_cover_every_agent() -> None:

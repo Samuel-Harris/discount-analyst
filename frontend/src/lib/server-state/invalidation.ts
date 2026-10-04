@@ -1,4 +1,8 @@
-import { WORKFLOW_RUNS_LIST_KEY, workflowRunDetailKey } from "./queryKeys";
+import {
+  WORKFLOW_RUNS_LIST_KEY,
+  workflowAllocationKey,
+  workflowRunDetailKey,
+} from "./queryKeys";
 
 type InvalidateHandler = () => void | Promise<void>;
 
@@ -53,7 +57,10 @@ export async function invalidateWorkflowRunsList(): Promise<void> {
 export async function invalidateWorkflowRunDetail(
   workflowRunId: string,
 ): Promise<void> {
-  await invalidateQueryKey(workflowRunDetailKey(workflowRunId));
+  await Promise.all([
+    invalidateQueryKey(workflowRunDetailKey(workflowRunId)),
+    invalidateQueryKey(workflowAllocationKey(workflowRunId)),
+  ]);
 }
 
 /** When any run’s summary row may have changed without knowing the id (rare). */

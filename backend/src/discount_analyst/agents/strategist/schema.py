@@ -1,16 +1,11 @@
-from typing import Annotated, Literal
+from collections.abc import Mapping
+from typing import Any, Literal, cast
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    RootModel,
-    TypeAdapter,
     model_validator,
-)
-
-from discount_analyst.agents.runtime.structured_output_unwrap import (
-    unwrap_singleton_output_envelope,
 )
 
 
@@ -65,13 +60,21 @@ class MispricingThesis(BaseModel):
         )
     )
     evaluation_questions: list[str] = Field(
+        min_length=3,
+        max_length=5,
         description=(
             "The specific questions Sentinel must answer to "
             "confirm or break this thesis. Each question must be answerable "
             "from the last reported period plus the last trading update. "
             "Do not make a future print (for example 'what will FY26 report?') "
             "a load-bearing question. Bespoke to this thesis — not a generic "
-            "checklist. Minimum 5 questions."
+            "checklist. Between 3 and 5 questions."
+        ),
+    )
+    thesis_direction: Literal["undervalued", "overvalued"] = Field(
+        description=(
+            "Whether the live claim is that the shares are undervalued or "
+            "overvalued. There is no undecided direction."
         )
     )
     permanent_loss_scenarios: list[str] = Field(
@@ -91,33 +94,45 @@ class MispricingThesis(BaseModel):
     )
 
 
-class KeepPriorThesis(BaseModel):
-    """Keep the prior live thesis verbatim. Do not echo thesis fields."""
+class StrategistDecision(BaseModel):
+    """Keep or replace the live mispricing thesis."""
 
     model_config = ConfigDict(extra="forbid")
 
-    decision: Literal["keep_prior"] = "keep_prior"
+    decision: Literal["keep_prior", "replace"]
+    thesis: MispricingThesis | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+
+    @model_validator(mode="after")
+    def keep_forbids_thesis_replace_requires_it(self) -> "StrategistDecision":
+        if self.decision == "keep_prior" and self.thesis is not None:
+            raise ValueError("keep_prior must not include a thesis")
+        if self.decision == "replace" and self.thesis is None:
+            raise ValueError("replace requires a nested thesis")
+        return self
+
+    def replaced_thesis(self) -> MispricingThesis:
+        thesis = self.thesis
+        if self.decision != "replace" or thesis is None:
+            msg = "replace requires a nested thesis"
+            raise ValueError(msg)
+        return thesis
 
 
-class ReplaceThesis(BaseModel):
-    """Replace the live thesis with a newly authored MispricingThesis."""
-
-    decision: Literal["replace"] = "replace"
-    thesis: MispricingThesis
-
-
-class StrategistDecision(RootModel[KeepPriorThesis | ReplaceThesis]):
-    """Discriminated keep/replace decision; flattens singleton envelopes first."""
-
-    root: Annotated[KeepPriorThesis | ReplaceThesis, Field(discriminator="decision")]
-
-    @model_validator(mode="before")
-    @classmethod
-    def unwrap_singleton_envelope(cls, value: object) -> object:
-        return unwrap_singleton_output_envelope(value)
-
-
-STRATEGIST_DECISION_ADAPTER: TypeAdapter[StrategistDecision] = TypeAdapter(
-    StrategistDecision
-)
-STRATEGIST_DECISION_TYPE_NAME = "StrategistDecision"
+def stored_mispricing_thesis(data: Mapping[str, Any]) -> MispricingThesis:
+    """Load a persisted thesis. Rows from before direction was stored still load."""
+    payload = {
+        key: data[key]
+        for key in MispricingThesis.model_fields
+        if key != "thesis_direction"
+    }
+    payload["thesis_direction"] = data.get("thesis_direction")
+    questions = payload["evaluation_questions"]
+    question_count = (
+        len(cast(list[object], questions)) if isinstance(questions, list) else 0
+    )
+    historical = payload["thesis_direction"] is None or not 3 <= question_count <= 5
+    if historical:
+        return MispricingThesis.model_construct(**payload)
+    return MispricingThesis.model_validate(payload)

@@ -9,6 +9,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from discount_analyst.config.ai_models_config import AIModelsConfig
+from discount_analyst.config.settings import settings
 from discount_analyst.domain.model_selection.model_name import ModelName
 from discount_analyst.agents.runtime.agent_names import AgentName
 from discount_analyst.agents.runtime.streamed_agent_run import run_streamed_agent
@@ -43,7 +44,7 @@ def parse_args() -> SurveyorArgs:
     parser = argparse.ArgumentParser(
         description="Run the Surveyor agent to discover cheap small-cap stock candidates."
     )
-    add_agent_cli_model_argument(parser)
+    add_agent_cli_model_argument(parser, default=settings.agent_default_models.surveyor)
     add_agent_cli_web_search_arguments(parser)
     parser.add_argument(
         "--no-mcp",
@@ -115,7 +116,7 @@ async def main() -> None:
     outcome = await run_streamed_agent(
         agent=agent,
         user_prompt=USER_PROMPT,
-        usage_limits=ai_models_config.model.usage_limits,
+        usage_limits=ai_models_config.pydantic_ai_model.usage_limits,
         on_stream_chunk=lambda message: console.log(f"Streaming: {message}"),
         terminal=terminal,
     )

@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
+
+
 import pytest
 from sqlmodel import Session, col, select
 
+from backend.tests.factories.sterling import sterling_holdings
 from discount_analyst.application.workflows.agent_lane_order import (
     PROFILER_ENTRY_AGENT_NAMES,
     SURVEYOR_ENTRY_AGENT_NAMES,
@@ -45,7 +49,9 @@ def _insert_workflow_with_profiler_lane(session: Session) -> tuple[str, str, str
     insert_workflow_run(
         session,
         workflow_run_id=workflow_run_id,
-        portfolio_tickers=["ABC.L"],
+        holdings=sterling_holdings("ABC.L"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
         surveyor_execution_id=surveyor_execution_id,
     )
@@ -71,7 +77,9 @@ def _insert_workflow_with_surveyor_lane(session: Session) -> tuple[str, str, str
     insert_workflow_run(
         session,
         workflow_run_id=workflow_run_id,
-        portfolio_tickers=["NATR"],
+        holdings=sterling_holdings("NATR"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
         surveyor_execution_id=surveyor_execution_id,
     )

@@ -6,8 +6,17 @@ import asyncio
 from datetime import date
 from typing import TYPE_CHECKING, Any, Protocol
 
+from pydantic_ai.messages import ModelMessage
+
 from sqlmodel import Session
 
+from discount_analyst.adapters.orchestration.attempt_cost import (
+    attempt_cost_from_usage,
+)
+from discount_analyst.adapters.orchestration.live_agent import (
+    record_failed_attempt_cost,
+    run_and_record_failure,
+)
 from discount_analyst.adapters.orchestration.llm_config import (
     PipelineLlmConfig,
     pipeline_llm_config,
@@ -29,6 +38,7 @@ from discount_analyst.adapters.persistence.crud.workflow_investment_theses impor
 )
 from discount_analyst.adapters.persistence.crud.workflow_runs import (
     list_ticker_runs_for_workflow,
+    load_sterling_ledger_for_curator,
 )
 from discount_analyst.adapters.persistence.models import (
     AgentExecution,
@@ -40,9 +50,6 @@ from discount_analyst.adapters.simulation import (
     mock_conversation_messages,
     mock_outputs,
 )
-from discount_analyst.adapters.simulation.equal_weight_snapshot import (
-    equal_weight_existing_snapshot,
-)
 from discount_analyst.agents.curator.curator import create_curator_agent
 from discount_analyst.agents.curator.schema import CuratorInput, CuratorProposal
 from discount_analyst.agents.curator.system_prompt import (
@@ -50,14 +57,14 @@ from discount_analyst.agents.curator.system_prompt import (
 )
 from discount_analyst.agents.curator.user_prompt import create_user_prompt
 from discount_analyst.agents.common_prompts.current_date import with_current_date
-from discount_analyst.agents.runtime.ai_logging import AI_LOGFIRE
-from discount_analyst.agents.runtime.streamed_agent_run import run_streamed_agent
+from discount_analyst.config.logging_constants import AI_LOGFIRE
+from discount_analyst.agents.runtime.terminal_run import run_agent_with_terminal
 from discount_analyst.application.allocations.assemble import (
-    assemble_curator_input,
-    source_run_ids_by_ticker,
+    assemble_curator_job,
 )
 from discount_analyst.application.allocations.finalise import (
     finalise_curator_proposal,
+    synthesise_cash_only_allocation,
 )
 from discount_analyst.application.allocations.skip_reasons import (
     LANES_NOT_ALL_COMPLETED,
@@ -65,10 +72,14 @@ from discount_analyst.application.allocations.skip_reasons import (
 from discount_analyst.application.workflows.agent_errors import (
     extract_agent_error_message,
 )
+from discount_analyst.domain.workflow_cost import AttemptCost
 from discount_analyst.domain.allocations.allocation import (
     PortfolioAllocation as DomainPortfolioAllocation,
 )
-from discount_analyst.domain.allocations.snapshot import CurrentPortfolioSnapshot
+from discount_analyst.domain.allocations.snapshot import (
+    CurrentPortfolioSnapshot,
+    snapshot_from_sterling_ledger,
+)
 
 if TYPE_CHECKING:
     from discount_analyst.config.settings import Settings
@@ -136,7 +147,9 @@ class CuratorStage:
             return
 
         try:
-            llm = pipeline_llm_config(host.settings, is_mock=is_mock)
+            llm = pipeline_llm_config(
+                host.settings, agent_name=AgentNameDb.CURATOR, is_mock=is_mock
+            )
             AI_LOGFIRE.info(
                 "Curator branch started",
                 agent_name=AgentNameDb.CURATOR,
@@ -155,33 +168,58 @@ class CuratorStage:
             snapshot = await host.db(
                 load_dashboard_portfolio_snapshot,
                 workflow_run_id,
-                is_mock,
             )
-            if snapshot is None:
-                raise RuntimeError("Current portfolio snapshot is missing.")
 
             bundles = await host.db(load_completed_lane_bundles, workflow_run_id)
-            curator_input = assemble_curator_input(bundles, snapshot, date.today())
-            agent_result = await self._run_curator_agent(
-                curator_input=curator_input,
-                is_mock=is_mock,
-                llm=llm,
-            )
-            allocation = finalise_curator_proposal(
-                agent_result.proposal,
-                curator_input,
-                source_run_ids_by_ticker(bundles),
-            )
+            valued, dqr = bundles
+            job = assemble_curator_job(valued, snapshot, date.today(), dqr=dqr)
+            attempt_cost: AttemptCost | None = None
+            if not job.curator_input.lanes:
+                allocation = synthesise_cash_only_allocation(job)
+                messages = None
+                messages_json = None
+                completed_message = (
+                    "Curator branch completed without LLM (no valued lanes)"
+                )
+            else:
+                agent_result = await run_and_record_failure(
+                    db=host.db,
+                    execution_id=execution_id,
+                    start=lambda: self._run_curator_agent(
+                        curator_input=job.curator_input,
+                        is_mock=is_mock,
+                        llm=llm,
+                        settings=host.settings,
+                        session_id=execution_id,
+                    ),
+                )
+                attempt_cost = agent_result.attempt_cost
+                try:
+                    allocation = finalise_curator_proposal(
+                        agent_result.proposal,
+                        job,
+                    )
+                except Exception:
+                    await record_failed_attempt_cost(
+                        db=host.db,
+                        execution_id=execution_id,
+                        attempt_cost=attempt_cost,
+                    )
+                    raise
+                messages = agent_result.messages
+                messages_json = agent_result.messages_json
+                completed_message = "Curator branch completed"
             await host.db(
                 persist_completed_curator_execution,
                 execution_id=execution_id,
                 system_prompt=with_current_date(CURATOR_SYSTEM_PROMPT),
-                messages=agent_result.messages,
-                messages_json=agent_result.messages_json,
+                messages=messages,
+                messages_json=messages_json,
                 allocation=allocation,
+                attempt_cost=attempt_cost,
             )
             AI_LOGFIRE.info(
-                "Curator branch completed",
+                completed_message,
                 agent_name=AgentNameDb.CURATOR,
                 workflow_run_id=workflow_run_id,
                 position_count=len(allocation.positions),
@@ -212,6 +250,8 @@ class CuratorStage:
         curator_input: CuratorInput,
         is_mock: bool,
         llm: PipelineLlmConfig,
+        settings: Settings,
+        session_id: str,
     ) -> _CuratorRunResult:
         if is_mock:
             await asyncio.sleep(5)
@@ -226,32 +266,39 @@ class CuratorStage:
         ai_cfg = llm.ai_models_config
         if ai_cfg is None:
             raise RuntimeError("Curator LLM config missing for non-mock run")
-        agent = create_curator_agent(ai_models_config=ai_cfg)
-        outcome = await run_streamed_agent(
-            agent=agent,
+        outcome = await run_agent_with_terminal(
+            settings=settings,
+            session_id=session_id,
+            build_agent=lambda terminal: create_curator_agent(
+                ai_models_config=ai_cfg,
+                terminal=terminal,
+            ),
             user_prompt=create_user_prompt(curator_input=curator_input),
-            usage_limits=ai_cfg.model.usage_limits,
+            usage_limits=ai_cfg.pydantic_ai_model.usage_limits,
         )
         return _CuratorRunResult(
             proposal=outcome.output,
             messages=list(outcome.all_messages),
             messages_json=None,
+            attempt_cost=attempt_cost_from_usage(outcome.usage),
         )
 
 
 class _CuratorRunResult:
-    __slots__ = ("proposal", "messages", "messages_json")
+    __slots__ = ("attempt_cost", "messages", "messages_json", "proposal")
 
     def __init__(
         self,
         *,
         proposal: CuratorProposal,
-        messages: list[Any] | None,
+        messages: list[ModelMessage] | None,
         messages_json: str | None,
+        attempt_cost: AttemptCost | None = None,
     ) -> None:
         self.proposal = proposal
         self.messages = messages
         self.messages_json = messages_json
+        self.attempt_cost = attempt_cost
 
 
 def persist_completed_curator_execution(
@@ -259,9 +306,10 @@ def persist_completed_curator_execution(
     *,
     execution_id: str,
     system_prompt: str,
-    messages: list[Any] | None,
+    messages: list[ModelMessage] | None,
     messages_json: str | None,
     allocation: DomainPortfolioAllocation,
+    attempt_cost: AttemptCost | None = None,
 ) -> None:
     persist_portfolio_allocation(
         session, agent_execution_id=execution_id, allocation=allocation
@@ -284,6 +332,7 @@ def persist_completed_curator_execution(
         completed_at=utc_now_iso(),
         messages=messages,
         messages_json=messages_json,
+        attempt_cost=attempt_cost,
     )
 
 
@@ -297,12 +346,7 @@ def _curator_execution_id_and_status(
 
 
 def load_dashboard_portfolio_snapshot(
-    session: Session, workflow_run_id: str, is_mock: bool
-) -> CurrentPortfolioSnapshot | None:
-    if not is_mock:
-        return None
-    ticker_runs = list_ticker_runs_for_workflow(session, workflow_run_id)
-    existing = tuple(
-        run["ticker"] for run in ticker_runs if run["is_existing_position"]
-    )
-    return equal_weight_existing_snapshot(existing, as_of=date.today())
+    session: Session, workflow_run_id: str
+) -> CurrentPortfolioSnapshot:
+    ledger, as_of = load_sterling_ledger_for_curator(session, workflow_run_id)
+    return snapshot_from_sterling_ledger(ledger, as_of=as_of)

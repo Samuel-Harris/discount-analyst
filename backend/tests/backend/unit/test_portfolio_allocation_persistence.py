@@ -1,9 +1,12 @@
 """Portfolio allocation persistence, reconstruction, and workflow creation."""
 
+from decimal import Decimal
+
 from datetime import date
 
 from sqlmodel import Session, col, select
 
+from backend.tests.factories.sterling import sterling_holdings
 from discount_analyst.adapters.persistence.crud.db_utils import new_id
 from discount_analyst.adapters.persistence.crud.portfolio_allocations import (
     delete_portfolio_allocation_for_execution,
@@ -25,11 +28,6 @@ from discount_analyst.domain.allocations.allocation import (
     PortfolioAllocation,
     SharedRiskCluster,
 )
-from discount_analyst.domain.allocations.policy import (
-    ForcedZeroPolicy,
-    ForcedZeroReason,
-    InvestablePolicy,
-)
 
 
 def test_insert_workflow_run_creates_surveyor_and_curator(
@@ -39,7 +37,9 @@ def test_insert_workflow_run_creates_surveyor_and_curator(
     surveyor_id, curator_id = insert_workflow_run(
         db_session,
         workflow_run_id=workflow_run_id,
-        portfolio_tickers=["ABC.L"],
+        holdings=sterling_holdings("ABC.L"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
     )
 
@@ -63,7 +63,9 @@ def test_persist_and_reconstruct_allocation_round_trip(db_session: Session) -> N
     _surveyor_id, curator_id = insert_workflow_run(
         db_session,
         workflow_run_id=workflow_run_id,
-        portfolio_tickers=["TSM", "AMAT"],
+        holdings=sterling_holdings("TSM", "AMAT"),
+        suggestion_tickers=(),
+        cash_gbp=Decimal("0"),
         is_mock=True,
     )
     tsm_run = new_id()
@@ -100,7 +102,6 @@ def test_persist_and_reconstruct_allocation_round_trip(db_session: Session) -> N
                 source_run_id=tsm_run,
                 is_existing_position=False,
                 current_weight_pct=0.0,
-                policy=InvestablePolicy(),
                 target_weight_pct=12.0,
                 acceptable_weight_low_pct=10.0,
                 acceptable_weight_high_pct=14.0,
@@ -113,7 +114,6 @@ def test_persist_and_reconstruct_allocation_round_trip(db_session: Session) -> N
                 source_run_id=amat_run,
                 is_existing_position=False,
                 current_weight_pct=0.0,
-                policy=ForcedZeroPolicy(reason=ForcedZeroReason.SELL),
                 target_weight_pct=0.0,
                 acceptable_weight_low_pct=0.0,
                 acceptable_weight_high_pct=0.0,

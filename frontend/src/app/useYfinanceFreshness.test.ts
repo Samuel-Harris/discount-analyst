@@ -22,6 +22,8 @@ describe("useYfinanceFreshness", () => {
   it("returns yfinance freshness from the dashboard status endpoint", async () => {
     vi.spyOn(api, "fetchDashboardStatus").mockResolvedValue({
       yfinance: outdated,
+      sec_user_agent_configured: false,
+      companies_house_cache_present: false,
     });
     const { result } = renderHook(() => useYfinanceFreshness());
     await waitFor(() => {
@@ -47,7 +49,11 @@ describe("useYfinanceFreshness", () => {
     const fetch = vi
       .spyOn(api, "fetchDashboardStatus")
       .mockRejectedValueOnce(new Error("status unavailable"))
-      .mockResolvedValueOnce({ yfinance: outdated });
+      .mockResolvedValueOnce({
+        yfinance: outdated,
+        sec_user_agent_configured: false,
+        companies_house_cache_present: false,
+      });
 
     const { result } = renderHook(() => useYfinanceFreshness());
     await act(async () => {

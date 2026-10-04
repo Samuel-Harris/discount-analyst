@@ -1,25 +1,23 @@
 # Orchestrator: creates gVisor-backed sandbox containers and runs docker exec.
-# Requires the sandbox image (build separately):
-#   docker build -f backend/services/agent_terminal/Dockerfile.sandbox -t discount-analyst-terminal-sandbox:local .
-FROM python:3.14.5-slim-trixie
+# Requires the sandbox image (build separately): make build-terminal-sandbox
+# Digest pin skips Docker Hub tag resolution; refresh with:
+#   docker buildx imagetools inspect python:3.14.5-slim-trixie --format '{{.Manifest.Digest}}'
+FROM python:3.14.5-slim-trixie@sha256:c845af9399020c7e562969a13689e929074a10fd057acd1b1fad06a2fb068e97
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    UV_SYSTEM_PYTHON=1 \
+    UV_LINK_MODE=copy
 
 WORKDIR /app
 
-# Apply Debian security updates for OS packages in the slim base (glibc, openssl, etc.).
-RUN apt-get update \
-    && apt-get upgrade -y --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
+COPY requirements-service.txt /tmp/requirements-service.txt
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=cache,target=/root/.cache/pip \
+    python -m pip install --upgrade pip uv \
+    && uv pip install --system -r /tmp/requirements-service.txt
 
-COPY backend/services/agent_terminal/requirements-service.txt /tmp/requirements-service.txt
-RUN pip install --upgrade pip \
-    && pip install -r /tmp/requirements-service.txt \
-    && rm /tmp/requirements-service.txt
-
-COPY backend/services/agent_terminal/app ./app
+COPY app ./app
 
 EXPOSE 8001
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]

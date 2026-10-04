@@ -21,6 +21,11 @@ from discount_analyst.agents.appraiser.schema import (
 from discount_analyst.domain.allocations.constants import COMPANY_WEIGHT_CAP_PCT
 from discount_analyst.domain.valuation.intrinsic_value_distribution import (
     IntrinsicValueDistribution,
+    ValueScenario,
+)
+from discount_analyst.domain.valuation.toolkit.scenarios import (
+    weighted_expected_value,
+    weighted_percentile,
 )
 from discount_analyst.agents.profiler.schema import ProfilerOutput
 from discount_analyst.agents.researcher.schema import (
@@ -39,9 +44,7 @@ from discount_analyst.agents.sentinel.schema import (
     ThesisVerdict,
 )
 from discount_analyst.agents.strategist.schema import (
-    KeepPriorThesis,
     MispricingThesis,
-    ReplaceThesis,
     StrategistDecision,
 )
 from discount_analyst.agents.surveyor.schema import (
@@ -240,6 +243,7 @@ def mock_thesis(candidate: SurveyorCandidate | SurveyorLaneContext) -> Mispricin
         evaluation_questions=["Q1", "Q2", "Q3", "Q4", "Q5"],
         permanent_loss_scenarios=["PL1", "PL2"],
         conviction_level="Medium",
+        thesis_direction="undervalued",
     )
 
 
@@ -248,15 +252,16 @@ def mock_strategist_decision(
     prior: MispricingThesis | None,
 ) -> StrategistDecision:
     if prior is not None:
-        return StrategistDecision(KeepPriorThesis())
-    return StrategistDecision(ReplaceThesis(thesis=mock_thesis(lane_context)))
+        return StrategistDecision(decision="keep_prior")
+    return StrategistDecision(decision="replace", thesis=mock_thesis(lane_context))
 
 
 def mock_sentinel_proceed_for_dashboard_lane(ticker: str) -> bool:
-    """Return whether mock Sentinel should authorise valuation for this ticker.
+    """Return whether mock Sentinel should emit an intact thesis label.
 
     Deterministic from the ticker string (character-sum parity) so dashboard
-    mock runs show a stable mix of pass and fail lanes without RNG coupling.
+    mock runs show a stable mix of intact vs weakened/broken labels. Appraiser
+    still runs either way.
     """
 
     return sum(ord(ch) for ch in ticker.casefold()) % 2 == 0
@@ -381,36 +386,65 @@ def mock_sentinel_evaluation(
     )
 
 
+def _mock_value_scenarios() -> list[ValueScenario]:
+    return [
+        ValueScenario(value_per_share=2.4, probability_pct=20),
+        ValueScenario(value_per_share=3.6, probability_pct=50),
+        ValueScenario(value_per_share=5.0, probability_pct=30),
+    ]
+
+
+def _distribution_from_scenarios(
+    *,
+    currency: str,
+    current_share_price: float,
+    scenarios: list[ValueScenario],
+    distribution_method: str,
+    distribution_reasoning: str,
+) -> IntrinsicValueDistribution:
+    payload = [scenario.model_dump() for scenario in scenarios]
+    return IntrinsicValueDistribution(
+        currency=currency,
+        current_share_price=current_share_price,
+        expected_intrinsic_value=weighted_expected_value(payload),
+        p10_intrinsic_value=weighted_percentile(payload, 10),
+        p25_intrinsic_value=weighted_percentile(payload, 25),
+        p50_intrinsic_value=weighted_percentile(payload, 50),
+        p75_intrinsic_value=weighted_percentile(payload, 75),
+        p90_intrinsic_value=weighted_percentile(payload, 90),
+        scenarios=scenarios,
+        distribution_method=distribution_method,
+        distribution_reasoning=distribution_reasoning,
+    )
+
+
 def mock_appraiser_output(
     candidate: SurveyorCandidate | SurveyorLaneContext,
 ) -> AppraiserOutput:
     lane_context = _as_lane_context(candidate)
     current_price = 3.0
+    distribution = _distribution_from_scenarios(
+        currency=lane_context.currency.value,
+        current_share_price=current_price,
+        scenarios=_mock_value_scenarios(),
+        distribution_method="mock_scenario_weighting",
+        distribution_reasoning="Mock downside/base/upside range.",
+    )
+    # 0.6 * 3.9 + 0.4 * 3.6 = 3.78, the scenario-weighted expected value.
     return AppraiserOutput(
         ticker=lane_context.ticker,
         company_name=lane_context.company_name,
         valuation_date=date.today().isoformat(),
         summary="Mock Appraiser distribution for dashboard testing.",
-        valuation_distribution=IntrinsicValueDistribution(
-            currency=lane_context.currency.value,
-            current_share_price=current_price,
-            expected_intrinsic_value=3.71,
-            p10_intrinsic_value=2.6,
-            p25_intrinsic_value=3.1,
-            p50_intrinsic_value=3.6,
-            p75_intrinsic_value=4.2,
-            p90_intrinsic_value=5.0,
-            distribution_method="mock_scenario_weighting",
-            distribution_reasoning="Mock downside/base/upside range.",
-        ),
+        valuation_distribution=distribution,
         methods=[
             ValuationMethodResult(
                 method=ValuationMethod.SCENARIO_WEIGHTING,
                 role="primary",
-                value_per_share=3.8,
-                low_value_per_share=2.6,
+                value_per_share=3.9,
+                low_value_per_share=2.4,
                 high_value_per_share=5.0,
-                weight_pct=70.0,
+                weight_pct=60.0,
                 key_assumptions=["Mock growth and margin assumptions."],
                 evidence_summary=["Mock research evidence."],
                 sanity_checks=["Mock distribution is monotonic."],
@@ -419,10 +453,10 @@ def mock_appraiser_output(
             ValuationMethodResult(
                 method=ValuationMethod.COMPARABLE_MULTIPLES,
                 role="cross_check",
-                value_per_share=3.5,
+                value_per_share=3.6,
                 low_value_per_share=3.0,
                 high_value_per_share=4.1,
-                weight_pct=30.0,
+                weight_pct=40.0,
                 key_assumptions=["Mock peer multiple range."],
                 evidence_summary=["Mock peer set."],
                 sanity_checks=["Mock selected multiple within peer range."],
@@ -501,62 +535,16 @@ def mock_rating_table_decision(
 
 
 def mock_curator_proposal(curator_input: CuratorInput) -> CuratorProposal:
-    """Deterministic CuratorProposal that obeys policy, the 15% cap, and 100% totals."""
+    """Deterministic CuratorProposal that obeys the 15% cap and 100% totals."""
     sized: dict[str, ProposedPosition] = {}
     company_targets: dict[str, float] = defaultdict(float)
     company_highs: dict[str, float] = defaultdict(float)
 
-    forced_lanes = [
-        lane
-        for lane in curator_input.lanes
-        if lane.identity.policy.kind == "forced_zero"
-    ]
-    retain_lanes = [
-        lane
-        for lane in curator_input.lanes
-        if lane.identity.policy.kind == "retain_or_reduce"
-    ]
-    investable_lanes = [
-        lane
-        for lane in curator_input.lanes
-        if lane.identity.policy.kind == "investable"
-    ]
-
-    for lane in forced_lanes:
-        ticker = lane.identity.ticker
-        sized[ticker] = ProposedPosition(
-            ticker=ticker,
-            target_weight_pct=0.0,
-            acceptable_weight_low_pct=0.0,
-            acceptable_weight_high_pct=0.0,
-            rationale="Forced zero by lane rating.",
-        )
-
-    for lane in retain_lanes:
+    leftover = 100.0
+    for index, lane in enumerate(curator_input.lanes):
         ticker = lane.identity.ticker
         company_key = lane.identity.company_name.casefold()
-        current = lane.identity.current_weight_pct
-        room = round(COMPANY_WEIGHT_CAP_PCT - company_targets[company_key], 2)
-        target = round(min(current, max(0.0, room)), 2)
-        low = round(max(0.0, target - 1.0), 2)
-        sized[ticker] = ProposedPosition(
-            ticker=ticker,
-            target_weight_pct=target,
-            acceptable_weight_low_pct=low,
-            acceptable_weight_high_pct=target,
-            rationale="Existing HOLD retained or reduced within the no-trade band.",
-        )
-        company_targets[company_key] += target
-        company_highs[company_key] += target
-
-    leftover = round(
-        100.0 - sum(position.target_weight_pct for position in sized.values()),
-        2,
-    )
-    for index, lane in enumerate(investable_lanes):
-        ticker = lane.identity.ticker
-        company_key = lane.identity.company_name.casefold()
-        remaining_names = len(investable_lanes) - index
+        remaining_names = len(curator_input.lanes) - index
         room = round(
             min(
                 COMPANY_WEIGHT_CAP_PCT - company_targets[company_key],
@@ -606,9 +594,8 @@ def mock_curator_proposal(curator_input: CuratorInput) -> CuratorProposal:
         ),
         shared_risk_clusters=_mock_shared_risk_clusters(curator_input),
         portfolio_rationale=(
-            "Mock Curator sizes forced-zero names at zero, keeps existing HOLD "
-            "at or below the 15% company cap, and places leftover capital in "
-            "investable names or cash."
+            "Mock Curator sizes a concentrated book within the 15% company cap "
+            "and places leftover capital in cash."
         ),
     )
 

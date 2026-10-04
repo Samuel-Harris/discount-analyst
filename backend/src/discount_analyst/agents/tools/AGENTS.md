@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-08-30 | Updated: 2026-08-30 -->
+<!-- Generated: 2026-08-30 | Updated: 2026-09-30 -->
 
 # tools
 
@@ -9,13 +9,14 @@ Agent-facing tool clients used by pipeline factories: web research, FX conversio
 
 ## Key Files
 
-None at this package root (`__init__.py` is empty). Implementation lives in subpackages.
+| File           | Description                                                                 |
+| -------------- | --------------------------------------------------------------------------- |
+| `screening.py` | Surveyor-only `compute_screening_metrics` host tool. Calls `domain/screening/metrics.py`. |
 
 ## Subdirectories
 
 | Directory          | Purpose                                                                 |
 | ------------------ | ----------------------------------------------------------------------- |
-| `http/`            | Retrying httpx client shared by tool modules                            |
 | `market_data/`     | Frankfurter FX and FMP/EODHD MCP toolsets                               |
 | `web_research/`    | Perplexity, bounded DuckDuckGo search, text-only web fetch              |
 | `terminal/`        | Terminal HTTP client and `InfallibleToolset`                            |
@@ -36,7 +37,7 @@ None at this package root (`__init__.py` is empty). Implementation lives in subp
 
 ### Internal
 
-- `discount_analyst.config.settings`, `discount_analyst.agents.runtime`.
+- `discount_analyst.config.settings`, `discount_analyst.config.rate_limit_client`, `discount_analyst.agents.runtime`.
 
 ### External
 

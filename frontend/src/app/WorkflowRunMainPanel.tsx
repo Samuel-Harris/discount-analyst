@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo } from "react";
 
 import type { WorkflowRunDetailResponse } from "@/api";
 import { UiStateText } from "@/components/UiStateText";
@@ -14,11 +14,9 @@ export interface WorkflowRunMainPanelProps {
   detail: WorkflowRunDetailResponse | null;
   detailLoading: boolean;
   detailError: string | null;
-  sidebarCollapsed: boolean;
   workflowActionError: string | null;
   cancelPending: boolean;
   retryFailedAgentsPending: boolean;
-  launchForm: ReactNode;
   mainView: WorkflowMainView;
   onOpenRecommendations: () => void;
   onOpenPipeline: () => void;
@@ -33,11 +31,9 @@ export function WorkflowRunMainPanel({
   detail,
   detailLoading,
   detailError,
-  sidebarCollapsed,
   workflowActionError,
   cancelPending,
   retryFailedAgentsPending,
-  launchForm,
   mainView,
   onOpenRecommendations,
   onOpenPipeline,
@@ -100,13 +96,12 @@ export function WorkflowRunMainPanel({
         ) : (
           <div className="placeholder-main">
             <UiStateText tone="muted" as="p">
-              Select a workflow run from the sidebar, or launch a new one
-              {sidebarCollapsed ? " below" : " from the launch panel"}.
+              Select a workflow run from the sidebar, or launch a new one from
+              the launch panel.
             </UiStateText>
           </div>
         )}
       </div>
-      {sidebarCollapsed ? launchForm : null}
     </main>
   );
 }
