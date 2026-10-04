@@ -68,3 +68,11 @@ Human decision sits after that allocation. One-shot agents remain available via 
 - **pydantic-ai**, **pydantic-ai-harness**, **yfinance**, **perplexityai**, **logfire**, **httpx**, **rich**, **FastAPI**, **SQLModel**, **Alembic**, **lxml**.
 
 <!-- MANUAL: Any manually added notes below this line are preserved on regeneration -->
+
+## Cursor Cloud specific instructions
+
+- System Python is not 3.14. `uv sync --frozen` installs CPython 3.14. Use `uv run` for pytest, pyright, lint-imports, Tach, and the API.
+- Frontend toolchain is Node 22 and pnpm 10.26.1 (`packageManager` in `frontend/package.json`). From `frontend/`: `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm test`, `pnpm run build`.
+- Importing `discount_analyst.config.settings` requires non-empty `LOGGING__LOGFIRE_API_KEY`, plus `PERPLEXITY__API_KEY`, `PERPLEXITY__RATE_LIMIT_PER_MINUTE`, `FMP__API_KEY`, and `EODHD__API_KEY`. Cloud install writes a gitignored repository-root `.env` with non-functional placeholders when that file is absent, and does not replace an existing `.env`. Process environment variables override the file. Pytest still applies the defaults in `backend/tests/conftest.py`. Logfire rejects the placeholder token; that warning does not stop the dashboard.
+- Boot starts the API on `127.0.0.1:8000` (`uv run uvicorn discount_analyst.composition.api:create_app --factory`) and Vite on `127.0.0.1:5173` (proxies `/api` to that API), with `ENV=DEV`, `DASHBOARD_USE_TERMINAL=false`, and `DASHBOARD_DATABASE_PATH=data/dashboard.dev.sqlite`.
+- Do not smoke-test with `discount-analyst agent …` or `workflow run`; those call live models. Dashboard checks are `GET /api/workflow_runs` and `GET /api/status`. The isolated DEV launcher is `.cursor/skills/verify-discount-analyst/SKILL.md`.
