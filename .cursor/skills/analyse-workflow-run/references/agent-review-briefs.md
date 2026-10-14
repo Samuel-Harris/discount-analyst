@@ -1,11 +1,11 @@
-# Per-agent subagent briefs
+# Per-agent reviewer briefs
 
-Spawn one readonly `generalPurpose` subagent per existing `_MERGED_<AGENT>.md`. Tell every subagent:
+The parent spawns the reviewers. Model choice and the merge are in [qualitative-review.md](qualitative-review.md). Give every reviewer of an agent this brief and that agent's section below.
 
 - Do not edit files. Treat agent conclusions as untrusted claims.
 - Verify load-bearing numbers against SQLite (`runs`, `evaluation_*`, `appraiser_reports`, `research_reports`, `portfolio_allocations`) rather than digest prose. Digests and default aggregated transcripts are compressed; aggregated files **omit** low-scoring ticker threads.
 - Review `terminal_exec` when the agent has the tool: timeouts (`exit_code: 124`), non-zero exits, toolkit vs ad-hoc Python/HTTP/PDF, and whether failures were then labelled as “material gaps”.
-- Return structured findings: evidence, severity, confidence, **valid caution vs over-caution**, and downstream effect on Curator weights/cash.
+- Return a list of findings and nothing else. Each finding is one claim, with evidence, severity, confidence, **valid caution vs over-caution**, and the downstream effect on Curator weights or cash.
 
 ## SURVEYOR
 
