@@ -1,8 +1,8 @@
 # Pipeline synthesis (parent agent)
 
-Per-agent subagents cannot see the composition of the book. After they return, the **parent** must independently reconstruct how Surveyor → Profiler → Researcher → Strategist → Sentinel → Appraiser → Curator produced the allocation. Do **not** concatenate subagent prose into the HTML report.
+Reviewers see one agent. After lead judgement, the **parent** reconstructs how Surveyor → Profiler → Researcher → Strategist → Sentinel → Appraiser → Curator produced the allocation. Read Act on and Consider from [`qualitative-review.md`](qualitative-review.md). The HTML report states that reconstruction in the parent's words.
 
-Treat Luna (and every other lane model) as untrusted. Subagent findings are claims. SQLite rows and live pipeline code are facts.
+Treat Luna (and every other lane model) as untrusted. Reviewer findings are claims. SQLite rows and live pipeline code are facts.
 
 **Live path (new runs):** Sentinel and Appraiser are research/valuation **memos**. There is no live BUY/SELL/HOLD rating and no allocation policy kind. **Curator weights are the recommendation.** Data-quality rejects skip Researcher→Appraiser, are omitted from the Curator LLM pack, and are application-stamped `[0,0,0]`. Historical SQLite may still contain `rating_table` / `sentinel_rejection` rows and a stored `final_rating`; treat those as display of old runs, not current behaviour.
 

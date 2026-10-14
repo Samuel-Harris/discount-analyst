@@ -49,13 +49,13 @@ Script (stdlib only, no repo imports):
 - Optional: **`--max-lines N`** — per-agent line cap when curated (default **6000**).
 - Creates `<workflow-run-id>/aggregated_conversations/` with one markdown file per agent: `SURVEYOR.md` and `CURATOR.md` (workflow-scoped, if present) and `PROFILER.md`, `RESEARCHER.md`, `STRATEGIST.md`, `SENTINEL.md`, `APPRAISER.md` (each file contains ticker sections in ticker order).
 - **Default (curated):** stubs duplicate system prompts, thins huge `user_prompt` blocks (Appraiser also redacts upstream JSON before `ValuationResult` when that pattern appears; Curator also redacts packed `<CuratorInput>` JSON), then enforces the line cap by **omitting** lowest-scoring ticker threads first (heuristic keywords aligned with typical workflow-run review themes). Header blockquotes list any omitted tickers.
-- Use **`--full-transcripts`** for audit trails that need every line; use **default** for grep-friendly issue-focused review; use `conversation_digests/` for token-efficient merged digests in subagent step 6.
+- Use **`--full-transcripts`** for audit trails that need every line; use **default** for grep-friendly issue-focused review; use `conversation_digests/` for the merged digests the reviewers read.
 
 ## Final report
 
 - **Filename:** `<workflow-run-id>_agent_review.html` (self-contained HTML; not markdown).
 - Same directory as the SQLite copy and export folders; open in a browser.
-- Section layout and HTML requirements: see step 7 and **Report format (HTML)** in [`../SKILL.md`](../SKILL.md).
+- Section layout and HTML requirements: see **Report format (HTML)** and **Report structure** in [`../SKILL.md`](../SKILL.md).
 - **Required Report Sections:**
   1. **Data sources:** Copied SQLite (path, size, timestamp) and Logfire query parameters.
   2. **Executive summary:** Tickers split holding vs prospect and `appraised` vs DQR (historical ratings if present); Curator status / cash; Profiler coverage only vs Profiler-entry lanes. Lead with any user-specific concern.
@@ -63,5 +63,5 @@ Script (stdlib only, no repo imports):
   4. **Terminal Tool Analytics:** `terminal_exec` counts, success, timeouts, toolkit vs ad-hoc (lane-scoped and workflow-scoped Surveyor/Curator).
   5. **Appraiser Valuation Audit:** EXPECTED, P10, P50, P90, price, methods/weights, data quality; recompute blends.
   6. **Curator Allocation Audit:** Positions, cash, clusters; DQR stamps vs discretionary zeros.
-  7. **Qualitative conversation review:** One section per pipeline agent (`SURVEYOR` … `CURATOR`). Inputs to synthesis, not a substitute.
+  7. **Qualitative conversation review:** One section per reviewed agent (`SURVEYOR` … `CURATOR`). The section is the lead judgement. It feeds pipeline synthesis.
   8. **Appendix: telemetry:** Logfire tables; retry vs final SQLite.

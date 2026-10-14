@@ -3,8 +3,8 @@ name: analyse-workflow-run
 description: >-
   End-to-end analysis of a Discount Analyst dashboard workflow run: telemetry
   (Logfire), SQLite conversation digests (host `data/dashboard.prod.sqlite` for
-  saved production runs), per-agent qualitative review via subagents, and a single
-  HTML report. Writes all artefacts under
+  saved production runs), multi-model qualitative review with a synthesise
+  step and a lead judgement, and a single HTML report. Writes all artefacts under
   `.cursor/artefacts/analyse-workflow-run/<workflow-run-id>/`. Use when the user
   asks to analyse, review, or audit agent quality, conversations, Appraiser
   valuations, or Curator portfolio allocations for a `workflow_run_id`. Do not
@@ -28,7 +28,7 @@ All outputs for a single run live under:
 | Path (relative to that directory)                                     | Purpose                                                                                                                                                                                                                                                         |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `dashboard.sqlite` (or copy renamed e.g. `from_run_dashboard.sqlite`) | Dashboard SQLite — copy from host `data/dashboard.prod.sqlite` into this folder for analysis — **do not commit** (parent `.gitignore` ignores `.cursor/artefacts/`).                                                                                            |
-| `conversation_digests/`                                               | Per-ticker `.md` digests, workflow-scoped Surveyor/Curator (`{AGENT}___workflow__.md`), and `_MERGED_<AGENT>.md` for subagent input.                                                                                                                            |
+| `conversation_digests/`                                               | Per-ticker `.md` digests, workflow-scoped Surveyor/Curator (`{AGENT}___workflow__.md`), and `_MERGED_<AGENT>.md` for reviewer input.                                                                                                                             |
 | `aggregated_conversations/`                                           | Transcripts: one `*.md` per agent (`SURVEYOR.md`, `CURATOR.md`, `PROFILER.md`, …). **Default:** issue-focused export (≤6,000 lines per file, compressed prompts + heuristic ticker prioritisation). **`--full-transcripts`:** uncapped verbatim message stream. |
 | `<workflow-run-id>_agent_review.html`                                 | Final report (self-contained HTML): data sources, qualitative sections, Logfire appendix. Open in a browser.                                                                                                                                                    |
 
@@ -156,7 +156,7 @@ Historical Docker Compose production data was migrated into `data/dashboard.prod
    uv run python -c "import sqlite3; from pathlib import Path; s=sqlite3.connect('file:data/dashboard.prod.sqlite?mode=ro', uri=True); t=sqlite3.connect(Path('.cursor/artefacts/analyse-workflow-run/<uuid>/dashboard.sqlite')); s.backup(t); t.close(); s.close()"
    ```
 
-3. **Export digests** (conversation text + tool surface for subagents):
+3. **Export digests** (conversation text + tool surface for reviewers):
 
    ```bash
    uv run python .cursor/skills/analyse-workflow-run/scripts/export_conversation_digests.py \
@@ -189,17 +189,15 @@ Historical Docker Compose production data was migrated into `data/dashboard.prod
 
 5. **Logfire appendix:** Run focused `query_run` SQL (counts by `span_name`, `attributes->>'agent_name'`, failure messages) scoped by `attributes->>'workflow_run_id'` — see reference doc. Derive `start_timestamp` / `end_timestamp` from the run's `workflow_runs.started_at` when available, keeping the window ≤ 14 days. Treat Logfire as retry-inclusive telemetry; **SQLite is the source of truth for final ratings and allocation**.
 
-6. **Qualitative pass:** Spawn **seven** parallel subagents (`generalPurpose`, `readonly: true`), one per merged digest that exists:
+6. **Reviewers.** Spawn the reviewers in [`references/qualitative-review.md`](references/qualitative-review.md). Review each agent that has a merged digest. The agents are `SURVEYOR`, `PROFILER`, `RESEARCHER`, `STRATEGIST`, `SENTINEL`, `APPRAISER`, and `CURATOR`. Skip an agent with no `_MERGED_<AGENT>.md`. Curator is often absent when a lane did not complete. Legacy runs may have no Curator row. Questions for each agent are in [`references/agent-review-briefs.md`](references/agent-review-briefs.md).
 
-   `.cursor/artefacts/analyse-workflow-run/<uuid>/conversation_digests/_MERGED_<AGENT>.md`
+7. **Synthesise.** Merge each agent's reviewer findings. The procedure is in [`references/qualitative-review.md`](references/qualitative-review.md).
 
-   Agents: `SURVEYOR`, `PROFILER`, `RESEARCHER`, `STRATEGIST`, `SENTINEL`, `APPRAISER`, `CURATOR`. Skip any agent with no merged file for this run (Curator is often `skipped` when a lane did not complete, and legacy runs may have no Curator row).
+8. **Lead judgement.** Bucket every merged finding. Those buckets are the qualitative section of the HTML report. The procedure is in [`references/qualitative-review.md`](references/qualitative-review.md).
 
-   Briefs and untrusted-claim rules: [`references/agent-review-briefs.md`](references/agent-review-briefs.md). Direct subagents to review **terminal usage (`terminal_exec`)** (timeouts, shell errors, formatting, toolkit vs ad-hoc). For `APPRAISER`, evaluate method-agnostic distributions, primary vs cross-check weights, and whether the valuation memo is coherent — do not treat a Sentinel label as a stop. For `CURATOR`, evaluate construction against packed `CuratorInput` and persisted `portfolio_allocations`: every valued ticker present (including explicit zeros), 15% company cap, shared-risk clusters, cash, DQR stamps, and whether the agent re-rated names. Flag web/terminal/`convert_currency` as off-book. If every lane is DQR, 100% cash is mechanically synthesised — do not attribute it to Curator caution.
+9. **Pipeline synthesis (parent, required).** After lead judgement, the parent independently reconstructs the **book-level** outcome. On **new** runs, Sentinel “do not proceed” is a label, Appraiser still runs, and Curator weights are the recommendation. Historical runs may still show Sentinel skip → SELL → `forced_zero`; that chain is **not** live. Follow [`references/pipeline-synthesis.md`](references/pipeline-synthesis.md): query SQLite facts, re-read live assemble/finalise code, split holdings vs prospects and `appraised` vs DQR, separate repaired stop-errors from judgement, and verdict whether the allocation is discretionary Curator sizing, DQR-only cash, or a historical forced-zero liquidation. If the user asked a specific concern (e.g. 100% cash, over-caution), answer it first in the executive summary. Pipeline synthesis reads Act on and Consider. It does not paste reviewer text.
 
-7. **Pipeline synthesis (parent, required):** After subagents return, the parent independently reconstructs the **book-level** outcome. On **new** runs, Sentinel “do not proceed” is a label, Appraiser still runs, and Curator weights are the recommendation. Historical runs may still show Sentinel skip → SELL → `forced_zero`; that chain is **not** live. Follow [`references/pipeline-synthesis.md`](references/pipeline-synthesis.md): query SQLite facts, re-read live assemble/finalise code, split holdings vs prospects and `appraised` vs DQR, separate repaired stop-errors from judgement, and verdict whether the allocation is discretionary Curator sizing, DQR-only cash, or a historical forced-zero liquidation. If the user asked a specific concern (e.g. 100% cash, over-caution), answer it first in the executive summary. Do not concatenate subagent text.
-
-8. **Write report:** `<uuid>_agent_review.html` in the **same** `<uuid>/` folder. **Do not** write a markdown report — the deliverable is HTML only.
+10. **Write report.** `<uuid>_agent_review.html` in the **same** `<uuid>/` folder. The deliverable is HTML only.
 
 ## Report format (HTML)
 
@@ -220,7 +218,7 @@ Write a **single self-contained HTML file** (no external CSS/JS/fonts). Requirem
 4. **Terminal Tool Analytics** — `terminal_exec` counts, success rate, timeouts, errors, toolkit vs ad-hoc (include workflow-scoped Surveyor/Curator; do not join only via `runs`). Bodies are text `exit_code: 0`, not JSON.
 5. **Appraiser Valuation Audit** — EXPECTED, P10, P50, P90, current price, currency, methods/weights, data quality. Recompute the blend. New runs have no rating-table SELL.
 6. **Curator Allocation Audit** — Persisted positions (current vs target, range, action), cash, clusters. Note skipped/absent Curator. Compare `CuratorProposal` with finalised rows. State whether cash/zeros were DQR stamps or discretionary Curator sizing.
-7. **Qualitative conversation review** — one `<section>` per agent from subagents (inputs to synthesis, not a substitute for it), including Curator when `_MERGED_CURATOR.md` exists.
+7. **Qualitative conversation review.** One `<section>` per agent that was reviewed. The section is the lead judgement (Act on, Consider, Noted, Dismissed), with the reviewers named on each finding. It feeds pipeline synthesis. Include Curator when `_MERGED_CURATOR.md` exists.
 8. **Appendix: telemetry** — Logfire tables, retry vs final-state notes.
 
 ## Codebase pointers
@@ -230,7 +228,7 @@ Write a **single self-contained HTML file** (no external CSS/JS/fonts). Requirem
 - Agent enum: `AgentNameDb` — seven pipeline agents (`surveyor`, `profiler`, `researcher`, `strategist`, `sentinel`, `appraiser`, `curator`; no `ARBITER`; legacy `arbiter` rows were migrated in alembic `0004`). SQLite stores **lowercase** values. Runtime `AgentName` / Logfire span `agent_name` is **uppercase**.
 - Config default DB: `common/config.py` → `Settings.database_path` defaults to `data/dashboard.sqlite`; production analysis uses **`data/dashboard.prod.sqlite`**.
 - Export scripts: stdlib-only, live under `.cursor/skills/analyse-workflow-run/scripts/` (no repo imports).
-- Review briefs: [`references/agent-review-briefs.md`](references/agent-review-briefs.md), [`references/pipeline-synthesis.md`](references/pipeline-synthesis.md).
+- Review briefs: [`references/agent-review-briefs.md`](references/agent-review-briefs.md), [`references/qualitative-review.md`](references/qualitative-review.md), [`references/pipeline-synthesis.md`](references/pipeline-synthesis.md).
 
 ## Optional deep interview
 
