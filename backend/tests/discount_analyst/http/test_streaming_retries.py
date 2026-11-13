@@ -143,6 +143,11 @@ def test_should_retry_streaming_error_mcp_request_timeout(message: str) -> None:
     assert should_retry_streaming_error(_mcp_request_timeout(message)) is True
 
 
+def test_should_not_retry_mcp_method_not_found() -> None:
+    exc = McpError(ErrorData(code=-32601, message="Method not found"))
+    assert should_retry_streaming_error(exc) is False
+
+
 def test_should_not_retry_non_connection_model_api_error() -> None:
     exc = ModelAPIError("deepseek-v4-pro", "Invalid request")
     assert should_retry_streaming_error(exc) is False
