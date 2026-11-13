@@ -5,6 +5,8 @@ from typing import Any, cast
 
 import httpx
 import pytest
+from mcp.shared.exceptions import McpError
+from mcp.types import ErrorData
 from openai import APIConnectionError, APIError
 from pydantic_ai._agent_graph import get_captured_run_messages
 from pydantic_ai.exceptions import (
@@ -48,6 +50,10 @@ def _httpx_request() -> httpx.Request:
 
 def _read_timeout(message: str = "") -> httpx.ReadTimeout:
     return httpx.ReadTimeout(message, request=_httpx_request())
+
+
+def _mcp_request_timeout(message: str) -> McpError:
+    return McpError(ErrorData(code=int(httpx.codes.REQUEST_TIMEOUT), message=message))
 
 
 def _read_error(message: str = "peer closed connection") -> httpx.ReadError:
@@ -121,6 +127,20 @@ def test_should_retry_streaming_error_model_api_connection_error() -> None:
 def test_should_retry_streaming_error_httpx_connect_error() -> None:
     exc = httpx.ConnectError("All connection attempts failed")
     assert should_retry_streaming_error(exc) is True
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Timed out while waiting for response.",
+        (
+            "Timed out while waiting for response to ClientRequest. "
+            "Waited 300.0 seconds."
+        ),
+    ],
+)
+def test_should_retry_streaming_error_mcp_request_timeout(message: str) -> None:
+    assert should_retry_streaming_error(_mcp_request_timeout(message)) is True
 
 
 def test_should_not_retry_non_connection_model_api_error() -> None:
@@ -733,6 +753,58 @@ async def test_stream_with_retries_does_not_replay_prompt_on_uncheckpointed_prot
         }
     ]
     assert failed_open_cm.exit_calls == []
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Timed out while waiting for response.",
+        (
+            "Timed out while waiting for response to ClientRequest. "
+            "Waited 300.0 seconds."
+        ),
+    ],
+)
+async def test_stream_with_retries_retries_mcp_request_timeout_before_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+    message: str,
+) -> None:
+    def _no_wait(exc: BaseException, attempt: int) -> float:
+        del exc, attempt
+        return 0.0
+
+    monkeypatch.setattr(
+        streaming_retries_mod,
+        "streaming_retry_sleep_seconds",
+        _no_wait,
+    )
+
+    failed_open_cm = _FakeRunStreamContextManager(
+        enter_error=_mcp_request_timeout(message)
+    )
+    final_result = _FakeStreamedRunResult(
+        outputs=["started"],
+        final_output="done",
+        messages=[{"turn": {"text": "started"}}],
+        usage=RunUsage(input_tokens=8, output_tokens=3),
+    )
+    final_cm = _FakeRunStreamContextManager(result=final_result)
+    agent_impl = _FakeAgent([failed_open_cm, final_cm])
+
+    outputs: list[str] = []
+    async with stream_with_retries(
+        agent=cast(Any, agent_impl),
+        user_prompt="hello",
+        usage_limits=UsageLimits(request_limit=5),
+    ) as result:
+        async for chunk in result.stream_output(debounce_by=None):
+            outputs.append(chunk)
+
+    assert outputs == ["started"]
+    assert len(agent_impl.calls) == 2
+    assert agent_impl.calls[1]["user_prompt"] == "hello"
+    assert agent_impl.calls[1]["message_history"] is None
 
 
 @pytest.mark.anyio
