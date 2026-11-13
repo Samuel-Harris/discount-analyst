@@ -6,6 +6,7 @@ from contextlib import AbstractAsyncContextManager
 from typing import Any, AsyncIterator, cast
 
 import httpx
+from mcp.shared.exceptions import McpError
 from openai import (
     APIConnectionError,
     APIError,
@@ -118,12 +119,25 @@ def _is_idle_read_transport_error(exc: BaseException) -> bool:
     return cause is not None and _is_idle_read_transport_error(cause)
 
 
+def _is_mcp_request_timeout(exc: BaseException) -> bool:
+    """True when an MCP timeout arrives as ``McpError`` code 408.
+
+    fastmcp rewrites ``httpx.ConnectTimeout`` into that error and does not set
+    ``__cause__``, so the httpx checks above miss it. The session read timeout
+    uses the same code.
+    """
+    if not isinstance(exc, McpError):
+        return False
+    return exc.error.code == int(httpx.codes.REQUEST_TIMEOUT)
+
+
 def _is_retryable_single_error(exc: BaseException) -> bool:
     """Check if a single exception (not a group) is retryable."""
     if (
         _is_connection_error(exc)
         or is_provider_rate_limit(exc)
         or _is_idle_read_transport_error(exc)
+        or _is_mcp_request_timeout(exc)
     ):
         return True
     return isinstance(
@@ -186,6 +200,7 @@ def _can_retry_open_without_checkpoint(exc: BaseException) -> bool:
         _is_connection_error(exc)
         or is_provider_rate_limit(exc)
         or _is_idle_read_transport_error(exc)
+        or _is_mcp_request_timeout(exc)
     )
 
 
