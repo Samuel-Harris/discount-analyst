@@ -68,8 +68,20 @@ def _partial_output_retry_prompt(partial_output: str) -> str:
     )
 
 
+def _output_validation_failure_text(exc: BaseException) -> str:
+    """Schema error text. ``str()`` on the ``run_stream`` wrapper drops ``__cause__``."""
+    current: BaseException = exc
+    while True:
+        cause = current.__cause__
+        if not isinstance(cause, BaseException) or not str(cause).strip():
+            text = str(current).strip()
+            return text or type(current).__name__
+        current = cause
+
+
 def _structured_output_repair_prompt(exc: BaseException) -> str:
     envelope_keys = singleton_envelope_keys_for_prompt()
+    failure = _output_validation_failure_text(exc)
     return (
         "Your previous response could not be validated against the required "
         "structured output schema. Return a complete corrected output object "
@@ -78,7 +90,7 @@ def _structured_output_repair_prompt(exc: BaseException) -> str:
         f"If the object was nested under {envelope_keys}, call `final_result` "
         "again with those fields at the top level.\n\n"
         "Validation failure:\n\n"
-        f"{exc}"
+        f"{failure}"
     )
 
 
@@ -372,7 +384,7 @@ class StreamWithRetriesContext[T]:
             repair_attempt=repair_attempt,
             structured_completion_attempt=repair_attempt + 1,
             max_structured_completion_attempts=MAX_STRUCTURED_OUTPUT_COMPLETIONS,
-            error=str(exc),
+            error=_output_validation_failure_text(exc),
         )
         self._structured_output_repair_count = repair_attempt
         await self._open_attempt_with_retries()
