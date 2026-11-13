@@ -1299,7 +1299,6 @@ def _message_text(messages: list[ModelMessage]) -> str:
 
 @pytest.mark.anyio
 async def test_stream_repair_returns_schema_error_to_the_model() -> None:
-    """An empty candidate list is sent back so the next response can satisfy min_length."""
     calls: list[list[ModelMessage]] = []
 
     async def stream(

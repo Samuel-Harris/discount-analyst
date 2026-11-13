@@ -69,7 +69,7 @@ def _partial_output_retry_prompt(partial_output: str) -> str:
 
 
 def _output_validation_failure_text(exc: BaseException) -> str:
-    """Schema error text. ``str()`` on the ``run_stream`` wrapper drops ``__cause__``."""
+    """``str()`` on the ``run_stream`` wrapper drops ``__cause__``."""
     current: BaseException = exc
     while True:
         cause = current.__cause__
