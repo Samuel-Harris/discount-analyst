@@ -1,6 +1,7 @@
 """Unit tests for streaming retry helpers."""
 
-from collections.abc import Callable, Iterator
+import json
+from collections.abc import AsyncIterator, Callable, Iterator
 from typing import Any, cast
 
 import httpx
@@ -8,6 +9,8 @@ import pytest
 from mcp.shared.exceptions import McpError
 from mcp.types import ErrorData
 from openai import APIConnectionError, APIError
+from pydantic import BaseModel, Field
+from pydantic_ai import Agent, ToolOutput
 from pydantic_ai._agent_graph import get_captured_run_messages
 from pydantic_ai.exceptions import (
     ModelAPIError,
@@ -15,12 +18,14 @@ from pydantic_ai.exceptions import (
     UnexpectedModelBehavior,
 )
 from pydantic_ai.messages import (
+    ModelMessage,
     ModelRequest,
     ModelResponse,
     PartStartEvent,
     TextPart,
     UserPromptPart,
 )
+from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 from pydantic_ai.usage import RunUsage, UsageLimits
 
 import discount_analyst.config.model_gate as model_gate
@@ -1276,3 +1281,60 @@ def test_stream_with_retries_requires_usage_limits() -> None:
             agent=cast(Any, agent_impl),
             user_prompt="hello",
         )
+
+
+class _FifteenNames(BaseModel):
+    candidates: list[str] = Field(min_length=15, max_length=15)
+
+
+def _message_text(messages: list[ModelMessage]) -> str:
+    chunks: list[str] = []
+    for message in messages:
+        for part in message.parts:
+            content = getattr(part, "content", None)
+            if isinstance(content, str):
+                chunks.append(content)
+    return "\n".join(chunks)
+
+
+@pytest.mark.anyio
+async def test_stream_repair_returns_schema_error_to_the_model() -> None:
+    """An empty candidate list is sent back so the next response can satisfy min_length."""
+    calls: list[list[ModelMessage]] = []
+
+    async def stream(
+        messages: list[ModelMessage], info: AgentInfo
+    ) -> AsyncIterator[dict[int, DeltaToolCall]]:
+        calls.append(messages)
+        tool_name = info.output_tools[0].name
+        if len(calls) == 1:
+            payload = '{"candidates": []}'
+        else:
+            payload = json.dumps({"candidates": [f"n{index}" for index in range(15)]})
+        yield {
+            0: DeltaToolCall(
+                name=tool_name,
+                json_args=payload,
+                tool_call_id=f"call-{len(calls)}",
+            )
+        }
+
+    agent = Agent(
+        FunctionModel(stream_function=stream),
+        output_type=ToolOutput(_FifteenNames),
+        name="surveyor-repro",
+    )
+    async with stream_with_retries(
+        agent=agent,
+        user_prompt="list fifteen names",
+        usage_limits=UsageLimits(request_limit=5),
+    ) as result:
+        async for _chunk in result.stream_output(debounce_by=None):
+            pass
+        output = await result.get_output()
+
+    assert len(output.candidates) == 15
+    assert len(calls) == 2
+    repair_text = _message_text(calls[1])
+    assert "at least 15 items" in repair_text
+    assert "not 0" in repair_text
