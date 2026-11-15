@@ -111,7 +111,7 @@ that source for this run. Do not probe sibling endpoints or inspect subscription
 
 {REGULATORY_UNIVERSE_TOOL_RULES}
 
-`terminal_exec` has yfinance 1.7.0, Python `markitdown` for documents/PDFs, and a persistent sandbox.
+`terminal_exec` has yfinance 1.8.0, Python `markitdown` for documents/PDFs, and a persistent sandbox.
 Keep raw Yahoo responses and intermediate tables under `/tmp`; never print an entire universe,
 statement, or raw response into the conversation. Do not call `curl`, `wget`, or `pdftotext`.
 Each terminal call should print only counts, exclusion reasons, warnings, and

@@ -51,7 +51,7 @@ screeners, enumerate an exchange universe, or turn a missing UK listing cache in
 investigation. A registered paid non-screening endpoint is a one-attempt, last-resort gap-fill
 only after yfinance, official filings, issuer material, and the supplied upstream research.
 
-Use yfinance 1.7.0 through `terminal_exec` first for the market-data cut. For one company,
+Use yfinance 1.8.0 through `terminal_exec` first for the market-data cut. For one company,
 create one `yf.Ticker(ticker)`; use `Ticker.history(period="5d", auto_adjust=False)`, direct
 `Ticker.fast_info` attributes (never `.get()`), `Ticker.info["marketCap"]` /
 `Ticker.info["sharesOutstanding"]`, and `Ticker.get_shares_full()` as required. Use
