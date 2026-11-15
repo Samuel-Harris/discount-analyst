@@ -123,6 +123,8 @@ LIMIT 40;
 
 Many failed-agent retries fill `LIMIT 80` / `LIMIT 40` with the first attempt. Page with `start_timestamp > '<last-seen>'` and/or filter by in-scope ticker until the window is exhausted.
 
+`execute_tool <name>` span messages are `running tool: <name>`. Tool arguments are `attributes->'gen_ai.tool.call.arguments'`. Do not select `url_full` or `gen_ai.tool.call.result` until you have checked them for `api_token=` and `apikey=`. A `UsageLimitExceeded` `tool_calls=` value is the projected total. `execute_tool` spans count only the calls that ran.
+
 Generate a UI link with `project_logfire_ui_link` / `project_logfire_link` after you have timestamps or trace ids.
 
 ## Conversation export (optional)

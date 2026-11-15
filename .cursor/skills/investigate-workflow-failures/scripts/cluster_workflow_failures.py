@@ -53,7 +53,12 @@ def classify_error(error_message: str | None) -> str:
         return "vendor_plan"
     if "401" in text or "403" in text:
         return "http_auth"
-    if "timeout" in lowered or "readtimeout" in lowered or "readerror" in lowered:
+    if (
+        "timeout" in lowered
+        or "timed out" in lowered
+        or "readtimeout" in lowered
+        or "readerror" in lowered
+    ):
         return "timeout"
     if (
         "rate limit" in lowered
@@ -62,6 +67,8 @@ def classify_error(error_message: str | None) -> str:
         or "too many requests" in lowered
     ):
         return "rate_limit"
+    if "tool_calls_limit" in lowered or "usagelimitexceeded" in lowered:
+        return "tool_call_budget"
     return "other"
 
 
