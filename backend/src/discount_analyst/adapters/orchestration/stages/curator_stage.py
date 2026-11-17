@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from datetime import date
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -15,7 +16,7 @@ from discount_analyst.adapters.orchestration.attempt_cost import (
 )
 from discount_analyst.adapters.orchestration.live_agent import (
     record_failed_attempt_cost,
-    run_and_record_failure,
+    run_dashboard_agent,
 )
 from discount_analyst.adapters.orchestration.llm_config import (
     PipelineLlmConfig,
@@ -58,7 +59,7 @@ from discount_analyst.agents.curator.system_prompt import (
 from discount_analyst.agents.curator.user_prompt import create_user_prompt
 from discount_analyst.agents.common_prompts.current_date import with_current_date
 from discount_analyst.config.logging_constants import AI_LOGFIRE
-from discount_analyst.agents.runtime.terminal_run import run_agent_with_terminal
+from discount_analyst.agents.runtime.terminal_run import execution_terminal_options
 from discount_analyst.application.allocations.assemble import (
     assemble_curator_job,
 )
@@ -182,16 +183,13 @@ class CuratorStage:
                     "Curator branch completed without LLM (no valued lanes)"
                 )
             else:
-                agent_result = await run_and_record_failure(
+                agent_result = await self._run_curator_agent(
                     db=host.db,
-                    execution_id=execution_id,
-                    start=lambda: self._run_curator_agent(
-                        curator_input=job.curator_input,
-                        is_mock=is_mock,
-                        llm=llm,
-                        settings=host.settings,
-                        session_id=execution_id,
-                    ),
+                    curator_input=job.curator_input,
+                    is_mock=is_mock,
+                    llm=llm,
+                    settings=host.settings,
+                    session_id=execution_id,
                 )
                 attempt_cost = agent_result.attempt_cost
                 try:
@@ -247,6 +245,7 @@ class CuratorStage:
     async def _run_curator_agent(
         self,
         *,
+        db: Callable[..., Awaitable[Any]],
         curator_input: CuratorInput,
         is_mock: bool,
         llm: PipelineLlmConfig,
@@ -266,15 +265,18 @@ class CuratorStage:
         ai_cfg = llm.ai_models_config
         if ai_cfg is None:
             raise RuntimeError("Curator LLM config missing for non-mock run")
-        outcome = await run_agent_with_terminal(
-            settings=settings,
-            session_id=session_id,
-            build_agent=lambda terminal: create_curator_agent(
-                ai_models_config=ai_cfg,
-                terminal=terminal,
-            ),
+        terminal = execution_terminal_options(settings, execution_id=session_id)
+        agent = create_curator_agent(
+            ai_models_config=ai_cfg,
+            terminal=terminal,
+        )
+        outcome = await run_dashboard_agent(
+            db=db,
+            execution_id=session_id,
+            agent=agent,
             user_prompt=create_user_prompt(curator_input=curator_input),
             usage_limits=ai_cfg.pydantic_ai_model.usage_limits,
+            terminal=terminal,
         )
         return _CuratorRunResult(
             proposal=outcome.output,

@@ -39,9 +39,9 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import RequestUsage
 
-_MAX_TOOL_CALLS = 60
+_DEFAULT_MAX_TOOL_CALLS = 60
 _MAX_TOKENS = 30_000
-_USAGE_LIMITS = UsageLimits(tool_calls_limit=_MAX_TOOL_CALLS)
+_DEFAULT_USAGE_LIMITS = UsageLimits(tool_calls_limit=_DEFAULT_MAX_TOOL_CALLS)
 _MAX_THINKING_BUDGET_TOKENS = 16_000
 _OPENAI_COMPACTION_THRESHOLD_TOKENS = 200_000
 
@@ -371,7 +371,7 @@ class AIModelsConfig(BaseModel):
                 return AnthropicAIModelConfig(
                     model_name=self.model_name,
                     max_tokens=_MAX_TOKENS,
-                    usage_limits=_USAGE_LIMITS,
+                    usage_limits=_DEFAULT_USAGE_LIMITS,
                     cache_messages=self.cache_messages,
                 )
             case (
@@ -383,7 +383,7 @@ class AIModelsConfig(BaseModel):
                     model_name=self.model_name,
                     max_tokens=_MAX_TOKENS,
                     thinking_budget_tokens=_MAX_THINKING_BUDGET_TOKENS,
-                    usage_limits=_USAGE_LIMITS,
+                    usage_limits=_DEFAULT_USAGE_LIMITS,
                     cache_messages=self.cache_messages,
                     effort=None,
                 )
@@ -391,7 +391,7 @@ class AIModelsConfig(BaseModel):
                 return OpenAIAIModelConfig(
                     model_name=self.model_name,
                     max_tokens=_MAX_TOKENS,
-                    usage_limits=_USAGE_LIMITS,
+                    usage_limits=_DEFAULT_USAGE_LIMITS,
                     max_concurrent_agents=5,
                     reasoning_mode="pro",
                 )
@@ -399,7 +399,7 @@ class AIModelsConfig(BaseModel):
                 return OpenAIAIModelConfig(
                     model_name=self.model_name,
                     max_tokens=_MAX_TOKENS,
-                    usage_limits=_USAGE_LIMITS,
+                    usage_limits=_DEFAULT_USAGE_LIMITS,
                     max_concurrent_agents=20,
                 )
             case (
@@ -412,20 +412,20 @@ class AIModelsConfig(BaseModel):
                 return OpenAIAIModelConfig(
                     model_name=self.model_name,
                     max_tokens=_MAX_TOKENS,
-                    usage_limits=_USAGE_LIMITS,
+                    usage_limits=_DEFAULT_USAGE_LIMITS,
                 )
             case ModelName.GEMINI_3_PRO_PREVIEW | ModelName.GEMINI_3_1_PRO_PREVIEW:
                 return GoogleAIModelConfig(
                     model_name=self.model_name,
                     max_tokens=_MAX_TOKENS,
                     thinking_budget_tokens=_MAX_THINKING_BUDGET_TOKENS,
-                    usage_limits=_USAGE_LIMITS,
+                    usage_limits=_DEFAULT_USAGE_LIMITS,
                 )
             case ModelName.DEEPSEEK_V4_FLASH | ModelName.DEEPSEEK_V4_PRO:
                 return DeepSeekAIModelConfig(
                     model_name=self.model_name,
                     max_tokens=_MAX_TOKENS,
-                    usage_limits=_USAGE_LIMITS,
+                    usage_limits=_DEFAULT_USAGE_LIMITS,
                 )
             case _:
                 assert_never(self.model_name)

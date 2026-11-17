@@ -18,7 +18,7 @@ from discount_analyst.adapters.orchestration.attempt_cost import (
 )
 from discount_analyst.adapters.orchestration.live_agent import (
     record_failed_attempt_cost,
-    run_and_record_failure,
+    run_dashboard_agent,
 )
 from discount_analyst.adapters.orchestration.llm_config import (
     pipeline_llm_config,
@@ -33,11 +33,7 @@ from discount_analyst.agents.appraiser.user_prompt import (
     create_user_prompt as create_appraiser_user_prompt,
 )
 from discount_analyst.config.logging_constants import AI_LOGFIRE
-from discount_analyst.agents.runtime.streamed_agent_run import run_streamed_agent
-from discount_analyst.agents.runtime.terminal_run import (
-    run_agent_with_terminal,
-    terminal_run_options,
-)
+from discount_analyst.agents.runtime.terminal_run import execution_terminal_options
 from discount_analyst.agents.common_prompts.current_date import with_current_date
 from discount_analyst.agents.researcher.researcher import create_researcher_agent
 from discount_analyst.agents.researcher.schema import DeepResearchReport
@@ -268,24 +264,24 @@ class TickerLaneStage:
             ai_cfg = llm.ai_models_config
             if ai_cfg is None:
                 raise RuntimeError("Researcher LLM config missing for non-mock run")
-            outcome = await run_and_record_failure(
+            terminal = execution_terminal_options(
+                host.settings,
+                execution_id=research_exec_id,
+                runtime=host.cached_terminal_runtime(),
+            )
+            agent = create_researcher_agent(
+                ai_cfg,
+                use_perplexity=host.settings.use_perplexity,
+                use_mcp_financial_data=host.settings.use_mcp_financial_data,
+                terminal=terminal,
+            )
+            outcome = await run_dashboard_agent(
                 db=host.db,
                 execution_id=research_exec_id,
-                start=lambda: run_agent_with_terminal(
-                    settings=host.settings,
-                    session_id=research_exec_id,
-                    runtime=host.cached_terminal_runtime(),
-                    build_agent=lambda t: create_researcher_agent(
-                        ai_cfg,
-                        use_perplexity=host.settings.use_perplexity,
-                        use_mcp_financial_data=host.settings.use_mcp_financial_data,
-                        terminal=t,
-                    ),
-                    user_prompt=create_researcher_user_prompt(
-                        lane_context=lane_context
-                    ),
-                    usage_limits=ai_cfg.pydantic_ai_model.usage_limits,
-                ),
+                agent=agent,
+                user_prompt=create_researcher_user_prompt(lane_context=lane_context),
+                usage_limits=ai_cfg.pydantic_ai_model.usage_limits,
+                terminal=terminal,
             )
             research_out = outcome.output
             r_messages = list(outcome.all_messages)
@@ -382,26 +378,28 @@ class TickerLaneStage:
             ai_cfg = llm.ai_models_config
             if ai_cfg is None:
                 raise RuntimeError("Strategist LLM config missing for non-mock run")
-            outcome = await run_and_record_failure(
+            terminal = execution_terminal_options(
+                host.settings,
+                execution_id=strategist_exec_id,
+                runtime=host.cached_terminal_runtime(),
+            )
+            agent = create_strategist_agent(
+                ai_cfg,
+                use_perplexity=host.settings.use_perplexity,
+                use_mcp_financial_data=host.settings.use_mcp_financial_data,
+                terminal=terminal,
+            )
+            outcome = await run_dashboard_agent(
                 db=host.db,
                 execution_id=strategist_exec_id,
-                start=lambda: run_agent_with_terminal(
-                    settings=host.settings,
-                    session_id=strategist_exec_id,
-                    runtime=host.cached_terminal_runtime(),
-                    build_agent=lambda t: create_strategist_agent(
-                        ai_cfg,
-                        use_perplexity=host.settings.use_perplexity,
-                        use_mcp_financial_data=host.settings.use_mcp_financial_data,
-                        terminal=t,
-                    ),
-                    user_prompt=create_strategist_user_prompt(
-                        lane_context=lane_context,
-                        deep_research=research_out,
-                        prior_thesis=prior,
-                    ),
-                    usage_limits=ai_cfg.pydantic_ai_model.usage_limits,
+                agent=agent,
+                user_prompt=create_strategist_user_prompt(
+                    lane_context=lane_context,
+                    deep_research=research_out,
+                    prior_thesis=prior,
                 ),
+                usage_limits=ai_cfg.pydantic_ai_model.usage_limits,
+                terminal=terminal,
             )
             decision = outcome.output
             s_messages = list(outcome.all_messages)
@@ -502,21 +500,24 @@ class TickerLaneStage:
             ai_cfg = llm.ai_models_config
             if ai_cfg is None:
                 raise RuntimeError("Sentinel LLM config missing for non-mock run")
+            terminal = execution_terminal_options(
+                host.settings,
+                execution_id=sentinel_exec_id,
+                enabled=False,
+            )
             agent = create_sentinel_agent(ai_cfg)
-            outcome = await run_and_record_failure(
+            outcome = await run_dashboard_agent(
                 db=host.db,
                 execution_id=sentinel_exec_id,
-                start=lambda: run_streamed_agent(
-                    agent=agent,
-                    user_prompt=create_sentinel_user_prompt(
-                        lane_context=lane_context,
-                        deep_research=research_out,
-                        thesis=thesis,
-                        is_existing_position=is_existing_position,
-                    ),
-                    usage_limits=ai_cfg.pydantic_ai_model.usage_limits,
-                    terminal=terminal_run_options(host.settings, enabled=False),
+                agent=agent,
+                user_prompt=create_sentinel_user_prompt(
+                    lane_context=lane_context,
+                    deep_research=research_out,
+                    thesis=thesis,
+                    is_existing_position=is_existing_position,
                 ),
+                usage_limits=ai_cfg.pydantic_ai_model.usage_limits,
+                terminal=terminal,
             )
             n_messages = list(outcome.all_messages)
             n_mock_json = None
@@ -619,24 +620,26 @@ class TickerLaneStage:
                 ai_cfg = llm.ai_models_config
                 if ai_cfg is None:
                     raise RuntimeError("Appraiser LLM config missing for non-mock run")
-                outcome = await run_and_record_failure(
+                terminal = execution_terminal_options(
+                    host.settings,
+                    execution_id=appraiser_exec_id,
+                    runtime=host.cached_terminal_runtime(),
+                )
+                agent = create_appraiser_agent(
+                    ai_cfg,
+                    use_perplexity=host.settings.use_perplexity,
+                    use_mcp_financial_data=host.settings.use_mcp_financial_data,
+                    terminal=terminal,
+                )
+                outcome = await run_dashboard_agent(
                     db=host.db,
                     execution_id=appraiser_exec_id,
-                    start=lambda: run_agent_with_terminal(
-                        settings=host.settings,
-                        session_id=appraiser_exec_id,
-                        runtime=host.cached_terminal_runtime(),
-                        build_agent=lambda t: create_appraiser_agent(
-                            ai_cfg,
-                            use_perplexity=host.settings.use_perplexity,
-                            use_mcp_financial_data=host.settings.use_mcp_financial_data,
-                            terminal=t,
-                        ),
-                        user_prompt=create_appraiser_user_prompt(
-                            appraiser_input=appraiser_input
-                        ),
-                        usage_limits=ai_cfg.pydantic_ai_model.usage_limits,
+                    agent=agent,
+                    user_prompt=create_appraiser_user_prompt(
+                        appraiser_input=appraiser_input
                     ),
+                    usage_limits=ai_cfg.pydantic_ai_model.usage_limits,
+                    terminal=terminal,
                 )
                 appraiser_out = outcome.output
                 a_messages = list(outcome.all_messages)

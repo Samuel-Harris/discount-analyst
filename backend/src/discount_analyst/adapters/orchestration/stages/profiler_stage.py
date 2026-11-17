@@ -14,7 +14,7 @@ from discount_analyst.adapters.simulation import (
 )
 from discount_analyst.config.logging_constants import AI_LOGFIRE
 from discount_analyst.agents.common_prompts.current_date import with_current_date
-from discount_analyst.agents.runtime.terminal_run import run_agent_with_terminal
+from discount_analyst.agents.runtime.terminal_run import execution_terminal_options
 from discount_analyst.agents.profiler.profiler import create_profiler_agent
 from discount_analyst.agents.profiler.system_prompt import (
     SYSTEM_PROMPT as PROFILER_SYSTEM_PROMPT,
@@ -24,7 +24,7 @@ from discount_analyst.agents.surveyor.schema import SurveyorCandidate
 from discount_analyst.adapters.orchestration.attempt_cost import (
     attempt_cost_from_usage,
 )
-from discount_analyst.adapters.orchestration.live_agent import run_and_record_failure
+from discount_analyst.adapters.orchestration.live_agent import run_dashboard_agent
 from discount_analyst.adapters.orchestration.llm_config import pipeline_llm_config
 from discount_analyst.domain.workflow_cost import AttemptCost
 
@@ -120,21 +120,23 @@ class ProfilerStage:
             ai_cfg = llm.ai_models_config
             if ai_cfg is None:
                 raise RuntimeError("Profiler LLM config missing for non-mock run")
-            outcome = await run_and_record_failure(
+            terminal = execution_terminal_options(
+                settings,
+                execution_id=profiler_exec_id,
+            )
+            agent = create_profiler_agent(
+                ai_models_config=ai_cfg,
+                use_perplexity=settings.use_perplexity,
+                use_mcp_financial_data=settings.use_mcp_financial_data,
+                terminal=terminal,
+            )
+            outcome = await run_dashboard_agent(
                 db=host.db,
                 execution_id=profiler_exec_id,
-                start=lambda: run_agent_with_terminal(
-                    settings=settings,
-                    session_id=profiler_exec_id,
-                    build_agent=lambda t: create_profiler_agent(
-                        ai_models_config=ai_cfg,
-                        use_perplexity=settings.use_perplexity,
-                        use_mcp_financial_data=settings.use_mcp_financial_data,
-                        terminal=t,
-                    ),
-                    user_prompt=create_profiler_user_prompt(ticker),
-                    usage_limits=ai_cfg.pydantic_ai_model.usage_limits,
-                ),
+                agent=agent,
+                user_prompt=create_profiler_user_prompt(ticker),
+                usage_limits=ai_cfg.pydantic_ai_model.usage_limits,
+                terminal=terminal,
             )
             profiler_output = outcome.output
             messages = list(outcome.all_messages)

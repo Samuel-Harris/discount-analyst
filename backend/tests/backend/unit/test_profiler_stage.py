@@ -143,16 +143,23 @@ async def test_profiler_stage_raises_when_profiler_execution_missing() -> None:
 
 
 @pytest.mark.asyncio
-async def test_profiler_stage_non_mock_path_uses_run_agent_with_terminal() -> None:
+async def test_profiler_stage_non_mock_path_persists_the_streamed_outcome() -> None:
     settings = dashboard_settings_for_tests()
     host = FakeProfilerHost(profiler_exec_id="exec-p", settings=settings)
     profiler_output = mock_outputs.mock_profiler_output(ticker="X.L")
     fake_outcome = SimpleNamespace(
         output=profiler_output, all_messages=[object()], usage=None
     )
-    with patch(
-        "discount_analyst.adapters.orchestration.stages.profiler_stage.run_agent_with_terminal",
-        new=AsyncMock(return_value=fake_outcome),
+    built_agent = object()
+    with (
+        patch(
+            "discount_analyst.adapters.orchestration.stages.profiler_stage.create_profiler_agent",
+            return_value=built_agent,
+        ) as build_agent,
+        patch(
+            "discount_analyst.adapters.orchestration.stages.profiler_stage.run_dashboard_agent",
+            new=AsyncMock(return_value=fake_outcome),
+        ) as run_agent,
     ):
         candidate = await ProfilerStage().run(
             host,
@@ -165,3 +172,10 @@ async def test_profiler_stage_non_mock_path_uses_run_agent_with_terminal() -> No
     assert host.calls[1][1]["model_name"] is ModelName.GPT_6_LUNA
     assert host.calls[3][1]["messages"] == fake_outcome.all_messages
     assert host.calls[3][1]["attempt_cost"] is None
+    assert run_agent.await_args is not None
+    assert run_agent.await_args.kwargs["execution_id"] == "exec-p"
+    assert run_agent.await_args.kwargs["agent"] is built_agent
+    terminal = run_agent.await_args.kwargs["terminal"]
+    assert terminal.session_id == "exec-p"
+    assert terminal.enabled is settings.use_terminal
+    assert build_agent.call_args.kwargs["terminal"] is terminal

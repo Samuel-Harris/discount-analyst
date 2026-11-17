@@ -6,6 +6,7 @@ import asyncio
 from typing import TYPE_CHECKING, Any, Protocol
 
 from pydantic_ai.messages import ModelMessage
+from pydantic_ai.usage import UsageLimits
 
 from discount_analyst.adapters.persistence.crud.db_utils import utc_now_iso
 from discount_analyst.adapters.persistence.crud.run_executions import (
@@ -27,7 +28,7 @@ from discount_analyst.adapters.orchestration.attempt_cost import (
 )
 from discount_analyst.adapters.orchestration.live_agent import (
     record_failed_attempt_cost,
-    run_and_record_failure,
+    run_dashboard_agent,
 )
 from discount_analyst.adapters.orchestration.llm_config import (
     PipelineLlmConfig,
@@ -35,7 +36,7 @@ from discount_analyst.adapters.orchestration.llm_config import (
 )
 from discount_analyst.domain.workflow_cost import AttemptCost
 from discount_analyst.config.logging_constants import AI_LOGFIRE
-from discount_analyst.agents.runtime.terminal_run import run_agent_with_terminal
+from discount_analyst.agents.runtime.terminal_run import execution_terminal_options
 from discount_analyst.agents.common_prompts.current_date import with_current_date
 from discount_analyst.agents.surveyor.schema import SurveyorCandidate
 from discount_analyst.agents.surveyor.screening_check import (
@@ -134,7 +135,7 @@ class SurveyorStage:
             )
             await host.recompute(workflow_run_id)
             surveyor_output = await self._run_surveyor_agent(
-                host,
+                host=host,
                 execution_id=surveyor_exec_id,
                 portfolio_fold=portfolio_fold,
                 is_mock=is_mock,
@@ -202,8 +203,8 @@ class SurveyorStage:
 
     async def _run_surveyor_agent(
         self,
-        host: SurveyorStageHost,
         *,
+        host: SurveyorStageHost,
         execution_id: str,
         portfolio_fold: set[str],
         is_mock: bool,
@@ -224,22 +225,24 @@ class SurveyorStage:
         ai_cfg = llm.ai_models_config
         if ai_cfg is None:
             raise RuntimeError("Surveyor LLM config missing for non-mock run")
-        outcome = await run_and_record_failure(
+        terminal = execution_terminal_options(
+            host.settings,
+            execution_id=execution_id,
+            runtime=host.cached_terminal_runtime(),
+        )
+        agent = create_surveyor_agent(
+            ai_models_config=ai_cfg,
+            use_perplexity=host.settings.use_perplexity,
+            use_mcp_financial_data=host.settings.use_mcp_financial_data,
+            terminal=terminal,
+        )
+        outcome = await run_dashboard_agent(
             db=host.db,
             execution_id=execution_id,
-            start=lambda: run_agent_with_terminal(
-                settings=host.settings,
-                session_id=execution_id,
-                runtime=host.cached_terminal_runtime(),
-                build_agent=lambda t: create_surveyor_agent(
-                    ai_models_config=ai_cfg,
-                    use_perplexity=host.settings.use_perplexity,
-                    use_mcp_financial_data=host.settings.use_mcp_financial_data,
-                    terminal=t,
-                ),
-                user_prompt=SURVEYOR_USER_PROMPT,
-                usage_limits=ai_cfg.pydantic_ai_model.usage_limits,
-            ),
+            agent=agent,
+            user_prompt=SURVEYOR_USER_PROMPT,
+            usage_limits=UsageLimits(tool_calls_limit=120),
+            terminal=terminal,
         )
         return _SurveyorRunResult(
             candidates=outcome.output.candidates,

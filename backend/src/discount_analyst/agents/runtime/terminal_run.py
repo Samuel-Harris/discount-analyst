@@ -2,13 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from uuid import uuid4
-
-from pydantic_ai.agent.abstract import AbstractAgent
-from pydantic_ai.usage import UsageLimits
 
 from discount_analyst.agents.tools.terminal.client import (
     TerminalRuntimeConfig,
@@ -17,10 +13,6 @@ from discount_analyst.agents.tools.terminal.client import (
 
 if TYPE_CHECKING:
     from discount_analyst.config.settings import Settings
-
-    from discount_analyst.agents.runtime.streamed_agent_run import (
-        StreamedAgentRunOutcome,
-    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,25 +62,23 @@ def terminal_run_options(
     )
 
 
-async def run_agent_with_terminal[T](
-    *,
+def execution_terminal_options(
     settings: Settings,
-    session_id: str,
-    build_agent: Callable[[TerminalRunOptions], AbstractAgent[Any, T]],
-    user_prompt: str,
-    usage_limits: UsageLimits,
+    *,
+    execution_id: str,
     runtime: TerminalRuntimeConfig | None = None,
-) -> StreamedAgentRunOutcome[T]:
-    """Build terminal options, agent, and run with shared session lifecycle."""
-    from discount_analyst.agents.runtime.streamed_agent_run import run_streamed_agent
+    enabled: bool | None = None,
+) -> TerminalRunOptions:
+    """Terminal options for one dashboard execution.
 
-    terminal = terminal_run_options(settings, session_id=session_id, runtime=runtime)
-    if terminal.enabled:
-        terminal = terminal.bind_session_id()
-    agent = build_agent(terminal)
-    return await run_streamed_agent(
-        agent=agent,
-        user_prompt=user_prompt,
-        usage_limits=usage_limits,
-        terminal=terminal,
+    ``execution_id`` is the session id. Binding runs only when the terminal is enabled.
+    """
+    options = terminal_run_options(
+        settings,
+        enabled=enabled,
+        session_id=execution_id,
+        runtime=runtime,
     )
+    if options.enabled:
+        return options.bind_session_id()
+    return options

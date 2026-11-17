@@ -27,6 +27,7 @@ from discount_analyst.adapters.persistence.models import (
     WorkflowRunStatusDb,
 )
 from discount_analyst.adapters.simulation import mock_outputs
+from discount_analyst.agents.curator.user_prompt import create_user_prompt
 from discount_analyst.agents.curator.schema import (
     CuratorInput,
     CuratorProposal,
@@ -53,32 +54,51 @@ def _empty_curator_input() -> CuratorInput:
 
 
 @pytest.mark.asyncio
-async def test_curator_stage_non_mock_path_uses_run_agent_with_terminal() -> None:
+async def test_curator_stage_non_mock_path_runs_the_built_agent() -> None:
     settings = dashboard_settings_for_tests()
     curator_input = _empty_curator_input()
     proposal = mock_outputs.mock_curator_proposal(curator_input)
     fake_outcome = SimpleNamespace(output=proposal, all_messages=[object()], usage=None)
+    built_agent = object()
+    llm = pipeline_llm_config(settings, agent_name=AgentNameDb.CURATOR, is_mock=False)
 
-    with patch(
-        "discount_analyst.adapters.orchestration.stages.curator_stage.run_agent_with_terminal",
-        new=AsyncMock(return_value=fake_outcome),
-    ) as run_with_terminal:
+    with (
+        patch(
+            "discount_analyst.adapters.orchestration.stages.curator_stage.create_curator_agent",
+            return_value=built_agent,
+        ) as build_agent,
+        patch(
+            "discount_analyst.adapters.orchestration.stages.curator_stage.run_dashboard_agent",
+            new=AsyncMock(return_value=fake_outcome),
+        ) as run_agent,
+    ):
         result = await CuratorStage()._run_curator_agent(  # pyright: ignore[reportPrivateUsage]
+            db=AsyncMock(),
             curator_input=curator_input,
             is_mock=False,
-            llm=pipeline_llm_config(
-                settings, agent_name=AgentNameDb.CURATOR, is_mock=False
-            ),
+            llm=llm,
             settings=settings,
             session_id="curator-exec-1",
         )
 
     assert result.proposal is proposal
     assert result.messages == fake_outcome.all_messages
-    assert run_with_terminal.await_args is not None
-    assert run_with_terminal.await_args.kwargs["settings"] is settings
-    assert run_with_terminal.await_args.kwargs["session_id"] == "curator-exec-1"
-    assert callable(run_with_terminal.await_args.kwargs["build_agent"])
+    assert result.attempt_cost is None
+    assert run_agent.await_args is not None
+    assert run_agent.await_args.kwargs["execution_id"] == "curator-exec-1"
+    assert run_agent.await_args.kwargs["agent"] is built_agent
+    assert run_agent.await_args.kwargs["user_prompt"] == create_user_prompt(
+        curator_input=curator_input
+    )
+    assert llm.ai_models_config is not None
+    assert (
+        run_agent.await_args.kwargs["usage_limits"]
+        is llm.ai_models_config.pydantic_ai_model.usage_limits
+    )
+    terminal = run_agent.await_args.kwargs["terminal"]
+    assert terminal.session_id == "curator-exec-1"
+    assert terminal.enabled is settings.use_terminal
+    assert build_agent.call_args.kwargs["terminal"] is terminal
 
 
 class _RecordingHost:

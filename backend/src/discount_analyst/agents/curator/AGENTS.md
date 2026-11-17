@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-08-30 | Updated: 2026-09-30 -->
+<!-- Generated: 2026-08-30 | Updated: 2026-11-17 -->
 
 # curator
 
@@ -27,7 +27,7 @@ None.
 
 ### Working In This Directory
 
-- **Agent tools**: `create_curator_agent` registers web search/fetch (factory default) and forwards `terminal`. It always passes `use_perplexity=False` and `use_mcp_financial_data=False`. `REGULATORY_TOOLSETS_BY_ROLE[CURATOR]` is empty. Dashboard Perplexity/MCP flags are not forwarded; terminal follows `settings.use_terminal` via `run_agent_with_terminal` on the dashboard and `--no-terminal` on the CLI. Frankfurter `convert_currency` remains attached by the shared factory; the prompt forbids calling it.
+- **Agent tools**: `create_curator_agent` registers web search/fetch (factory default) and forwards `terminal`. It always passes `use_perplexity=False` and `use_mcp_financial_data=False`. `REGULATORY_TOOLSETS_BY_ROLE[CURATOR]` is empty. Dashboard Perplexity/MCP flags are not forwarded; terminal follows `settings.use_terminal` via `execution_terminal_options` on the dashboard and `--no-terminal` on the CLI. Frankfurter `convert_currency` remains attached by the shared factory; the prompt forbids calling it.
 - **Schemas**: Keep `schema.py` free of imports from `agents.researcher`, `strategist`, `sentinel`, and `appraiser`. Application packing owns the compact-evidence mapping, including `live_thesis` (`PackedMispricingThesis`) on every valued lane. Do not invent or edit theses.
 - **Output contract**: The LLM returns `CuratorProposal`. Persist `PortfolioAllocation` only after `finalise_curator_proposal` succeeds. Invalid weights fail the workflow; do not clip or normalise leftover weight into cash.
 

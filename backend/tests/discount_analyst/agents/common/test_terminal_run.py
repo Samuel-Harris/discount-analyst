@@ -9,11 +9,15 @@ from discount_analyst.agents.runtime import agent_factory as agent_factory_modul
 from discount_analyst.agents.runtime.agent_factory import AgentSpec, create_agent
 from discount_analyst.agents.runtime.agent_names import AgentName
 from discount_analyst.agents.runtime.terminal_run import (
+    execution_terminal_options,
     terminal_run_options,
+)
+from discount_analyst.agents.tools.terminal.client import (
+    Terminal,
+    TerminalRuntimeConfig,
 )
 from discount_analyst.config.ai_models_config import AIModelsConfig
 from discount_analyst.domain.model_selection.model_name import ModelName
-from discount_analyst.agents.tools.terminal.client import Terminal
 
 
 class _MinimalOutput(BaseModel):
@@ -66,6 +70,26 @@ def test_default_terminal_off_when_settings_disabled(
     cfg = load_settings()
     opts = terminal_run_options(cfg)
     assert opts.enabled is False
+
+
+def test_execution_terminal_options_uses_the_execution_as_the_session() -> None:
+    runtime = TerminalRuntimeConfig.from_settings(settings)
+    enabled = execution_terminal_options(
+        settings,
+        execution_id="exec-1",
+        runtime=runtime,
+        enabled=True,
+    )
+    disabled = execution_terminal_options(
+        settings,
+        execution_id="exec-1",
+        enabled=False,
+    )
+    assert enabled.session_id == "exec-1"
+    assert enabled.enabled is True
+    assert enabled.runtime is runtime
+    assert disabled.session_id == "exec-1"
+    assert disabled.enabled is False
 
 
 def test_terminal_run_options_respects_explicit_enabled() -> None:
