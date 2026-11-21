@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-07-11 | Updated: 2026-10-02 (recommended sterling position) -->
+<!-- Generated: 2026-07-11 | Updated: 2026-11-21 -->
 
 # frontend
 
@@ -74,9 +74,9 @@ src/
 
 ### Testing Requirements
 
-- `pnpm lint` — import-boundary enforcement
-- `pnpm test` — Vitest suite
-- `pnpm run build` — `tsc -b` + Vite production build
+- `just check frontend-lint` — import-boundary enforcement
+- `just check frontend-test` — Vitest suite
+- `just check frontend-build` — `tsc -b` + Vite production build
 - CI frontend job runs lint, build, and test
 
 ### Common Patterns

@@ -55,10 +55,11 @@ Review the Appraiser distributions across all analysed stocks. Buy the stocks wi
 ## Quick Start
 
 1. [Install uv](https://docs.astral.sh/uv/getting-started/installation/) if needed
-2. Configure environment variables for the agents you run (see [Environment variables](#environment-variables))
-3. Install dependencies: `uv sync`
-4. Run the Surveyor to find candidates: `uv run discount-analyst agent surveyor`, or run survey → research → strategy in one command: `uv run discount-analyst workflow run`
-5. After Researcher/Strategist/Sentinel (step 2 above — or `scripts/workflows/run_full_workflow.py` for the full gated pipeline through deterministic rating and verdicts JSON), run Appraiser valuation: `uv run discount-analyst agent appraiser --sentinel-report-and-ticker backend/outputs/<sentinel>.json --risk-free-rate <percentage e.g. 4.5>`
+2. Install the `just` binary separately. On macOS: `brew install just`
+3. Configure environment variables for the agents you run (see [Environment variables](#environment-variables))
+4. Install dependencies: `just install`
+5. Run the Surveyor to find candidates: `uv run discount-analyst agent surveyor`, or run survey → research → strategy in one command: `uv run discount-analyst workflow run`
+6. After Researcher/Strategist/Sentinel (step 2 above — or `scripts/workflows/run_full_workflow.py` for the full gated pipeline through deterministic rating and verdicts JSON), run Appraiser valuation: `uv run discount-analyst agent appraiser --sentinel-report-and-ticker backend/outputs/<sentinel>.json --risk-free-rate <percentage e.g. 4.5>`
 
 ## Environment variables
 
@@ -125,10 +126,13 @@ Logfire is configured with **FastAPI**, **PydanticAI**, and **HTTPX** instrument
 
 ### Install
 
+Install the `just` binary separately. On macOS: `brew install just`.
+
 ```bash
-uv sync
-cd frontend && pnpm install --frozen-lockfile && cd ..
+just install
 ```
+
+`just install uv` installs the Python packages. `just install pnpm` installs the frontend packages from the lockfile.
 
 ### Database migrations
 
@@ -169,17 +173,13 @@ print('Seeded', settings.database_path)
 
 ### Run the stack (bare metal)
 
-Terminal 1 — API (reload optional):
+From the repository root:
 
 ```bash
-uv run uvicorn discount_analyst.composition.api:create_app --factory --reload --host 127.0.0.1 --port 8000
+just run stack
 ```
 
-Terminal 2 — UI:
-
-```bash
-cd frontend && pnpm run dev
-```
+`just run stack` starts the agent terminal, then the API, then Vite. When `TERMINAL_SERVICE_URL` is unset, the API uses `http://127.0.0.1:8001`. An interrupt stops all three. `just run backend` serves the API on port **8000** with reload, and `just run frontend` serves Vite on port **5173**. Run each of those in its own terminal.
 
 Open the printed dev server URL (by default port **5173**). Browser calls go to `/api`, which Vite proxies to `VITE_DEV_PROXY_TARGET`.
 
@@ -194,10 +194,10 @@ Stopping the PROD debug session ends the host API and Vite preview (ports **8000
 From the repository root:
 
 ```bash
-uv run pytest
-uv run pyright
-cd frontend && pnpm test
+just check
 ```
+
+`just check` runs `just check pytest`, `just check pyright`, `just check lint-imports`, `just check tach`, `just check frontend-lint`, `just check frontend-test`, and `just check frontend-build`, in that order.
 
 Continuous integration runs `uv run pre-commit run --all-files`, `uv run pytest` (with coverage for `discount_analyst/` and `backend/`), `uv run pyright`, a Node job that runs `pnpm lint`, `pnpm run build`, and `pnpm test` in `frontend/`, and a job that regenerates the dashboard OpenAPI spec and Orval client then fails on `git diff` drift (see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
 
@@ -205,21 +205,17 @@ Continuous integration runs `uv run pre-commit run --all-files`, `uv run pytest`
 
 Compose runs only the **agent-terminal** orchestrator (sandbox containers via the Docker socket). The dashboard API and UI run on the **host** for day-to-day work; this does not change the product boundary of “no cloud deployment”.
 
-**Prerequisites:** Docker Engine or Docker Desktop with [Compose V2](https://docs.docker.com/compose/) (`docker compose`). Build the sandbox image once: `make build-terminal-sandbox` (no-ops when `discount-analyst-terminal-sandbox:local` already exists; `make build-terminal-sandbox-force` always rebuilds).
+**Prerequisites:** Docker Engine or Docker Desktop with [Compose V2](https://docs.docker.com/compose/) (`docker compose`). Build the sandbox image once: `just run terminal build` (no-ops when `discount-analyst-terminal-sandbox:local` already exists). `just run terminal rebuild` rebuilds the sandbox image and recreates the terminal.
 
 ### Terminal service
 
-From the repository root (foreground; pass `-d` for detached):
+From the repository root:
 
 ```bash
-docker compose up
+just run terminal ensure
 ```
 
-Optional bind-mount of the repo into sandboxes:
-
-```bash
-TERMINAL_WORKSPACE_HOST_PATH="$(pwd)" docker compose up
-```
+`just run terminal ensure` starts the agent terminal when port 8001 is down, and bind-mounts the repository root into sandboxes. Set `TERMINAL_WORKSPACE_HOST_PATH` in the environment before that recipe to override the host path. Stop the terminal with `just run terminal down`.
 
 The terminal listens on **<http://127.0.0.1:8001>**.
 
