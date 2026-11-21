@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-07-11 | Updated: 2026-09-06 -->
+<!-- Generated: 2026-07-11 | Updated: 2026-11-21 -->
 
 # backend
 
@@ -55,14 +55,14 @@ Coarse layers (high → low): `composition` → `entrypoints` → `adapters` →
 
 Also enforced: domain purity / protected importers; application forbidden adapters+SQLModel; API↔CLI independence; persistence ↔ market_data ↔ simulation independence; agent stage order (curator → appraiser → … → surveyor).
 
-Run: `uv run lint-imports` (also pre-commit + CI job `import-linter`).
+Run: `just check lint-imports` (also pre-commit + CI job `import-linter`).
 
 ## Tach `check-external` (pyproject accuracy)
 
 Import Linter does **not** verify that third-party imports match declared dependencies. Tach does:
 
 ```bash
-uv run tach check-external
+just check tach
 ```
 
 Config: root [`tach.toml`](../tach.toml). Source roots cover the monolith (`backend/src`) and agent-terminal (`backend/services/agent_terminal`). Each package’s `pyproject.toml` must declare every external import (and must not declare unused product deps). Wired into pre-commit and CI (`tach-check-external`).
@@ -71,7 +71,7 @@ Config: root [`tach.toml`](../tach.toml). Source roots cover the monolith (`back
 
 ```bash
 # API
-uv run uvicorn discount_analyst.composition.api:create_app --factory --reload --host 127.0.0.1 --port 8000
+just run backend
 
 # CLI
 uv run discount-analyst agent surveyor --help
@@ -81,14 +81,14 @@ uv run discount-analyst admin check-alembic-schema
 uv run discount-analyst admin refresh-regulatory-data --help
 
 # Tests + architecture
-uv run pytest
-uv run lint-imports
-uv run tach check-external
+just check pytest
+just check lint-imports
+just check tach
 
 # Terminal (Docker)
-make ensure-agent-terminal           # skip sandbox/orchestrator rebuild if :8001 is healthy
-make build-terminal-sandbox-force    # always rebuild the sandbox image
-make verify-terminal
+just run terminal ensure            # skip sandbox/orchestrator rebuild if :8001 is healthy
+just run terminal rebuild           # rebuild the sandbox image and recreate the terminal
+just run terminal verify
 ```
 
 ## For AI Agents
@@ -101,7 +101,7 @@ make verify-terminal
 
 ### Testing Requirements
 
-- `uv run pytest` from repo root (`testpaths = backend/tests`).
+- `just check pytest` from repo root (`testpaths = backend/tests`).
 - Architecture: `backend/tests/architecture/test_import_linter.py`.
 
 ### Common Patterns

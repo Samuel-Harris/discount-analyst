@@ -1,4 +1,4 @@
-<!-- Generated: 2026-02-23 | Updated: 2026-09-06 (curator-only recommendation) -->
+<!-- Generated: 2026-02-23 | Updated: 2026-11-21 -->
 
 # Discount Analyst
 
@@ -20,6 +20,7 @@ Human decision sits after that allocation. One-shot agents remain available via 
 | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `pyproject.toml`                                        | Package metadata, `module-root = "backend/src"`, Import Linter, console script `discount-analyst`.                   |
 | `uv.lock`                                               | Locked dependencies.                                                                                                 |
+| `justfile`                                              | Install, run, and check commands for the dashboard, checks, and agent terminal.                                      |
 | `README.md`                                             | Quick start and high-level docs.                                                                                     |
 | `current_workflow.md`                                   | Implementation-accurate snapshot of the agentic pipeline (schemas, gates, orchestration).                            |
 | `pytest.ini`                                            | Coverage for `discount_analyst`; `testpaths = backend/tests`.                                                        |
@@ -44,16 +45,17 @@ Human decision sits after that allocation. One-shot agents remain available via 
 
 ### Working In This Directory
 
-- Use `uv` for dependency management and execution.
-- Place new Python code per `backend/AGENTS.md`; run `uv run lint-imports` after structural changes.
-- After changing third-party imports or `[project] dependencies`, run `uv run tach check-external`.
+- Install dependencies with `just install` (`just install uv`, then `just install pnpm`). Use `uv` to run the `discount-analyst` CLI.
+- Place new Python code per `backend/AGENTS.md`; run `just check lint-imports` after structural changes.
+- After changing third-party imports or `[project] dependencies`, run `just check tach`.
 - Do not reintroduce `common.*`, `scripts.*`, or top-level `backend.app` / `backend.db` import paths.
 
 ### Testing Requirements
 
-- `uv run pytest` (suite under `backend/tests/`).
-- `uv run lint-imports` for architecture contracts.
-- `uv run tach check-external` for pyproject.toml dependency accuracy (monolith + agent-terminal).
+- `just check pytest` (suite under `backend/tests/`).
+- `just check lint-imports` for architecture contracts.
+- `just check tach` for pyproject.toml dependency accuracy (monolith + agent-terminal).
+- `just check` runs `just check pytest`, `just check pyright`, `just check lint-imports`, `just check tach`, `just check frontend-lint`, `just check frontend-test`, and `just check frontend-build`, in that order.
 
 ### Common Patterns
 
@@ -71,8 +73,9 @@ Human decision sits after that allocation. One-shot agents remain available via 
 
 ## Cursor Cloud specific instructions
 
-- System Python is not 3.14. `uv sync --frozen` installs CPython 3.14. Use `uv run` for pytest, pyright, lint-imports, Tach, and the API.
-- Frontend toolchain is Node 22 and pnpm 10.26.1 (`packageManager` in `frontend/package.json`). From `frontend/`: `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm test`, `pnpm run build`.
+- Install the `just` binary and put it on `PATH` before the commands below. On macOS, `brew install just`.
+- System Python is not 3.14. `just install uv` installs CPython 3.14. Run `just check pytest`, `just check pyright`, `just check lint-imports`, and `just check tach`.
+- Frontend toolchain is Node 22 and pnpm 10.26.1 (`packageManager` in `frontend/package.json`). `just install pnpm` installs the lockfile. Run `just check frontend-lint`, `just check frontend-test`, and `just check frontend-build`.
 - Importing `discount_analyst.config.settings` requires non-empty `LOGGING__LOGFIRE_API_KEY`, plus `PERPLEXITY__API_KEY`, `PERPLEXITY__RATE_LIMIT_PER_MINUTE`, `FMP__API_KEY`, and `EODHD__API_KEY`. Cloud install writes a gitignored repository-root `.env` with non-functional placeholders when that file is absent, and does not replace an existing `.env`. Process environment variables override the file. Pytest still applies the defaults in `backend/tests/conftest.py`. Logfire rejects the placeholder token; that warning does not stop the dashboard.
 - Boot starts the API on `127.0.0.1:8000` (`uv run uvicorn discount_analyst.composition.api:create_app --factory`) and Vite on `127.0.0.1:5173` (proxies `/api` to that API), with `ENV=DEV`, `DASHBOARD_USE_TERMINAL=false`, and `DASHBOARD_DATABASE_PATH=data/dashboard.dev.sqlite`.
 - Do not smoke-test with `discount-analyst agent …` or `workflow run`; those call live models. Dashboard checks are `GET /api/workflow_runs` and `GET /api/status`. The isolated DEV launcher is `.cursor/skills/verify-discount-analyst/SKILL.md`.
