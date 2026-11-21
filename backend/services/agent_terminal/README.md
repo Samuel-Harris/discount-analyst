@@ -16,26 +16,26 @@ The **backend** and CLI talk to the orchestrator over HTTP (`TERMINAL_SERVICE_UR
 3. **Sandbox image** (build once per machine; skipped when the tag already exists):
 
 ```bash
-make build-terminal-sandbox
-# always rebuild:
-make build-terminal-sandbox-force
+just run terminal build
+# rebuild the sandbox image and recreate the terminal:
+just run terminal rebuild
 ```
 
-4. **Compose stack** (from repo root):
+4. **Start the terminal** (from repo root):
 
 ```bash
-docker compose up
+just run terminal ensure
 ```
 
-The orchestrator is published on **host port 8001** when using root `docker-compose.yml`.
+The orchestrator is published on **host port 8001** when using root `docker-compose.yml`. Stop it with `just run terminal down`.
 
-### Optional: read-only project tree in sandboxes
+### Read-only project tree in sandboxes
 
-Set `TERMINAL_WORKSPACE_HOST_PATH` to the **absolute host path** of the repo before `docker compose up` (paths are resolved by the Docker daemon, not inside the orchestrator container):
+`just run terminal ensure` bind-mounts the repository root into sandboxes. Set `TERMINAL_WORKSPACE_HOST_PATH` in the environment before that recipe to override it (paths are resolved by the Docker daemon, not inside the orchestrator container):
 
 ```bash
-export TERMINAL_WORKSPACE_HOST_PATH="$(pwd)"
-docker compose up
+export TERMINAL_WORKSPACE_HOST_PATH="/absolute/host/path"
+just run terminal ensure
 ```
 
 Sandboxes mount it at `/workspace/repo` (override with `TERMINAL_WORKSPACE_CONTAINER_PATH`).
@@ -43,10 +43,10 @@ Sandboxes mount it at `/workspace/repo` (override with `TERMINAL_WORKSPACE_CONTA
 ### Verify stack
 
 ```bash
-make verify-terminal   # rebuilds the sandbox image, then runs backend/tools/verify_agent_terminal.py
+just run terminal verify   # rebuilds the sandbox image, then runs backend/tools/verify_agent_terminal.py
 ```
 
-Agent runs with terminal enabled probe session creation at startup (`ensure_terminal_ready` in `run_streamed_agent`). If the sandbox image is missing or Docker is misconfigured, the run fails immediately with `TerminalUnavailableError` including the orchestrator error detail — use `make verify-terminal` to diagnose locally.
+Agent runs with terminal enabled probe session creation at startup (`ensure_terminal_ready` in `run_streamed_agent`). If the sandbox image is missing or Docker is misconfigured, the run fails immediately with `TerminalUnavailableError` including the orchestrator error detail — use `just run terminal verify` to diagnose locally.
 
 Or with the orchestrator already on **:8001**:
 
@@ -73,7 +73,7 @@ Limits (env on orchestrator): `TERMINAL_COMMAND_TIMEOUT_S` (default 300), `TERMI
 | `TERMINAL_SERVICE_URL`              | `http://agent-terminal:8001` | Orchestrator base URL                           |
 | `TERMINAL_COMMAND_TIMEOUT_S`        | `300`                        | Per-command timeout (client read budget)        |
 | `TERMINAL_MAX_OUTPUT_BYTES`         | `2097152`                    | Combined stdout+stderr cap                      |
-| `TERMINAL_WORKSPACE_HOST_PATH`      | (empty)                      | Host path bind-mounted read-only into sandboxes |
+| `TERMINAL_WORKSPACE_HOST_PATH`      | (empty)                      | Host path bind-mounted read-only into sandboxes. `just run terminal ensure` defaults this to the repository root |
 | `TERMINAL_WORKSPACE_CONTAINER_PATH` | `/workspace/repo`            | Mount point inside sandboxes                    |
 | `DOCKER_RUNTIME`                    | `runc` (orchestrator env)    | Container runtime (`runsc` for gVisor)          |
 
