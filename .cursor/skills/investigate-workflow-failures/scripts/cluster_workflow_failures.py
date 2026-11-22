@@ -69,6 +69,10 @@ def classify_error(error_message: str | None) -> str:
         return "rate_limit"
     if "tool_calls_limit" in lowered or "usagelimitexceeded" in lowered:
         return "tool_call_budget"
+    if "no credits remaining" in lowered or "insufficient_quota" in lowered:
+        return "provider_credits"
+    if "flex processing is temporarily unavailable" in lowered:
+        return "provider_flex"
     return "other"
 
 
