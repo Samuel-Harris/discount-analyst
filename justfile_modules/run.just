@@ -102,5 +102,10 @@ stack:
         sleep 0.5
     done
 
+# Serve the stack with ENV=PROD and data/dashboard.prod.sqlite. Interrupt stops all three.
+[working-directory(justfile_directory())]
+prod:
+    ENV=PROD DASHBOARD_DATABASE_PATH=data/dashboard.prod.sqlite "{{just_executable()}}" run stack
+
 # Build, start, and stop the agent terminal.
 mod terminal 'terminal.just'

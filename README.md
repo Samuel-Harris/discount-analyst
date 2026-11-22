@@ -177,9 +177,12 @@ From the repository root:
 
 ```bash
 just run stack
+just run prod
 ```
 
 `just run stack` starts the agent terminal, then the API, then Vite. When `TERMINAL_SERVICE_URL` is unset, the API uses `http://127.0.0.1:8001`. An interrupt stops all three. `just run backend` serves the API on port **8000** with reload, and `just run frontend` serves Vite on port **5173**. Run each of those in its own terminal.
+
+`just run prod` runs that same stack with `ENV=PROD` and `DASHBOARD_DATABASE_PATH=data/dashboard.prod.sqlite`. The API then honours the launch form's mock checkbox. With `ENV=DEV`, every new workflow run is mock.
 
 Open the printed dev server URL (by default port **5173**). Browser calls go to `/api`, which Vite proxies to `VITE_DEV_PROXY_TARGET`.
 
